@@ -145,7 +145,13 @@ for ALLOW-EMPTY to prevent this error."
 (defun straight--generate-package-autoloads (build-recipe)
   (let* ((name (plist-get build-recipe :name))
          (generated-autoload-file
-          (straight--autoload-file name)))
+          (straight--file
+           "build" name
+           (straight--autoload-file name)))
+         ;; Silence `autoload-generate-file-autoloads'.
+         (noninteractive t))
+    (ignore-errors
+      (delete-file generated-autoload-file))
     (update-directory-autoloads
      (straight--dir "build" name))))
 
