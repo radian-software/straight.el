@@ -21,6 +21,7 @@
 ;;;; Libraries
 
 (require 'subr-x)
+(require 'cl-lib)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Evil GPL code from package-build
@@ -157,8 +158,10 @@ for ALLOW-EMPTY to prevent this error."
 
 (defun straight--byte-compile-package (build-recipe)
   (let ((name (plist-get build-recipe :name)))
-    (byte-recompile-directory
-     (straight--dir "build" name 0))))
+    (cl-letf (((symbol-function #'save-some-buffers) #'ignore))
+      (byte-recompile-directory
+       (straight--dir "build" name)
+       0 'force))))
 
 (defun straight--update-build-mtime (build-recipe)
   (let ((name (plist-get build-recipe :name))
