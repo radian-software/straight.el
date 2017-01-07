@@ -18,56 +18,157 @@
 ;; semicolons followed by a space.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Computing filesystem paths
+;;;; Libraries
 
-(defvar straight-directory "straight")
-
-(defun straight-directory ()
-  (concat user-emacs-directory straight-directory))
-
-(defvar straight-repo-directory "repo")
-
-(defun straight-repo-directory ()
-  (concat (straight-directory) straight-repo-directory))
-
-(defvar straight-build-directory "build")
-
-(defun straight-build-directory ()
-  (concat (straight-directory) straight-build-directory))
+(require 'subr-x)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Selecting packages
+;;;; Evil GPL code from package-build
 
-(defun straight-select-installed-package ()
-  (completing-read
-   "Select package: "
-   (directory-files (straight-build-directory) nil "^[^.]$")))
+(defconst package-build-default-files-spec
+  '("*.el" "*.el.in" "dir"
+    "*.info" "*.texi" "*.texinfo"
+    "doc/dir" "doc/*.info" "doc/*.texi" "doc/*.texinfo"
+    (:exclude ".dir-locals.el" "test.el" "tests.el" "*-test.el" "*-tests.el"))
+  "Default value for :files attribute in recipes.")
+
+(defun package-build-expand-file-specs (dir specs &optional subdir allow-empty)
+  "In DIR, expand SPECS, optionally under SUBDIR.
+The result is a list of (SOURCE . DEST), where SOURCE is a source
+file path and DEST is the relative path to which it should be copied.
+
+If the resulting list is empty, an error will be reported.  Pass t
+for ALLOW-EMPTY to prevent this error."
+  (let ((default-directory dir)
+        (prefix (if subdir (format "%s/" subdir) ""))
+        (lst))
+    (dolist (entry specs lst)
+      (setq lst
+            (if (consp entry)
+                (if (eq :exclude (car entry))
+                    (cl-nset-difference lst
+                                        (package-build-expand-file-specs dir (cdr entry) nil t)
+                                        :key 'car
+                                        :test 'equal)
+                  (nconc lst
+                         (package-build-expand-file-specs
+                          dir
+                          (cdr entry)
+                          (concat prefix (car entry))
+                          t)))
+              (nconc
+               lst (mapcar (lambda (f)
+                             (let ((destname)))
+                             (cons f
+                                   (concat prefix
+                                           (replace-regexp-in-string
+                                            "\\.in\\'"
+                                            ""
+                                            (file-name-nondirectory f)))))
+                           (file-expand-wildcards entry))))))
+    (when (and (null lst) (not allow-empty))
+      (error "No matching file(s) found in %s: %s" dir specs))
+    lst))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Checking whether packages need to be rebuilt
+;;;; Low-level API
 
+(defun straight--dir (&rest segments)
+  (apply 'concat user-emacs-directory
+         (mapcar (lambda (segment)
+                   (concat segment "/"))
+                 (cons "straight" segments))))
 
+(defun straight--file (&rest segments)
+  (substring (apply 'straight--dir segments) 0 -1))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Building packages
+(defvar straight--cache nil)
 
-(defun straight-generate-package-autoloads (package)
-  (message "FIXME: actually generate package autoloads"))
+;;;###autoload
+(defun straight-load-cache ()
+  (with-current-buffer (find-file-noselect (straight--file "cache.el"))
+    (goto-char (point-min))
+    (setq straight--cache (read (current-buffer)))))
 
-(defun straight-byte-compile-package (package)
-  (message "FIXME: actually byte-compile package"))
+;;;###autoload
+(defun straight-save-cache ()
+  (with-temp-buffer
+    (pp straight--cache (current-buffer))
+    (write-file (straight--file "cache.el"))))
 
-(defun straight-build-package (package)
-  (straight-symlink-package package)
-  (straight-generate-package-autoloads package)
-  (straight-byte-compile-package package))
+(defun straight--validate-build-recipe (build-recipe)
+  (unless (plist-get :name build-recipe)
+    (error "build recipe is missing `:name': %S" build-recipe))
+  (unless (plist-get :repo build-recipe)
+    (error "build recipe is missing `:repo': %S" build-recipe)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Activating packages
+;;;###autoload
+(defun straight-package-might-be-modified-p (build-recipe)
+  (straight--validate-build-recipe build-recipe)
+  (let* ((name (plist-get :name build-recipe))
+         (mtime (gethash name straight--cache)))
+    (or (not mtime)
+        (with-temp-buffer
+          (let ((default-directory (straight--dir
+                                    "repos" (symbol-name name))))
+            (call-process
+             "find" nil '(t t) nil
+             "." "-name" ".git" "-o" "-newermt" mtime "-print")
+            (> (buffer-size) 0))))))
 
-(defun straight-activate-package-autoloads (package)
-  (interactive (list (straight-select-installed-package)))
-  (message "FIXME: actually activate package autoloads"))
+(defun straight--delete-package (build-recipe)
+  (delete-directory
+   (straight--dir "build" (plist-get :name build-recipe))
+   'recursive))
+
+(defun straight--symlink-package (build-recipe)
+  (let ((name (plist-get :name build-recipe))
+        (repo (plist-get :repo build-recipe))
+        (files (or (plist-get :files build-recipe)
+                   package-build-default-files-spec)))
+    (make-directory (straight--dir "build" name))
+    (dolist ((spec (package-build-expand-file-specs
+                    (straight--dir "repos" repo))))
+      (let ((source (car spec))
+            (destination (cdr spec)))
+        (make-symbolic-link
+         (straight--file "repos" repo source)
+         (straight--file "build" name destination))))))
+
+(defun straight--autoload-file (package-name)
+  (format "%S-autoloads.el" package-name))
+
+(defun straight--generate-package-autoloads (build-recipe)
+  (let* ((name (plist-get :name build-recipe))
+         (generated-autoload-file
+          (straight--autoload-file name)))
+    (update-directory-autoloads
+     (straight--dir "build" name))))
+
+(defun straight--byte-compile-package (build-recipe)
+  (let ((name (plist-get :name build-recipe)))
+    (byte-recompile-directory
+     (straight--dir "build" name 0))))
+
+;;;###autoload
+(defun straight-build-package (build-recipe)
+  (straight--validate-build-recipe build-recipe)
+  (straight--delete-package build-recipe)
+  (straight--symlink-package build-recipe)
+  (straight--generate-package-autoloads build-recipe)
+  (straight--byte-compile-package build-recipe))
+
+(defun straight-add-package-to-load-path (build-recipe)
+  (straight--validate-build-recipe build-recipe)
+  (let ((name (plist-get :name build-recipe)))
+    (add-to-list 'load-path (straight--dir "build" name))))
+
+(defun straight-install-package-autoloads (build-recipe)
+  (straight--validate-build-recipe build-recipe)
+  (let ((name (plist-get :name build-recipe)))
+    (load-file (straight--file
+                "build" name
+                (straight--autoload-file name)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Closing remarks
