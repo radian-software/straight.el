@@ -151,13 +151,19 @@ for ALLOW-EMPTY to prevent this error."
     (byte-recompile-directory
      (straight--dir "build" name 0))))
 
+(defun straight--update-build-mtime (build-recipe)
+  (let ((name (plist-get :name build-recipe))
+        (mtime (format-time-string "%FT%T%z")))
+    (puthash name mtime straight--cache)))
+
 ;;;###autoload
 (defun straight-build-package (build-recipe)
   (straight--validate-build-recipe build-recipe)
   (straight--delete-package build-recipe)
   (straight--symlink-package build-recipe)
   (straight--generate-package-autoloads build-recipe)
-  (straight--byte-compile-package build-recipe))
+  (straight--byte-compile-package build-recipe)
+  (straight--update-build-mtime build-recipe))
 
 (defun straight-add-package-to-load-path (build-recipe)
   (straight--validate-build-recipe build-recipe)
