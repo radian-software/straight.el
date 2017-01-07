@@ -192,6 +192,16 @@ for ALLOW-EMPTY to prevent this error."
                 (straight--autoload-file name)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Temporary placeholder for high-level API
+
+;;;###autoload
+(defun straight-load-package (build-recipe)
+  (when (straight-package-might-be-modified-p build-recipe)
+    (straight-build-package build-recipe))
+  (straight-add-package-to-load-path build-recipe)
+  (straight-install-package-autoloads build-recipe))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Closing remarks
 
 (provide 'straight)
