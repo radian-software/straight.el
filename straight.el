@@ -73,10 +73,15 @@ for ALLOW-EMPTY to prevent this error."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Low-level API
 
+(defun straight--norm (string-or-symbol)
+  (if (symbolp string-or-symbol)
+      (symbol-name string-or-symbol)
+    string-or-symbol))
+
 (defun straight--dir (&rest segments)
   (apply 'concat user-emacs-directory
          (mapcar (lambda (segment)
-                   (concat segment "/"))
+                   (concat (straight--norm segment) "/"))
                  (cons "straight" segments))))
 
 (defun straight--file (&rest segments)
@@ -101,15 +106,15 @@ for ALLOW-EMPTY to prevent this error."
                     nil 'silent))))
 
 (defun straight--validate-build-recipe (build-recipe)
-  (unless (plist-get :name build-recipe)
+  (unless (plist-get build-recipe :name)
     (error "build recipe is missing `:name': %S" build-recipe))
-  (unless (plist-get :repo build-recipe)
+  (unless (plist-get build-recipe :repo)
     (error "build recipe is missing `:repo': %S" build-recipe)))
 
 ;;;###autoload
 (defun straight-package-might-be-modified-p (build-recipe)
   (straight--validate-build-recipe build-recipe)
-  (let* ((name (plist-get :name build-recipe))
+  (let* ((name (plist-get build-recipe :name))
          (mtime (gethash name straight--cache)))
     (or (not mtime)
         (with-temp-buffer
@@ -121,42 +126,44 @@ for ALLOW-EMPTY to prevent this error."
             (> (buffer-size) 0))))))
 
 (defun straight--delete-package (build-recipe)
-  (delete-directory
-   (straight--dir "build" (plist-get :name build-recipe))
-   'recursive))
+  (ignore-errors
+    (delete-directory
+     (straight--dir "build" (plist-get build-recipe :name))
+     'recursive)))
 
 (defun straight--symlink-package (build-recipe)
-  (let ((name (plist-get :name build-recipe))
-        (repo (plist-get :repo build-recipe))
-        (files (or (plist-get :files build-recipe)
+  ()
+  (let ((name (plist-get build-recipe :name))
+        (repo (plist-get build-recipe :repo))
+        (files (or (plist-get build-recipe :files)
                    package-build-default-files-spec)))
-    (make-directory (straight--dir "build" name))
+    (make-directory (straight--dir "build" name) 'parents)
     (dolist (spec (package-build-expand-file-specs
                    (straight--dir "repos" repo)
                    files))
-      (let ((source (car spec))
-            (destination (cdr spec)))
-        (make-symbolic-link
-         (straight--file "repos" repo source)
-         (straight--file "build" name destination))))))
+      (let ((repo-file (straight--file "repos" repo (car spec)))
+            (build-file (straight--file "build" name (cdr spec))))
+        (unless (file-exists-p repo-file)
+          (error "file %S does not exist" repo-file))
+        (make-symbolic-link repo-file build-file)))))
 
 (defun straight--autoload-file (package-name)
   (format "%S-autoloads.el" package-name))
 
 (defun straight--generate-package-autoloads (build-recipe)
-  (let* ((name (plist-get :name build-recipe))
+  (let* ((name (plist-get build-recipe :name))
          (generated-autoload-file
           (straight--autoload-file name)))
     (update-directory-autoloads
      (straight--dir "build" name))))
 
 (defun straight--byte-compile-package (build-recipe)
-  (let ((name (plist-get :name build-recipe)))
+  (let ((name (plist-get build-recipe :name)))
     (byte-recompile-directory
      (straight--dir "build" name 0))))
 
 (defun straight--update-build-mtime (build-recipe)
-  (let ((name (plist-get :name build-recipe))
+  (let ((name (plist-get build-recipe :name))
         (mtime (format-time-string "%FT%T%z")))
     (puthash name mtime straight--cache)))
 
@@ -171,12 +178,12 @@ for ALLOW-EMPTY to prevent this error."
 
 (defun straight-add-package-to-load-path (build-recipe)
   (straight--validate-build-recipe build-recipe)
-  (let ((name (plist-get :name build-recipe)))
+  (let ((name (plist-get build-recipe :name)))
     (add-to-list 'load-path (straight--dir "build" name))))
 
 (defun straight-install-package-autoloads (build-recipe)
   (straight--validate-build-recipe build-recipe)
-  (let ((name (plist-get :name build-recipe)))
+  (let ((name (plist-get build-recipe :name)))
     (load-file (straight--file
                 "build" name
                 (straight--autoload-file name)))))
