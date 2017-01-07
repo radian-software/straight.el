@@ -73,15 +73,10 @@ for ALLOW-EMPTY to prevent this error."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Low-level API
 
-(defun straight--norm (string-or-symbol)
-  (if (symbolp string-or-symbol)
-      (symbol-name string-or-symbol)
-    string-or-symbol))
-
 (defun straight--dir (&rest segments)
   (apply 'concat user-emacs-directory
          (mapcar (lambda (segment)
-                   (concat (straight--norm segment) "/"))
+                   (concat segment "/"))
                  (cons "straight" segments))))
 
 (defun straight--file (&rest segments)
@@ -118,8 +113,7 @@ for ALLOW-EMPTY to prevent this error."
          (mtime (gethash name straight--cache)))
     (or (not mtime)
         (with-temp-buffer
-          (let ((default-directory (straight--dir
-                                    "repos" (symbol-name name))))
+          (let ((default-directory (straight--dir "repos" name)))
             (call-process
              "find" nil '(t t) nil
              "." "-name" ".git" "-o" "-newermt" mtime "-print")
@@ -148,7 +142,7 @@ for ALLOW-EMPTY to prevent this error."
         (make-symbolic-link repo-file build-file)))))
 
 (defun straight--autoload-file (package-name)
-  (format "%S-autoloads.el" package-name))
+  (format "%s-autoloads.el" package-name))
 
 (defun straight--generate-package-autoloads (build-recipe)
   (let* ((name (plist-get build-recipe :name))
