@@ -119,18 +119,16 @@ for ALLOW-EMPTY to prevent this error."
              "." "-name" ".git" "-o" "-newermt" mtime "-print")
             (> (buffer-size) 0))))))
 
-(defun straight--delete-package (build-recipe)
-  (ignore-errors
-    (delete-directory
-     (straight--dir "build" (plist-get build-recipe :name))
-     'recursive)))
-
 (defun straight--symlink-package (build-recipe)
   ()
   (let ((name (plist-get build-recipe :name))
         (repo (plist-get build-recipe :repo))
         (files (or (plist-get build-recipe :files)
                    package-build-default-files-spec)))
+    (ignore-errors
+      (delete-directory
+       (straight--dir "build" name)
+       'recursive))
     (make-directory (straight--dir "build" name) 'parents)
     (dolist (spec (package-build-expand-file-specs
                    (straight--dir "repos" repo)
@@ -164,7 +162,6 @@ for ALLOW-EMPTY to prevent this error."
 ;;;###autoload
 (defun straight-build-package (build-recipe)
   (straight--validate-build-recipe build-recipe)
-  (straight--delete-package build-recipe)
   (straight--symlink-package build-recipe)
   (straight--generate-package-autoloads build-recipe)
   (straight--byte-compile-package build-recipe)
