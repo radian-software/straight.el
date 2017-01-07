@@ -177,11 +177,13 @@ for ALLOW-EMPTY to prevent this error."
   (straight--byte-compile-package build-recipe)
   (straight--update-build-mtime build-recipe))
 
+;;;###autoload
 (defun straight-add-package-to-load-path (build-recipe)
   (straight--validate-build-recipe build-recipe)
   (let ((name (plist-get build-recipe :name)))
     (add-to-list 'load-path (straight--dir "build" name))))
 
+;;;###autoload
 (defun straight-install-package-autoloads (build-recipe)
   (straight--validate-build-recipe build-recipe)
   (let ((name (plist-get build-recipe :name)))
