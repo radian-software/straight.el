@@ -127,8 +127,9 @@ for ALLOW-EMPTY to prevent this error."
         (files (or (plist-get :files build-recipe)
                    package-build-default-files-spec)))
     (make-directory (straight--dir "build" name))
-    (dolist ((spec (package-build-expand-file-specs
-                    (straight--dir "repos" repo))))
+    (dolist (spec (package-build-expand-file-specs
+                   (straight--dir "repos" repo)
+                   files))
       (let ((source (car spec))
             (destination (cdr spec)))
         (make-symbolic-link
