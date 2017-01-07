@@ -88,7 +88,9 @@ for ALLOW-EMPTY to prevent this error."
 (defun straight-load-cache ()
   (with-current-buffer (find-file-noselect (straight--file "cache.el"))
     (goto-char (point-min))
-    (setq straight--cache (read (current-buffer)))))
+    (setq straight--cache (or (ignore-errors
+                                (read (current-buffer)))
+                              (make-hash-table :test 'equal)))))
 
 ;;;###autoload
 (defun straight-save-cache ()
