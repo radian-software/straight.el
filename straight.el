@@ -99,7 +99,8 @@ for ALLOW-EMPTY to prevent this error."
     (pp straight--cache (current-buffer))
     (let ((save-silently t))
       (write-region nil nil (straight--file "cache.el")
-                    nil 'silent))))
+                    nil 'silent))
+    (kill-buffer)))
 
 (defun straight--validate-build-recipe (build-recipe)
   (unless (plist-get build-recipe :name)
