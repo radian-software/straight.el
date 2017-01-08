@@ -206,10 +206,12 @@ for ALLOW-EMPTY to prevent this error."
 
 ;;;###autoload
 (defun straight-load-package (build-recipe)
+  (straight-load-cache)
   (when (straight-package-might-be-modified-p build-recipe)
     (straight-build-package build-recipe))
   (straight-add-package-to-load-path build-recipe)
-  (straight-install-package-autoloads build-recipe))
+  (straight-install-package-autoloads build-recipe)
+  (straight-save-cache))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Closing remarks
