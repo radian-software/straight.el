@@ -136,8 +136,7 @@ for ALLOW-EMPTY to prevent this error."
 
 (defun straight--symlink-package (build-recipe)
   (let ((name (plist-get build-recipe :name))
-        (repo (plist-get build-recipe :repo))
-        (files (plist-get build-recipe :files)))
+        (repo (plist-get build-recipe :repo)))
     (ignore-errors
       (delete-directory
        (straight--dir "build" name)
@@ -145,7 +144,7 @@ for ALLOW-EMPTY to prevent this error."
     (make-directory (straight--dir "build" name) 'parents)
     (dolist (spec (package-build-expand-file-specs
                    (straight--dir "repos" repo)
-                   (package-build--config-file-list files)))
+                   (package-build--config-file-list build-recipe)))
       (let ((repo-file (straight--file "repos" repo (car spec)))
             (build-file (straight--file "build" name (cdr spec))))
         (unless (file-exists-p repo-file)
