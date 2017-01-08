@@ -135,7 +135,6 @@ for ALLOW-EMPTY to prevent this error."
             (> (buffer-size) 0))))))
 
 (defun straight--symlink-package (build-recipe)
-  ()
   (let ((name (plist-get build-recipe :name))
         (repo (plist-get build-recipe :repo))
         (files (plist-get build-recipe :files)))
