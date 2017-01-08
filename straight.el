@@ -124,10 +124,11 @@ for ALLOW-EMPTY to prevent this error."
 (defun straight-package-might-be-modified-p (build-recipe)
   (straight--validate-build-recipe build-recipe)
   (let* ((name (plist-get build-recipe :name))
+         (repo (plist-get build-recipe :repo))
          (mtime (gethash name straight--cache)))
     (or (not mtime)
         (with-temp-buffer
-          (let ((default-directory (straight--dir "repos" name)))
+          (let ((default-directory (straight--dir "repos" repo)))
             (call-process
              "find" nil '(t t) nil
              "." "-name" ".git" "-o" "-newermt" mtime "-print")
