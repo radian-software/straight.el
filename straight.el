@@ -149,6 +149,7 @@ for ALLOW-EMPTY to prevent this error."
             (build-file (straight--file "build" name (cdr spec))))
         (unless (file-exists-p repo-file)
           (error "file %S does not exist" repo-file))
+        (make-directory (file-name-directory build-file) 'parents)
         (make-symbolic-link repo-file build-file)))))
 
 (defun straight--autoload-file (package-name)
