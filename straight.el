@@ -159,7 +159,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Temporary placeholder for high-level API
 
-;;;###autoload
 (defun straight-load-package (build-recipe)
   (straight--with-build-recipe build-recipe
     (when (straight-package-might-be-modified-p build-recipe)
