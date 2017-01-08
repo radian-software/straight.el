@@ -66,7 +66,6 @@
        (error "build recipe %S is missing :package" build-recipe))
      ,@body))
 
-;;;###autoload
 (defun straight-package-might-be-modified-p (build-recipe)
   (straight--with-build-recipe build-recipe
     (let ((mtime (gethash package straight--build-cache)))
@@ -121,7 +120,6 @@
   (let ((mtime (format-time-string "%FT%T%z")))
     (puthash package mtime straight--build-cache)))
 
-;;;###autoload
 (defun straight-build-package (build-recipe)
   (straight--with-build-recipe build-recipe
     (straight--symlink-package package repo files)
@@ -129,11 +127,9 @@
     (straight--byte-compile-package package)
     (straight--update-build-mtime package)))
 
-;;;###autoload
 (defun straight-add-package-to-load-path (package)
   (add-to-list 'load-path (straight--dir "build" package)))
 
-;;;###autoload
 (defun straight-install-package-autoloads (package)
   (load (straight--file "build" package (straight--autoload-file-name package))
         nil 'nomessage))
