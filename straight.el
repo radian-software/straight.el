@@ -98,21 +98,18 @@ for ALLOW-EMPTY to prevent this error."
 
 ;;;###autoload
 (defun straight-load-cache ()
-  (with-current-buffer (find-file-noselect (straight--file "cache.el"))
-    (goto-char (point-min))
-    (setq straight--cache (or (ignore-errors
-                                (read (current-buffer)))
-                              (make-hash-table :test 'equal)))
-    (kill-buffer)))
+  (setq straight--cache
+        (or (with-temp-buffer
+              (insert-file-contents-literally
+               (straight--file "cache.el"))
+              (ignore-errors
+                (read (current-buffer))))
+            (make-hash-table :test 'equal))))
 
 ;;;###autoload
 (defun straight-save-cache ()
-  (with-temp-buffer
-    (pp straight--cache (current-buffer))
-    (let ((save-silently t))
-      (write-region nil nil (straight--file "cache.el")
-                    nil 'silent))
-    (kill-buffer)))
+  (with-temp-file (straight--file "cache.el")
+    (pp straight--cache (current-buffer))))
 
 (defun straight--validate-build-recipe (build-recipe)
   (unless (plist-get build-recipe :name)
