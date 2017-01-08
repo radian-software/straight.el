@@ -135,6 +135,28 @@
         nil 'nomessage))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; MELPA
+
+(defun straight--github-url (repo)
+  (format "https://github.com/%s.git" repo))
+
+(defun straight-ensure-melpa-is-cloned ()
+  (unless (file-exists-p (straight--dir "repos/melpa"))
+    (make-directory (straight--dir) 'parents)
+    (let ((default-directory (straight--dir)))
+      (unless (= 0 (call-process
+                    "git" nil nil nil "clone"
+                    (straight--github-url "melpa/melpa")))
+        (error "error cloning MELPA")))))
+
+(defun straight-get-melpa-recipe (package)
+  (ignore-errors
+    (with-temp-buffer
+      (insert-file-contents-literally
+       (straight--file "repos/melpa/recipes" package))
+      (read (current-buffer)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Temporary placeholder for high-level API
 
 ;;;###autoload
