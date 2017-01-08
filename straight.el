@@ -102,7 +102,8 @@ for ALLOW-EMPTY to prevent this error."
     (goto-char (point-min))
     (setq straight--cache (or (ignore-errors
                                 (read (current-buffer)))
-                              (make-hash-table :test 'equal)))))
+                              (make-hash-table :test 'equal)))
+    (kill-buffer)))
 
 ;;;###autoload
 (defun straight-save-cache ()
