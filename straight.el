@@ -71,6 +71,17 @@ for ALLOW-EMPTY to prevent this error."
       (error "No matching file(s) found in %s: %s" dir specs))
     lst))
 
+(defun package-build--config-file-list (config)
+  "Get the :files spec from CONFIG, or return `package-build-default-files-spec'."
+  (let ((file-list (plist-get config :files)))
+    (cond
+     ((null file-list)
+      package-build-default-files-spec)
+     ((eq :defaults (car file-list))
+      (append package-build-default-files-spec (cdr file-list)))
+     (t
+      file-list))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Low-level API
 
@@ -125,8 +136,7 @@ for ALLOW-EMPTY to prevent this error."
   ()
   (let ((name (plist-get build-recipe :name))
         (repo (plist-get build-recipe :repo))
-        (files (or (plist-get build-recipe :files)
-                   package-build-default-files-spec)))
+        (files (plist-get build-recipe :files)))
     (ignore-errors
       (delete-directory
        (straight--dir "build" name)
@@ -134,7 +144,7 @@ for ALLOW-EMPTY to prevent this error."
     (make-directory (straight--dir "build" name) 'parents)
     (dolist (spec (package-build-expand-file-specs
                    (straight--dir "repos" repo)
-                   files))
+                   (package-build--config-file-list files)))
       (let ((repo-file (straight--file "repos" repo (car spec)))
             (build-file (straight--file "build" name (cdr spec))))
         (unless (file-exists-p repo-file)
