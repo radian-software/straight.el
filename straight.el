@@ -198,9 +198,8 @@ for ALLOW-EMPTY to prevent this error."
 (defun straight-install-package-autoloads (build-recipe)
   (straight--validate-build-recipe build-recipe)
   (let ((name (plist-get build-recipe :name)))
-    (load-file (straight--file
-                "build" name
-                (straight--autoload-file name)))))
+    (load (straight--file "build" name (straight--autoload-file name))
+          nil 'nomessage)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Temporary placeholder for high-level API
