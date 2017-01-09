@@ -135,19 +135,54 @@
         nil 'nomessage))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; MELPA
+;;;; Managing repositories
+
+(defvar straight--fetch-cache (make-hash-table :test 'equal))
+
+(defun straight-register-repo (fetch-recipe)
+  (let ((repo (plist-get fetch-recipe :repo)))
+    (puthash repo fetch-recipe straight--fetch-cache)))
+
+(defun straight--get-head (repo)
+  (with-temp-buffer
+    (let ((default-directory (straight--dir "repos" repo)))
+      (unless (= 0 (call-process
+                    "git" nil t nil  "rev-parse" "HEAD"))
+        (error "Error checking HEAD of repo %S" repo)))
+    (string-trim (buffer-string))))
+
+(defun straight--set-head (repo head)
+  (let ((default-directory (straight--dir "repos" repo)))
+    (unless (= 0 (call-process
+                  "git" nil nil nil "checkout" head))
+      (error "Error performing checkout in repo %S" repo))))
+
+(defun straight-save-versions ()
+  (with-temp-file (concat user-emacs-directory "straight/versions.el")
+    (let ((versions nil))
+      (maphash (lambda (repo fetch-recipe)
+                 (push (cons repo (straight--get-head repo)) versions))
+               straight--fetch-cache)
+      (setq versions (cl-sort versions 'string-lessp :key 'car))
+      (pp versions (current-buffer)))))
+
+(defun straight-load-versions ()
+  (if-let ((versions (with-temp-buffer
+                       (insert-file-contents-literally
+                        (straight--file "versions.el"))
+                       (ignore-errors
+                         (read (current-buffer))))))
+      (dolist (spec versions)
+        (let ((repo (car spec))
+              (head (cdr spec)))
+          (straight--set-head repo head)))
+    (error "Could not read from %S" (straight--file "versions.el"))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Fetching repositories
 
 (defun straight--github-url (repo)
   (format "https://github.com/%s.git" repo))
-
-(defun straight-ensure-melpa-is-cloned ()
-  (unless (file-exists-p (straight--dir "repos/melpa"))
-    (make-directory (straight--dir) 'parents)
-    (let ((default-directory (straight--dir)))
-      (unless (= 0 (call-process
-                    "git" nil nil nil "clone"
-                    (straight--github-url "melpa/melpa")))
-        (error "error cloning MELPA")))))
 
 (defun straight-get-melpa-recipe (package)
   (ignore-errors
@@ -161,6 +196,7 @@
 
 (defun straight-load-package (build-recipe)
   (straight--with-build-recipe build-recipe
+    (straight-register-repo `(:repo ,repo))
     (when (straight-package-might-be-modified-p build-recipe)
       (straight-build-package build-recipe))
     (straight-add-package-to-load-path package)
