@@ -63,7 +63,7 @@
                     package))
           (files (plist-get build-recipe :files)))
      (unless package
-       (error "build recipe %S is missing :package" build-recipe))
+       (error "Build recipe %S is missing :package" build-recipe))
      ,@body))
 
 (defun straight-package-might-be-modified-p (build-recipe)
@@ -89,7 +89,7 @@
     (let ((repo-file (straight--file "repos" repo (car spec)))
           (build-file (straight--file "build" package (cdr spec))))
       (unless (file-exists-p repo-file)
-        (error "file %S does not exist" repo-file))
+        (error "File %S does not exist" repo-file))
       (make-directory (file-name-directory build-file) 'parents)
       (make-symbolic-link repo-file build-file))))
 
