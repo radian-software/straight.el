@@ -8,7 +8,6 @@ management system.
 
 ## Todo
 
-* Get Emacs to shut up in the echo area while building packages.
 * Add a function to use `package-build` to clone a repository from a
   recipe.
 * Add a function to checkout the latest versions of each package.
