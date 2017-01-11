@@ -158,6 +158,7 @@
       (error "Error performing checkout in repo %S" repo))))
 
 (defun straight-save-versions ()
+  (interactive)
   (with-temp-file (concat user-emacs-directory "straight/versions.el")
     (let ((versions nil))
       (maphash (lambda (repo fetch-recipe)
@@ -167,6 +168,7 @@
       (pp versions (current-buffer)))))
 
 (defun straight-load-versions ()
+  (interactive)
   (if-let ((versions (with-temp-buffer
                        (insert-file-contents-literally
                         (straight--file "versions.el"))
