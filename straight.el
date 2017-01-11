@@ -199,9 +199,9 @@
 (defun straight-load-package (build-recipe)
   (straight--with-build-recipe build-recipe
     (straight-register-repo `(:repo ,repo))
+    (straight-add-package-to-load-path package)
     (when (straight-package-might-be-modified-p build-recipe)
       (straight-build-package build-recipe))
-    (straight-add-package-to-load-path package)
     (straight-install-package-autoloads package)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

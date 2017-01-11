@@ -8,7 +8,6 @@ management system.
 
 ## Todo
 
-* Figure out why byte-compilation doesn't seem to be working.
 * Get Emacs to shut up in the echo area while building packages.
 * Add a function to use `package-build` to clone a repository from a
   recipe.
