@@ -100,28 +100,33 @@
   (let ((generated-autoload-file
          (straight--file
           "build" package
-          (straight--autoload-file-name package)))
-        ;; Silence `autoload-generate-file-autoloads'.
-        (noninteractive t))
+          (straight--autoload-file-name package))))
     (ignore-errors
       (delete-file generated-autoload-file))
-    (update-directory-autoloads
-     (straight--dir "build" package))))
+    (let ((inhibit-message t))
+      (update-directory-autoloads
+       (straight--dir "build" package)))))
 
 (defun straight--byte-compile-package (package)
-  ;; Prevent Emacs from asking the user to save all their files before
-  ;; compiling.
-  (cl-letf (((symbol-function #'save-some-buffers) #'ignore))
-    (byte-recompile-directory
-     (straight--dir "build" package)
-     0 'force)))
+  (cl-letf (;; Prevent Emacs from asking the user to save all their
+            ;; files before compiling.
+            ((symbol-function #'save-some-buffers) #'ignore)
+            ;; Prevent Emacs from opening the compile log after it
+            ;; finishes compilation.
+            ((symbol-function #'display-buffer)))
+    (let ((inhibit-message t))
+      (byte-recompile-directory
+       (straight--dir "build" package)
+       0 'force))))
 
 (defun straight--update-build-mtime (package)
   (let ((mtime (format-time-string "%FT%T%z")))
     (puthash package mtime straight--build-cache)))
 
-(defun straight-build-package (build-recipe)
+(defun straight-build-package (build-recipe &optional nomsg)
   (straight--with-build-recipe build-recipe
+    (unless nomsg
+      (message "Building package %S..." package))
     (straight--symlink-package package repo files)
     (straight--generate-package-autoloads package)
     (straight--byte-compile-package package)
