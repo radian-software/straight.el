@@ -103,7 +103,8 @@
           (straight--autoload-file-name package))))
     (ignore-errors
       (delete-file generated-autoload-file))
-    (let ((inhibit-message t))
+    (let (;; Suppress messages about generating autoloads.
+          (inhibit-message t))
       (update-directory-autoloads
        (straight--dir "build" package)))))
 
@@ -111,10 +112,16 @@
   (cl-letf (;; Prevent Emacs from asking the user to save all their
             ;; files before compiling.
             ((symbol-function #'save-some-buffers) #'ignore)
-            ;; Prevent Emacs from opening the compile log after it
-            ;; finishes compilation.
-            ((symbol-function #'display-buffer)))
-    (let ((inhibit-message t))
+            ;; Die, byte-compile log, die!!!
+            ((symbol-function #'byte-compile-log-1) #'ignore)
+            ((symbol-function #'byte-compile-log-file) #'ignore)
+            ((symbol-function #'byte-compile-log-warning) #'ignore))
+    (let (;; Suppress messages about byte-compilation progress.
+          (byte-compile-verbose nil)
+          ;; Suppress messages about byte-compilation warnings.
+          (byte-compile-warnings nil)
+          ;; Suppress the remaining messages.
+          (inhibit-message t))
       (byte-recompile-directory
        (straight--dir "build" package)
        0 'force))))
