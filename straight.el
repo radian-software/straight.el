@@ -104,9 +104,18 @@
     (ignore-errors
       (delete-file generated-autoload-file))
     (let (;; Suppress messages about generating autoloads.
-          (inhibit-message t))
+          (inhibit-message t)
+          ;; Emacs seems to want to generate backup files otherwise.
+          (backup-inhibited t)
+          ;; This is in `package-generate-autoloads'. Presumably for a
+          ;; good reason.
+          (version-control 'never))
       (update-directory-autoloads
-       (straight--dir "build" package)))))
+       (straight--dir "build" package))
+      ;; And for some reason Emacs leaves a newly created buffer lying
+      ;; around. Let's kill it.
+      (when-let ((buf (find-buffer-visiting generated-autoload-file)))
+        (kill-buffer buf)))))
 
 (defun straight--byte-compile-package (package)
   (cl-letf (;; Prevent Emacs from asking the user to save all their
