@@ -27,6 +27,18 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Utility functions
 
+(defmacro straight--with-plist (plist props &rest body)
+  (declare (indent 2))
+  (let ((plist-sym (make-symbol "plist")))
+    `(let* ((,plist-sym ,plist)
+            ,@(mapcar (lambda (prop)
+                        `(,prop
+                          (plist-get
+                           ,plist-sym
+                           ,(intern (concat ":" (symbol-name prop))))))
+                      props))
+       ,@body)))
+
 (defun straight--dir (&rest segments)
   (apply 'concat user-emacs-directory
          (mapcar (lambda (segment)
@@ -36,13 +48,86 @@
 (defun straight--file (&rest segments)
   (substring (apply 'straight--dir segments) 0 -1))
 
+(defun straight--autoload-file-name (package)
+  (format "%s-autoloads.el" package))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Building packages
+;;;; Fetching repositories
+
+(defun straight--repository-is-available-p (recipe)
+  ;; FIXME
+  t)
+
+(defun straight--clone-repository (recipe)
+  ;; FIXME
+  (error "Don't know how to clone repository"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Recipe processing
+
+(defvar melpa-repo-recipe '(:fetcher github
+                            :remote-repo "melpa/melpa"))
+
+(defun straight--get-melpa-recipe (package)
+  (unless (straight--repository-is-available-p melpa-repo-recipe)
+    (straight--clone-repository melpa-repo-recipe))
+  (ignore-errors
+    (with-temp-buffer
+      (insert-file-contents-literally
+       (straight--file "repos/melpa/recipes" package))
+      (read (current-buffer)))))
+
+(defun straight--convert-recipe (melpa-recipe)
+  ;; FIXME
+  melpa-recipe)
+
+(defvar straight--recipe-cache (make-hash-table :test 'equal))
+
+(defun straight--register-recipe (recipe)
+  (straight--with-plist recipe
+      (package)
+    (puthash package recipe straight--recipe-cache)))
+
+(defun straight--map-repos (func)
+  (let ((repos nil))
+    (maphash (lambda (package recipe)
+               (straight--with-plist recipe
+                   (repo)
+                 (unless (member repos repo)
+                   (funcall func recipe)
+                   (push repo repos))))
+             straight--recipe-cache)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Managing repositories
+
+(defun straight--update-package (recipe)
+  ;; FIXME
+  (error "Don't know how to update package"))
+
+;; FIXME: handle VCS other than git
+;; FIXME: handle validation
+(defun straight--get-head (repo &optional validate)
+  (with-temp-buffer
+    (let ((default-directory (straight--dir "repos" repo)))
+      (unless (= 0 (call-process
+                    "git" nil t nil  "rev-parse" "HEAD"))
+        (error "Error checking HEAD of repo %S" repo)))
+    (string-trim (buffer-string))))
+
+;; FIXME: handle VCS other than git
+(defun straight--set-head (repo head)
+  (let ((default-directory (straight--dir "repos" repo)))
+    (unless (= 0 (call-process
+                  "git" nil nil nil "checkout" head))
+      (error "Error performing checkout in repo %S" repo))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Figuring out whether packages need to be rebuilt
 
 (defvar straight--build-cache nil)
 
-;;;###autoload
-(defun straight-load-cache ()
+(defun straight--load-build-cache ()
   (setq straight--build-cache
         (or (with-temp-buffer
               (insert-file-contents-literally
@@ -51,23 +136,24 @@
                 (read (current-buffer))))
             (make-hash-table :test 'equal))))
 
-;;;###autoload
-(defun straight-save-cache ()
+(defun straight--save-build-cache ()
   (with-temp-file (straight--file "cache.el")
     (pp straight--build-cache (current-buffer))))
 
-(defmacro straight--with-build-recipe (build-recipe &rest body)
-  (declare (indent 1))
-  `(let* ((package (plist-get build-recipe :package))
-          (repo (or (plist-get build-recipe :repo)
-                    package))
-          (files (plist-get build-recipe :files)))
-     (unless package
-       (error "Build recipe %S is missing :package" build-recipe))
-     ,@body))
+(defun straight--maybe-load-build-cache ()
+  (if after-init-time
+      (straight--load-build-cache)
+    (unless (member #'straight--save-build-cache after-init-hook)
+      (straight--load-build-cache))
+    (add-hook 'after-init-hook #'straight--save-build-cache)))
 
-(defun straight-package-might-be-modified-p (build-recipe)
-  (straight--with-build-recipe build-recipe
+(defun straight--maybe-save-build-cache ()
+  (when after-init-time
+    (straight--save-build-cache)))
+
+(defun straight--package-might-be-modified-p (recipe)
+  (straight--with-plist recipe
+      (package repo)
     (let ((mtime (gethash package straight--build-cache)))
       (or (not mtime)
           (with-temp-buffer
@@ -77,117 +163,170 @@
                "." "-name" ".git" "-o" "-newermt" mtime "-print")
               (> (buffer-size) 0)))))))
 
-(defun straight--symlink-package (package repo files)
-  (ignore-errors
-    (delete-directory
-     (straight--dir "build" package)
-     'recursive))
-  (make-directory (straight--dir "build" package) 'parents)
-  (dolist (spec (package-build-expand-file-specs
-                 (straight--dir "repos" repo)
-                 (package-build--config-file-list `(:files ,files))))
-    (let ((repo-file (straight--file "repos" repo (car spec)))
-          (build-file (straight--file "build" package (cdr spec))))
-      (unless (file-exists-p repo-file)
-        (error "File %S does not exist" repo-file))
-      (make-directory (file-name-directory build-file) 'parents)
-      (make-symbolic-link repo-file build-file))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Building packages
 
-(defun straight--autoload-file-name (package)
-  (format "%s-autoloads.el" package))
+(defun straight--symlink-package (recipe)
+  (straight--with-plist recipe
+      (package repo files)
+    (let ((dir (straight--dir "build" package)))
+      (when (file-exists-p dir)
+        (delete-directory dir 'recursive)))
+    (make-directory (straight--dir "build" package) 'parents)
+    (dolist (spec (package-build-expand-file-specs
+                   (straight--dir "repos" repo)
+                   (package-build--config-file-list `(:files ,files))))
+      (let ((repo-file (straight--file "repos" repo (car spec)))
+            (build-file (straight--file "build" package (cdr spec))))
+        (unless (file-exists-p repo-file)
+          (error "File %S does not exist" repo-file))
+        (make-directory (file-name-directory build-file) 'parents)
+        (make-symbolic-link repo-file build-file)))))
 
-(defun straight--generate-package-autoloads (package)
-  (let ((generated-autoload-file
-         (straight--file
-          "build" package
-          (straight--autoload-file-name package))))
-    (ignore-errors
-      (delete-file generated-autoload-file))
-    (let (;; Suppress messages about generating autoloads.
-          (inhibit-message t)
-          ;; Emacs seems to want to generate backup files otherwise.
-          (backup-inhibited t)
-          ;; This is in `package-generate-autoloads'. Presumably for a
-          ;; good reason.
-          (version-control 'never))
-      (update-directory-autoloads
-       (straight--dir "build" package))
-      ;; And for some reason Emacs leaves a newly created buffer lying
-      ;; around. Let's kill it.
-      (when-let ((buf (find-buffer-visiting generated-autoload-file)))
-        (kill-buffer buf)))))
+(defun straight--generate-package-autoloads (recipe)
+  (straight--with-plist recipe
+      (package)
+    (let ((generated-autoload-file
+           (straight--file
+            "build" package
+            (straight--autoload-file-name package))))
+      (when (file-exists-p generated-autoload-file)
+        (delete-file generated-autoload-file))
+      (let (;; The following bindings are in
+            ;; `package-generate-autoloads'. Presumably for a good
+            ;; reason.
+            (noninteractive t)
+            (backup-inhibited t)
+            (version-control 'never)
+            ;; Even so, Emacs just won't shut up unless we really tell
+            ;; it to.
+            (inhibit-message t))
+        (update-directory-autoloads
+         (straight--dir "build" package))
+        ;; And for some reason Emacs leaves a newly created buffer
+        ;; lying around. Let's kill it.
+        (when-let ((buf (find-buffer-visiting generated-autoload-file)))
+          (kill-buffer buf))))))
 
-(defun straight--byte-compile-package (package)
-  (cl-letf (;; Prevent Emacs from asking the user to save all their
-            ;; files before compiling.
-            ((symbol-function #'save-some-buffers) #'ignore)
-            ;; Die, byte-compile log, die!!!
-            ((symbol-function #'byte-compile-log-1) #'ignore)
-            ((symbol-function #'byte-compile-log-file) #'ignore)
-            ((symbol-function #'byte-compile-log-warning) #'ignore))
-    (let (;; Suppress messages about byte-compilation progress.
-          (byte-compile-verbose nil)
-          ;; Suppress messages about byte-compilation warnings.
-          (byte-compile-warnings nil)
-          ;; Suppress the remaining messages.
-          (inhibit-message t))
-      (byte-recompile-directory
-       (straight--dir "build" package)
-       0 'force))))
+(defun straight--byte-compile-package (recipe)
+  (straight--with-plist recipe
+      (package)
+    (cl-letf (;; Prevent Emacs from asking the user to save all their
+              ;; files before compiling.
+              ((symbol-function #'save-some-buffers) #'ignore)
+              ;; Die, byte-compile log, die!!!
+              ((symbol-function #'byte-compile-log-1) #'ignore)
+              ((symbol-function #'byte-compile-log-file) #'ignore)
+              ((symbol-function #'byte-compile-log-warning) #'ignore))
+      (let (;; Suppress messages about byte-compilation progress.
+            (byte-compile-verbose nil)
+            ;; Suppress messages about byte-compilation warnings.
+            (byte-compile-warnings nil)
+            ;; Suppress the remaining messages.
+            (inhibit-message t))
+        (byte-recompile-directory
+         (straight--dir "build" package)
+         0 'force)))))
 
-(defun straight--update-build-mtime (package)
-  (let ((mtime (format-time-string "%FT%T%z")))
-    (puthash package mtime straight--build-cache)))
+(defun straight--update-build-mtime (recipe)
+  (straight--with-plist recipe
+      (package)
+    (let ((mtime (format-time-string "%FT%T%z")))
+      (puthash package mtime straight--build-cache))))
 
-(defun straight-build-package (build-recipe &optional nomsg)
-  (straight--with-build-recipe build-recipe
-    (unless nomsg
-      (message "Building package %S..." package))
-    (straight--symlink-package package repo files)
-    (straight--generate-package-autoloads package)
-    (straight--byte-compile-package package)
-    (straight--update-build-mtime package)))
-
-(defun straight-add-package-to-load-path (package)
-  (add-to-list 'load-path (straight--dir "build" package)))
-
-(defun straight-install-package-autoloads (package)
-  (load (straight--file "build" package (straight--autoload-file-name package))
-        nil 'nomessage))
+(defun straight--build-package (recipe)
+  (straight--with-plist recipe
+      (package)
+    (message "Building package %S..." package))
+  (straight--symlink-package recipe)
+  (straight--generate-package-autoloads recipe)
+  (straight--byte-compile-package recipe)
+  (straight--update-build-mtime recipe))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Managing repositories
+;;;; Loading packages
 
-(defvar straight--fetch-cache (make-hash-table :test 'equal))
+(defun straight--add-package-to-load-path (recipe)
+  (straight--with-plist recipe
+      (package)
+    (add-to-list 'load-path (straight--dir "build" package))))
 
-(defun straight-register-repo (fetch-recipe)
-  (let ((repo (plist-get fetch-recipe :repo)))
-    (puthash repo fetch-recipe straight--fetch-cache)))
+(defun straight--install-package-autoloads (recipe)
+  (straight--with-plist recipe
+      (package)
+    (load (straight--file "build" package (straight--autoload-file-name package))
+          nil 'nomessage)))
 
-(defun straight--get-head (repo)
-  (with-temp-buffer
-    (let ((default-directory (straight--dir "repos" repo)))
-      (unless (= 0 (call-process
-                    "git" nil t nil  "rev-parse" "HEAD"))
-        (error "Error checking HEAD of repo %S" repo)))
-    (string-trim (buffer-string))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; API
 
-(defun straight--set-head (repo head)
-  (let ((default-directory (straight--dir "repos" repo)))
-    (unless (= 0 (call-process
-                  "git" nil nil nil "checkout" head))
-      (error "Error performing checkout in repo %S" repo))))
+;;;###autoload
+(defun straight-get-melpa-recipe (&optional action)
+  (interactive (if current-prefix-arg
+                   'copy
+                 'insert))
+  (unless (straight--repository-is-available-p melpa-repo-recipe)
+    (straight--clone-repository melpa-repo-recipe))
+  (let* ((package (completing-read
+                   "Which recipe? "
+                   (straight--with-plist melpa-repo-recipe
+                       (repo)
+                     (directory-files (straight--dir "repos" repo "recipes")))
+                   (lambda (elt) t)
+                   'require-match))
+         (recipe (straight--get-melpa-recipe package)))
+    (pcase action
+      ('insert (insert (format "%S" recipe)))
+      ('copy (kill-new (format "%S" recipe)))
+      (_ recipe))))
 
+;;;###autoload
+(defun straight-use-package (melpa-recipe)
+  (interactive (list (straight-get-melpa-recipe)))
+  (let ((recipe (straight--convert-recipe melpa-recipe)))
+    (straight--register-recipe recipe)
+    (unless (straight--repository-is-available-p recipe)
+      (straight--clone-repository recipe))
+    (straight--add-package-to-load-path recipe)
+    (straight--maybe-load-build-cache)
+    (when (straight--package-might-be-modified-p recipe)
+      (straight--build-package recipe))
+    (straight--maybe-save-build-cache)
+    (straight--install-package-autoloads recipe)))
+
+;;;###autoload
+(defun straight-update-package (package)
+  (interactive (list (completing-read
+                      "Update package: "
+                      (hash-table-keys straight--recipe-cache)
+                      (lambda (elt) t)
+                      'require-match)))
+  (straight--update-package (gethash package straight--recipe-cache)))
+
+;;;###autoload
+(defun straight-update-all ()
+  (interactive)
+  (straight--map-repos (lambda (recipe)
+                         (straight--with-plist recipe
+                             (package)
+                           (straight-update-package
+                            package)))))
+
+;;;###autoload
 (defun straight-save-versions ()
   (interactive)
   (with-temp-file (concat user-emacs-directory "straight/versions.el")
     (let ((versions nil))
-      (maphash (lambda (repo fetch-recipe)
-                 (push (cons repo (straight--get-head repo)) versions))
-               straight--fetch-cache)
+      (straight--map-repos (lambda (recipe)
+                             (straight--with-plist recipe
+                                 (repo)
+                               (push (cons repo (straight--get-head
+                                                 repo 'validate))
+                                     versions))))
       (setq versions (cl-sort versions 'string-lessp :key 'car))
       (pp versions (current-buffer)))))
 
+;;;###autoload
 (defun straight-load-versions ()
   (interactive)
   (if-let ((versions (with-temp-buffer
@@ -200,30 +339,6 @@
               (head (cdr spec)))
           (straight--set-head repo head)))
     (error "Could not read from %S" (straight--file "versions.el"))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Fetching repositories
-
-(defun straight--github-url (repo)
-  (format "https://github.com/%s.git" repo))
-
-(defun straight-get-melpa-recipe (package)
-  (ignore-errors
-    (with-temp-buffer
-      (insert-file-contents-literally
-       (straight--file "repos/melpa/recipes" package))
-      (read (current-buffer)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Temporary placeholder for high-level API
-
-(defun straight-load-package (build-recipe)
-  (straight--with-build-recipe build-recipe
-    (straight-register-repo `(:repo ,repo))
-    (straight-add-package-to-load-path package)
-    (when (straight-package-might-be-modified-p build-recipe)
-      (straight-build-package build-recipe))
-    (straight-install-package-autoloads package)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Closing remarks
