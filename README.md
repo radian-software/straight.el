@@ -22,3 +22,5 @@ and `:module` keys as in MELPA recipes.
 ## FIXME
 
 * Add dependency resolution
+* Add option for shallow clones
+* Add `use-package` handler
