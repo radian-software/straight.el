@@ -39,6 +39,9 @@
                       props))
        ,@body)))
 
+(defmacro straight--put (plist prop val)
+  `(setq ,plist (plist-put ,plist ,prop ,val)))
+
 (defun straight--dir (&rest segments)
   (apply 'concat user-emacs-directory
          (mapcar (lambda (segment)
@@ -78,8 +81,18 @@
       (read (current-buffer)))))
 
 (defun straight--convert-recipe (melpa-recipe)
-  ;; FIXME
-  melpa-recipe)
+  (cl-destructuring-bind (package . plist) melpa-recipe
+    (straight--with-plist plist
+        (local-repo repo)
+      (let ((package (symbol-name package)))
+        (straight--put plist :package package)
+        (unless local-repo
+          (straight--put plist :local-repo
+                         (or (and repo
+                                  (replace-regexp-in-string
+                                   "^.+/" "" repo))
+                             package)))
+        plist))))
 
 (defvar straight--recipe-cache (make-hash-table :test 'equal))
 
@@ -92,10 +105,10 @@
   (let ((repos nil))
     (maphash (lambda (package recipe)
                (straight--with-plist recipe
-                   (repo)
-                 (unless (member repos repo)
+                   (local-repo)
+                 (unless (member repos local-repo)
                    (funcall func recipe)
-                   (push repo repos))))
+                   (push local-repo repos))))
              straight--recipe-cache)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -107,20 +120,20 @@
 
 ;; FIXME: handle VCS other than git
 ;; FIXME: handle validation
-(defun straight--get-head (repo &optional validate)
+(defun straight--get-head (local-repo &optional validate)
   (with-temp-buffer
-    (let ((default-directory (straight--dir "repos" repo)))
+    (let ((default-directory (straight--dir "repos" local-repo)))
       (unless (= 0 (call-process
                     "git" nil t nil  "rev-parse" "HEAD"))
-        (error "Error checking HEAD of repo %S" repo)))
+        (error "Error checking HEAD of repo %S" local-repo)))
     (string-trim (buffer-string))))
 
 ;; FIXME: handle VCS other than git
-(defun straight--set-head (repo head)
-  (let ((default-directory (straight--dir "repos" repo)))
+(defun straight--set-head (local-repo head)
+  (let ((default-directory (straight--dir "repos" local-repo)))
     (unless (= 0 (call-process
                   "git" nil nil nil "checkout" head))
-      (error "Error performing checkout in repo %S" repo))))
+      (error "Error performing checkout in repo %S" local-repo))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Figuring out whether packages need to be rebuilt
@@ -153,11 +166,11 @@
 
 (defun straight--package-might-be-modified-p (recipe)
   (straight--with-plist recipe
-      (package repo)
+      (package local-repo)
     (let ((mtime (gethash package straight--build-cache)))
       (or (not mtime)
           (with-temp-buffer
-            (let ((default-directory (straight--dir "repos" repo)))
+            (let ((default-directory (straight--dir "repos" local-repo)))
               (call-process
                "find" nil '(t t) nil
                "." "-name" ".git" "-o" "-newermt" mtime "-print")
@@ -168,15 +181,15 @@
 
 (defun straight--symlink-package (recipe)
   (straight--with-plist recipe
-      (package repo files)
+      (package local-repo files)
     (let ((dir (straight--dir "build" package)))
       (when (file-exists-p dir)
         (delete-directory dir 'recursive)))
     (make-directory (straight--dir "build" package) 'parents)
     (dolist (spec (package-build-expand-file-specs
-                   (straight--dir "repos" repo)
+                   (straight--dir "repos" local-repo)
                    (package-build--config-file-list `(:files ,files))))
-      (let ((repo-file (straight--file "repos" repo (car spec)))
+      (let ((repo-file (straight--file "repos" local-repo (car spec)))
             (build-file (straight--file "build" package (cdr spec))))
         (unless (file-exists-p repo-file)
           (error "File %S does not exist" repo-file))

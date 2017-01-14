@@ -9,7 +9,7 @@ management system.
 ## Recipe format
 
 A `straight.el` recipe is a plist with required keys `:package` (a
-string containing the name of the package) and `:repo` (a string
+string containing the name of the package) and `:local-repo` (a string
 containing the name of the local repository the package is located
 in).
 
@@ -17,8 +17,7 @@ The build may be customized using the `:files` key as in MELPA
 recipes.
 
 The fetcher may be specified using the `:fetcher`, `:url`, `:repo`,
-and `:module` keys as in MELPA recipes, except that `:repo` has been
-replaced with `:remote-repo`.
+and `:module` keys as in MELPA recipes.
 
 ## FIXME
 
