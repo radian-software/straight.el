@@ -67,6 +67,7 @@
 (defun straight--clone-repository (recipe)
   (straight--with-plist recipe
       (local-repo)
+    (message "Cloning repository %S..." local-repo)
     (pbl-checkout
      local-repo recipe
      (straight--dir "repos" local-repo))))
