@@ -338,11 +338,11 @@
       (_ recipe))))
 
 ;;;###autoload
-(defun straight-use-package (melpa-style-recipe)
-  (interactive (list (straight-get-melpa-recipe)))
+(defun straight-use-package (melpa-style-recipe &optional interactive)
+  (interactive (list (straight-get-melpa-recipe) t))
   (let ((recipe (straight--convert-recipe melpa-style-recipe)))
-    ;; FIXME: don't register recipe when interactive
-    (straight--register-recipe recipe)
+    (unless interactive
+      (straight--register-recipe recipe))
     (unless (straight--repository-is-available-p recipe)
       (straight--clone-repository recipe))
     (straight--add-package-to-load-path recipe)
