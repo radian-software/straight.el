@@ -75,25 +75,47 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Recipe processing
 
-(defun straight--get-melpa-recipe (package)
-  (unless (straight--repository-is-available-p melpa-repo-recipe)
-    (straight--clone-repository melpa-repo-recipe))
-  (condition-case nil
-      (with-temp-buffer
-        (insert-file-contents-literally
-         (straight--with-plist melpa-repo-recipe
-             (local-repo)
-           (straight--file "repos" local-repo "recipes" package)))
-        (read (current-buffer)))
-    (error (error "Could not find recipe for package %S in MELPA"
-                  package))))
+(defvar gnu-elpa-url "git://git.savannah.gnu.org/emacs/elpa.git")
 
-(defun straight--convert-recipe (melpa-recipe)
-  (let ((melpa-recipe (if (listp melpa-recipe)
-                          melpa-recipe
-                        (straight--get-melpa-recipe
-                         (symbol-name melpa-recipe)))))
-    (cl-destructuring-bind (package . plist) melpa-recipe
+(defun straight--get-gnu-elpa-recipe (package)
+  (unless (straight--repository-is-available-p gnu-elpa-recipe)
+    (straight--clone-repository gnu-elpa-recipe))
+  (straight--with-plist gnu-elpa-recipe
+      (local-repo)
+    (when (file-exists-p (straight--dir
+                          "repos" local-repo "packages"
+                          (symbol-name package)))
+      `(,package :fetcher git
+                 :url ,gnu-elpa-url
+                 :files (,(format "packages/%s/*.el"
+                                  (symbol-name package)))
+                 :local-repo "elpa"))))
+
+(defun straight--get-melpa-recipe (package)
+  (unless (straight--repository-is-available-p melpa-recipe)
+    (straight--clone-repository melpa-recipe))
+  (with-temp-buffer
+    (when
+        (condition-case nil
+            (insert-file-contents-literally
+             (straight--with-plist melpa-recipe
+                 (local-repo)
+               (straight--file "repos" local-repo "recipes"
+                               (symbol-name package))))
+          (error nil))
+      (read (current-buffer)))))
+
+(defun straight--convert-recipe (melpa-style-recipe)
+  (let ((melpa-style-recipe (if (listp melpa-style-recipe)
+                                melpa-style-recipe
+                              (or (straight--get-melpa-recipe
+                                   melpa-style-recipe)
+                                  (straight--get-gnu-elpa-recipe
+                                   melpa-style-recipe)
+                                  (error (concat "Could not find package %S "
+                                                 "in MELPA or GNU ELPA")
+                                         melpa-style-recipe)))))
+    (cl-destructuring-bind (package . plist) melpa-style-recipe
       (straight--with-plist plist
           (local-repo repo)
         (let ((package (symbol-name package)))
@@ -106,9 +128,15 @@
                                package)))
           plist)))))
 
-(defvar melpa-repo-recipe (straight--convert-recipe
-                           '(melpa :fetcher github
-                                   :repo "melpa/melpa")))
+(defvar melpa-recipe
+  (straight--convert-recipe
+   '(melpa :fetcher github
+           :repo "melpa/melpa")))
+
+(defvar gnu-elpa-recipe
+  (straight--convert-recipe
+   `(elpa :fetcher git
+          :url ,gnu-elpa-url)))
 
 (defvar straight--recipe-cache (make-hash-table :test 'equal))
 
@@ -294,11 +322,11 @@
   (interactive (if current-prefix-arg
                    'copy
                  'insert))
-  (unless (straight--repository-is-available-p melpa-repo-recipe)
-    (straight--clone-repository melpa-repo-recipe))
+  (unless (straight--repository-is-available-p melpa-recipe)
+    (straight--clone-repository melpa-recipe))
   (let* ((package (completing-read
                    "Which recipe? "
-                   (straight--with-plist melpa-repo-recipe
+                   (straight--with-plist melpa-recipe
                        (repo)
                      (directory-files (straight--dir "repos" repo "recipes")))
                    (lambda (elt) t)
@@ -310,9 +338,9 @@
       (_ recipe))))
 
 ;;;###autoload
-(defun straight-use-package (melpa-recipe)
+(defun straight-use-package (melpa-style-recipe)
   (interactive (list (straight-get-melpa-recipe)))
-  (let ((recipe (straight--convert-recipe melpa-recipe)))
+  (let ((recipe (straight--convert-recipe melpa-style-recipe)))
     ;; FIXME: don't register recipe when interactive
     (straight--register-recipe recipe)
     (unless (straight--repository-is-available-p recipe)
