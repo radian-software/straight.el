@@ -22,7 +22,7 @@
 
 (require 'subr-x)
 (require 'cl-lib)
-(require 'package-build)
+(require 'pbl)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Utility functions
@@ -43,13 +43,15 @@
   `(setq ,plist (plist-put ,plist ,prop ,val)))
 
 (defun straight--dir (&rest segments)
-  (apply 'concat user-emacs-directory
-         (mapcar (lambda (segment)
-                   (concat segment "/"))
-                 (cons "straight" segments))))
+  (expand-file-name
+   (apply 'concat user-emacs-directory
+          (mapcar (lambda (segment)
+                    (concat segment "/"))
+                  (cons "straight" segments)))))
 
 (defun straight--file (&rest segments)
-  (substring (apply 'straight--dir segments) 0 -1))
+  (expand-file-name
+   (substring (apply 'straight--dir segments) 0 -1)))
 
 (defun straight--autoload-file-name (package)
   (format "%s-autoloads.el" package))
@@ -58,41 +60,54 @@
 ;;;; Fetching repositories
 
 (defun straight--repository-is-available-p (recipe)
-  ;; FIXME
-  t)
+  (straight--with-plist recipe
+      (local-repo)
+    (file-exists-p (straight--dir "repos" local-repo))))
 
 (defun straight--clone-repository (recipe)
-  ;; FIXME
-  (error "Don't know how to clone repository"))
+  (straight--with-plist recipe
+      (local-repo)
+    (pbl-checkout
+     local-repo recipe
+     (straight--dir "repos" local-repo))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Recipe processing
 
-(defvar melpa-repo-recipe '(:fetcher github
-                            :remote-repo "melpa/melpa"))
-
 (defun straight--get-melpa-recipe (package)
   (unless (straight--repository-is-available-p melpa-repo-recipe)
     (straight--clone-repository melpa-repo-recipe))
-  (ignore-errors
-    (with-temp-buffer
-      (insert-file-contents-literally
-       (straight--file "repos/melpa/recipes" package))
-      (read (current-buffer)))))
+  (condition-case nil
+      (with-temp-buffer
+        (insert-file-contents-literally
+         (straight--with-plist melpa-repo-recipe
+             (local-repo)
+           (straight--file "repos" local-repo "recipes" package)))
+        (read (current-buffer)))
+    (error (error "Could not find recipe for package %S in MELPA"
+                  package))))
 
 (defun straight--convert-recipe (melpa-recipe)
-  (cl-destructuring-bind (package . plist) melpa-recipe
-    (straight--with-plist plist
-        (local-repo repo)
-      (let ((package (symbol-name package)))
-        (straight--put plist :package package)
-        (unless local-repo
-          (straight--put plist :local-repo
-                         (or (and repo
-                                  (replace-regexp-in-string
-                                   "^.+/" "" repo))
-                             package)))
-        plist))))
+  (let ((melpa-recipe (if (listp melpa-recipe)
+                          melpa-recipe
+                        (straight--get-melpa-recipe
+                         melpa-recipe))))
+    (cl-destructuring-bind (package . plist) melpa-recipe
+      (straight--with-plist plist
+          (local-repo repo)
+        (let ((package (symbol-name package)))
+          (straight--put plist :package package)
+          (unless local-repo
+            (straight--put plist :local-repo
+                           (or (and repo
+                                    (replace-regexp-in-string
+                                     "^.+/" "" repo))
+                               package)))
+          plist)))))
+
+(defvar melpa-repo-recipe (straight--convert-recipe
+                           '(melpa :fetcher github
+                                   :repo "melpa/melpa")))
 
 (defvar straight--recipe-cache (make-hash-table :test 'equal))
 
@@ -186,9 +201,9 @@
       (when (file-exists-p dir)
         (delete-directory dir 'recursive)))
     (make-directory (straight--dir "build" package) 'parents)
-    (dolist (spec (package-build-expand-file-specs
+    (dolist (spec (pbl-expand-file-specs
                    (straight--dir "repos" local-repo)
-                   (package-build--config-file-list `(:files ,files))))
+                   (pbl--config-file-list `(:files ,files))))
       (let ((repo-file (straight--file "repos" local-repo (car spec)))
             (build-file (straight--file "build" package (cdr spec))))
         (unless (file-exists-p repo-file)
@@ -297,6 +312,7 @@
 (defun straight-use-package (melpa-recipe)
   (interactive (list (straight-get-melpa-recipe)))
   (let ((recipe (straight--convert-recipe melpa-recipe)))
+    ;; FIXME: don't register recipe when interactive
     (straight--register-recipe recipe)
     (unless (straight--repository-is-available-p recipe)
       (straight--clone-repository recipe))
