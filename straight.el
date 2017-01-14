@@ -159,9 +159,9 @@
 (defun straight--load-build-cache ()
   (setq straight--build-cache
         (or (with-temp-buffer
-              (insert-file-contents-literally
-               (straight--file "cache.el"))
               (ignore-errors
+                (insert-file-contents-literally
+                 (straight--file "cache.el"))
                 (read (current-buffer))))
             (make-hash-table :test 'equal))))
 
