@@ -92,7 +92,7 @@
   (let ((melpa-recipe (if (listp melpa-recipe)
                           melpa-recipe
                         (straight--get-melpa-recipe
-                         melpa-recipe))))
+                         (symbol-name melpa-recipe)))))
     (cl-destructuring-bind (package . plist) melpa-recipe
       (straight--with-plist plist
           (local-repo repo)
