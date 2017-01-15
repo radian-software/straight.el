@@ -161,6 +161,10 @@
                    (push local-repo repos))))
              straight--recipe-cache)))
 
+(defun straight--get-recipe (package)
+  (or (gethash package straight--recipe-cache)
+      (straight--convert-recipe (intern package))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Managing repositories
 
@@ -195,12 +199,12 @@
         (or (with-temp-buffer
               (ignore-errors
                 (insert-file-contents-literally
-                 (straight--file "cache.el"))
+                 (straight--file "build-cache.el"))
                 (read (current-buffer))))
             (make-hash-table :test 'equal))))
 
 (defun straight--save-build-cache ()
-  (with-temp-file (straight--file "cache.el")
+  (with-temp-file (straight--file "build-cache.el")
     (pp straight--build-cache (current-buffer))))
 
 (defun straight--maybe-load-build-cache ()
@@ -217,14 +221,15 @@
 (defun straight--package-might-be-modified-p (recipe)
   (straight--with-plist recipe
       (package local-repo)
-    (let ((mtime (gethash package straight--build-cache)))
-      (or (not mtime)
-          (with-temp-buffer
-            (let ((default-directory (straight--dir "repos" local-repo)))
-              (call-process
-               "find" nil '(t t) nil
-               "." "-name" ".git" "-o" "-newermt" mtime "-print")
-              (> (buffer-size) 0)))))))
+    (or (not (file-exists-p (straight--file "build" package)))
+        (let ((mtime (car (gethash package straight--build-cache))))
+          (or (not mtime)
+              (with-temp-buffer
+                (let ((default-directory (straight--dir "repos" local-repo)))
+                  (call-process
+                   "find" nil '(t t) nil
+                   "." "-name" ".git" "-o" "-newermt" mtime "-print")
+                  (> (buffer-size) 0))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Building packages
@@ -245,6 +250,44 @@
           (error "File %S does not exist" repo-file))
         (make-directory (file-name-directory build-file) 'parents)
         (make-symbolic-link repo-file build-file)))))
+
+(defun straight--process-dependencies (dependencies)
+  (eval-and-compile
+    (require 'package))
+  (let ((packages nil))
+    (dolist (spec dependencies)
+      (cl-destructuring-bind (package . version) spec
+        (unless (package-built-in-p package)
+          (push (symbol-name package) packages))))
+    packages))
+
+(defun straight--compute-dependencies (package)
+  (let ((dependencies
+         (or (condition-case nil
+                 (with-temp-buffer
+                   (insert-file-contents-literally
+                    (straight--file
+                     "build" package
+                     (format "%s-pkg.el" package)))
+                   (straight--process-dependencies
+                    (eval (nth 4 (read (current-buffer))))))
+               (error nil))
+             (condition-case nil
+                 (with-temp-buffer
+                   (insert-file-contents-literally
+                    (straight--file
+                     "build" package
+                     (format "%s.el" package)))
+                   (re-search-forward "^;; Package-Requires: ")
+                   (straight--process-dependencies
+                    (read (current-buffer))))
+               (error nil)))))
+    (puthash package (cons (car (gethash package straight--build-cache))
+                           dependencies)
+             straight--build-cache)))
+
+(defun straight--get-dependencies (package)
+  (cdr (gethash package straight--build-cache)))
 
 (defun straight--generate-package-autoloads (recipe)
   (straight--with-plist recipe
@@ -295,16 +338,22 @@
   (straight--with-plist recipe
       (package)
     (let ((mtime (format-time-string "%FT%T%z")))
-      (puthash package mtime straight--build-cache))))
+      (puthash package (cons mtime (cdr (gethash package
+                                                 straight--build-cache)))
+               straight--build-cache))))
 
-(defun straight--build-package (recipe)
+(defun straight--build-package (recipe &optional interactive)
   (straight--with-plist recipe
       (package)
-    (message "Building package %S..." package))
-  (straight--symlink-package recipe)
-  (straight--generate-package-autoloads recipe)
-  (straight--byte-compile-package recipe)
-  (straight--update-build-mtime recipe))
+    (message "Building package %S..." package)
+    (straight--symlink-package recipe)
+    (straight--compute-dependencies package)
+    (dolist (dependency (straight--get-dependencies package))
+      (straight-use-package (straight--get-recipe dependency)
+                            interactive 'internal))
+    (straight--generate-package-autoloads recipe)
+    (straight--byte-compile-package recipe)
+    (straight--update-build-mtime recipe)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Loading packages
@@ -359,27 +408,37 @@
       (_ recipe))))
 
 ;;;###autoload
-(defun straight-use-package (melpa-style-recipe &optional interactive)
+(defun straight-use-package (melpa-style-recipe
+                             &optional interactive straight-style)
   (interactive (list (straight-get-elpa-recipe) t))
-  (let ((recipe (straight--convert-recipe melpa-style-recipe)))
-    (unless interactive
-      (straight--register-recipe recipe))
-    (unless (straight--repository-is-available-p recipe)
-      (straight--clone-repository recipe))
-    (straight--add-package-to-load-path recipe)
-    (straight--maybe-load-build-cache)
-    (when (straight--package-might-be-modified-p recipe)
-      (straight--build-package recipe))
-    (straight--maybe-save-build-cache)
-    (straight--install-package-autoloads recipe)
-    (when interactive
-      (straight--with-plist recipe
-          (package)
-        (message
-         (concat "If you want to keep %s, put "
-                 "(straight-use-package %s%S) "
-                 "in your init-file.")
-         package "'" (intern package))))))
+  (let ((recipe (if straight-style melpa-style-recipe
+                  (straight--convert-recipe melpa-style-recipe))))
+    (straight--with-plist recipe
+        (package)
+      (when (or after-init-time
+                (not (gethash package
+                              straight--recipe-cache)))
+        (unless interactive
+          (straight--register-recipe recipe))
+        (unless (straight--repository-is-available-p recipe)
+          (straight--clone-repository recipe))
+        (straight--add-package-to-load-path recipe)
+        (straight--maybe-load-build-cache)
+        (when (straight--package-might-be-modified-p recipe)
+          (straight--build-package recipe interactive))
+        (straight--maybe-save-build-cache)
+        (straight--install-package-autoloads recipe)
+        (dolist (dependency (straight--get-dependencies package))
+          (straight--add-package-to-load-path
+           (straight--get-recipe dependency))
+          (straight--install-package-autoloads
+           (straight--get-recipe dependency)))
+        (when interactive
+          (message
+           (concat "If you want to keep %s, put "
+                   "(straight-use-package %s%S) "
+                   "in your init-file.")
+           package "'" (intern package)))))))
 
 ;;;###autoload
 (defun straight-update-package (package)
