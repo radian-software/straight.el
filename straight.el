@@ -350,7 +350,7 @@
     (straight--compute-dependencies package)
     (dolist (dependency (straight--get-dependencies package))
       (straight-use-package (straight--get-recipe dependency)
-                            interactive 'internal))
+                            interactive 'straight-style))
     (straight--generate-package-autoloads recipe)
     (straight--byte-compile-package recipe)
     (straight--update-build-mtime recipe)))
@@ -429,10 +429,8 @@
         (straight--maybe-save-build-cache)
         (straight--install-package-autoloads recipe)
         (dolist (dependency (straight--get-dependencies package))
-          (straight--add-package-to-load-path
-           (straight--get-recipe dependency))
-          (straight--install-package-autoloads
-           (straight--get-recipe dependency)))
+          (straight-use-package (straight--get-recipe dependency)
+                                interactive 'straight-style))
         (when interactive
           (message
            (concat "If you want to keep %s, put "
