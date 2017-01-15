@@ -485,6 +485,45 @@
     (error "Could not read from %S" (straight--file "versions.el"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Mess with other packages
+
+(setq package-enable-at-startup nil)
+
+(with-eval-after-load 'use-package
+  (defvar use-package-keywords)
+  (defvar use-package-defaults)
+  (defvar use-package-ensure-function)
+  (declare-function use-package-only-one "use-package")
+  (declare-function use-package-process-keywords "use-package")
+  (declare-function use-package-as-symbol "use-package")
+  (unless (member :recipe use-package-keywords)
+    (setq use-package-keywords
+          (let* ((pos (cl-position :ensure use-package-keywords))
+                 (head (cl-subseq use-package-keywords 0 (+ 1 pos)))
+                 (tail (cl-subseq use-package-keywords (+ 1 pos))))
+            (append head (list :recipe) tail))))
+  (defun use-package-normalize/:recipe (name-symbol keyword args)
+    (use-package-only-one (symbol-name keyword) args
+      (lambda (label arg)
+        (unless (listp arg)
+          (error ":recipe wants a list"))
+        (if (keywordp (car arg))
+            (cons name-symbol arg)
+          arg))))
+  (defun use-package-handler/:recipe (name keyword recipe rest state)
+    (let* ((body (use-package-process-keywords name rest state))
+           (ensure-form `(straight-use-package
+                          ',(or recipe
+                                (use-package-as-symbol name)))))
+      (if (bound-and-true-p byte-compile-current-file)
+          (eval ensure-form)
+        (push ensure-form body))
+      body))
+  (unless (assoc :recipe use-package-defaults)
+    (push '(:recipe name-symbol t) use-package-defaults))
+  (setq use-package-ensure-function #'ignore))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Closing remarks
 
 (provide 'straight)
