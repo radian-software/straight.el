@@ -33,6 +33,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Utility functions
 
+(defmacro straight--with-progress (task &rest body)
+  (declare (indent 1))
+  (let ((task-sym (make-symbol "task")))
+    `(let ((,task-sym ,task))
+       (prog2
+           (message "%s..." ,task-sym)
+           (progn
+             ,@body)
+         (message "%s...done" ,task-sym)))))
+
 (defmacro straight--with-plist (plist props &rest body)
   (declare (indent 2))
   (let ((plist-sym (make-symbol "plist")))
@@ -72,14 +82,19 @@
       (local-repo)
     (file-exists-p (straight--dir "repos" local-repo))))
 
-(defun straight--clone-repository (recipe)
+(defun straight--clone-repository (recipe &optional parent-recipe relation)
   (straight--with-plist recipe
-      (local-repo)
-    (message "Cloning repository %S..." local-repo)
-    (pbl-checkout
-     local-repo recipe
-     (straight--dir "repos" local-repo))
-    (message "Cloning repository %S...done" local-repo)))
+      (package local-repo)
+    (straight--with-progress
+        (if parent-recipe
+            (format "Cloning repository %S for package %S (%s %S)"
+                    local-repo package (or relation "dependency of")
+                    (plist-get parent-recipe :package))
+          (format "Cloning repository %S for package %S"
+                  local-repo package))
+      (pbl-checkout
+       local-repo recipe
+       (straight--dir "repos" local-repo)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Recipe processing
@@ -91,7 +106,9 @@
 
 (defun straight--get-gnu-elpa-recipe (package)
   (unless (straight--repository-is-available-p gnu-elpa-recipe)
-    (straight--clone-repository gnu-elpa-recipe))
+    (straight--clone-repository gnu-elpa-recipe
+                                '(:package (symbol-name package))
+                                "looking for"))
   (straight--with-plist gnu-elpa-recipe
       (local-repo)
     (when (file-exists-p (straight--dir
@@ -105,7 +122,9 @@
 
 (defun straight--get-melpa-recipe (package)
   (unless (straight--repository-is-available-p melpa-recipe)
-    (straight--clone-repository melpa-recipe))
+    (straight--clone-repository melpa-recipe
+                                '(:package (symbol-name package))
+                                "looking for"))
   (with-temp-buffer
     (when
         (condition-case nil
@@ -392,20 +411,28 @@
                                                  straight--build-cache)))
                straight--build-cache))))
 
-(defun straight--build-package (recipe &optional interactive)
+(defun straight--build-package (recipe &optional interactive parent-recipe)
   (straight--with-plist recipe
       (package)
-    (message "Building package %S..." package)
-    (straight--symlink-package recipe)
-    (straight--compute-dependencies package)
-    (dolist (dependency (straight--get-dependencies package))
-      (straight-use-package (straight--get-recipe dependency)
-                            interactive 'straight-style))
-    (message "Building package %S..." package)
-    (straight--generate-package-autoloads recipe)
-    (straight--byte-compile-package recipe)
-    (straight--update-build-mtime recipe)
-    (message "Building package %S...done" package)))
+    (straight--with-progress (if parent-recipe
+                                 (format "Building package %S (dependency of %S)"
+                                         package (plist-get parent-recipe :package))
+                               (format "Building package %S" package))
+      (straight--symlink-package recipe)
+      (straight--compute-dependencies package)
+      (dolist (dependency (straight--get-dependencies package))
+        (straight-use-package (straight--get-recipe dependency)
+                              interactive 'straight-style
+                              recipe))
+      (if parent-recipe
+          (message (concat "Finished checking dependencies, building "
+                           "package %S (dependency of %S)")
+                   package (plist-get parent-recipe :package))
+        (message "Finished checking dependencies, building package %S..."
+                 package))
+      (straight--generate-package-autoloads recipe)
+      (straight--byte-compile-package recipe)
+      (straight--update-build-mtime recipe))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Loading packages
@@ -462,7 +489,9 @@
 
 ;;;###autoload
 (defun straight-use-package (melpa-style-recipe
-                             &optional interactive straight-style)
+                             &optional
+                             interactive straight-style
+                             parent-recipe)
   (interactive (list (straight-get-elpa-recipe) t))
   (let ((recipe (if straight-style melpa-style-recipe
                   (straight--convert-recipe melpa-style-recipe))))
@@ -475,7 +504,7 @@
             (unless interactive
               (straight--register-recipe recipe))
             (unless (straight--repository-is-available-p recipe)
-              (straight--clone-repository recipe))
+              (straight--clone-repository recipe parent-recipe))
             (straight--add-package-to-load-path recipe)
             (straight--maybe-load-build-cache)
             (when (straight--package-might-be-modified-p recipe)
@@ -484,7 +513,8 @@
             (straight--install-package-autoloads recipe)
             (dolist (dependency (straight--get-dependencies package))
               (straight-use-package (straight--get-recipe dependency)
-                                    interactive 'straight-style))
+                                    interactive 'straight-style
+                                    recipe))
             (when interactive
               (message
                (concat "If you want to keep %s, put "
