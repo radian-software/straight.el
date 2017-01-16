@@ -110,17 +110,31 @@
           (error nil))
       (read (current-buffer)))))
 
+(defvar straight--repo-cache (make-hash-table :test 'equal))
+
+(defvar straight--fetch-keywords
+  '(:fetcher :url :repo :commit :branch :module))
+
+(defvar straight--keywords
+  '(:package :local-repo :files :fetcher :url :repo
+    :commit :branch :module))
+
 (defun straight--convert-recipe (melpa-style-recipe)
-  (let ((melpa-style-recipe (if (listp melpa-style-recipe)
-                                melpa-style-recipe
-                              (or (straight--get-melpa-recipe
-                                   melpa-style-recipe)
-                                  (straight--get-gnu-elpa-recipe
-                                   melpa-style-recipe)
-                                  (error (concat "Could not find package %S "
-                                                 "in MELPA or GNU ELPA")
-                                         melpa-style-recipe)))))
-    (cl-destructuring-bind (package . plist) melpa-style-recipe
+  (let* ((from-melpa-p nil)
+         (full-melpa-style-recipe
+          (if (listp melpa-style-recipe)
+              melpa-style-recipe
+            (or (when-let ((melpa-recipe
+                            (straight--get-melpa-recipe
+                             melpa-style-recipe)))
+                  (setq from-melpa-p t)
+                  melpa-recipe)
+                (straight--get-gnu-elpa-recipe
+                 melpa-style-recipe)
+                (error (concat "Could not find package %S "
+                               "in MELPA or GNU ELPA")
+                       melpa-style-recipe)))))
+    (cl-destructuring-bind (package . plist) full-melpa-style-recipe
       (straight--with-plist plist
           (local-repo repo url)
         (let ((package (symbol-name package)))
@@ -134,6 +148,14 @@
                                  (replace-regexp-in-string
                                   "^.*/\\(.+\\)\\.git$" "\\1" url))
                                package)))
+          (when from-melpa-p
+            (straight--with-plist plist
+                (local-repo)
+              (when-let (original-recipe (gethash local-repo
+                                                  straight--repo-cache))
+                (dolist (keyword straight--fetch-keywords)
+                  (when-let ((value (plist-get original-recipe keyword)))
+                    (straight--put plist keyword value))))))
           plist)))))
 
 (setq melpa-recipe (straight--convert-recipe
@@ -148,7 +170,27 @@
 
 (defun straight--register-recipe (recipe)
   (straight--with-plist recipe
-      (package)
+      (package local-repo)
+    (when-let ((existing-recipe (gethash local-repo straight--repo-cache)))
+      (dolist (keyword straight--fetch-keywords)
+        (unless (equal (plist-get recipe keyword)
+                       (plist-get existing-recipe keyword))
+          (error "Packages %S and %S have incompatible recipes (%S cannot be both %S and %S)"
+                 (plist-get existing-recipe :package)
+                 (plist-get recipe :package)
+                 keyword
+                 (plist-get existing-recipe keyword)
+                 (plist-get recipe keyword)))))
+    (when-let ((existing-recipe (gethash package straight--recipe-cache)))
+      (dolist (keyword straight--keywords)
+        (unless (equal (plist-get recipe keyword)
+                       (plist-get existing-recipe keyword))
+          (error "Package %S has two incompatible recipes (%S cannot be both %S and %S)"
+                 package
+                 keyword
+                 (plist-get existing-recipe keyword)
+                 (plist-get recipe keyword)))))
+    (puthash local-repo recipe straight--repo-cache)
     (puthash package recipe straight--recipe-cache)))
 
 (defun straight--map-repos (func)
@@ -416,28 +458,31 @@
                   (straight--convert-recipe melpa-style-recipe))))
     (straight--with-plist recipe
         (package)
-      (when (or after-init-time
-                (not (gethash package
-                              straight--recipe-cache)))
+      (if (or after-init-time
+              (not (gethash package
+                            straight--recipe-cache)))
+          (progn
+            (unless interactive
+              (straight--register-recipe recipe))
+            (unless (straight--repository-is-available-p recipe)
+              (straight--clone-repository recipe))
+            (straight--add-package-to-load-path recipe)
+            (straight--maybe-load-build-cache)
+            (when (straight--package-might-be-modified-p recipe)
+              (straight--build-package recipe interactive))
+            (straight--maybe-save-build-cache)
+            (straight--install-package-autoloads recipe)
+            (dolist (dependency (straight--get-dependencies package))
+              (straight-use-package (straight--get-recipe dependency)
+                                    interactive 'straight-style))
+            (when interactive
+              (message
+               (concat "If you want to keep %s, put "
+                       "(straight-use-package %s%S) "
+                       "in your init-file.")
+               package "'" (intern package))))
         (unless interactive
-          (straight--register-recipe recipe))
-        (unless (straight--repository-is-available-p recipe)
-          (straight--clone-repository recipe))
-        (straight--add-package-to-load-path recipe)
-        (straight--maybe-load-build-cache)
-        (when (straight--package-might-be-modified-p recipe)
-          (straight--build-package recipe interactive))
-        (straight--maybe-save-build-cache)
-        (straight--install-package-autoloads recipe)
-        (dolist (dependency (straight--get-dependencies package))
-          (straight-use-package (straight--get-recipe dependency)
-                                interactive 'straight-style))
-        (when interactive
-          (message
-           (concat "If you want to keep %s, put "
-                   "(straight-use-package %s%S) "
-                   "in your init-file.")
-           package "'" (intern package)))))))
+          (straight--register-recipe recipe))))))
 
 ;;;###autoload
 (defun straight-update-package (package)

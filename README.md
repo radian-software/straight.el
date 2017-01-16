@@ -9,4 +9,3 @@ management system.
 ## FIXME
 
 * Add option for shallow clones
-* Don't allow incompatible recipes with the same `:local-repo`
