@@ -353,8 +353,8 @@
             (noninteractive t)
             (backup-inhibited t)
             (version-control 'never)
-            ;; Even so, Emacs just won't shut up unless we really tell
-            ;; it to.
+            ;; Tell Emacs to shut up.
+            (message-log-max nil)
             (inhibit-message t))
         (update-directory-autoloads
          (straight--dir "build" package))
@@ -400,6 +400,7 @@
     (dolist (dependency (straight--get-dependencies package))
       (straight-use-package (straight--get-recipe dependency)
                             interactive 'straight-style))
+    (message "Building package %S..." package)
     (straight--generate-package-autoloads recipe)
     (straight--byte-compile-package recipe)
     (straight--update-build-mtime recipe)
