@@ -107,7 +107,7 @@
 (defun straight--get-gnu-elpa-recipe (package)
   (unless (straight--repository-is-available-p gnu-elpa-recipe)
     (straight--clone-repository gnu-elpa-recipe
-                                '(:package (symbol-name package))
+                                `(:package ,(symbol-name package))
                                 "looking for"))
   (straight--with-plist gnu-elpa-recipe
       (local-repo)
@@ -123,7 +123,7 @@
 (defun straight--get-melpa-recipe (package)
   (unless (straight--repository-is-available-p melpa-recipe)
     (straight--clone-repository melpa-recipe
-                                '(:package (symbol-name package))
+                                `(:package ,(symbol-name package))
                                 "looking for"))
   (with-temp-buffer
     (when
@@ -420,16 +420,17 @@
                                (format "Building package %S" package))
       (straight--symlink-package recipe)
       (straight--compute-dependencies package)
-      (dolist (dependency (straight--get-dependencies package))
-        (straight-use-package (straight--get-recipe dependency)
-                              interactive 'straight-style
-                              recipe))
-      (if parent-recipe
-          (message (concat "Finished checking dependencies, building "
-                           "package %S (dependency of %S)")
-                   package (plist-get parent-recipe :package))
-        (message "Finished checking dependencies, building package %S..."
-                 package))
+      (when-let ((dependencies (straight--get-dependencies package)))
+        (dolist (dependency dependencies)
+          (straight-use-package (straight--get-recipe dependency)
+                                interactive 'straight-style
+                                recipe))
+        (if parent-recipe
+            (message (concat "Finished checking dependencies, building "
+                             "package %S (dependency of %S)")
+                     package (plist-get parent-recipe :package))
+          (message "Finished checking dependencies, building package %S..."
+                   package)))
       (straight--generate-package-autoloads recipe)
       (straight--byte-compile-package recipe)
       (straight--update-build-mtime recipe))))
