@@ -404,7 +404,8 @@
                      (straight--get-gnu-elpa-recipe package))))
     (pcase action
       ('insert (insert (format "%S" recipe)))
-      ('copy (kill-new (format "%S" recipe)))
+      ('copy (kill-new (format "%S" recipe))
+             (message "Copied \"%S\"" recipe))
       (_ recipe))))
 
 ;;;###autoload
