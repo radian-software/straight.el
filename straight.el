@@ -22,7 +22,13 @@
 
 (require 'subr-x)
 (require 'cl-lib)
-(require 'pbl)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Lazy-load pbl
+
+(autoload 'pbl-checkout "pbl")
+(autoload 'pbl-expand-file-specs "pbl")
+(autoload 'pbl--config-file-list "pbl")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Utility functions
