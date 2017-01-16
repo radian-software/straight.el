@@ -378,7 +378,8 @@
             ;; Suppress messages about byte-compilation warnings.
             (byte-compile-warnings nil)
             ;; Suppress the remaining messages.
-            (inhibit-message t))
+            (inhibit-message t)
+            (message-log-max nil))
         (byte-recompile-directory
          (straight--dir "build" package)
          0 'force)))))
