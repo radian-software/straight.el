@@ -72,7 +72,8 @@
     (message "Cloning repository %S..." local-repo)
     (pbl-checkout
      local-repo recipe
-     (straight--dir "repos" local-repo))))
+     (straight--dir "repos" local-repo))
+    (message "Cloning repository %S...done" local-repo)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Recipe processing
@@ -395,7 +396,8 @@
                             interactive 'straight-style))
     (straight--generate-package-autoloads recipe)
     (straight--byte-compile-package recipe)
-    (straight--update-build-mtime recipe)))
+    (straight--update-build-mtime recipe)
+    (message "Building package %S...done" package)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Loading packages
@@ -447,7 +449,7 @@
     (pcase action
       ('insert (insert (format "%S" recipe)))
       ('copy (kill-new (format "%S" recipe))
-             (message "Copied \"%S\"" recipe))
+             (message "Copied \"%S\" to kill ring" recipe))
       (_ recipe))))
 
 ;;;###autoload
