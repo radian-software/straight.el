@@ -59,7 +59,3 @@ old-fashioned way:
 * Fossil
 * Darcs
 * EmacsWiki
-
-## FIXME
-
-* Add option for shallow clones
