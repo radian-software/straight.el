@@ -48,6 +48,18 @@ old-fashioned way:
     (straight-use-package '(el-patch :fetcher github
                                      :repo "raxod502/el-patch"))
 
+
+## VCS
+
+* Git
+* Mercurial
+* Bazaar
+* Subversion
+* CVS
+* Fossil
+* Darcs
+* EmacsWiki
+
 ## FIXME
 
 * Add option for shallow clones
