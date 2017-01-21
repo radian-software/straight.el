@@ -310,6 +310,9 @@
             (make-hash-table :test 'equal))))
 
 (defun straight--save-build-cache ()
+  (dolist (package (hash-table-keys straight--build-cache))
+    (unless (gethash package straight--recipe-cache)
+      (remhash package straight--build-cache)))
   (with-temp-file (straight--file "build-cache.el")
     (pp straight--build-cache (current-buffer))))
 
