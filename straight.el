@@ -338,20 +338,9 @@
   (when after-init-time
     (straight--save-build-cache)))
 
-(defun straight--package-might-be-modified-p (recipe)
-  (straight--with-plist recipe
-      (package local-repo)
-    (or (not (file-exists-p (straight--file "build" package)))
-        (let ((mtime (nth 0 (gethash package straight--build-cache))))
-          (or (not mtime)
-              (with-temp-buffer
-                (let ((default-directory (straight--dir "repos" local-repo)))
-                  (call-process
-                   "find" nil '(t t) nil
-                   "." "-name" ".git" "-prune" "-o" "-newermt" mtime "-print")
-                  (> (buffer-size) 0))))))))
+(defvar straight--cached-packages-might-be-modified-p :unknown)
 
-(defun straight--packages-might-be-modified-p ()
+(defun straight--cached-packages-might-be-modified-p ()
   (let ((repos nil)
         (args nil))
     (maphash
@@ -373,6 +362,25 @@
       (let ((default-directory (straight--dir "repos")))
         (apply 'call-process "find" nil '(t t) nil args)
         (> (buffer-size) 0)))))
+
+(defun straight--package-might-be-modified-p (recipe)
+  (straight--with-plist recipe
+      (package local-repo)
+    (when (equal straight--cached-packages-might-be-modified-p
+                 :unknown)
+      (setq straight--cached-packages-might-be-modified-p
+            (straight--cached-packages-might-be-modified-p)))
+    (when (or straight--cached-packages-might-be-modified-p
+              (not (gethash package straight--build-cache)))
+      (or (not (file-exists-p (straight--file "build" package)))
+          (let ((mtime (nth 0 (gethash package straight--build-cache))))
+            (or (not mtime)
+                (with-temp-buffer
+                  (let ((default-directory (straight--dir "repos" local-repo)))
+                    (call-process
+                     "find" nil '(t t) nil
+                     "." "-name" ".git" "-prune" "-o" "-newermt" mtime "-print")
+                    (> (buffer-size) 0)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Building packages
