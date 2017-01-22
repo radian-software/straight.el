@@ -60,6 +60,17 @@
      (setq ,plist (copy-sequence ,plist))
      (setq ,plist (plist-put ,plist ,prop ,val))))
 
+(defun straight--insert (n key value table)
+  (let ((list (gethash key table)))
+    (if (>= n (length list))
+        (puthash key
+                 (append list
+                         (make-list (- n (length list)) nil)
+                         (list value))
+                 table)
+      (setcar (nthcdr n list) value))
+    table))
+
 (defun straight--dir (&rest segments)
   (expand-file-name
    (apply 'concat user-emacs-directory
@@ -331,14 +342,37 @@
   (straight--with-plist recipe
       (package local-repo)
     (or (not (file-exists-p (straight--file "build" package)))
-        (let ((mtime (car (gethash package straight--build-cache))))
+        (let ((mtime (nth 0 (gethash package straight--build-cache))))
           (or (not mtime)
               (with-temp-buffer
                 (let ((default-directory (straight--dir "repos" local-repo)))
                   (call-process
                    "find" nil '(t t) nil
-                   "." "-name" ".git" "-o" "-newermt" mtime "-print")
+                   "." "-name" ".git" "-prune" "-o" "-newermt" mtime "-print")
                   (> (buffer-size) 0))))))))
+
+(defun straight--packages-might-be-modified-p ()
+  (let ((repos nil)
+        (args nil))
+    (maphash
+     (lambda (package build-info)
+       (cl-destructuring-bind (mtime dependencies local-repo) build-info
+         (unless (member local-repo repos)
+           (push local-repo repos)
+           (setq args (append (list "-o"
+                                    "-path"
+                                    (format "./%s/*" local-repo)
+                                    "-newermt"
+                                    mtime
+                                    "-print")
+                              args)))))
+     straight--build-cache)
+    (setq args (append (list "." "-depth" "2" "-name" ".git" "-prune")
+                       args))
+    (with-temp-buffer
+      (let ((default-directory (straight--dir "repos")))
+        (apply 'call-process "find" nil '(t t) nil args)
+        (> (buffer-size) 0)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Building packages
@@ -391,12 +425,10 @@
                    (straight--process-dependencies
                     (read (current-buffer))))
                (error nil)))))
-    (puthash package (cons (car (gethash package straight--build-cache))
-                           dependencies)
-             straight--build-cache)))
+    (straight--insert 1 package dependencies straight--build-cache)))
 
 (defun straight--get-dependencies (package)
-  (cdr (gethash package straight--build-cache)))
+  (nth 1 (gethash package straight--build-cache)))
 
 (defun straight--generate-package-autoloads (recipe)
   (straight--with-plist recipe
@@ -446,11 +478,10 @@
 
 (defun straight--update-build-mtime (recipe)
   (straight--with-plist recipe
-      (package)
+      (package local-repo)
     (let ((mtime (format-time-string "%FT%T%z")))
-      (puthash package (cons mtime (cdr (gethash package
-                                                 straight--build-cache)))
-               straight--build-cache))))
+      (straight--insert 0 package mtime straight--build-cache))
+    (straight--insert 2 package local-repo straight--build-cache)))
 
 (defun straight--build-package (recipe &optional interactive parent-recipe)
   (straight--with-plist recipe
