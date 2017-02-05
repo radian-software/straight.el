@@ -180,20 +180,30 @@
   '(:package :local-repo :files :fetcher :url :repo
     :commit :branch :module))
 
+(defun straight--lookup-recipe (package)
+  ;; We want to prefer Git, since that's the only VCS currently
+  ;; supported. So we prefer MELPA recipes, but only if they are Git
+  ;; repos, and then fall back to GNU ELPA and then Emacsmirror, and
+  ;; as a last resort, non-Git MELPA recipes.
+  (let ((melpa-recipe (straight--get-melpa-recipe package)))
+    (if (member (plist-get (cdr melpa-recipe) :fetcher)
+                '(git github))
+        melpa-recipe
+      (or (straight--get-gnu-elpa-recipe package)
+          (straight--get-emacsmirror-recipe package)
+          melpa-recipe
+          (error (concat "Could not find package %S "
+                         "in MELPA, GNU ELPA, or "
+                         "Emacsmirror")
+                 package)))))
+
 (defun straight--convert-recipe (melpa-style-recipe)
   (let* ((recipe-specified-p (listp melpa-style-recipe))
          (full-melpa-style-recipe
           (if recipe-specified-p
               melpa-style-recipe
             (let ((package melpa-style-recipe))
-              (or
-               (straight--get-melpa-recipe package)
-               (straight--get-gnu-elpa-recipe package)
-               (straight--get-emacsmirror-recipe package)
-               (error (concat "Could not find package %S "
-                              "in MELPA, GNU ELPA, or "
-                              "Emacsmirror")
-                      package))))))
+              (straight--lookup-recipe package)))))
     (cl-destructuring-bind (package . plist) full-melpa-style-recipe
       (straight--with-plist plist
           (local-repo repo url)
@@ -625,9 +635,7 @@
                      'string-lessp)
                     (lambda (elt) t)
                     'require-match)))
-         (recipe (or (straight--get-melpa-recipe package)
-                     (straight--get-gnu-elpa-recipe package)
-                     (straight--get-emacsmirror-recipe package))))
+         (recipe (straight--lookup-recipe package)))
     (pcase action
       ('insert (insert (format "%S" recipe)))
       ('copy (kill-new (format "%S" recipe))
@@ -683,11 +691,12 @@
 ;;;###autoload
 (defun straight-update-all ()
   (interactive)
-  (straight--map-repos (lambda (recipe)
-                         (straight--with-plist recipe
-                             (package)
-                           (straight-update-package
-                            package)))))
+  (straight--map-repos
+   (lambda (recipe)
+     (straight--with-plist recipe
+         (package)
+       (straight-update-package
+        package)))))
 
 ;;;###autoload
 (defun straight-save-versions ()
