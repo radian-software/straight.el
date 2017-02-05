@@ -162,11 +162,14 @@
                     "--get" (format "submodule.%s.url"
                                     (symbol-name package))))
           (let ((url (string-trim (buffer-string))))
-            (if (string-match "^git@github\\.com:\\([A-Za-z0-9_.-]+\\)$" url)
+            (message "%s" url)
+            (if (string-match
+                 "^git@github\\.com:\\([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\)\\.git$"
+                 url)
                 `(,package :fetcher github
-                           :repo (match-string 1 url))
+                           :repo ,(match-string 1 url))
               `(,package :fetcher git
-                         :url url))))))))
+                         :url ,url))))))))
 
 (defvar straight--repo-cache (make-hash-table :test 'equal))
 
@@ -592,6 +595,8 @@
     (straight--clone-repository melpa-recipe))
   (unless (straight--repository-is-available-p gnu-elpa-recipe)
     (straight--clone-repository gnu-elpa-recipe))
+  (unless (straight--repository-is-available-p emacsmirror-recipe)
+    (straight--clone-repository emacsmirror-recipe))
   (let* ((package (intern
                    (completing-read
                     "Which recipe? "
@@ -607,12 +612,22 @@
                            (local-repo)
                          (directory-files
                           (straight--dir "repos" local-repo "packages")
-                          nil "^[^.]" 'nosort))))
+                          nil "^[^.]" 'nosort))
+                       (straight--with-plist emacsmirror-recipe
+                           (local-repo)
+                         (append
+                          (directory-files
+                           (straight--dir "repos" local-repo "mirror")
+                           nil "^[^.]" 'nosort)
+                          (directory-files
+                           (straight--dir "repos" local-repo "attic")
+                           nil "^[^.]" 'nosort)))))
                      'string-lessp)
                     (lambda (elt) t)
                     'require-match)))
          (recipe (or (straight--get-melpa-recipe package)
-                     (straight--get-gnu-elpa-recipe package))))
+                     (straight--get-gnu-elpa-recipe package)
+                     (straight--get-emacsmirror-recipe package))))
     (pcase action
       ('insert (insert (format "%S" recipe)))
       ('copy (kill-new (format "%S" recipe))
