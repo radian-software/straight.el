@@ -178,20 +178,19 @@
     :commit :branch :module))
 
 (defun straight--convert-recipe (melpa-style-recipe)
-  (let* ((from-melpa-p nil)
+  (let* ((recipe-specified-p (listp melpa-style-recipe))
          (full-melpa-style-recipe
-          (if (listp melpa-style-recipe)
+          (if recipe-specified-p
               melpa-style-recipe
-            (or (when-let ((melpa-recipe
-                            (straight--get-melpa-recipe
-                             melpa-style-recipe)))
-                  (setq from-melpa-p t)
-                  melpa-recipe)
-                (straight--get-gnu-elpa-recipe
-                 melpa-style-recipe)
-                (error (concat "Could not find package %S "
-                               "in MELPA or GNU ELPA")
-                       melpa-style-recipe)))))
+            (let ((package melpa-style-recipe))
+              (or
+               (straight--get-melpa-recipe package)
+               (straight--get-gnu-elpa-recipe package)
+               (straight--get-emacsmirror-recipe package)
+               (error (concat "Could not find package %S "
+                              "in MELPA, GNU ELPA, or "
+                              "Emacsmirror")
+                      package))))))
     (cl-destructuring-bind (package . plist) full-melpa-style-recipe
       (straight--with-plist plist
           (local-repo repo url)
@@ -202,11 +201,40 @@
                            (or (when repo
                                  (replace-regexp-in-string
                                   "^.+/" "" repo))
-                               (when (string-suffix-p ".git" url)
-                                 (replace-regexp-in-string
-                                  "^.*/\\(.+\\)\\.git$" "\\1" url))
+                               ;; The following is a half-hearted
+                               ;; attempt to turn arbitrary URLs into
+                               ;; repository names.
+                               (let ((regexp "^.*/\\(.+\\)\\.git$"))
+                                 (when (string-match regexp url)
+                                   (match-string 1 url)))
                                package)))
-          (when from-melpa-p
+          ;; This code is here to deal with complications that can
+          ;; arise with manual recipe specifications when multiple
+          ;; packages are versioned in the same repository.
+          ;;
+          ;; Specifically, let's suppose packages `swiper' and `ivy'
+          ;; are both versioned in repository "swiper", and let's
+          ;; suppose that I load both of them in my init-file (`ivy'
+          ;; first and then `swiper'). Now suppose that I discover a
+          ;; bug in `ivy' and fix it in my fork, so that (until my fix
+          ;; is merged) I need to provide an explicit recipe in my
+          ;; init-file's call to `straight-use-package' for `ivy', in
+          ;; order to use my fork. That will cause a conflict, because
+          ;; the recipe for `swiper' is automatically taken from
+          ;; MELPA, and it does not point at my fork, but instead at
+          ;; the official repository. To fix the problem, I would have
+          ;; to specify my fork in the recipe for `swiper' (and also
+          ;; `counsel', a third package versioned in the same
+          ;; repository). That violates DRY and is a pain.
+          ;;
+          ;; Instead, this code makes it so that if a recipe has been
+          ;; automatically retrieved from a package source (for
+          ;; example, MELPA, GNU ELPA, or Emacsmirror), and the
+          ;; `:local-repo' specified in that recipe has already been
+          ;; used for another package, then the configuration for that
+          ;; repository will silently be copied over, and everything
+          ;; should "just work".
+          (unless recipe-specified-p
             (straight--with-plist plist
                 (local-repo)
               (when-let (original-recipe (gethash local-repo
