@@ -316,64 +316,46 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Managing repositories
 
-(defun straight--get-vcs (&optional directory)
+(defun straight--version-controlled-p (&optional directory)
   (let ((directory (or directory default-directory)))
-    (cond
-     ((file-exists-p ".git") :git)
-     ((file-exists-p ".hg") :mercurial)
-     ((file-exists-p ".bzr") :bazaar)
-     ((file-exists-p ".svn") :subversion)
-     ((file-exists-p "CVS") :cvs)
-     ((or (file-exists-p ".fslckout")
-          (file-exists-p "_FOSSIL_"))
-      :fossil)
-     ((file-exists-p "_darcs") :darcs)
-     (t nil))))
+    (file-exists-p ".git")))
 
 (defun straight--update-package (recipe)
   (error "Don't know how to update packages yet"))
 
 (defun straight--get-head (local-repo &optional validate)
   (let ((default-directory (straight--dir "repos" local-repo)))
-    (pcase (straight--get-vcs)
-      (:git (let ((head (with-temp-buffer
-                          (unless (= 0 (call-process
-                                        "git" nil t nil  "rev-parse" "HEAD"))
-                            (error "Error checking HEAD of repo %S" local-repo))
-                          (string-trim (buffer-string)))))
-              (when validate
-                (warn "Don't know how to validate"))
-              head))
-      ('nil (ignore
-             (when validate
-               (display-warning
-                'straight
-                (concat "Repository %S is not version-controlled, "
-                        "cannot verify HEAD is reachable from remote")))))
-      (vcs (ignore
-            (when validate
-              (display-warning
-               'straight
-               (concat "Repository %S is version-controlled by VCS "
-                       (symbol-name vcs) ", cannot verify HEAD is "
-                       "reachable from remote"))))))))
+    (if (straight--version-controlled-p)
+        (let ((head (with-temp-buffer
+                      (unless (= 0 (call-process
+                                    "git" nil t nil  "rev-parse" "HEAD"))
+                        (error "Error checking HEAD of repo %S" local-repo))
+                      (string-trim (buffer-string)))))
+          (when validate
+            (warn "Don't know how to validate"))
+          head)
+      (when validate
+        (display-warning
+         'straight
+         (format
+          (concat "Repository %S is not version-controlled with Git, "
+                  "cannot verify HEAD is reachable from remote")
+          local-repo)))
+      :unknown)))
 
 (defun straight--set-head (local-repo head)
   (let ((default-directory (straight--dir "repos" local-repo)))
-    (pcase (straight--get-vcs)
-      (:git (unless (= 0 (call-process
-                          "git" nil nil nil "checkout" head))
-              (error "Error performing checkout in repo %S" local-repo)))
-      ('nil (ignore
-             (display-warning
-              'straight
-              (concat "Repository %S is not version-controlled, "
-                      "cannot set HEAD"))))
-      (vcs (ignore
-            (display-warning
-             'straight
-             (concat "Repository %S is version-controlled by VCS "
-                     (symbol-name vcs) ", cannot set HEAD")))))))
+    (if (straight--version-controlled-p)
+        (unless (= 0 (call-process
+                      "git" nil nil nil "checkout" head))
+          (error "Error performing checkout in repo %S" local-repo))
+      (ignore
+       (display-warning
+        'straight
+        (format
+         (concat "Repository %S is not version-controlled with Git, "
+                 "cannot set HEAD")
+         local-repo))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Figuring out whether packages need to be rebuilt
