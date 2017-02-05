@@ -114,6 +114,7 @@
 
 (defvar melpa-recipe)
 (defvar gnu-elpa-recipe)
+(defvar emacsmirror-recipe)
 
 (defun straight--get-gnu-elpa-recipe (package)
   (unless (straight--repository-is-available-p gnu-elpa-recipe)
@@ -146,6 +147,26 @@
                                (symbol-name package))))
           (error nil))
       (read (current-buffer)))))
+
+(defun straight--get-emacsmirror-recipe (package)
+  (unless (straight--repository-is-available-p emacsmirror-recipe)
+    (straight--clone-repository emacsmirror-recipe
+                                `(:package ,(symbol-name package))
+                                "looking for"))
+  (straight--with-plist emacsmirror-recipe
+      (local-repo)
+    (let ((default-directory (straight--dir "repos" local-repo)))
+      (with-temp-buffer
+        (when (= 0 (call-process
+                    "git" nil t nil "config" "-f" ".gitmodules"
+                    "--get" (format "submodule.%s.url"
+                                    (symbol-name package))))
+          (let ((url (string-trim (buffer-string))))
+            (if (string-match "^git@github\\.com:\\([A-Za-z0-9_.-]+\\)$" url)
+                `(,package :fetcher github
+                           :repo (match-string 1 url))
+              `(,package :fetcher git
+                         :url url))))))))
 
 (defvar straight--repo-cache (make-hash-table :test 'equal))
 
@@ -202,6 +223,11 @@
 (setq gnu-elpa-recipe (straight--convert-recipe
                        `(elpa :fetcher git
                               :url ,gnu-elpa-url)))
+
+(setq emacsmirror-recipe (straight--convert-recipe
+                          `(epkgs :fetcher github
+                                  :repo "emacsmirror/epkgs"
+                                  :nonrecursive t)))
 
 (defvar straight--recipe-cache (make-hash-table :test 'equal))
 
