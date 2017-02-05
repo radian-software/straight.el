@@ -295,6 +295,21 @@
              straight--recipe-cache)))
 
 (defun straight--get-recipe (package)
+  ;; You might think that this method could be eliminated entirely.
+  ;; Instead, we could perform this defaulting behavior all inside
+  ;; `straight--convert-recipe', you would say.
+  ;;
+  ;; It turns out that's not such a good idea, because then we aren't
+  ;; able to distinguish between top-level packages and dependencies.
+  ;; If the user specifies two incompatible recipes for a package, we
+  ;; want to signal an error. However, if the user specifies one
+  ;; recipe and a recipe repository provides another for a dependency
+  ;; package, we want to silently reconcile the difference. This can
+  ;; be done by having the dependency resolution functions call this
+  ;; defaulting function, and then having `straight--convert-recipe'
+  ;; just throw an error on a conflict (except for the repository
+  ;; fetch part of the recipe, see the large comment in
+  ;; `straight--convert-recipe' for details).
   (or (gethash package straight--recipe-cache)
       (straight--convert-recipe (intern package))))
 
