@@ -162,7 +162,6 @@
                     "--get" (format "submodule.%s.url"
                                     (symbol-name package))))
           (let ((url (string-trim (buffer-string))))
-            (message "%s" url)
             (if (string-match
                  "^git@github\\.com:\\([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\)\\.git$"
                  url)
