@@ -85,6 +85,31 @@
 (defun straight--autoload-file-name (package)
   (format "%s-autoloads.el" package))
 
+(defun straight--check-call (command &rest args)
+  (= 0 (apply #'call-process command nil nil nil args)))
+
+(defun straight--ensure-call (command &rest args)
+  (unless (apply #'straight--check-call command args)
+    (error "Command failed: %s %s"
+           command (string-join args " "))))
+
+(defun straight--get-call (command &rest args)
+  (with-temp-buffer
+    (unless (= 0 (apply #'call-process command
+                        nil '(t t) nil args))
+      (error "Command failed: %s %s"
+             command (string-join args " ")))
+    (string-trim (buffer-string))))
+
+(defun straight--call-has-output-p (command &rest args)
+  (with-temp-buffer
+    (apply #'straight--check-call command args)
+    (> (buffer-size) 0)))
+
+(defun straight--warn (message &rest args)
+  (ignore
+   (display-warning 'straight (apply #'format message args))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Fetching repositories
 
@@ -157,10 +182,10 @@
       (local-repo)
     (let ((default-directory (straight--dir "repos" local-repo)))
       (with-temp-buffer
-        (when (= 0 (call-process
-                    "git" nil t nil "config" "-f" ".gitmodules"
-                    "--get" (format "submodule.%s.url"
-                                    (symbol-name package))))
+        (when (straight--check-call
+               "git" "config" "-f" ".gitmodules"
+               "--get" (format "submodule.%s.url"
+                               (symbol-name package)))
           (let ((url (string-trim (buffer-string))))
             (if (string-match
                  "^git@github\\.com:\\([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\)\\.git$"
@@ -328,46 +353,103 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Managing repositories
 
-(defun straight--version-controlled-p (&optional directory)
-  (let ((directory (or directory default-directory)))
-    (file-exists-p ".git")))
+(defun straight--version-controlled-p ()
+  (file-exists-p ".git"))
+
+(defun straight--fetch-remotes ()
+  (straight--ensure-call "git" "fetch" "--all" "--tags"
+                         "--recurse-submodules"))
+
+(defun straight--get-branch ()
+  (when-let ((symbolic-ref (condition-case nil
+                               (straight--get-call
+                                "git" "symbolic-ref" "HEAD")
+                             (error nil))))
+    (when (string-match "^refs/heads/\\(.+\\)" symbolic-ref)
+      (match-string 1 symbolic-ref))))
+
+(defun straight--get-upstream (branch)
+  (or (condition-case nil
+          (straight--get-call
+           "git" "rev-parse" "--abbrev-ref"
+           "--symbolic-full-name" "@{u}")
+        (error nil))
+      ;; FIXME: does this cover all the cases? We might want to look
+      ;; at pushRemote and pushDefault config options.
+      (with-temp-buffer
+        (straight--ensure-call "git" "remote")
+        (cl-destructuring-bind
+            (remote . more-remotes)
+            (split-string (buffer-string))
+          (unless more-remotes
+            (erase-buffer)
+            (call-process "git" nil t nil "branch" "-r")
+            (goto-char (point-min))
+            (let ((upstream (format "%s/%s" remote branch)))
+              (when (re-search-forward upstream nil 'noerror)
+                upstream)))))))
+
+(defun straight--is-ancestor (ancestor descendant)
+  (straight--check-call "git" "merge-base" "--is-ancestor"
+                        ancestor descendant))
+
+(defun straight--merge-with-upstream (upstream)
+  (straight--ensure-call "git" "merge" upstream))
 
 (defun straight--update-package (recipe)
-  (error "Don't know how to update packages yet"))
+  (straight--with-plist recipe
+      (local-repo)
+    (let ((default-directory (straight--dir "repos" local-repo)))
+      (if (straight--version-controlled-p)
+          (progn
+            (straight--fetch-remotes)
+            (if-let ((branch (straight--get-branch)))
+                (if-let ((upstream (straight--get-upstream branch)))
+                    (if (straight--is-ancestor branch upstream)
+                        (straight--merge-with-upstream upstream)
+                      (straight--warn
+                       (concat "In repository %S, cannot merge branch %S with "
+                               "upstream %S without merge or rebase")
+                       local-repo branch upstream))
+                  (straight--warn
+                   (concat "In repository %S, current branch %S has "
+                           "no upstream, cannot update")
+                   local-repo branch))
+              (straight--warn
+               "In repository %S, HEAD is detached, cannot update"
+               local-repo)))
+        (straight--warn
+         (concat "Repository %S is not version-controlled with Git, "
+                 "cannot update")
+         local-repo)))))
 
 (defun straight--get-head (local-repo &optional validate)
   (let ((default-directory (straight--dir "repos" local-repo)))
     (if (straight--version-controlled-p)
-        (let ((head (with-temp-buffer
-                      (unless (= 0 (call-process
-                                    "git" nil t nil  "rev-parse" "HEAD"))
-                        (error "Error checking HEAD of repo %S" local-repo))
-                      (string-trim (buffer-string)))))
-          (when validate
-            (warn "Don't know how to validate"))
-          head)
-      (when validate
-        (display-warning
-         'straight
-         (format
-          (concat "Repository %S is not version-controlled with Git, "
-                  "cannot verify HEAD is reachable from remote")
-          local-repo)))
+        (straight--get-call "git" "rev-parse" "HEAD")
       :unknown)))
+
+(defun straight--validate-head-is-reachable (local-repo head remote-url)
+  (cl-some (lambda (remote-branch)
+             (when (string-match "^\\(.+?\\)/\\(.+\\)$" remote-branch)
+               (let ((remote (match-string 1 remote-branch))
+                     (branch (match-string 2 remote-branch)))
+                 (and (equal (straight--get-call
+                              "git" "remote" "get-url" remote)
+                             remote-url)
+                      (straight--is-ancestor
+                       head remote-branch)))))
+           (split-string (straight--get-call "git" "branch" "-r"))))
 
 (defun straight--set-head (local-repo head)
   (let ((default-directory (straight--dir "repos" local-repo)))
     (if (straight--version-controlled-p)
-        (unless (= 0 (call-process
-                      "git" nil nil nil "checkout" head))
+        (unless (straight--check-call "git" "checkout" head)
           (error "Error performing checkout in repo %S" local-repo))
-      (ignore
-       (display-warning
-        'straight
-        (format
-         (concat "Repository %S is not version-controlled with Git, "
-                 "cannot set HEAD")
-         local-repo))))))
+      (straight--warn
+       (concat "Repository %S is not version-controlled with Git, "
+               "cannot set HEAD")
+       local-repo))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Figuring out whether packages need to be rebuilt
