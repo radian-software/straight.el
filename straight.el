@@ -531,11 +531,13 @@
 (defun straight--package-might-be-modified-p (recipe)
   (straight--with-plist recipe
       (package local-repo)
-    (when (equal straight--cached-packages-might-be-modified-p
-                 :unknown)
+    (when (and (not after-init-time)
+               (equal straight--cached-packages-might-be-modified-p
+                      :unknown))
       (setq straight--cached-packages-might-be-modified-p
             (straight--cached-packages-might-be-modified-p)))
-    (when (or straight--cached-packages-might-be-modified-p
+    (when (or after-init-time
+              straight--cached-packages-might-be-modified-p
               (not (gethash package straight--build-cache)))
       (or (not (file-exists-p (straight--file "build" package)))
           (let ((mtime (nth 0 (gethash package straight--build-cache))))
@@ -695,6 +697,23 @@
           nil 'nomessage)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Interactive helpers
+
+(defun straight--select-package (message)
+  (completing-read
+   (concat message ": ")
+   (hash-table-keys straight--recipe-cache)
+   (lambda (elt) t)
+   'require-match))
+
+(defun straight--for-all-packages (func)
+  (straight--map-repos
+   (lambda (recipe)
+     (straight--with-plist recipe
+         (package)
+       (funcall func package)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; API
 
 ;;;###autoload
@@ -747,7 +766,7 @@
 (defun straight-use-package (melpa-style-recipe
                              &optional
                              interactive straight-style
-                             parent-recipe)
+                             parent-recipe reload)
   (interactive (list (straight-get-elpa-recipe) t))
   (let ((recipe (if straight-style melpa-style-recipe
                   (straight--convert-recipe melpa-style-recipe))))
@@ -771,7 +790,7 @@
               (straight-use-package (straight--get-recipe dependency)
                                     interactive 'straight-style
                                     recipe))
-            (when interactive
+            (when (and interactive (not reload))
               (message
                (concat "If you want to keep %s, put "
                        "(straight-use-package %s%S) "
@@ -781,32 +800,30 @@
           (straight--register-recipe recipe))))))
 
 ;;;###autoload
+(defun straight-reload-package (package &optional interactive)
+  (interactive (list (straight--select-package "Reload package")
+                     'interactive))
+  (straight-use-package (gethash package straight--recipe-cache)
+                        interactive 'straight-style nil 'reload))
+
+;;;###autoload
+(defun straight-reload-all ()
+  (straight--for-all-packages #'straight-reload-package))
+
+;;;###autoload
 (defun straight-update-package (package)
-  (interactive (list (completing-read
-                      "Update package: "
-                      (hash-table-keys straight--recipe-cache)
-                      (lambda (elt) t)
-                      'require-match)))
+  (interactive (list (straight--select-package "Update package")))
   (straight--with-progress (format "Updating package %S" package)
     (straight--update-package (gethash package straight--recipe-cache))))
 
 ;;;###autoload
 (defun straight-update-all ()
   (interactive)
-  (straight--map-repos
-   (lambda (recipe)
-     (straight--with-plist recipe
-         (package)
-       (straight-update-package
-        package)))))
+  (straight--for-all-packages #'straight-update-package))
 
 ;;;###autoload
 (defun straight-validate-package (package &optional nomsg)
-  (interactive (list (completing-read
-                      "Update package: "
-                      (hash-table-keys straight--recipe-cache)
-                      (lambda (elt) t)
-                      'require-match)))
+  (interactive (list (straight--select-package "Validate package")))
   (straight--with-plist (gethash package straight--recipe-cache)
       (local-repo fetcher repo url)
     (let ((default-directory (straight--dir "repos" local-repo)))
