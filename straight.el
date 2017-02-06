@@ -31,6 +31,20 @@
 (autoload 'pbl--config-file-list "pbl")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Customization
+
+(defgroup straight nil
+  "The straightforward package manager for Emacs."
+  :group 'applications
+  :prefix "straight-")
+
+(defcustom straight-versions-file
+  (locate-user-emacs-file "straight/versions.el")
+  "The path to save versions.el in."
+  :type 'file
+  :group 'straight)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Utility functions
 
 (defmacro straight--with-progress (task &rest body)
@@ -181,19 +195,21 @@
   (straight--with-plist emacsmirror-recipe
       (local-repo)
     (let ((default-directory (straight--dir "repos" local-repo)))
-      (with-temp-buffer
-        (when (straight--check-call
-               "git" "config" "-f" ".gitmodules"
-               "--get" (format "submodule.%s.url"
-                               (symbol-name package)))
-          (let ((url (string-trim (buffer-string))))
-            (if (string-match
-                 "^git@github\\.com:\\([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\)\\.git$"
-                 url)
-                `(,package :fetcher github
-                           :repo ,(match-string 1 url))
-              `(,package :fetcher git
-                         :url ,url))))))))
+      (let ((url (condition-case nil
+                     (straight--get-call
+                      "git" "config" "-f" ".gitmodules"
+                      "--get" (format "submodule.%s.url"
+                                      (symbol-name package)))
+                   (error nil))))
+        (and (not (string-empty-p url))
+             (if (string-match
+                  (concat "^git@github\\.com:\\([A-Za-z0-9_.-]+"
+                          "/[A-Za-z0-9_.-]+\\)\\.git$")
+                  url)
+                 `(,package :fetcher github
+                            :repo ,(match-string 1 url))
+               `(,package :fetcher git
+                          :url ,url)))))))
 
 (defvar straight--repo-cache (make-hash-table :test 'equal))
 
@@ -242,7 +258,7 @@
                                ;; attempt to turn arbitrary URLs into
                                ;; repository names.
                                (let ((regexp "^.*/\\(.+\\)\\.git$"))
-                                 (when (string-match regexp url)
+                                 (when (and url (string-match regexp url))
                                    (match-string 1 url)))
                                package)))
           ;; This code is here to deal with complications that can
@@ -326,7 +342,7 @@
     (maphash (lambda (package recipe)
                (straight--with-plist recipe
                    (local-repo)
-                 (unless (member repos local-repo)
+                 (unless (member local-repo repos)
                    (funcall func recipe)
                    (push local-repo repos))))
              straight--recipe-cache)))
@@ -378,16 +394,15 @@
       ;; at pushRemote and pushDefault config options.
       (with-temp-buffer
         (straight--ensure-call "git" "remote")
-        (cl-destructuring-bind
-            (remote . more-remotes)
-            (split-string (buffer-string))
-          (unless more-remotes
-            (erase-buffer)
-            (call-process "git" nil t nil "branch" "-r")
-            (goto-char (point-min))
-            (let ((upstream (format "%s/%s" remote branch)))
-              (when (re-search-forward upstream nil 'noerror)
-                upstream)))))))
+        (let ((remotes (split-string (buffer-string))))
+          (unless (cdr remotes)
+            (let ((remote (car remotes)))
+              (erase-buffer)
+              (call-process "git" nil t nil "branch" "-r")
+              (goto-char (point-min))
+              (let ((upstream (format "%s/%s" remote branch)))
+                (when (re-search-forward upstream nil 'noerror)
+                  upstream))))))))
 
 (defun straight--is-ancestor (ancestor descendant)
   (straight--check-call "git" "merge-base" "--is-ancestor"
@@ -406,11 +421,15 @@
             (if-let ((branch (straight--get-branch)))
                 (if-let ((upstream (straight--get-upstream branch)))
                     (if (straight--is-ancestor branch upstream)
+                        ;; Local branch is behind upstream, merge.
                         (straight--merge-with-upstream upstream)
-                      (straight--warn
-                       (concat "In repository %S, cannot merge branch %S with "
-                               "upstream %S without merge or rebase")
-                       local-repo branch upstream))
+                      (unless (straight--is-ancestor upstream branch)
+                        ;; Local branch has diverged from upstream,
+                        ;; but is not purely ahead. Warn.
+                        (straight--warn
+                         (concat "In repository %S, cannot merge branch %S with "
+                                 "upstream %S without merge or rebase")
+                         local-repo branch upstream)))
                   (straight--warn
                    (concat "In repository %S, current branch %S has "
                            "no upstream, cannot update")
@@ -423,29 +442,30 @@
                  "cannot update")
          local-repo)))))
 
-(defun straight--get-head (local-repo &optional validate)
+(defun straight--get-head (local-repo)
   (let ((default-directory (straight--dir "repos" local-repo)))
-    (if (straight--version-controlled-p)
-        (straight--get-call "git" "rev-parse" "HEAD")
-      :unknown)))
+    (when (straight--version-controlled-p)
+      (straight--get-call "git" "rev-parse" "HEAD"))))
 
-(defun straight--validate-head-is-reachable (local-repo head remote-url)
-  (cl-some (lambda (remote-branch)
-             (when (string-match "^\\(.+?\\)/\\(.+\\)$" remote-branch)
-               (let ((remote (match-string 1 remote-branch))
-                     (branch (match-string 2 remote-branch)))
-                 (and (equal (straight--get-call
-                              "git" "remote" "get-url" remote)
-                             remote-url)
-                      (straight--is-ancestor
-                       head remote-branch)))))
-           (split-string (straight--get-call "git" "branch" "-r"))))
+(defun straight--validate-head-is-reachable (local-repo head remote-urls)
+  (let ((default-directory (straight--dir "repos" local-repo)))
+    (cl-some (lambda (remote-branch)
+               (when (string-match "^\\(.+?\\)/\\(.+\\)$" remote-branch)
+                 (let ((remote (match-string 1 remote-branch))
+                       (branch (match-string 2 remote-branch)))
+                   (and (member (straight--get-call
+                                 "git" "remote" "get-url" remote)
+                                remote-urls)
+                        (straight--is-ancestor
+                         head remote-branch)))))
+             (split-string (straight--get-call "git" "branch" "-r")))))
 
 (defun straight--set-head (local-repo head)
   (let ((default-directory (straight--dir "repos" local-repo)))
     (if (straight--version-controlled-p)
-        (unless (straight--check-call "git" "checkout" head)
-          (error "Error performing checkout in repo %S" local-repo))
+        (unless (or (equal head (straight--get-head local-repo))
+                    (straight--check-call "git" "checkout" head))
+          (straight--warn "Could not perform checkout in repo %S" local-repo))
       (straight--warn
        (concat "Repository %S is not version-controlled with Git, "
                "cannot set HEAD")
@@ -767,7 +787,8 @@
                       (hash-table-keys straight--recipe-cache)
                       (lambda (elt) t)
                       'require-match)))
-  (straight--update-package (gethash package straight--recipe-cache)))
+  (straight--with-progress (format "Updating package %S" package)
+    (straight--update-package (gethash package straight--recipe-cache))))
 
 ;;;###autoload
 (defun straight-update-all ()
@@ -780,32 +801,103 @@
         package)))))
 
 ;;;###autoload
-(defun straight-save-versions ()
+(defun straight-validate-package (package &optional nomsg)
+  (interactive (list (completing-read
+                      "Update package: "
+                      (hash-table-keys straight--recipe-cache)
+                      (lambda (elt) t)
+                      'require-match)))
+  (straight--with-plist (gethash package straight--recipe-cache)
+      (local-repo fetcher repo url)
+    (let ((default-directory (straight--dir "repos" local-repo)))
+      (if (straight--version-controlled-p)
+          (if-let ((head (straight--get-head local-repo)))
+              (if-let ((remote-urls
+                        (pcase fetcher
+                          ('git (list url))
+                          ('github
+                           (list
+                            (format "https://github.com/%s.git" repo)
+                            (format "git@github.com:%s.git" repo))))))
+                  (let ((valid-p (straight--validate-head-is-reachable
+                                  local-repo head remote-urls)))
+                    (if valid-p
+                        (unless nomsg
+                          (message "Package %S is all good" package))
+                      (straight--warn
+                       "HEAD of repository %S%s is not reachable from remote"
+                       local-repo
+                       (if-let ((branch (straight--get-branch)))
+                           (format " (on branch %S)" branch)
+                         "")))
+                    valid-p)
+                (straight--warn "Repository %S uses non-Git fetcher `%S'"
+                                local-repo fetcher))
+            (straight--warn "Repository %S has a detached HEAD" local-repo))
+        (straight--warn "Repository %S is not version-controlled with Git")))))
+
+;;;###autoload
+(defun straight-validate-all (&optional nomsg)
   (interactive)
-  (with-temp-file (concat user-emacs-directory "straight/versions.el")
-    (let ((versions nil))
-      (straight--map-repos (lambda (recipe)
-                             (straight--with-plist recipe
-                                 (repo)
-                               (push (cons repo (straight--get-head
-                                                 repo 'validate))
-                                     versions))))
-      (setq versions (cl-sort versions 'string-lessp :key 'car))
-      (pp versions (current-buffer)))))
+  (let ((valid-repos 0)
+        (total-repos 0))
+    (straight--map-repos
+     (lambda (recipe)
+       (straight--with-plist recipe
+           (package)
+         (when (straight-validate-package
+                package 'nomsg)
+           (setq valid-repos (1+ valid-repos)))
+         (setq total-repos (1+ total-repos)))))
+    (cond
+     ((zerop total-repos)
+      (user-error "No packages loaded"))
+     ((zerop valid-repos)
+      (unless nomsg
+        (message "All %d packages have unreachable HEADS" total-repos)))
+     ((= valid-repos total-repos)
+      (unless nomsg
+        (message "All %d packages have reachable HEADS" total-repos)))
+     (t
+      (unless nomsg
+        (message "%d packages have reachable HEADS, %d packages do not"
+                 valid-repos (- total-repos valid-repos)))))
+    (= valid-repos total-repos)))
+
+;;;###autoload
+(defun straight-save-versions (&optional force)
+  (interactive)
+  (and (or force
+           (straight-validate-all 'nomsg)
+           (ignore
+            (message
+             "Not all packages have reachable HEADS, aborting")))
+       (with-temp-file straight-versions-file
+         (let ((versions nil))
+           (straight--map-repos (lambda (recipe)
+                                  (straight--with-plist recipe
+                                      (local-repo)
+                                    (push (cons local-repo
+                                                (straight--get-head
+                                                 local-repo))
+                                          versions))))
+           (setq versions (cl-sort versions 'string-lessp :key 'car))
+           (pp versions (current-buffer)))
+         (message "Wrote %s" straight-versions-file))))
 
 ;;;###autoload
 (defun straight-load-versions ()
   (interactive)
   (if-let ((versions (with-temp-buffer
                        (insert-file-contents-literally
-                        (straight--file "versions.el"))
+                        straight-versions-file)
                        (ignore-errors
                          (read (current-buffer))))))
       (dolist (spec versions)
         (let ((repo (car spec))
               (head (cdr spec)))
           (straight--set-head repo head)))
-    (error "Could not read from %S" (straight--file "versions.el"))))
+    (error "Could not read from %S" straight-versions-file)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Mess with other packages
