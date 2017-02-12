@@ -277,17 +277,20 @@
   '(:package :local-repo :files :fetcher :url :repo
     :commit :branch :module))
 
-(defun straight--lookup-recipe (package)
+(defun straight--lookup-recipe (package &optional sources)
   ;; We want to prefer Git, since that's the only VCS currently
   ;; supported. So we prefer MELPA recipes, but only if they are Git
   ;; repos, and then fall back to GNU ELPA and then Emacsmirror, and
   ;; as a last resort, non-Git MELPA recipes.
-  (let ((melpa-recipe (straight--get-melpa-recipe package)))
+  (let ((melpa-recipe (and (member 'melpa sources)
+                           (straight--get-melpa-recipe package))))
     (if (member (plist-get (cdr melpa-recipe) :fetcher)
                 '(git github))
         melpa-recipe
-      (or (straight--get-gnu-elpa-recipe package)
-          (straight--get-emacsmirror-recipe package)
+      (or (and (member 'gnu-elpa sources)
+               (straight--get-gnu-elpa-recipe package))
+          (and (member 'emacsmirror sources)
+               (straight--get-emacsmirror-recipe package))
           melpa-recipe
           (error (concat "Could not find package %S "
                          "in MELPA, GNU ELPA, or "
@@ -770,19 +773,15 @@
          (package)
        (funcall func package)))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; API
-
-;;;###autoload
-(defun straight-get-elpa-recipe (&optional action)
-  (interactive (list (if current-prefix-arg
-                         'copy
-                       'insert)))
-  (unless (straight--repository-is-available-p melpa-recipe)
+(defun straight--get-recipe-interactively (sources &optional action)
+  (when (and (member 'melpa sources)
+             (not (straight--repository-is-available-p melpa-recipe)))
     (straight--clone-repository melpa-recipe))
-  (unless (straight--repository-is-available-p gnu-elpa-recipe)
+  (when (and (member 'gnu-elpa sources)
+             (not (straight--repository-is-available-p gnu-elpa-recipe)))
     (straight--clone-repository gnu-elpa-recipe))
-  (unless (straight--repository-is-available-p emacsmirror-recipe)
+  (when (and (member 'emacsmirror sources)
+             (not (straight--repository-is-available-p emacsmirror-recipe)))
     (straight--clone-repository emacsmirror-recipe))
   (let* ((package (intern
                    (completing-read
@@ -790,34 +789,70 @@
                     (sort
                      (delete-dups
                       (append
-                       (straight--with-plist melpa-recipe
-                           (local-repo)
-                         (directory-files
-                          (straight--dir "repos" local-repo "recipes")
-                          nil "^[^.]" 'nosort))
-                       (straight--with-plist gnu-elpa-recipe
-                           (local-repo)
-                         (directory-files
-                          (straight--dir "repos" local-repo "packages")
-                          nil "^[^.]" 'nosort))
-                       (straight--with-plist emacsmirror-recipe
-                           (local-repo)
-                         (append
-                          (directory-files
-                           (straight--dir "repos" local-repo "mirror")
-                           nil "^[^.]" 'nosort)
-                          (directory-files
-                           (straight--dir "repos" local-repo "attic")
-                           nil "^[^.]" 'nosort)))))
+                       (when (member 'melpa sources)
+                         (straight--with-plist melpa-recipe
+                             (local-repo)
+                           (directory-files
+                            (straight--dir "repos" local-repo "recipes")
+                            nil "^[^.]" 'nosort)))
+                       (when (member 'gnu-elpa sources)
+                         (straight--with-plist gnu-elpa-recipe
+                             (local-repo)
+                           (directory-files
+                            (straight--dir "repos" local-repo "packages")
+                            nil "^[^.]" 'nosort)))
+                       (when (member 'emacsmirror sources)
+                         (straight--with-plist emacsmirror-recipe
+                             (local-repo)
+                           (append
+                            (directory-files
+                             (straight--dir "repos" local-repo "mirror")
+                             nil "^[^.]" 'nosort)
+                            (directory-files
+                             (straight--dir "repos" local-repo "attic")
+                             nil "^[^.]" 'nosort))))))
                      'string-lessp)
                     (lambda (elt) t)
                     'require-match)))
-         (recipe (straight--lookup-recipe package)))
+         (recipe (straight--lookup-recipe package sources)))
     (pcase action
       ('insert (insert (format "%S" recipe)))
       ('copy (kill-new (format "%S" recipe))
              (message "Copied \"%S\" to kill ring" recipe))
       (_ recipe))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; API
+
+;;;###autoload
+(defun straight-get-recipe (&optional action)
+  ;; FIXME: don't name this almost the same as the totally unrelated
+  ;; `straight--get-recipe-interactively'.
+  (interactive (list (if current-prefix-arg
+                         'copy
+                       'insert)))
+  (straight--get-recipe-interactively '(melpa gnu-elpa emacsmirror) action))
+
+;;;###autoload
+(defun straight-get-gnu-elpa-recipe (&optional action)
+  (interactive (list (if current-prefix-arg
+                         'copy
+                       'insert)))
+  (straight--get-recipe-interactively '(gnu-elpa) action))
+
+;;;###autoload
+(defun straight-get-melpa-recipe (&optional action)
+  (interactive (list (if current-prefix-arg
+                         'copy
+                       'insert)))
+  (straight--get-recipe-interactively '(melpa) action))
+
+;;;###autoload
+(defun straight-get-emacsmirror-recipe (&optional action)
+  (interactive (list (if current-prefix-arg
+                         'copy
+                       'insert)))
+  (straight--get-recipe-interactively '(emacsmirror) action))
 
 ;;;###autoload
 (defun straight-use-package (melpa-style-recipe
