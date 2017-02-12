@@ -282,8 +282,9 @@
   ;; supported. So we prefer MELPA recipes, but only if they are Git
   ;; repos, and then fall back to GNU ELPA and then Emacsmirror, and
   ;; as a last resort, non-Git MELPA recipes.
-  (let ((melpa-recipe (and (member 'melpa sources)
-                           (straight--get-melpa-recipe package))))
+  (let* ((sources (or sources '(melpa gnu-elpa emacsmirror)))
+         (melpa-recipe (and (member 'melpa sources)
+                            (straight--get-melpa-recipe package))))
     (if (member (plist-get (cdr melpa-recipe) :fetcher)
                 '(git github))
         melpa-recipe
@@ -774,52 +775,53 @@
        (funcall func package)))))
 
 (defun straight--get-recipe-interactively (sources &optional action)
-  (when (and (member 'melpa sources)
-             (not (straight--repository-is-available-p melpa-recipe)))
-    (straight--clone-repository melpa-recipe))
-  (when (and (member 'gnu-elpa sources)
-             (not (straight--repository-is-available-p gnu-elpa-recipe)))
-    (straight--clone-repository gnu-elpa-recipe))
-  (when (and (member 'emacsmirror sources)
-             (not (straight--repository-is-available-p emacsmirror-recipe)))
-    (straight--clone-repository emacsmirror-recipe))
-  (let* ((package (intern
-                   (completing-read
-                    "Which recipe? "
-                    (sort
-                     (delete-dups
-                      (append
-                       (when (member 'melpa sources)
-                         (straight--with-plist melpa-recipe
-                             (local-repo)
-                           (directory-files
-                            (straight--dir "repos" local-repo "recipes")
-                            nil "^[^.]" 'nosort)))
-                       (when (member 'gnu-elpa sources)
-                         (straight--with-plist gnu-elpa-recipe
-                             (local-repo)
-                           (directory-files
-                            (straight--dir "repos" local-repo "packages")
-                            nil "^[^.]" 'nosort)))
-                       (when (member 'emacsmirror sources)
-                         (straight--with-plist emacsmirror-recipe
-                             (local-repo)
-                           (append
-                            (directory-files
-                             (straight--dir "repos" local-repo "mirror")
-                             nil "^[^.]" 'nosort)
-                            (directory-files
-                             (straight--dir "repos" local-repo "attic")
-                             nil "^[^.]" 'nosort))))))
-                     'string-lessp)
-                    (lambda (elt) t)
-                    'require-match)))
-         (recipe (straight--lookup-recipe package sources)))
-    (pcase action
-      ('insert (insert (format "%S" recipe)))
-      ('copy (kill-new (format "%S" recipe))
-             (message "Copied \"%S\" to kill ring" recipe))
-      (_ recipe))))
+  (let ((sources (or sources '(melpa gnu-elpa emacsmirror))))
+    (when (and (member 'melpa sources)
+               (not (straight--repository-is-available-p melpa-recipe)))
+      (straight--clone-repository melpa-recipe))
+    (when (and (member 'gnu-elpa sources)
+               (not (straight--repository-is-available-p gnu-elpa-recipe)))
+      (straight--clone-repository gnu-elpa-recipe))
+    (when (and (member 'emacsmirror sources)
+               (not (straight--repository-is-available-p emacsmirror-recipe)))
+      (straight--clone-repository emacsmirror-recipe))
+    (let* ((package (intern
+                     (completing-read
+                      "Which recipe? "
+                      (sort
+                       (delete-dups
+                        (append
+                         (when (member 'melpa sources)
+                           (straight--with-plist melpa-recipe
+                               (local-repo)
+                             (directory-files
+                              (straight--dir "repos" local-repo "recipes")
+                              nil "^[^.]" 'nosort)))
+                         (when (member 'gnu-elpa sources)
+                           (straight--with-plist gnu-elpa-recipe
+                               (local-repo)
+                             (directory-files
+                              (straight--dir "repos" local-repo "packages")
+                              nil "^[^.]" 'nosort)))
+                         (when (member 'emacsmirror sources)
+                           (straight--with-plist emacsmirror-recipe
+                               (local-repo)
+                             (append
+                              (directory-files
+                               (straight--dir "repos" local-repo "mirror")
+                               nil "^[^.]" 'nosort)
+                              (directory-files
+                               (straight--dir "repos" local-repo "attic")
+                               nil "^[^.]" 'nosort))))))
+                       'string-lessp)
+                      (lambda (elt) t)
+                      'require-match)))
+           (recipe (straight--lookup-recipe package sources)))
+      (pcase action
+        ('insert (insert (format "%S" recipe)))
+        ('copy (kill-new (format "%S" recipe))
+               (message "Copied \"%S\" to kill ring" recipe))
+        (_ recipe)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; API
@@ -859,7 +861,7 @@
                              &optional
                              interactive straight-style
                              parent-recipe reload)
-  (interactive (list (straight-get-elpa-recipe) t))
+  (interactive (list (straight-get-recipe) t))
   (let ((recipe (if straight-style melpa-style-recipe
                   (straight--convert-recipe melpa-style-recipe))))
     (straight--with-plist recipe
