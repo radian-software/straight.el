@@ -298,65 +298,69 @@
                          "Emacsmirror")
                  package)))))
 
+(defvar straight--recipe-cache (make-hash-table :test 'equal))
+
 (defun straight--convert-recipe (melpa-style-recipe)
-  (let* ((recipe-specified-p (listp melpa-style-recipe))
-         (full-melpa-style-recipe
-          (if recipe-specified-p
-              melpa-style-recipe
-            (let ((package melpa-style-recipe))
-              (straight--lookup-recipe package)))))
-    (cl-destructuring-bind (package . plist) full-melpa-style-recipe
-      (straight--with-plist plist
-          (local-repo repo url)
-        (let ((package (symbol-name package)))
-          (straight--put plist :package package)
-          (unless local-repo
-            (straight--put plist :local-repo
-                           (or (when repo
-                                 (replace-regexp-in-string
-                                  "^.+/" "" repo))
-                               ;; The following is a half-hearted
-                               ;; attempt to turn arbitrary URLs into
-                               ;; repository names.
-                               (let ((regexp "^.*/\\(.+\\)\\.git$"))
-                                 (when (and url (string-match regexp url))
-                                   (match-string 1 url)))
-                               package)))
-          ;; This code is here to deal with complications that can
-          ;; arise with manual recipe specifications when multiple
-          ;; packages are versioned in the same repository.
-          ;;
-          ;; Specifically, let's suppose packages `swiper' and `ivy'
-          ;; are both versioned in repository "swiper", and let's
-          ;; suppose that I load both of them in my init-file (`ivy'
-          ;; first and then `swiper'). Now suppose that I discover a
-          ;; bug in `ivy' and fix it in my fork, so that (until my fix
-          ;; is merged) I need to provide an explicit recipe in my
-          ;; init-file's call to `straight-use-package' for `ivy', in
-          ;; order to use my fork. That will cause a conflict, because
-          ;; the recipe for `swiper' is automatically taken from
-          ;; MELPA, and it does not point at my fork, but instead at
-          ;; the official repository. To fix the problem, I would have
-          ;; to specify my fork in the recipe for `swiper' (and also
-          ;; `counsel', a third package versioned in the same
-          ;; repository). That violates DRY and is a pain.
-          ;;
-          ;; Instead, this code makes it so that if a recipe has been
-          ;; automatically retrieved from a package source (for
-          ;; example, MELPA, GNU ELPA, or Emacsmirror), and the
-          ;; `:local-repo' specified in that recipe has already been
-          ;; used for another package, then the configuration for that
-          ;; repository will silently be copied over, and everything
-          ;; should "just work".
-          (unless recipe-specified-p
-            (straight--with-plist plist
-                (local-repo)
-              (when-let (original-recipe (gethash local-repo
-                                                  straight--repo-cache))
-                (dolist (keyword straight--fetch-keywords)
-                  (when-let ((value (plist-get original-recipe keyword)))
-                    (straight--put plist keyword value))))))
-          plist)))))
+  (or (and (symbolp melpa-style-recipe)
+           (gethash (symbol-name melpa-style-recipe) straight--recipe-cache))
+      (let* ((recipe-specified-p (listp melpa-style-recipe))
+             (full-melpa-style-recipe
+              (if recipe-specified-p
+                  melpa-style-recipe
+                (let ((package melpa-style-recipe))
+                  (straight--lookup-recipe package)))))
+        (cl-destructuring-bind (package . plist) full-melpa-style-recipe
+          (straight--with-plist plist
+              (local-repo repo url)
+            (let ((package (symbol-name package)))
+              (straight--put plist :package package)
+              (unless local-repo
+                (straight--put plist :local-repo
+                               (or (when repo
+                                     (replace-regexp-in-string
+                                      "^.+/" "" repo))
+                                   ;; The following is a half-hearted
+                                   ;; attempt to turn arbitrary URLs into
+                                   ;; repository names.
+                                   (let ((regexp "^.*/\\(.+\\)\\.git$"))
+                                     (when (and url (string-match regexp url))
+                                       (match-string 1 url)))
+                                   package)))
+              ;; This code is here to deal with complications that can
+              ;; arise with manual recipe specifications when multiple
+              ;; packages are versioned in the same repository.
+              ;;
+              ;; Specifically, let's suppose packages `swiper' and `ivy'
+              ;; are both versioned in repository "swiper", and let's
+              ;; suppose that I load both of them in my init-file (`ivy'
+              ;; first and then `swiper'). Now suppose that I discover a
+              ;; bug in `ivy' and fix it in my fork, so that (until my fix
+              ;; is merged) I need to provide an explicit recipe in my
+              ;; init-file's call to `straight-use-package' for `ivy', in
+              ;; order to use my fork. That will cause a conflict, because
+              ;; the recipe for `swiper' is automatically taken from
+              ;; MELPA, and it does not point at my fork, but instead at
+              ;; the official repository. To fix the problem, I would have
+              ;; to specify my fork in the recipe for `swiper' (and also
+              ;; `counsel', a third package versioned in the same
+              ;; repository). That violates DRY and is a pain.
+              ;;
+              ;; Instead, this code makes it so that if a recipe has been
+              ;; automatically retrieved from a package source (for
+              ;; example, MELPA, GNU ELPA, or Emacsmirror), and the
+              ;; `:local-repo' specified in that recipe has already been
+              ;; used for another package, then the configuration for that
+              ;; repository will silently be copied over, and everything
+              ;; should "just work".
+              (unless recipe-specified-p
+                (straight--with-plist plist
+                    (local-repo)
+                  (when-let (original-recipe (gethash local-repo
+                                                      straight--repo-cache))
+                    (dolist (keyword straight--fetch-keywords)
+                      (when-let ((value (plist-get original-recipe keyword)))
+                        (straight--put plist keyword value))))))
+              plist))))))
 
 (setq melpa-recipe (straight--convert-recipe
                     '(melpa :fetcher github
@@ -370,8 +374,6 @@
                           `(epkgs :fetcher github
                                   :repo "emacsmirror/epkgs"
                                   :nonrecursive t)))
-
-(defvar straight--recipe-cache (make-hash-table :test 'equal))
 
 (defun straight--register-recipe (recipe)
   (straight--with-plist recipe
@@ -407,25 +409,6 @@
                    (funcall func recipe)
                    (push local-repo repos))))
              straight--recipe-cache)))
-
-(defun straight--get-recipe (package)
-  ;; You might think that this method could be eliminated entirely.
-  ;; Instead, we could perform this defaulting behavior all inside
-  ;; `straight--convert-recipe', you would say.
-  ;;
-  ;; It turns out that's not such a good idea, because then we aren't
-  ;; able to distinguish between top-level packages and dependencies.
-  ;; If the user specifies two incompatible recipes for a package, we
-  ;; want to signal an error. However, if the user specifies one
-  ;; recipe and a recipe repository provides another for a dependency
-  ;; package, we want to silently reconcile the difference. This can
-  ;; be done by having the dependency resolution functions call this
-  ;; defaulting function, and then having `straight--convert-recipe'
-  ;; just throw an error on a conflict (except for the repository
-  ;; fetch part of the recipe, see the large comment in
-  ;; `straight--convert-recipe' for details).
-  (or (gethash package straight--recipe-cache)
-      (straight--convert-recipe (intern package))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Managing repositories
@@ -730,9 +713,7 @@
       (straight--compute-dependencies package)
       (when-let ((dependencies (straight--get-dependencies package)))
         (dolist (dependency dependencies)
-          (straight-use-package (straight--get-recipe dependency)
-                                interactive 'straight-style
-                                recipe))
+          (straight-use-package (intern dependency) interactive recipe))
         (if parent-recipe
             (message (concat "Finished checking dependencies, building "
                              "package %S (dependency of %S)")
@@ -859,11 +840,9 @@
 ;;;###autoload
 (defun straight-use-package (melpa-style-recipe
                              &optional
-                             interactive straight-style
-                             parent-recipe reload)
+                             interactive parent-recipe reload)
   (interactive (list (straight-get-recipe) t))
-  (let ((recipe (if straight-style melpa-style-recipe
-                  (straight--convert-recipe melpa-style-recipe))))
+  (let ((recipe (straight--convert-recipe melpa-style-recipe)))
     (straight--with-plist recipe
         (package)
       (if (or after-init-time
@@ -881,9 +860,7 @@
             (straight--maybe-save-build-cache)
             (straight--install-package-autoloads recipe)
             (dolist (dependency (straight--get-dependencies package))
-              (straight-use-package (straight--get-recipe dependency)
-                                    interactive 'straight-style
-                                    recipe))
+              (straight-use-package (intern dependency) interactive recipe))
             (when (and interactive (not reload))
               (message
                (concat "If you want to keep %s, put "
@@ -897,8 +874,7 @@
 (defun straight-reload-package (package &optional interactive)
   (interactive (list (straight--select-package "Reload package")
                      'interactive))
-  (straight-use-package (gethash package straight--recipe-cache)
-                        interactive 'straight-style nil 'reload))
+  (straight-use-package package interactive nil 'reload))
 
 ;;;###autoload
 (defun straight-reload-all ()
@@ -1031,9 +1007,7 @@
   (defun use-package-normalize/:recipe (name-symbol keyword args)
     (use-package-only-one (symbol-name keyword) args
       (lambda (label arg)
-        (unless (listp arg)
-          (error ":recipe wants a list"))
-        (if (keywordp (car arg))
+        (if (keywordp (car-safe arg))
             (cons name-symbol arg)
           arg))))
   (defun use-package-handler/:recipe (name keyword recipe rest state)
