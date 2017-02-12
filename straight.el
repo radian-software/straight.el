@@ -17,15 +17,72 @@
 ;; To see the outline of this file, run M-x occur with a query of four
 ;; semicolons followed by a space.
 
+;;; Implementation notes:
+
+;; straight.el has a couple of important abstractions to be aware of.
+;; FIXME: dummy line to satisfy auto-fill-mode
+;;
+;; A "repository" or "repo" is a folder in ~/.emacs.d/straight/repos.
+;;
+;; It is usually a Git repository but it doesn't have to be. (Git
+;; repositories are the only type of repositories that straight.el
+;; knows how to manage intelligently, meaning update, validate, and so
+;; on, so straight.el prefers to use Git repositories when possible,
+;; but there is no restriction imposed on the version control system
+;; you use, if any.)
+;;
+;; A repository generally has an upstream source specified in the
+;; relevant "package recipe" (more on that later), but again there is
+;; no restriction imposed on that: your repositories can just be
+;; folders of Elisp files that you create manually without version
+;; control, if for some reason you want that.
+;;
+;; A "package" is a collection of one or more Elisp files.
+;;
+;; Almost always, one of the files in a package will have a
+;; specially-formatted header identifying its name, version, authors,
+;; and other information. Other package managers, like package.el and
+;; quelpa, require this header. straight.el does not. The only thing
+;; that straight.el checks about the header is the dependency list,
+;; and if this is missing it is assumed that the package has no
+;; dependencies.
+;;
+;; There is not a one-to-one relationship between packages and
+;; repositories. Normally, a repository will provide the Elisp files
+;; for one and only one package, but this is not required. A single
+;; repository can provide multiple packages, and there is no
+;; requirement for a repository to provide any packages.
+;;
+;; A package is defined implicitly by its recipe. This idea is taken
+;; from MELPA and tweaked a bit. In straight.el, a package recipe is a
+;; property list (check the Elisp manual to read more about these)
+;; with a number of possible keys:
+;;
+;; :package - required, the name of the package as a string (two
+;;            packages cannot have the same name)
+;;
+;; :local-repo - required, the name of the repository
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Libraries
 
+;; For `if-let', `when-let', `hash-table-keys', `string-join',
+;; `string-trim', etc.
 (require 'subr-x)
+
+;; For `cl-destructuring-bind', `cl-some', `cl-letf', `cl-position',
+;; `cl-subseq', etc.
 (require 'cl-lib)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Lazy-load pbl
 
+;; Normally we don't autoload things explicitly. Instead, autoload
+;; cookies are placed before each function we want to autoload.
+;; However, `pbl' is a dependency of `straight', and `straight' is
+;; what provides the autoload cookie processing functionality. So this
+;; is really the only elegant way to lazy-load `pbl' (we do not want
+;; to load it unless a package needs to be built), at least for now.
 (autoload 'pbl-checkout "pbl")
 (autoload 'pbl-expand-file-specs "pbl")
 (autoload 'pbl--config-file-list "pbl")
