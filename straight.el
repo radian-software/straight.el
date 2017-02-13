@@ -953,7 +953,7 @@
 
 ;;;###autoload
 (defun straight-save-versions (&optional force)
-  (interactive)
+  (interactive "P")
   (and (or force
            (straight-validate-all 'nomsg)
            (ignore
