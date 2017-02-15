@@ -252,12 +252,12 @@
   (straight--with-plist emacsmirror-recipe
       (local-repo)
     (let ((default-directory (straight--dir "repos" local-repo)))
-      (let ((url (condition-case nil
-                     (straight--get-call
-                      "git" "config" "-f" ".gitmodules"
-                      "--get" (format "submodule.%s.url"
-                                      (symbol-name package)))
-                   (error nil))))
+      (when-let ((url (condition-case nil
+                          (straight--get-call
+                           "git" "config" "-f" ".gitmodules"
+                           "--get" (format "submodule.%s.url"
+                                           (symbol-name package)))
+                        (error nil))))
         (and (not (string-empty-p url))
              (if (string-match
                   (concat "^git@github\\.com:\\([A-Za-z0-9_.-]+"
