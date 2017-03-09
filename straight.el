@@ -840,7 +840,8 @@
 ;;;###autoload
 (defun straight-use-package (melpa-style-recipe
                              &optional
-                             interactive parent-recipe reload)
+                             interactive parent-recipe reload
+                             only-if-installed)
   (interactive (list (straight-get-recipe) t))
   (let ((recipe (straight--convert-recipe melpa-style-recipe)))
     (straight--with-plist recipe
@@ -851,22 +852,26 @@
           (progn
             (unless interactive
               (straight--register-recipe recipe))
-            (unless (straight--repository-is-available-p recipe)
-              (straight--clone-repository recipe parent-recipe))
-            (straight--add-package-to-load-path recipe)
-            (straight--maybe-load-build-cache)
-            (when (straight--package-might-be-modified-p recipe)
-              (straight--build-package recipe interactive))
-            (straight--maybe-save-build-cache)
-            (straight--install-package-autoloads recipe)
-            (dolist (dependency (straight--get-dependencies package))
-              (straight-use-package (intern dependency) interactive recipe))
-            (when (and interactive (not reload))
-              (message
-               (concat "If you want to keep %s, put "
-                       "(straight-use-package %s%S) "
-                       "in your init-file.")
-               package "'" (intern package))))
+            (let ((available
+                   (straight--repository-is-available-p recipe)))
+              (unless (and (not available) only-if-installed)
+                (unless available
+                  (straight--clone-repository recipe parent-recipe))
+                (straight--add-package-to-load-path recipe)
+                (straight--maybe-load-build-cache)
+                (when (straight--package-might-be-modified-p recipe)
+                  (straight--build-package recipe interactive))
+                (straight--maybe-save-build-cache)
+                (straight--install-package-autoloads recipe)
+                (dolist (dependency (straight--get-dependencies package))
+                  (straight-use-package (intern dependency)
+                                        interactive recipe))
+                (when (and interactive (not reload))
+                  (message
+                   (concat "If you want to keep %s, put "
+                           "(straight-use-package %s%S) "
+                           "in your init-file.")
+                   package "'" (intern package))))))
         (unless interactive
           (straight--register-recipe recipe))))))
 
@@ -992,36 +997,65 @@
 (setq package-enable-at-startup nil)
 
 (with-eval-after-load 'use-package
+  ;; Declare variables and functions from `use-package' to the
+  ;; byte-compiler.
   (defvar use-package-keywords)
   (defvar use-package-defaults)
   (defvar use-package-ensure-function)
+  (defvar use-package-pre-ensure-function)
   (declare-function use-package-only-one "use-package")
   (declare-function use-package-process-keywords "use-package")
   (declare-function use-package-as-symbol "use-package")
-  (unless (member :recipe use-package-keywords)
-    (setq use-package-keywords
-          (let* ((pos (cl-position :ensure use-package-keywords))
-                 (head (cl-subseq use-package-keywords 0 (+ 1 pos)))
-                 (tail (cl-subseq use-package-keywords (+ 1 pos))))
-            (append head (list :recipe) tail))))
-  (defun use-package-normalize/:recipe (name-symbol keyword args)
-    (use-package-only-one (symbol-name keyword) args
-      (lambda (label arg)
-        (if (keywordp (car-safe arg))
-            (cons name-symbol arg)
-          arg))))
-  (defun use-package-handler/:recipe (name keyword recipe rest state)
-    (let* ((body (use-package-process-keywords name rest state))
-           (ensure-form `(straight-use-package
-                          ',(or recipe
-                                (use-package-as-symbol name)))))
-      (if (bound-and-true-p byte-compile-current-file)
-          (eval ensure-form)
-        (push ensure-form body))
-      body))
-  (unless (assoc :recipe use-package-defaults)
-    (push '(:recipe name-symbol t) use-package-defaults))
-  (setq use-package-ensure-function #'ignore))
+  ;; Register aliases for :ensure. Aliases later in the list will
+  ;; override those earlier. (But there is no legitimate reason to use
+  ;; more than one in a `use-package' declaration, at least in sane
+  ;; situations.) The reason we also handle `:ensure' is because the
+  ;; default value of `use-package-normalize/:ensure' is not flexible
+  ;; enough to handle recipes like we need it to.
+  (dolist (keyword '(:quelpa :recipe :ensure))
+    ;; Insert the keyword just before `:ensure'.
+    (unless (member keyword use-package-keywords)
+      (setq use-package-keywords
+            (let* ((pos (cl-position :ensure use-package-keywords))
+                   (head (cl-subseq use-package-keywords 0 pos))
+                   (tail (cl-subseq use-package-keywords pos)))
+              (append head (list keyword) tail))))
+    ;; Define the normalizer for the keyword.
+    (eval
+     `(defun ,(intern (format "use-package-normalize/%S" keyword))
+          (name-symbol keyword args)
+        (use-package-only-one (symbol-name keyword) args
+          (lambda (label arg)
+            (if (keywordp (car-safe arg))
+                (cons name-symbol arg)
+              arg)))))
+    ;; Define the handler. We don't need to do this for `:ensure'.
+    (unless (eq keyword :ensure)
+      (eval
+       `(defun ,(intern (format "use-package-handler/%S" keyword))
+            (name keyword recipe rest state)
+          (use-package-process-keywords
+            name rest (plist-put state :recipe recipe))))))
+  ;; Make it so that `:ensure' uses `straight-use-package' instead of
+  ;; `package-install'.
+  (defun straight--use-package-ensure-function
+      (name ensure state &optional only-if-installed)
+    (when ensure
+      (let ((recipe (or (and (not (eq ensure t)) ensure)
+                        (plist-get state :recipe)
+                        name)))
+        (straight-use-package recipe nil nil nil only-if-installed))))
+  (defun straight--use-package-pre-ensure-function
+      (name ensure state)
+    (straight--use-package-ensure-function
+     name ensure state 'only-if-installed))
+  ;; Not sure why we need these two lines:
+  (declare-function straight--use-package-ensure-function "straight")
+  (declare-function straight--use-package-pre-ensure-function "straight")
+  (setq use-package-ensure-function
+        #'straight--use-package-ensure-function)
+  (setq use-package-pre-ensure-function
+        #'straight--use-package-pre-ensure-function))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Closing remarks
