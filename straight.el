@@ -63,6 +63,10 @@
 ;;
 ;; :local-repo - required, the name of the repository
 
+;; Fair warning: this code is currently a rat's nest, since I haven't
+;; yet had the time to go through and refactor and document things
+;; yet.
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Libraries
 
@@ -842,6 +846,7 @@
                              &optional
                              interactive parent-recipe reload
                              only-if-installed)
+  "Undocumented. Return t if package was/is installed."
   (interactive (list (straight-get-recipe) t))
   (let ((recipe (straight--convert-recipe melpa-style-recipe)))
     (straight--with-plist recipe
@@ -871,9 +876,13 @@
                    (concat "If you want to keep %s, put "
                            "(straight-use-package %s%S) "
                            "in your init-file.")
-                   package "'" (intern package))))))
+                   package "'" (intern package)))
+                t)))
         (unless interactive
-          (straight--register-recipe recipe))))))
+          (straight--register-recipe recipe))
+        ;; This is probably not the correct logic for the return
+        ;; value.
+        t))))
 
 ;;;###autoload
 (defun straight-reload-package (package &optional interactive)
@@ -1039,8 +1048,10 @@
   ;; Make it so that `:ensure' uses `straight-use-package' instead of
   ;; `package-install'.
   (defun straight--use-package-ensure-function
-      (name ensure state &optional only-if-installed)
-    (when ensure
+      (name ensure state context &optional only-if-installed)
+    (when (and ensure
+               (or (member context '(:byte-compile :ensure :config))
+                   (y-or-n-p (format "Install package %S?" name))))
       (let ((recipe (or (and (not (eq ensure t)) ensure)
                         (plist-get state :recipe)
                         name)))
