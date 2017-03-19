@@ -20,7 +20,6 @@
 ;;; Implementation notes:
 
 ;; straight.el has a couple of important abstractions to be aware of.
-;; FIXME: dummy line to satisfy auto-fill-mode
 ;;
 ;; A "repository" or "repo" is a folder in ~/.emacs.d/straight/repos.
 ;;
@@ -46,7 +45,7 @@
 ;; that straight.el checks about the header is the dependency list,
 ;; and if this is missing it is assumed that the package has no
 ;; dependencies.
-;;
+
 ;; There is not a one-to-one relationship between packages and
 ;; repositories. Normally, a repository will provide the Elisp files
 ;; for one and only one package, but this is not required. A single
@@ -54,14 +53,44 @@
 ;; requirement for a repository to provide any packages.
 ;;
 ;; A package is defined implicitly by its recipe. This idea is taken
-;; from MELPA and tweaked a bit. In straight.el, a package recipe is a
-;; property list (check the Elisp manual to read more about these)
-;; with a number of possible keys:
+;; from MELPA [1] and tweaked a bit. In straight.el, a package recipe
+;; is a property list (check the Elisp manual to read more about
+;; these) with a number of possible keys:
 ;;
-;; :package - required, the name of the package as a string (two
-;;            packages cannot have the same name)
+;; :package - the name of the package as a string (two packages cannot
+;;            have the same name)
 ;;
-;; :local-repo - required, the name of the repository
+;; :local-repo - the name of the repository providing the package
+;;
+;; :files - a list specifying which files in the repository comprise
+;;          the package; see MELPA [1] for more details on the syntax
+;;          and default value
+;;
+;; :fetcher - a symbol identifying the method by which the repository
+;;            can be retrieved from the Internet; one of `git',
+;;            `github', `gitlab', `bitbucket', `bzr', `hg', `darcs',
+;;            `fossil', `svn', `cvs', `wiki' (note that straight.el
+;;            strongly prefers `git'; the other fetchers are only
+;;            supported because I am using an adapted version [2] of
+;;            the `package-build' code [3], which has this support)
+;;
+;; :url - the URL of the repository, for the `git', `bzr', `hg',
+;;        `darcs', `fossil', `svn', and `cvs' fetchers
+;;
+;; :repo - the "username/repository", for the `github', `gitlab', and
+;;         `bitbucket' fetchers
+;;
+;; :commit - the commit to check out, for the `git', `github', and
+;;           `gitlab' fetchers
+;;
+;; :branch - the branch to check out, for the `git', `github', and
+;;           `gitlab' fetchers
+;;
+;; :module - the module to check out, for the `cvs' fetcher
+;;
+;; [1]: https://github.com/melpa/melpa#recipe-format
+;; [2]: https://github.com/raxod502/pbl
+;; [3]: https://github.com/melpa/package-build
 
 ;; Fair warning: this code is currently a rat's nest, since I haven't
 ;; yet had the time to go through and refactor and document things
