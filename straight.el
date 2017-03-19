@@ -859,7 +859,12 @@
               (straight--register-recipe recipe))
             (let ((available
                    (straight--repository-is-available-p recipe)))
-              (unless (and (not available) only-if-installed)
+              (unless (and
+                       (not available)
+                       (or (eq only-if-installed 'ignore)
+                           (not (y-or-n-p
+                                 (format "Install package %S?"
+                                         package)))))
                 (unless available
                   (straight--clone-repository recipe parent-recipe))
                 (straight--add-package-to-load-path recipe)
@@ -1049,17 +1054,19 @@
   ;; `package-install'.
   (defun straight--use-package-ensure-function
       (name ensure state context &optional only-if-installed)
-    (when (and ensure
-               (or (member context '(:byte-compile :ensure :config))
-                   (y-or-n-p (format "Install package %S?" name))))
+    (when ensure
       (let ((recipe (or (and (not (eq ensure t)) ensure)
                         (plist-get state :recipe)
                         name)))
-        (straight-use-package recipe nil nil nil only-if-installed))))
+        (straight-use-package
+         recipe nil nil nil
+         (or only-if-installed
+             (unless (member context '(:byte-compile :ensure :config))
+               'prompt))))))
   (defun straight--use-package-pre-ensure-function
       (name ensure state)
     (straight--use-package-ensure-function
-     name ensure state 'only-if-installed))
+     name ensure state nil 'ignore))
   ;; Not sure why we need these two lines:
   (declare-function straight--use-package-ensure-function "straight")
   (declare-function straight--use-package-pre-ensure-function "straight")
