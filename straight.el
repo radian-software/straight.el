@@ -861,6 +861,7 @@
                    (straight--repository-is-available-p recipe)))
               (unless (and
                        (not available)
+                       only-if-installed
                        (or (eq only-if-installed 'ignore)
                            (not (y-or-n-p
                                  (format "Install package %S?"
