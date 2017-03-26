@@ -1868,12 +1868,13 @@ according to the value of `straight-profiles'."
                         name)))
         (straight-use-package
          recipe (or only-if-installed
-                    (unless (member context '(:byte-compile :ensure :config))
+                    (unless (member context '(:byte-compile :ensure
+                                              :config :pre-ensure))
                       'prompt))))))
   (defun straight--use-package-pre-ensure-function
       (name ensure state)
     (straight--use-package-ensure-function
-     name ensure state nil 'ignore))
+     name ensure state :pre-ensure 'only-if-installed))
   ;; The last two function definitions are not at the top level, so
   ;; the byte-compiler doesn't know about them unless we explicitly
   ;; use `declare-function'.
