@@ -1610,7 +1610,7 @@ non-nil)."
               (straight--clone-repository recipe cause))
             (straight--maybe-load-build-cache)
             (when (straight--package-might-be-modified-p recipe)
-              (straight--build-package recipe interactive))
+              (straight--build-package recipe cause))
             (straight--maybe-save-build-cache)
             ;; Here we are not actually trying to build the
             ;; dependencies, but activate their autoloads. (See the
