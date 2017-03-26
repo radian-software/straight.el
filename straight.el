@@ -182,7 +182,7 @@ The MESSAGE is postpended with \"...\" and then passed to
 `straight--progress-end'."
   (message "%s..." message))
 
-(defun straight--progress-end (message &rest args)
+(defun straight--progress-end (message)
   "Display a MESSAGE indicating completed progress.
 The MESSAGE is postpended with \"...done\" and then passed to
 `message'. See also `"
@@ -349,12 +349,32 @@ cloned."
 (defvar gnu-elpa-recipe)
 (defvar emacsmirror-recipe)
 
+(defun straight--get-melpa-recipe (package &optional cause)
+  "Look up a PACKAGE recipe in MELPA.
+PACKAGE should be a symbol. If the package has a recipe listed in
+MELPA, return it; otherwise return nil. If MELPA is not
+available, clone it automatically before looking up the recipe.
+CAUSE is a string explaining why MELPA might need to be cloned."
+  (unless (straight--repository-is-available-p melpa-recipe)
+    (straight--clone-repository melpa-recipe cause))
+  (with-temp-buffer
+    (when
+        (condition-case nil
+            (insert-file-contents-literally
+             (straight--with-plist melpa-recipe
+                 (local-repo)
+               (straight--file "repos" local-repo "recipes"
+                               (symbol-name package))))
+          (error nil))
+      (read (current-buffer)))))
+
 (defun straight--get-gnu-elpa-recipe (package &optional cause)
   "Look up a PACKAGE recipe in GNU ELPA.
 PACKAGE should be a symbol. If the package is maintained in GNU
 ELPA, a MELPA-style recipe is returned. Otherwise nil is
 returned. If GNU ELPA is not available, clone it automatically
-before looking up the recipe."
+before looking up the recipe. CAUSE is a string explaining why
+GNU ELPA might need to be cloned."
   (unless (straight--repository-is-available-p gnu-elpa-recipe)
     (straight--clone-repository gnu-elpa-recipe cause))
   (straight--with-plist gnu-elpa-recipe
@@ -370,30 +390,13 @@ before looking up the recipe."
                                   (symbol-name package)))
                  :local-repo "elpa"))))
 
-(defun straight--get-melpa-recipe (package &optional cause)
-  "Look up a PACKAGE recipe in MELPA.
-PACKAGE should be a symbol. If the package has a recipe listed in
-MELPA, return it; otherwise return nil. If MELPA is not
-available, clone it automatically before looking up the recipe."
-  (unless (straight--repository-is-available-p melpa-recipe)
-    (straight--clone-repository melpa-recipe cause))
-  (with-temp-buffer
-    (when
-        (condition-case nil
-            (insert-file-contents-literally
-             (straight--with-plist melpa-recipe
-                 (local-repo)
-               (straight--file "repos" local-repo "recipes"
-                               (symbol-name package))))
-          (error nil))
-      (read (current-buffer)))))
-
 (defun straight--get-emacsmirror-recipe (package &optional cause)
-  "Look up a PACKAGE recipe in EmacsMirror.
+  "Look up a PACKAGE recipe in Emacsmirror.
 PACKAGE should be a symbol. If the package is available from
-EmacsMirror, return a MELPA-style recipe; otherwise return nil.
-If EmacsMirror is not available, clone it automatically before
-looking up the recipe."
+Emacsmirror, return a MELPA-style recipe; otherwise return nil.
+If Emacsmirror is not available, clone it automatically before
+looking up the recipe. CAUSE is a string explaining why
+Emacsmirror might need to be cloned."
   (unless (straight--repository-is-available-p emacsmirror-recipe)
     (straight--clone-repository emacsmirror-recipe cause))
   (straight--with-plist emacsmirror-recipe
@@ -457,7 +460,9 @@ containing one or more of `gnu-elpa', `melpa', and
 `emacsmirror'. (If it is omitted, it defaults to allowing all
 three sources.) Git-based MELPA recipes are preferred, then GNU
 ELPA, then Emacsmirror, then non-Git MELPA recipes. If the recipe
-is not found in any of the provided sources, raise an error."
+is not found in any of the provided sources, raise an error.
+CAUSE is a string indicating the reason recipe repositories might
+need to be cloned."
   ;; We want to prefer Git, since that's the only VCS currently
   ;; supported. So we prefer MELPA recipes, but only if they are Git
   ;; repos, and then fall back to GNU ELPA and then Emacsmirror, and
@@ -482,13 +487,13 @@ is not found in any of the provided sources, raise an error."
       ;; Next most preferred is GNU ELPA.
       (or (and (member 'gnu-elpa sources)
                (straight--get-gnu-elpa-recipe package cause))
-          ;; EmacsMirror comes after GNU ELPA because we prefer
+          ;; Emacsmirror comes after GNU ELPA because we prefer
           ;; "official" sources, so that it is easier to figure out
           ;; what upstream to submit changes against.
           (and (member 'emacsmirror sources)
                (straight--get-emacsmirror-recipe package cause))
           ;; This shouldn't be possible in normal cases, since
-          ;; EmacsMirror ostensibly contains all packages that are in
+          ;; Emacsmirror ostensibly contains all packages that are in
           ;; MELPA. But you never know. It's better to return a
           ;; non-Git recipe than to error out entirely.
           melpa-recipe
@@ -508,11 +513,12 @@ in use.")
 
 (defun straight--convert-recipe (melpa-style-recipe &optional cause)
   "Convert a MELPA-STYLE-RECIPE to a normalized straight.el recipe.
-MELPA, GNU ELPA, and EmacsMirror may be cloned and searched for
+MELPA, GNU ELPA, and Emacsmirror may be cloned and searched for
 recipes if the MELPA-STYLE-RECIPE is just a package name;
 otherwise, the MELPA-STYLE-RECIPE should be a list and it is
 modified slightly to conform to the internal straight.el recipe
-format."
+format. CAUSE is a string indicating the reason recipe
+repositories might need to be cloned."
   ;; Firstly, if the recipe is only provided as a package name, and
   ;; we've already converted it before, then we should just return the
   ;; previous result. This has nothing to do with efficiency; it's
@@ -546,7 +552,7 @@ format."
              ;; provided explicitly, or if it was just given as a
              ;; package name (meaning that the recipe needs to be
              ;; looked up in a recipe repository, i.e. MELPA, GNU
-             ;; ELPA, or EmacsMirror). Why, you ask? It's so that we
+             ;; ELPA, or Emacsmirror). Why, you ask? It's so that we
              ;; can be a little more tolerant of conflicts in certain
              ;; cases -- see the comment below, before the block of
              ;; code that runs when `recipe-specified-p' is nil.
@@ -884,13 +890,12 @@ values that you bind `straight-current-profile' to, and they
 should each have an entry in `straight-profiles'.")
 
 (defvar straight--profile-cache-valid nil
-  "Does `straight--profile-cache' accurately reflect the
-init-file? The function `straight-save-versions' will be
-reluctant to create a version lockfile if this variable is nil.
-It is set to non-nil by the function
-`straight-declare-init-succeeded', and is set back to nil when
-the straight.el bootstrap is run or `straight-use-package' is
-invoked.")
+  "Non-nil if `straight--profile-cache' accurately reflects the init-file.
+The function `straight-save-versions' will be reluctant to create
+a version lockfile if this variable is nil. It is set to non-nil
+by the function `straight-declare-init-succeeded', and is set
+back to nil when the straight.el bootstrap is run or
+`straight-use-package' is invoked.")
 
 (defun straight--reset-caches ()
   "Reset caches other than the build cache and success cache..
@@ -1418,8 +1423,8 @@ SOURCES is a list containing one or more of `melpa', `gnu-elpa',
 and `emacsmirror'. (If it is nil, then all three of the sources
 are assumed to be present.) The relevant recipe repositories are
 cloned if necessary first. If `action' is nil or omitted, return
-the recipe. If `action' is `insert', then insert it into the
-current buffer. If `action' is `copy', then insert it into the
+the recipe. If ACTION is `insert', then insert it into the
+current buffer. If ACTION is `copy', then insert it into the
 kill ring. Interactively, copy it if a prefix argument is
 provided, and insert it otherwise."
   (let ((sources (or sources '(melpa gnu-elpa emacsmirror))))
@@ -1514,7 +1519,10 @@ pruned."
   "Interactively select a recipe from one of the recipe repositories.
 All three recipe repositories will first be cloned. If a prefix
 argument is provided, copy the recipe to the kill ring;
-otherwise, insert it into the current buffer."
+otherwise, insert it into the current buffer. From Lisp code,
+copying is achieved by passing ACTION as `copy'; insertion is
+achieved by passing ACTION as `insert'; neither are done if
+ACTION is nil or omitted."
   (interactive (list (if current-prefix-arg
                          'copy
                        'insert)))
@@ -1522,7 +1530,8 @@ otherwise, insert it into the current buffer."
 
 ;;;###autoload
 (defun straight-get-melpa-recipe (&optional action)
-  "Interactively select a MELPA recipe. See `straight-get-recipe'."
+  "Interactively select a MELPA recipe. See `straight-get-recipe'.
+ACTION can be nil, `copy', or `insert'."
   (interactive (list (if current-prefix-arg
                          'copy
                        'insert)))
@@ -1530,7 +1539,8 @@ otherwise, insert it into the current buffer."
 
 ;;;###autoload
 (defun straight-get-gnu-elpa-recipe (&optional action)
-  "Interactively select a GNU ELPA recipe. See `straight-get-recipe'."
+  "Interactively select a GNU ELPA recipe. See `straight-get-recipe'.
+ACTION can be nil, `copy', or `insert'."
   (interactive (list (if current-prefix-arg
                          'copy
                        'insert)))
@@ -1538,7 +1548,8 @@ otherwise, insert it into the current buffer."
 
 ;;;###autoload
 (defun straight-get-emacsmirror-recipe (&optional action)
-  "Interactively select an Emacsmirror recipe. See `straight-get-recipe'."
+  "Interactively select an Emacsmirror recipe. See `straight-get-recipe'.
+ACTION can be nil, `copy', or `insert'."
   (interactive (list (if current-prefix-arg
                          'copy
                        'insert)))
@@ -1591,7 +1602,7 @@ non-nil)."
                        only-if-installed
                        (not (and (eq only-if-installed 'prompt)
                                  (y-or-n-p
-                                  (format "Install package %S?"
+                                  (format "Install package %S? "
                                           package)))))
             (unless available
               (straight--clone-repository recipe cause))
