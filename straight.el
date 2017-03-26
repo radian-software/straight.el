@@ -337,6 +337,55 @@ cloned."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Recipe processing
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Managing package profiles
+
+(defvar straight--recipe-cache (make-hash-table :test #'equal)
+  "Hash table listing known recipes by package.
+The keys are strings naming packages, and the values are the last
+known recipe for that package. This is used for detecting
+conflicting recipes for the same package; managing the build
+cache and versions lockfile; and getting a list of all packages
+in use.")
+
+(defvar straight--repo-cache (make-hash-table :test #'equal)
+  "Hash table listing known recipes by repository.
+The keys are strings naming repositories, and the values are the
+last known recipe that referenced the corresponding repository.
+This is used for detecting conflicts (when multiple packages are
+versioned in the same repository, but are specified with
+incompatible recipes) and for silently adjusting recipes drawn
+from recipe repositories so as to avoid conflicts.")
+
+(defvar straight--profile-cache (make-hash-table :test #'equal)
+  "Hash table mapping packages to lists of profiles.
+The keys are strings naming packages, and the values are lists of
+symbols identifying package profiles. These symbols are the
+values that you bind `straight-current-profile' to, and they
+should each have an entry in `straight-profiles'.")
+
+(defun straight--reset-caches ()
+  "Reset caches other than the build cache and success cache..
+This means `straight--recipe-cache', `straight--repo-cache', and
+`straight--profile-cache'. (We don't ever want to reset the build
+cache since it is a totally separate system from the caches
+employed by `straight--convert-recipe', and we don't ever want to
+reset the success cache since that would mean the user would
+receive a duplicate message if they called `straight-use-package'
+interactively, reloaded their init-file, and then called
+`straight-use-package' on the same package again.)"
+  (setq straight--recipe-cache (make-hash-table :test #'equal))
+  (setq straight--repo-cache (make-hash-table :test #'equal))
+  (setq straight--profile-cache (make-hash-table :test #'equal)))
+
+(defvar straight--profile-cache-valid nil
+  "Non-nil if `straight--profile-cache' accurately reflects the init-file.
+The function `straight-save-versions' will be reluctant to create
+a version lockfile if this variable is nil. It is set to non-nil
+by the function `straight-declare-init-succeeded', and is set
+back to nil when the straight.el bootstrap is run or
+`straight-use-package' is invoked.")
+
 (defvar gnu-elpa-url "git://git.savannah.gnu.org/emacs/elpa.git"
   "URL of the Git repository for the GNU ELPA package repository.")
 
@@ -426,15 +475,6 @@ Emacsmirror might need to be cloned."
                `(,package :fetcher git
                           :url ,url)))))))
 
-(defvar straight--repo-cache (make-hash-table :test #'equal)
-  "Hash table listing known recipes by repository.
-The keys are strings naming repositories, and the values are the
-last known recipe that referenced the corresponding repository.
-This is used for detecting conflicts (when multiple packages are
-versioned in the same repository, but are specified with
-incompatible recipes) and for silently adjusting recipes drawn
-from recipe repositories so as to avoid conflicts.")
-
 (defvar straight--fetch-keywords
   '(:fetcher :url :repo :commit :branch :module)
   "Keywords that affect how a repository is cloned.
@@ -503,14 +543,6 @@ need to be cloned."
                          "Emacsmirror")
                  package)))))
 
-(defvar straight--recipe-cache (make-hash-table :test #'equal)
-  "Hash table listing known recipes by package.
-The keys are strings naming packages, and the values are the last
-known recipe for that package. This is used for detecting
-conflicting recipes for the same package; managing the build
-cache and versions lockfile; and getting a list of all packages
-in use.")
-
 (defun straight--convert-recipe (melpa-style-recipe &optional cause)
   "Convert a MELPA-STYLE-RECIPE to a normalized straight.el recipe.
 MELPA, GNU ELPA, and Emacsmirror may be cloned and searched for
@@ -564,7 +596,9 @@ repositories might need to be cloned."
              (full-melpa-style-recipe
               (if recipe-specified-p
                   melpa-style-recipe
-                (straight--lookup-recipe melpa-style-recipe cause))))
+                ;; Second argument is the sources list, defaults to
+                ;; all known sources.
+                (straight--lookup-recipe melpa-style-recipe nil cause))))
         ;; MELPA-style recipe format is a list whose car is the
         ;; package name as a symbol, and whose cdr is a plist.
         (cl-destructuring-bind (package . plist) full-melpa-style-recipe
@@ -752,6 +786,16 @@ will be omitted."
   (dolist (recipe (hash-table-values straight--repo-cache))
     (funcall func recipe)))
 
+(defun straight--map-repo-packages (func)
+  "Call FUNC for each local repository referenced in the known recipes.
+The function FUNC is passed one argument, the name (as a string)
+of one of the packages using the local repository."
+  (straight--map-repos
+   (lambda (recipe)
+     (straight--with-plist recipe
+         (package)
+       (funcall func package)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Managing repositories
 
@@ -878,38 +922,6 @@ If this cannot be done, signal a warning."
        (concat "Repository %S is not version-controlled with Git, "
                "cannot set HEAD")
        local-repo))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Managing package profiles
-
-(defvar straight--profile-cache (make-hash-table :test #'equal)
-  "Hash table mapping packages to lists of profiles.
-The keys are strings naming packages, and the values are lists of
-symbols identifying package profiles. These symbols are the
-values that you bind `straight-current-profile' to, and they
-should each have an entry in `straight-profiles'.")
-
-(defvar straight--profile-cache-valid nil
-  "Non-nil if `straight--profile-cache' accurately reflects the init-file.
-The function `straight-save-versions' will be reluctant to create
-a version lockfile if this variable is nil. It is set to non-nil
-by the function `straight-declare-init-succeeded', and is set
-back to nil when the straight.el bootstrap is run or
-`straight-use-package' is invoked.")
-
-(defun straight--reset-caches ()
-  "Reset caches other than the build cache and success cache..
-This means `straight--recipe-cache', `straight--repo-cache', and
-`straight--profile-cache'. (We don't ever want to reset the build
-cache since it is a totally separate system from the caches
-employed by `straight--convert-recipe', and we don't ever want to
-reset the success cache since that would mean the user would
-receive a duplicate message if they called `straight-use-package'
-interactively, reloaded their init-file, and then called
-`straight-use-package' on the same package again.)"
-  (setq straight--recipe-cache (make-hash-table :test #'equal))
-  (setq straight--repo-cache (make-hash-table :test #'equal))
-  (setq straight--profile-cache (make-hash-table :test #'equal)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Figuring out whether packages need to be rebuilt
@@ -1406,16 +1418,6 @@ or whitespace."
    (hash-table-keys straight--recipe-cache)
    (lambda (elt) t)
    'require-match))
-
-(defun straight--map-repo-packages (func)
-  "Call FUNC for each local repository referenced in the known recipes.
-The function FUNC is passed one argument, the name (as a string)
-of one of the packages using the local repository."
-  (straight--map-repos
-   (lambda (recipe)
-     (straight--with-plist recipe
-         (package)
-       (funcall func package)))))
 
 (defun straight--get-recipe-interactively (sources &optional action)
   "Use `completing-read' to select an available package.
