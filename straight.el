@@ -1287,7 +1287,7 @@ modifies the build folder, not the original repository."
 
 (defun straight--byte-compile-package (recipe)
   "Byte-compile autoloads for the symlinked package specified by RECIPE.
-RECIPE should be a straight.el-tsyle plist. Note that this
+RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
   ;; We need to load `bytecomp' so that the `symbol-function'
