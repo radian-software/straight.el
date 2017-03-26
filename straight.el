@@ -157,16 +157,16 @@ used as the TASK for the beginning and end messages
 respectively. (Either the car or cdr, or both, can be nil.) See
 also `straight--progress-begin' and `straight--progress-end'."
   (declare (indent 1))
-  (let ((task-sym (make-symbol "task"))
-        (task-car-sym (make-symbol "task-car"))
-        (task-cdr-sym (make-symbol "task-cdr")))
-    `(let ((,task-sym ,task)
-           (,task-car-sym (if (listp ,task-sym)
-                              (car ,task-sym)
-                            ,task-sym))
-           (,task-cdr-sym (if (listp ,task-sym)
-                              (cdr ,task-sym)
-                            ,task-sym)))
+  (let ((task-sym (make-symbol "gensym--task"))
+        (task-car-sym (make-symbol "gensym--task-car"))
+        (task-cdr-sym (make-symbol "gensym--task-cdr")))
+    `(let* ((,task-sym ,task)
+            (,task-car-sym (if (listp ,task-sym)
+                               (car ,task-sym)
+                             ,task-sym))
+            (,task-cdr-sym (if (listp ,task-sym)
+                               (cdr ,task-sym)
+                             ,task-sym)))
        (prog2
            (when ,task-car-sym
              (message "%s..." ,task-car-sym))
@@ -349,16 +349,14 @@ cloned."
 (defvar gnu-elpa-recipe)
 (defvar emacsmirror-recipe)
 
-(defun straight--get-gnu-elpa-recipe (package)
+(defun straight--get-gnu-elpa-recipe (package &optional cause)
   "Look up a PACKAGE recipe in GNU ELPA.
 PACKAGE should be a symbol. If the package is maintained in GNU
 ELPA, a MELPA-style recipe is returned. Otherwise nil is
 returned. If GNU ELPA is not available, clone it automatically
 before looking up the recipe."
   (unless (straight--repository-is-available-p gnu-elpa-recipe)
-    (straight--clone-repository gnu-elpa-recipe
-                                `(:package ,(symbol-name package))
-                                "looking for"))
+    (straight--clone-repository gnu-elpa-recipe cause))
   (straight--with-plist gnu-elpa-recipe
       (local-repo)
     (when (file-exists-p (straight--dir
@@ -372,15 +370,13 @@ before looking up the recipe."
                                   (symbol-name package)))
                  :local-repo "elpa"))))
 
-(defun straight--get-melpa-recipe (package)
+(defun straight--get-melpa-recipe (package &optional cause)
   "Look up a PACKAGE recipe in MELPA.
 PACKAGE should be a symbol. If the package has a recipe listed in
 MELPA, return it; otherwise return nil. If MELPA is not
 available, clone it automatically before looking up the recipe."
   (unless (straight--repository-is-available-p melpa-recipe)
-    (straight--clone-repository melpa-recipe
-                                `(:package ,(symbol-name package))
-                                "looking for"))
+    (straight--clone-repository melpa-recipe cause))
   (with-temp-buffer
     (when
         (condition-case nil
@@ -392,16 +388,14 @@ available, clone it automatically before looking up the recipe."
           (error nil))
       (read (current-buffer)))))
 
-(defun straight--get-emacsmirror-recipe (package)
+(defun straight--get-emacsmirror-recipe (package &optional cause)
   "Look up a PACKAGE recipe in EmacsMirror.
 PACKAGE should be a symbol. If the package is available from
 EmacsMirror, return a MELPA-style recipe; otherwise return nil.
 If EmacsMirror is not available, clone it automatically before
 looking up the recipe."
   (unless (straight--repository-is-available-p emacsmirror-recipe)
-    (straight--clone-repository emacsmirror-recipe
-                                `(:package ,(symbol-name package))
-                                "looking for"))
+    (straight--clone-repository emacsmirror-recipe cause))
   (straight--with-plist emacsmirror-recipe
       (local-repo)
     (let ((default-directory (straight--dir "repos" local-repo)))
@@ -456,7 +450,7 @@ needs to be rebuild.")
 If two recipes specify the same `:package', but have different
 values for any of these keywords, then they are incompatible.")
 
-(defun straight--lookup-recipe (package &optional sources)
+(defun straight--lookup-recipe (package &optional sources cause)
   "Look up a PACKAGE recipe in one or more SOURCES.
 PACKAGE should be a symbol, and SOURCES should be a list
 containing one or more of `gnu-elpa', `melpa', and
@@ -470,12 +464,16 @@ is not found in any of the provided sources, raise an error."
   ;; as a last resort, non-Git MELPA recipes.
   (let* (;; If `sources' is omitted, allow all sources.
          (sources (or sources '(melpa gnu-elpa emacsmirror)))
+         ;; Update the `cause' to explain why repositories might be
+         ;; getting cloned.
+         (cause (concat cause (when cause straight-arrow)
+                        (format "Looking for %s recipe" package)))
          ;; Get the MELPA recipe first. We're keeping it around so
          ;; that if it's a non-Git-based recipe, but we can't find the
          ;; package anywhere else, then we can avoid needing to
          ;; recalculate the recipe.
          (melpa-recipe (and (member 'melpa sources)
-                            (straight--get-melpa-recipe package))))
+                            (straight--get-melpa-recipe package cause))))
     ;; Git-based recipes in MELPA are ideal (since Git is the only VCS
     ;; that straight.el supports).
     (if (member (plist-get (cdr melpa-recipe) :fetcher)
@@ -483,12 +481,12 @@ is not found in any of the provided sources, raise an error."
         melpa-recipe
       ;; Next most preferred is GNU ELPA.
       (or (and (member 'gnu-elpa sources)
-               (straight--get-gnu-elpa-recipe package))
+               (straight--get-gnu-elpa-recipe package cause))
           ;; EmacsMirror comes after GNU ELPA because we prefer
           ;; "official" sources, so that it is easier to figure out
           ;; what upstream to submit changes against.
           (and (member 'emacsmirror sources)
-               (straight--get-emacsmirror-recipe package))
+               (straight--get-emacsmirror-recipe package cause))
           ;; This shouldn't be possible in normal cases, since
           ;; EmacsMirror ostensibly contains all packages that are in
           ;; MELPA. But you never know. It's better to return a
@@ -508,7 +506,7 @@ conflicting recipes for the same package; managing the build
 cache and versions lockfile; and getting a list of all packages
 in use.")
 
-(defun straight--convert-recipe (melpa-style-recipe)
+(defun straight--convert-recipe (melpa-style-recipe &optional cause)
   "Convert a MELPA-STYLE-RECIPE to a normalized straight.el recipe.
 MELPA, GNU ELPA, and EmacsMirror may be cloned and searched for
 recipes if the MELPA-STYLE-RECIPE is just a package name;
@@ -560,7 +558,7 @@ format."
              (full-melpa-style-recipe
               (if recipe-specified-p
                   melpa-style-recipe
-                (straight--lookup-recipe melpa-style-recipe))))
+                (straight--lookup-recipe melpa-style-recipe cause))))
         ;; MELPA-style recipe format is a list whose car is the
         ;; package name as a symbol, and whose cdr is a plist.
         (cl-destructuring-bind (package . plist) full-melpa-style-recipe
@@ -654,7 +652,8 @@ format."
 ;; infinite recursion, but it isn't -- remember that the recipe
 ;; repositories are only consulted by `straight--convert-recipe' in
 ;; the case that the MELPA-style recipe is provided as just a package
-;; name (instead of a list).
+;; name (instead of a list). Note that there's no reason to provide a
+;; `cause', since no messages should be printed.
 
 (setq melpa-recipe (straight--convert-recipe
                     '(melpa :fetcher github
@@ -1125,7 +1124,7 @@ all files in the package's local repository."
                ;; under consideration was present in the build cache),
                ;; then we still only need to rebuild it if it
                ;; specifically has changed.
-               (or (not (stringp mtime)) ; shouldn't happen
+               (or (not (stringp last-mtime)) ; shouldn't happen
                    (with-temp-buffer
                      (let ((default-directory
                              (straight--dir "repos" local-repo)))
@@ -1464,6 +1463,9 @@ provided, and insert it otherwise."
                        'string-lessp)
                       (lambda (elt) t)
                       'require-match)))
+           ;; No need to provide a `cause' to
+           ;; `straight--lookup-recipe'; it should not be printing any
+           ;; messages.
            (recipe (straight--lookup-recipe package sources)))
       (pcase action
         ('insert (insert (format "%S" recipe)))
@@ -1516,7 +1518,7 @@ otherwise, insert it into the current buffer."
   (interactive (list (if current-prefix-arg
                          'copy
                        'insert)))
-  (straight--get-recipe-interactively '(melpa gnu-elpa emacsmirror) action))
+  (straight--get-recipe-interactively nil action))
 
 ;;;###autoload
 (defun straight-get-melpa-recipe (&optional action)
@@ -1565,8 +1567,9 @@ hint about how to install the package permanently.
 Return non-nil if package was actually installed, and nil
 otherwise (this can only happen if ONLY-IF-INSTALLED is
 non-nil)."
-  (interactive (list (straight--get-recipe) nil nil 'interactive))
-  (let ((recipe (straight--convert-recipe melpa-style-recipe)))
+  (interactive (list (straight--get-recipe-interactively nil)
+                     nil nil 'interactive))
+  (let ((recipe (straight--convert-recipe melpa-style-recipe cause)))
     (straight--with-plist recipe
         (package)
       (let (;; Check if the package has been successfully built. If
@@ -1786,11 +1789,11 @@ according to the value of `straight-profiles'."
                                    lockfile-path)
                                   (ignore-errors
                                     (read (current-buffer))))))
-           (dolist (spec versions)
+           (dolist (spec versions-alist)
              (let ((repo (car spec))
                    (head (cdr spec)))
                (straight--set-head repo head)))
-         (straight--warn "Could not read from %S" lockfile-ppath))))
+         (straight--warn "Could not read from %S" lockfile-path))))
    straight-profiles))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1849,10 +1852,9 @@ according to the value of `straight-profiles'."
                         (plist-get state :recipe)
                         name)))
         (straight-use-package
-         recipe nil nil nil
-         (or only-if-installed
-             (unless (member context '(:byte-compile :ensure :config))
-               'prompt))))))
+         recipe (or only-if-installed
+                    (unless (member context '(:byte-compile :ensure :config))
+                      'prompt))))))
   (defun straight--use-package-pre-ensure-function
       (name ensure state)
     (straight--use-package-ensure-function
