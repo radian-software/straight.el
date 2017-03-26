@@ -1,3 +1,4 @@
+;;; bootstrap.el --- Initialize straight.el -*- lexical-binding: t -*-
 (require 'bytecomp)
 (require 'cl-lib)
 (let ((straight-dir (expand-file-name
@@ -21,3 +22,4 @@
 (setq straight--finalization-guaranteed nil)
 (straight-use-package '(straight :fetcher github
                                  :repo "raxod502/straight.el"))
+;;; bootstrap.el ends here

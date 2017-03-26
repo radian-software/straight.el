@@ -1,4 +1,4 @@
-;;; straight.el --- The straightforward package manager.
+;;; straight.el --- The straightforward package manager. -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2017 Radon Rosborough
 
@@ -1259,6 +1259,18 @@ they were previously registered in the build cache by
 RECIPE should be a straight.el-style plist. See
 `straight--autoload-file-name'. Note that this function only
 modifies the build folder, not the original repository."
+  ;; The `eval-and-compile' here is extremely important. If you take
+  ;; it out, then straight.el will fail with a mysterious error and
+  ;; then cause Emacs to segfault if you start it with --debug-init.
+  ;; This happens because if you take out `eval-and-compile', then
+  ;; `autoload' will not be loaded at byte-compile time, and therefore
+  ;; `generated-autoload-file' is not defined as a variable. Thus
+  ;; Emacs generates bytecode corresponding to a lexical binding of
+  ;; `generated-autoload-file', and then chokes badly when
+  ;; `generated-autoload-file' turns into a dynamic variable at
+  ;; runtime.
+  (eval-and-compile
+    (require 'autoload))
   (straight--with-plist recipe
       (package)
     (let (;; The full path to the autoload file.
@@ -1291,8 +1303,10 @@ RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
   ;; We need to load `bytecomp' so that the `symbol-function'
-  ;; assignments below are sure to work.
-  (require 'bytecomp)
+  ;; assignments below are sure to work. Since we byte-compile this
+  ;; file, we need to `require' the feature at compilation time too.
+  (eval-and-compile
+    (require 'bytecomp))
   (straight--with-plist recipe
       (package)
     ;; These two `let' forms try very, very hard to make
