@@ -103,10 +103,10 @@ Simply replace `:quelpa` with `:recipe`.
 To **update your packages**, simply run `M-x straight-update-package`
 or `M-x straight-update-all`.
 
-`straight.el` aims to allow **complete reproducibility**. To export
-the versions of all packages in use, run `M-x
-straight-freeze-versions`. To revert to the versions listed in the
-exported file, run `M-x straight-thaw-versions`. (In future,
+`straight.el` aims to allow **complete reproducibility** for your
+configuration. To **export the versions** of all packages in use, run
+`M-x straight-freeze-versions`. To **revert to the versions listed**
+in the exported file, run `M-x straight-thaw-versions`. (In future,
 `straight.el` will automatically checkout the listed versions of
 packages when you run your config on a fresh machine. Coming
 Soon&trade;)
