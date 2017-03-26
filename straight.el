@@ -189,7 +189,7 @@ The MESSAGE is postpended with \"...done\" and then passed to
   (message "%s...done" message))
 
 (defun straight--warn (message &rest args)
-  "Display a warning from `straight'.
+  "Display a warning from `straight'. Return nil.
 The warning message is obtained by passing MESSAGE and ARGS to
 `format'."
   (ignore
@@ -848,8 +848,12 @@ If the branch has no upstream, return nil."
 
 (defun straight--merge-with-upstream (upstream)
   "Merge the current branch with an UPSTREAM ref.
-If the command fails, raise an error."
-  (straight--ensure-call "git" "merge" upstream))
+If the command fails, raise an error. After this function
+returns, the working directory will perfectly reflect the state
+of UPSTREAM."
+  (straight--ensure-call "git" "merge" upstream)
+  (straight--ensure-call "git" "submodule" "update")
+  (straight--ensure-call "git" "clean" "-f"))
 
 (defun straight--update-package (recipe)
   "Attempt to update the package specified by the RECIPE.
@@ -864,8 +868,13 @@ cannot be done, signal a warning."
             (if-let ((branch (straight--get-branch)))
                 (if-let ((upstream (straight--get-upstream branch)))
                     (if (straight--is-ancestor branch upstream)
-                        ;; Local branch is behind upstream, merge.
-                        (straight--merge-with-upstream upstream)
+                        ;; Local branch is behind upstream, merge (maybe).
+                        (if (straight--working-directory-dirty-p
+                             local-repo)
+                            (straight--warn
+                             (concat "In repository %S, working directory "
+                                     "is dirty, cannot update"))
+                          (straight--merge-with-upstream upstream))
                       (unless (straight--is-ancestor upstream branch)
                         ;; Local branch has diverged from upstream,
                         ;; but is not purely ahead. Warn.
@@ -922,6 +931,16 @@ If this cannot be done, signal a warning."
        (concat "Repository %S is not version-controlled with Git, "
                "cannot set HEAD")
        local-repo))))
+
+(defun straight--working-directory-dirty-p (local-repo)
+  "Return non-nil if LOCAL-REPO has a dirty working directory.
+It is assumed that the repository is version-controlled with Git."
+  (let ((default-directory (straight--dir "repos" local-repo)))
+    (with-temp-buffer
+      (call-process "git" nil t nil
+                    "status" "--porcelain"
+                    "--ignore-submodules=none")
+      (> (buffer-size) 0))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Figuring out whether packages need to be rebuilt
@@ -1711,18 +1730,23 @@ and set NOMSG to nil."
                             ;; creating forks).
                             (format "https://github.com/%s.git" repo)
                             (format "git@github.com:%s.git" repo))))))
-                  (let ((valid-p (straight--validate-head-is-reachable
-                                  local-repo head remote-urls)))
-                    (if valid-p
+                  (if (straight--validate-head-is-reachable
+                       local-repo head remote-urls)
+                      (if (straight--working-directory-dirty-p
+                           local-repo)
+                          (straight--warn
+                           (concat "Repository %S has a dirty "
+                                   "working directory")
+                           local-repo)
                         (unless nomsg
                           (message "Package %S is all good" package))
-                      (straight--warn
-                       "HEAD of repository %S%s is not reachable from remote"
-                       local-repo
-                       (if-let ((branch (straight--get-branch)))
-                           (format " (on branch %S)" branch)
-                         "")))
-                    valid-p)
+                        t) ; the only path where the package is valid
+                    (straight--warn
+                     "HEAD of repository %S%s is not reachable from remote"
+                     local-repo
+                     (if-let ((branch (straight--get-branch)))
+                         (format " (on branch %S)" branch)
+                       "")))
                 (straight--warn "Repository %S uses non-Git fetcher `%S'"
                                 local-repo fetcher))
             (straight--warn "Repository %S has a detached HEAD" local-repo))
@@ -1750,13 +1774,13 @@ NOMSG is non-nil (this is not the case in interactive usage)."
       (user-error "No packages loaded"))
      ((zerop valid-repos)
       (unless nomsg
-        (message "All %d packages have unreachable HEADS" total-repos)))
+        (message "All %d packages have irreproducible configurations" total-repos)))
      ((= valid-repos total-repos)
       (unless nomsg
-        (message "All %d packages have reachable HEADS" total-repos)))
+        (message "All %d packages have reproducible configurations" total-repos)))
      (t
       (unless nomsg
-        (message "%d packages have reachable HEADS, %d packages do not"
+        (message "%d packages have reproducible configurations, %d packages do not"
                  valid-repos (- total-repos valid-repos)))))
     (= valid-repos total-repos)))
 
