@@ -1,6 +1,7 @@
-(let ((straight-dir (concat
-                     user-emacs-directory
-                     "straight/repos/straight.el")))
+(let ((straight-dir (expand-file-name
+                     (concat
+                      user-emacs-directory
+                      "straight/repos/straight.el/"))))
   (add-to-list 'load-path straight-dir)
   (let ((message-log-max nil)
         (inhibit-message t))
