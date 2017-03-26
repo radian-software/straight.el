@@ -1022,7 +1022,7 @@ this is if the user calls `straight-declare-init-finished' (which
 see) in their init-file, which allows for saving to again only
 take place once (when `straight-declare-init-finished' is
 called)."
-  (unless straight--reinit-in-progress
+  (unless (or (not after-init-time) straight--reinit-in-progress)
     (straight--save-build-cache)))
 
 (defvar straight--cached-packages-might-be-modified-p :unknown
