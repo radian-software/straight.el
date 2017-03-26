@@ -1758,16 +1758,16 @@ Multiple lockfiles may be written (one for each profile),
 according to the value of `straight-profiles'."
   (interactive "P")
   (when (or force
-            (and straight--profile-cache-valid
-                 (ignore
-                  (message (concat "Caches are outdated, aborting "
-                                   (if straight--finalization-guaranteed
-                                       "(please reload your init-file)"
-                                     "(please restart Emacs)")))))
-            (and (straight-validate-all 'nomsg)
-                 (ignore
-                  (message
-                   "Not all packages have reachable HEADS, aborting"))))
+            (and (or straight--profile-cache-valid
+                     (ignore
+                      (message (concat "Caches are outdated, aborting "
+                                       (if straight--finalization-guaranteed
+                                           "(please reload your init-file)"
+                                         "(please restart Emacs)")))))
+                 (or (straight-validate-all 'nomsg)
+                     (ignore
+                      (message
+                       "Not all packages have reachable HEADS, aborting")))))
     (maphash
      (lambda (profile versions-lockfile)
        (let ((versions-alist nil)
