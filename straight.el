@@ -1768,46 +1768,45 @@ according to the value of `straight-profiles'."
                      (ignore
                       (message
                        "Not all packages have reachable HEADS, aborting")))))
-    (maphash
-     (lambda (profile versions-lockfile)
-       (let ((versions-alist nil)
-             (lockfile-directory (straight--dir "versions"))
-             (lockfile-path (straight--file "versions" versions-lockfile)))
-         (straight--map-repos
-          (lambda (recipe)
-            (straight--with-plist recipe
-                (package local-repo)
-              (when (memq profile (gethash package straight--profile-cache))
-                (push (cons local-repo
-                            (straight--get-head
-                             local-repo))
-                      versions-alist)))))
-         (setq versions-alist
-               (cl-sort versions-alist #'string-lessp :key #'car))
-         (make-directory lockfile-directory 'parents)
-         (with-temp-file lockfile-path
-           (pp versions-alist (current-buffer)))
-         (message "Wrote %s" lockfile-path)))
-     straight-profiles)))
+    (dolist (spec straight-profiles)
+      (cl-destructuring-bind (profile . versions-lockfile) spec
+        (let ((versions-alist nil)
+              (lockfile-directory (straight--dir "versions"))
+              (lockfile-path (straight--file "versions" versions-lockfile)))
+          (straight--map-repos
+           (lambda (recipe)
+             (straight--with-plist recipe
+                 (package local-repo)
+               (when (memq profile (gethash package straight--profile-cache))
+                 (push (cons local-repo
+                             (straight--get-head
+                              local-repo))
+                       versions-alist)))))
+          (setq versions-alist
+                (cl-sort versions-alist #'string-lessp :key #'car))
+          (make-directory lockfile-directory 'parents)
+          (with-temp-file lockfile-path
+            (pp versions-alist (current-buffer)))
+          (message "Wrote %s" lockfile-path))))))
 
 ;;;###autoload
 (defun straight-thaw-versions ()
   "Read version lockfiles and restore package versions to those listed."
   (interactive)
-  (maphash
-   (lambda (profile versions-lockfile)
-     (let ((lockfile-path (straight--file "versions" versions-lockfile)))
-       (if-let ((versions-alist (with-temp-buffer
-                                  (insert-file-contents-literally
-                                   lockfile-path)
-                                  (ignore-errors
-                                    (read (current-buffer))))))
-           (dolist (spec versions-alist)
-             (let ((repo (car spec))
-                   (head (cdr spec)))
-               (straight--set-head repo head)))
-         (straight--warn "Could not read from %S" lockfile-path))))
-   straight-profiles))
+  (dolist (spec straight-profiles)
+    (cl-destructuring-bind (profile . versions-lockfile) spec
+      (lambda (profile versions-lockfile)
+        (let ((lockfile-path (straight--file "versions" versions-lockfile)))
+          (if-let ((versions-alist (with-temp-buffer
+                                     (insert-file-contents-literally
+                                      lockfile-path)
+                                     (ignore-errors
+                                       (read (current-buffer))))))
+              (dolist (spec versions-alist)
+                (let ((repo (car spec))
+                      (head (cdr spec)))
+                  (straight--set-head repo head)))
+            (straight--warn "Could not read from %S" lockfile-path)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Mess with other packages
