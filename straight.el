@@ -1290,6 +1290,9 @@ modifies the build folder, not the original repository."
 RECIPE should be a straight.el-tsyle plist. Note that this
 function only modifies the build folder, not the original
 repository."
+  ;; We need to load `bytecomp' so that the `symbol-function'
+  ;; assignments below are sure to work.
+  (require 'bytecomp)
   (straight--with-plist recipe
       (package)
     ;; These two `let' forms try very, very hard to make
