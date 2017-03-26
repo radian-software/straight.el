@@ -1872,7 +1872,7 @@ according to the value of `straight-profiles'."
   ;; situations.) The reason we also handle `:ensure' is because the
   ;; default value of `use-package-normalize/:ensure' is not flexible
   ;; enough to handle recipes like we need it to.
-  (dolist (keyword '(:quelpa :recipe :ensure))
+  (dolist (keyword '(:recipe :ensure))
     ;; Insert the keyword just before `:ensure'.
     (unless (member keyword use-package-keywords)
       (setq use-package-keywords
