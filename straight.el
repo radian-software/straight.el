@@ -751,8 +751,8 @@ RECIPE should be a straight.el-style recipe plist."
         (unless (equal (plist-get recipe keyword)
                        (plist-get existing-recipe keyword))
           ;; Same reasoning as with the previous warning.
-          (straight--warn "Package %S has two incompatible recipes "
-                          "(%S cannot be both %S and %S)"
+          (straight--warn (concat "Package %S has two incompatible "
+                                  "recipes (%S cannot be both %S and %S)")
                           package
                           keyword
                           (plist-get existing-recipe keyword)
