@@ -1644,6 +1644,9 @@ non-nil)."
                                           package)))))
             (unless available
               (straight--clone-repository recipe cause))
+            ;; Multi-file packages will need to be on the `load-path'
+            ;; in order to byte-compile properly.
+            (straight--add-package-to-load-path recipe)
             (straight--maybe-load-build-cache)
             (when (straight--package-might-be-modified-p recipe)
               (straight--build-package recipe cause))
@@ -1666,9 +1669,8 @@ non-nil)."
               ;; necessary] and built back by
               ;; `straight--build-package').
               (straight-use-package (intern dependency) nil cause))
-            ;; Only make the package available after all of its
-            ;; dependencies are OK.
-            (straight--add-package-to-load-path recipe)
+            ;; Only make the package available after everything is
+            ;; kosher.
             (straight--activate-package-autoloads recipe)
             ;; In interactive use, tell the user how to install
             ;; packages permanently.
