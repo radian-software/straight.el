@@ -96,7 +96,8 @@ Specifying `:ensure` is unnecessary if you **add this configuration**:
     (setq use-package-always-ensure t)
 
 `straight.el` is a drop-in **replacement for `quelpa-use-package`**.
-Simply replace `:quelpa` with `:recipe`.
+Simply replace `:quelpa` with `:recipe`. It also has support for
+`use-package` **deferred installation** with `:defer-install`.
 
 ## Update packages
 
