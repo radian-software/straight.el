@@ -1752,7 +1752,8 @@ and set NOMSG to nil."
                 (straight--warn "Repository %S uses non-Git fetcher `%S'"
                                 local-repo fetcher))
             (straight--warn "Repository %S has a detached HEAD" local-repo))
-        (straight--warn "Repository %S is not version-controlled with Git")))))
+        (straight--warn "Repository %S is not version-controlled with Git"
+                        local-repo)))))
 
 ;;;###autoload
 (defun straight-validate-all (&optional nomsg)
