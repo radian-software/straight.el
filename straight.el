@@ -386,7 +386,7 @@ by the function `straight-declare-init-succeeded', and is set
 back to nil when the straight.el bootstrap is run or
 `straight-use-package' is invoked.")
 
-(defvar gnu-elpa-url "git://git.savannah.gnu.org/git/emacs/elpa.git"
+(defvar gnu-elpa-url "https://git.savannah.gnu.org/git/emacs/elpa.git"
   "URL of the Git repository for the GNU ELPA package repository.")
 
 ;; These variables are used in the case that a bare package name is
