@@ -335,9 +335,6 @@ cloned."
     (setq straight--echo-area-dirty t)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Recipe processing
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Managing package profiles
 
 (defvar straight--recipe-cache (make-hash-table :test #'equal)
@@ -365,7 +362,7 @@ values that you bind `straight-current-profile' to, and they
 should each have an entry in `straight-profiles'.")
 
 (defun straight--reset-caches ()
-  "Reset caches other than the build cache and success cache..
+  "Reset caches other than the build cache and success cache.
 This means `straight--recipe-cache', `straight--repo-cache', and
 `straight--profile-cache'. (We don't ever want to reset the build
 cache since it is a totally separate system from the caches
@@ -1317,7 +1314,7 @@ modifies the build folder, not the original repository."
         (kill-buffer buf)))))
 
 (defun straight--byte-compile-package (recipe)
-  "Byte-compile autoloads for the symlinked package specified by RECIPE.
+  "Byte-compile files for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
