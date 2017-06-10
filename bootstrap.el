@@ -48,6 +48,12 @@
 ;; as possible (i.e. the next time init is performed).
 (setq straight--finalization-guaranteed nil)
 
+;; If we do a reinit, we still want to use a bulk find(1) command to
+;; check for modified packages, since it speeds things up a lot. But
+;; if we don't reset the memoized value here, it won't be recomputed
+;; and will just be considered stale.
+(setq straight--cached-packages-might-be-modified-p :unknown)
+
 ;; So meta. This updates the various caches, so that straight.el shows
 ;; up properly in the lockfile and other things like that.
 (straight-use-package '(straight :fetcher github

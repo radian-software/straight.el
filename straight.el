@@ -979,13 +979,14 @@ form, then `straight--build-cache' is set to an empty hash table."
 (defvar straight--finalization-guaranteed nil
   "Non-nil if `straight-declare-init-finished' is guaranteed to be called.
 This variable is part of the system that works to reduce
-unnecessary saving and loading of the build cache. It is set to
-non-nil when `straight-declare-init-finished' is called for the
-first time, since the API of `straight-declare-init-finished'
-requires the user to guarantee that if the function is called
-once, then it will be called every time the user's init-file is
-loaded (either at Emacs initialization or later, during a reload
-of the init-file).")
+unnecessary saving and loading of the build cache, as well as to
+optimize the process of checking for package modifications. It is
+set to non-nil when `straight-declare-init-finished' is called
+for the first time, since the API of
+`straight-declare-init-finished' requires the user to guarantee
+that if the function is called once, then it will be called every
+time the user's init-file is loaded (either at Emacs
+initialization or later, during a reload of the init-file).")
 
 (defvar straight--reinit-in-progress nil
   "Non-nil if init-file reloading is in progress.
@@ -1054,11 +1055,11 @@ This is done by using find(1) to recursively check the mtimes of
 all packages in the build cache against the last build time
 recorded in the build cache. This function is memoized using the
 variable `straight--cached-packages-might-be-modified-p', but the
-memoized value is considered stale if Emacs initialization has
-been completed."
+memoized value is considered stale once the current init or
+reinit has been completed."
   (cond
    ;; If the value has not been calculated yet, then we can calculate
-   ;; and return it whether or not it's during init.
+   ;; and return it whether or not it's during init (or reinit).
    ((eq straight--cached-packages-might-be-modified-p :unknown)
     (setq straight--cached-packages-might-be-modified-p
           (let ((repos nil) ; prevent double-checking repositories
@@ -1127,10 +1128,12 @@ been completed."
                 ;; will be non-nil.
                 (> (buffer-size) 0))))))
    ;; If the value has already been calculated, but we've finished
-   ;; init, then we can't trust that value any more.
-   (after-init-time t)
-   ;; But if init is still in progress, then we can just use the
-   ;; cached value.
+   ;; init, then we can't trust that value any more. However, we can
+   ;; treat a reinit like an init (where we only consider this to be a
+   ;; reinit if finalization is guaranteed).
+   ((and after-init-time (not straight--reinit-in-progress)) t)
+   ;; But if init (or reinit) is still in progress, then we can just
+   ;; use the cached value.
    (t straight--cached-packages-might-be-modified-p)))
 
 (defun straight--package-might-be-modified-p (recipe)
