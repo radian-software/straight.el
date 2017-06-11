@@ -721,26 +721,33 @@ RECIPE should be a straight.el-style recipe plist."
     ;; existing recipe for a *different* package with the *same*
     ;; repository.
     (when-let ((existing-recipe (gethash local-repo straight--repo-cache)))
-      ;; Only the `straight--fetch-keywords' are relevant for this,
-      ;; not the full `straight--keywords' list.
-      (cl-dolist (keyword straight--fetch-keywords)
-        (unless (equal (plist-get recipe keyword)
-                       (plist-get existing-recipe keyword))
-          ;; We're using a warning rather than an error here, because
-          ;; it's very frustrating if your package manager simply
-          ;; refuses to install a package for no good reason. Note
-          ;; that since we update `straight--repo-cache' and
-          ;; `straight--recipe-cache' at the end of this method, this
-          ;; warning will only be displayed once per recipe
-          ;; modification.
-          (straight--warn (concat "Packages %S and %S have incompatible "
-                                  "recipes (%S cannot be both %S and %S)")
-                          (plist-get existing-recipe :package)
-                          package
-                          keyword
-                          (plist-get existing-recipe keyword)
-                          (plist-get recipe keyword))
-          (cl-return))))
+      ;; Avoid signalling two warnings when you change the recipe for
+      ;; a single package. We already get a warning down below in Step
+      ;; 2, no need to show another one here. Only signal a warning
+      ;; here when the packages are actually *different* packages that
+      ;; share the same repository.
+      (unless (equal (plist-get recipe :package)
+                     (plist-get existing-recipe :package))
+        ;; Only the `straight--fetch-keywords' are relevant for this,
+        ;; not the full `straight--keywords' list.
+        (cl-dolist (keyword straight--fetch-keywords)
+          (unless (equal (plist-get recipe keyword)
+                         (plist-get existing-recipe keyword))
+            ;; We're using a warning rather than an error here, because
+            ;; it's very frustrating if your package manager simply
+            ;; refuses to install a package for no good reason. Note
+            ;; that since we update `straight--repo-cache' and
+            ;; `straight--recipe-cache' at the end of this method, this
+            ;; warning will only be displayed once per recipe
+            ;; modification.
+            (straight--warn (concat "Packages %S and %S have incompatible "
+                                    "recipes (%S cannot be both %S and %S)")
+                            (plist-get existing-recipe :package)
+                            package
+                            keyword
+                            (plist-get existing-recipe keyword)
+                            (plist-get recipe keyword))
+            (cl-return)))))
     ;; Step 2 is to check if the given recipe conflicts with an
     ;; existing recipe for the *same* package.
     (when-let ((existing-recipe (gethash package straight--recipe-cache)))
