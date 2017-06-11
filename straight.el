@@ -134,7 +134,8 @@
   '((nil . "default.el"))
   "Alist mapping package profile names to version lockfile names.
 The profile names should be symbols, and the filenames should not
-contain any directory components."
+contain any directory components. Profiles later in the list take
+precedence."
   :type '(alist :key-type symbol :value-type string))
 
 (defcustom straight-current-profile
