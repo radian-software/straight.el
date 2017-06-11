@@ -985,9 +985,15 @@ form, then `straight--build-cache' is set to an empty hash table."
               (make-hash-table :test #'equal)))))
 
 (defun straight--save-build-cache ()
-  "Write the build cache from `straight--build-cache' into build-cache.el."
+  "Write the build cache from `straight--build-cache' into build-cache.el.
+Also remove this function from `after-init-hook' and
+`straight--after-reinit-hook', the latter allowing further
+reinits to properly detect whether loading has taken place at
+least once."
   (with-temp-file (straight--file "build-cache.el")
-    (pp straight--build-cache (current-buffer))))
+    (pp straight--build-cache (current-buffer)))
+  (remove-hook 'after-init-hook #'straight--save-build-cache)
+  (remove-hook 'straight--after-reinit-hook #'straight--save-build-cache))
 
 (defvar straight--finalization-guaranteed nil
   "Non-nil if `straight-declare-init-finished' is guaranteed to be called.
@@ -1749,12 +1755,42 @@ non-nil)."
             t))))))
 
 ;;;###autoload
+(defun straight-check-package (package)
+  "Rebuild a PACKAGE if it has been modified.
+PACKAGE is a string naming a package. Interactively, select
+PACKAGE from the known packages in the current Emacs session
+using `completing-read'. See also `straight-rebuild-package' and
+`straight-check-all'."
+  (interactive (list (straight--select-package "Check package")))
+  (straight-use-package (intern package)))
+
+;;;###autoload
+(defun straight-check-all ()
+  "Rebuild any packages that have been modified.
+See also `straight-rebuild-all' and `straight-check-package'.
+This function should not be called during init."
+  (interactive)
+  ;; We can consider this a reinit, since we're guaranteed to unset
+  ;; `straight--reinit-in-progress' after completing the check. This
+  ;; lets us avoid superfluous saving and loading of the build cache,
+  ;; and also to use a bulk find(1) operation to check for
+  ;; modifications, both of which improve performance considerably.
+  (let ((straight--reinit-in-progress t))
+    (unwind-protect
+        (dolist (package (hash-table-keys straight--recipe-cache))
+          (straight-use-package (intern package)))
+      ;; Of course, since we're treating this as a reinit, we have to
+      ;; call the after-reinit hook.
+      (run-hooks 'straight--after-reinit-hook))))
+
+;;;###autoload
 (defun straight-rebuild-package (package &optional recursive)
   "Rebuild a PACKAGE.
 PACKAGE is a string naming a package. Interactively, select
 PACKAGE from the known packages in the current Emacs session
 using `completing-read'. With prefix argument RECURSIVE, rebuild
-all dependencies as well."
+all dependencies as well. See also `straight-check-package' and
+`straight-rebuild-all'."
   (interactive
    (list
     (straight--select-package "Rebuild package")
@@ -1774,13 +1810,18 @@ all dependencies as well."
 
 ;;;###autoload
 (defun straight-rebuild-all ()
-  "Rebuild all packages."
+  "Rebuild all packages.
+See also `straight-check-all' and `straight-rebuild-package'."
   (interactive)
   (let ((straight--packages-to-rebuild :all)
         (straight--packages-not-to-rebuild
-         (make-hash-table :test #'equal)))
-    (dolist (package (hash-table-keys straight--recipe-cache))
-      (straight-use-package (intern package)))))
+         (make-hash-table :test #'equal))
+        ;; See `straight-check-all' for discussion.
+        (straight--reinit-in-progress t))
+    (unwind-protect
+        (dolist (package (hash-table-keys straight--recipe-cache))
+          (straight-use-package (intern package)))
+      (run-hooks 'straight--after-reinit-hook))))
 
 ;;;###autoload
 (defun straight-update-package (package)
