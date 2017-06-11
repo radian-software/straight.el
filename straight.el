@@ -1783,6 +1783,8 @@ This function should not be called during init."
   ;; and also to use a bulk find(1) operation to check for
   ;; modifications, both of which improve performance considerably.
   (let ((straight--reinit-in-progress t))
+    ;; Allows the find(1) operation to go ahead.
+    (setq straight--cached-packages-might-be-modified-p :unknown)
     (unwind-protect
         (dolist (package (hash-table-keys straight--recipe-cache))
           (straight-use-package (intern package)))
@@ -1825,6 +1827,7 @@ See also `straight-check-all' and `straight-rebuild-package'."
          (make-hash-table :test #'equal))
         ;; See `straight-check-all' for discussion.
         (straight--reinit-in-progress t))
+    (setq straight--cached-packages-might-be-modified-p :unknown)
     (unwind-protect
         (dolist (package (hash-table-keys straight--recipe-cache))
           (straight-use-package (intern package)))
