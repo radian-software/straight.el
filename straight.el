@@ -497,9 +497,9 @@ containing one or more of `gnu-elpa', `melpa', and
 `emacsmirror'. (If it is omitted, it defaults to allowing all
 three sources.) Git-based MELPA recipes are preferred, then GNU
 ELPA, then Emacsmirror, then non-Git MELPA recipes. If the recipe
-is not found in any of the provided sources, raise an error.
-CAUSE is a string indicating the reason recipe repositories might
-need to be cloned."
+is not found in any of the provided sources, return nil. CAUSE is
+a string indicating the reason recipe repositories might need to
+be cloned."
   ;; We want to prefer Git, since that's the only VCS currently
   ;; supported. So we prefer MELPA recipes, but only if they are Git
   ;; repos, and then fall back to GNU ELPA and then Emacsmirror, and
@@ -533,21 +533,22 @@ need to be cloned."
           ;; Emacsmirror ostensibly contains all packages that are in
           ;; MELPA. But you never know. It's better to return a
           ;; non-Git recipe than to error out entirely.
-          melpa-recipe
-          ;; Oh no!
-          (error (concat "Could not find package %S "
-                         "in MELPA, GNU ELPA, or "
-                         "Emacsmirror")
-                 package)))))
+          melpa-recipe))))
 
-(defun straight--convert-recipe (melpa-style-recipe &optional cause)
+;; `cl-defun' creates a block so we can use `cl-return-from'.
+(cl-defun straight--convert-recipe (melpa-style-recipe &optional cause)
   "Convert a MELPA-STYLE-RECIPE to a normalized straight.el recipe.
 MELPA, GNU ELPA, and Emacsmirror may be cloned and searched for
 recipes if the MELPA-STYLE-RECIPE is just a package name;
 otherwise, the MELPA-STYLE-RECIPE should be a list and it is
 modified slightly to conform to the internal straight.el recipe
 format. CAUSE is a string indicating the reason recipe
-repositories might need to be cloned."
+repositories might need to be cloned.
+
+Return nil if MELPA-STYLE-RECIPE was just a symbol, and no recipe
+could be found for it, and package.el indicates that the package
+is built in to Emacs (e.g. the \"emacs\" package). This is used
+for dependency resolution."
   ;; Firstly, if the recipe is only provided as a package name, and
   ;; we've already converted it before, then we should just return the
   ;; previous result. This has nothing to do with efficiency; it's
@@ -598,9 +599,23 @@ repositories might need to be cloned."
              (full-melpa-style-recipe
               (if recipe-specified-p
                   melpa-style-recipe
-                ;; Second argument is the sources list, defaults to
-                ;; all known sources.
-                (straight--lookup-recipe melpa-style-recipe nil cause))))
+                (or (straight--lookup-recipe
+                     ;; Second argument is the sources list, defaults
+                     ;; to all known sources.
+                     melpa-style-recipe nil cause)
+                    (progn
+                      ;; We don't want package.el unless this branch
+                      ;; is triggered. Since we're loading it
+                      ;; dynamically, we need to do `eval-and-compile'
+                      ;; to silence the byte-compiler.
+                      (eval-and-compile
+                        (require 'package))
+                      (if (package-built-in-p melpa-style-recipe)
+                          (cl-return-from straight--convert-recipe)
+                        (error (concat "Could not find package %S "
+                                       "in MELPA, GNU ELPA, or "
+                                       "Emacsmirror")
+                               melpa-style-recipe)))))))
         ;; MELPA-style recipe format is a list whose car is the
         ;; package name as a symbol, and whose cdr is a plist.
         (cl-destructuring-bind (package . plist) full-melpa-style-recipe
@@ -1241,19 +1256,8 @@ naming a package and a string naming the minimum version
 required (see the Package-Requires header in a
 package.el-compliant Elisp package). The return value is a list
 of strings naming the packages that are mentioned in the
-dependency list, excluding built-in packages (as determined by
-package.el)."
-  ;; We don't want package.el unless dependencies need to be
-  ;; processed. Since we're loading it dynamically, we need to do
-  ;; `eval-and-compile' to silence the byte-compiler.
-  (eval-and-compile
-    (require 'package))
-  (let ((packages nil))
-    (dolist (spec dependencies)
-      (cl-destructuring-bind (package . version) spec
-        (unless (package-built-in-p package)
-          (push (symbol-name package) packages))))
-    packages))
+dependency list."
+  (mapcar #'symbol-name (mapcar #'car dependencies)))
 
 (defun straight--compute-dependencies (package)
   "Register the dependencies of PACKAGE in `straight--build-cache'.
@@ -1678,7 +1682,9 @@ otherwise (this can only happen if ONLY-IF-INSTALLED is
 non-nil)."
   (interactive (list (straight--get-recipe-interactively nil)
                      nil nil 'interactive))
-  (let ((recipe (straight--convert-recipe melpa-style-recipe cause)))
+  ;; If `straight--convert-recipe' returns nil, the package is
+  ;; built-in. No need to go any further.
+  (when-let ((recipe (straight--convert-recipe melpa-style-recipe cause)))
     (straight--with-plist recipe
         (package)
       (let (;; Check if the package has been successfully built. If
