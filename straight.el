@@ -1008,6 +1008,14 @@ init-file was loaded.
 The usual contents of this hook are either
 `straight--save-build-cache', or nothing.")
 
+(defvar straight--package-build-in-progress nil
+  "Non-nil if a package is currently being built.
+If this variable is non-nil, then loading of the build cache will
+be inhibited. This prevents changes made by the first few phases
+of building the root package (namely, writing the dependency list
+to the build cache) from being overwritten when its dependencies
+are built.")
+
 (defun straight--maybe-load-build-cache ()
   "Invoke `straight--load-build-cache' if necessary.
 During init, loading will take place only the first time this
@@ -1015,8 +1023,13 @@ method is called. After init, loading will take place every time.
 The exception to this is if the user calls
 `straight-declare-init-finished' (which see) in their init-file,
 which allows for loading to again only take place once when the
-user reloads their init-file."
+user reloads their init-file. Also, loading will be inhibited
+when building dependencies, to avoid the dependency for the root
+package that was written into the build cache from being
+overwritten. See `straight--package-build-in-progress'."
   (cond
+   ;; If this is a dependency, unconditionally inhibit loading.
+   (straight--package-build-in-progress nil)
    ;; During initialization, we use `after-init-hook'.
    ((not after-init-time)
     (unless (member #'straight--save-build-cache after-init-hook)
@@ -1379,6 +1392,10 @@ the reason this package is being built."
                         (format "Building %s" package))))
       (straight--with-progress task
         (straight--symlink-package recipe)
+        ;; The following function call causes the dependency list to
+        ;; be written to the build cache. To prevent this from being
+        ;; overwritten when any dependencies are built, we have to be
+        ;; sure to bind `straight--package-build-in-progress' below!
         (straight--compute-dependencies package)
         ;; Before we (possibly) build the dependencies, we need to set
         ;; this flag so that we know if our progress message will need
@@ -1394,19 +1411,23 @@ the reason this package is being built."
         ;; generated for the dependencies in that situation if we
         ;; don't do it again in `straight-use-package'.
         (when-let ((dependencies (straight--get-dependencies package)))
-          (dolist (dependency dependencies)
-            ;; The implicit meaning of the first argument to
-            ;; `straight-use-package' here is that the default
-            ;; recipes (taken from one of the recipe repositories) are
-            ;; used for dependencies. (Well, maybe. See all the weird
-            ;; edge cases and exceptions in
-            ;; `straight--convert-recipe'.) Note that the second
-            ;; argument is always nil. That is, even if the user was
-            ;; supposed to be prompted about whether they wanted to
-            ;; install this package, if they say yes then all the
-            ;; dependencies are automatically installed (what else
-            ;; could the user want?).
-            (straight-use-package (intern dependency) nil task))
+          ;; This let-binding prevents the changes we already made to
+          ;; the build cache from being overwritten; see the comment
+          ;; above the `straight--compute-dependencies' call above.
+          (let ((straight--package-build-in-progress t))
+            (dolist (dependency dependencies)
+              ;; The implicit meaning of the first argument to
+              ;; `straight-use-package' here is that the default
+              ;; recipes (taken from one of the recipe repositories) are
+              ;; used for dependencies. (Well, maybe. See all the weird
+              ;; edge cases and exceptions in
+              ;; `straight--convert-recipe'.) Note that the second
+              ;; argument is always nil. That is, even if the user was
+              ;; supposed to be prompted about whether they wanted to
+              ;; install this package, if they say yes then all the
+              ;; dependencies are automatically installed (what else
+              ;; could the user want?).
+              (straight-use-package (intern dependency) nil task)))
           ;; We might need to redisplay the progress message from
           ;; `straight--with-progress' up above.
           (when straight--echo-area-dirty
