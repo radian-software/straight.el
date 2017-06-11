@@ -551,7 +551,7 @@ repositories might need to be cloned."
   ;; Firstly, if the recipe is only provided as a package name, and
   ;; we've already converted it before, then we should just return the
   ;; previous result. This has nothing to do with efficiency; it's
-  ;; actually to reduce conflicts. There are two common cases:
+  ;; actually to reduce conflicts. There are a couple of common cases:
   ;;
   ;; 1. I'm overriding the standard recipe for a package with a custom
   ;;    recipe, and then loading a second package that requires the
@@ -575,6 +575,11 @@ repositories might need to be cloned."
   ;;    of code, you can specify your custom recipe in the first
   ;;    `use-package' declaration and then specify only `auctex' as
   ;;    the recipe in the second `use-package' declaration.
+  ;;
+  ;; 3. I'm using `straight-rebuild-package' or
+  ;;    `straight-rebuild-all', which both call `straight-use-package'
+  ;;    with just the package name and expect this not to introduce
+  ;;    conflicts.
   (or (and (symbolp melpa-style-recipe)
            (gethash (symbol-name melpa-style-recipe) straight--recipe-cache))
       (let* (;; It's important to remember whether the recipe was
@@ -1546,7 +1551,27 @@ provided, and insert it otherwise."
 
 (defvar straight--success-cache (make-hash-table :test #'equal)
   "Hash table containing successfully built packages as keys.
-The values are meaningless, and all non-nil.")
+The keys are package names as strings; the values are
+meaningless, and all non-nil.")
+
+(defvar straight--packages-to-rebuild nil
+  "Hash table of packages for which to force a rebuild.
+The keys are package names as strings; the values are
+meaningless, and all non-nil. When not let-bound, this variable
+is nil. When `straight-use-package' is invoked for any of these
+packages, they will be rebuilt even if they have not changed. The
+special value `:all' is equivalent to a list of all possible
+packages. See also `straight-rebuild-package'.")
+
+(defvar straight--packages-not-to-rebuild nil
+  "Hash table of packages for which rebuild forcing does not apply.
+The keys are package names as strings; the values are
+meaningless, and all non-nil. When not let-bound, this variable
+is nil. Any packages in this list are immune to the effects of
+`straight--packages-to-rebuild', even if it is set to `:all'.
+This is used to prevent building dependencies twice when
+`straight-rebuild-package' or `straight-rebuild-all' is
+invoked.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; API
@@ -1676,7 +1701,17 @@ non-nil)."
             ;; in order to byte-compile properly.
             (straight--add-package-to-load-path recipe)
             (straight--maybe-load-build-cache)
-            (when (straight--package-might-be-modified-p recipe)
+            (when
+                (or
+                 (and
+                  straight--packages-to-rebuild
+                  (or (eq straight--packages-to-rebuild :all)
+                      (gethash package straight--packages-to-rebuild))
+                  (not (gethash package straight--packages-not-to-rebuild))
+                  ;; The following form returns non-nil, so it doesn't
+                  ;; affect the `and' logic.
+                  (puthash package t straight--packages-not-to-rebuild))
+                 (straight--package-might-be-modified-p recipe))
               (straight--build-package recipe cause))
             (straight--maybe-save-build-cache)
             ;; Here we are not actually trying to build the
@@ -1711,6 +1746,40 @@ non-nil)."
             ;; The package was installed successfully.
             (puthash package t straight--success-cache)
             t))))))
+
+;;;###autoload
+(defun straight-rebuild-package (package &optional recursive)
+  "Rebuild a PACKAGE.
+PACKAGE is a string naming a package. Interactively, select
+PACKAGE from the known packages in the current Emacs session
+using `completing-read'. With prefix argument RECURSIVE, rebuild
+all dependencies as well."
+  (interactive
+   (list
+    (straight--select-package "Rebuild package")
+    current-prefix-arg))
+  (let ((straight--packages-to-rebuild
+         (if recursive
+             :all
+           (let ((table (make-hash-table :test #'equal)))
+             (puthash package t table)
+             table)))
+        ;; Because we bind this here, the table will be deleted and
+        ;; the variable reset to nil when we break out of the let. No
+        ;; need to clear the hash explicitly.
+        (straight--packages-not-to-rebuild
+         (make-hash-table :test #'equal)))
+    (straight-use-package (intern package))))
+
+;;;###autoload
+(defun straight-rebuild-all ()
+  "Rebuild all packages."
+  (interactive)
+  (let ((straight--packages-to-rebuild :all)
+        (straight--packages-not-to-rebuild
+         (make-hash-table :test #'equal)))
+    (dolist (package (hash-table-keys straight--recipe-cache))
+      (straight-use-package (intern package)))))
 
 ;;;###autoload
 (defun straight-update-package (package)
