@@ -888,8 +888,9 @@ cannot be done, signal a warning."
                         ;; Local branch has diverged from upstream,
                         ;; but is not purely ahead. Warn.
                         (straight--warn
-                         (concat "In repository %S, cannot merge branch %S with "
-                                 "upstream %S without merge or rebase")
+                         (concat "In repository %S, cannot merge "
+                                 "branch %S with upstream %S without "
+                                 "merge or rebase")
                          local-repo branch upstream)))
                   (straight--warn
                    (concat "In repository %S, current branch %S has "
@@ -1839,7 +1840,9 @@ and set NOMSG to nil."
                            local-repo)
                         (unless nomsg
                           (message "Package %S is all good" package))
-                        t) ; the only path where the package is valid
+                        ;; This is the only path where the package is
+                        ;; valid.
+                        t)
                     (straight--warn
                      "HEAD of repository %S%s is not reachable from remote"
                      local-repo
@@ -1874,14 +1877,19 @@ NOMSG is non-nil (this is not the case in interactive usage)."
       (user-error "No packages loaded"))
      ((zerop valid-repos)
       (unless nomsg
-        (message "All %d packages have irreproducible configurations" total-repos)))
+        (message
+         "All %d packages have irreproducible configurations"
+         total-repos)))
      ((= valid-repos total-repos)
       (unless nomsg
-        (message "All %d packages have reproducible configurations" total-repos)))
+        (message
+         "All %d packages have reproducible configurations"
+         total-repos)))
      (t
       (unless nomsg
-        (message "%d packages have reproducible configurations, %d packages do not"
-                 valid-repos (- total-repos valid-repos)))))
+        (message
+         "%d packages have reproducible configurations, %d packages do not"
+         valid-repos (- total-repos valid-repos)))))
     (= valid-repos total-repos)))
 
 ;;;###autoload
