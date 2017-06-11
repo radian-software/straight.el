@@ -9,6 +9,21 @@
 
 ;;; Commentary:
 
+;; straight.el is a next-generation package manager for Emacs. It
+;; clones packages into your ~/.emacs.d and handles byte-compilation,
+;; autoload generation, and load path management. Dependency
+;; management, powerful tools for managing your packages in bulk, and
+;; out-of-the-box compatibility with MELPA, GNU ELPA, and EmacsMirror
+;; are also included.
+
+;; straight.el improves on other package managers in several ways.
+;; Most importantly, it offers first-class support for easily
+;; modifying packages and contributing your changes upstream. It also
+;; supports complete reproducibility for your configuration by writing
+;; a lockfile with the versions of all your packages. Alternatively,
+;; straight.el will work with manually managed packages, if you prefer
+;; to merge in packages as subtrees.
+
 ;; Please see https://github.com/raxod502/straight.el for more
 ;; information.
 
@@ -16,81 +31,6 @@
 
 ;; To see the outline of this file, run M-x occur with a query of four
 ;; semicolons followed by a space.
-
-;;; Implementation notes:
-
-;; straight.el has a couple of important abstractions to be aware of.
-;;
-;; A "repository" or "repo" is a folder in ~/.emacs.d/straight/repos.
-;;
-;; It is usually a Git repository but it doesn't have to be. (Git
-;; repositories are the only type of repositories that straight.el
-;; knows how to manage intelligently, meaning update, validate, and so
-;; on, so straight.el prefers to use Git repositories when possible,
-;; but there is no restriction imposed on the version control system
-;; you use, if any.)
-;;
-;; A repository generally has an upstream source specified in the
-;; relevant "package recipe" (more on that later), but again there is
-;; no restriction imposed on that: your repositories can just be
-;; folders of Elisp files that you create manually without version
-;; control, if for some reason you want that.
-;;
-;; A "package" is a collection of one or more Elisp files.
-;;
-;; Almost always, one of the files in a package will have a
-;; specially-formatted header identifying its name, version, authors,
-;; and other information. Other package managers, like package.el and
-;; quelpa, require this header. straight.el does not. The only thing
-;; that straight.el checks about the header is the dependency list,
-;; and if this is missing it is assumed that the package has no
-;; dependencies.
-
-;; There is not a one-to-one relationship between packages and
-;; repositories. Normally, a repository will provide the Elisp files
-;; for one and only one package, but this is not required. A single
-;; repository can provide multiple packages, and there is no
-;; requirement for a repository to provide any packages.
-;;
-;; A package is defined implicitly by its recipe. This idea is taken
-;; from MELPA [1] and tweaked a bit. In straight.el, a package recipe
-;; is a property list (check the Elisp manual to read more about
-;; these) with a number of possible keys:
-;;
-;; :package - the name of the package as a string (two packages cannot
-;;            have the same name)
-;;
-;; :local-repo - the name of the repository providing the package
-;;
-;; :files - a list specifying which files in the repository comprise
-;;          the package; see MELPA [1] for more details on the syntax
-;;          and default value
-;;
-;; :fetcher - a symbol identifying the method by which the repository
-;;            can be retrieved from the Internet; one of `git',
-;;            `github', `gitlab', `bitbucket', `bzr', `hg', `darcs',
-;;            `fossil', `svn', `cvs', `wiki' (note that straight.el
-;;            strongly prefers `git'; the other fetchers are only
-;;            supported because I am using an adapted version [2] of
-;;            the `package-build' code [3], which has this support)
-;;
-;; :url - the URL of the repository, for the `git', `bzr', `hg',
-;;        `darcs', `fossil', `svn', and `cvs' fetchers
-;;
-;; :repo - the "username/repository", for the `github', `gitlab', and
-;;         `bitbucket' fetchers
-;;
-;; :commit - the commit to check out, for the `git', `github', and
-;;           `gitlab' fetchers
-;;
-;; :branch - the branch to check out, for the `git', `github', and
-;;           `gitlab' fetchers
-;;
-;; :module - the module to check out, for the `cvs' fetcher
-;;
-;; [1]: https://github.com/melpa/melpa#recipe-format
-;; [2]: https://github.com/raxod502/pbl
-;; [3]: https://github.com/melpa/package-build
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Libraries
