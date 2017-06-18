@@ -52,7 +52,6 @@
 ;; what provides the autoload cookie processing functionality. So this
 ;; is really the only elegant way to lazy-load `pbl' (we do not want
 ;; to load it unless a package needs to be built), at least for now.
-(autoload 'pbl-checkout "pbl")
 (autoload 'pbl-expand-file-specs "pbl")
 (autoload 'pbl--config-file-list "pbl")
 
@@ -85,6 +84,12 @@ This symbol should have an entry in `straight-profiles'. If you
 wish to take advantage of the multiple-profile system, you should
 bind this variable to different symbols using `let' over
 different parts of your init-file.")
+
+(defcustom straight-default-vc
+  'git
+  "VC backend to use by default, if a recipe has no `:type'.
+Functions named like `straight--vc-TYPE-clone', etc. should be
+defined, where TYPE is the value of this variable.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Displaying messages and warnings
@@ -162,10 +167,27 @@ symbol for the duration of BODY."
        ,@body)))
 
 (defmacro straight--put (plist prop value)
-  "Return a copy of the PLIST with key PROP mapped to VALUE."
+  "Make copy of PLIST with key PROP mapped to VALUE, and re-set it.
+PLIST must be a literal symbol naming a plist variable. PROP and
+VALUE are evaluated."
   `(progn
      (setq ,plist (copy-sequence ,plist))
      (setq ,plist (plist-put ,plist ,prop ,value))))
+
+(defmacro straight--remq (plist props)
+  "Make copy of PLIST with keys PROPS removed, and re-set it.
+PLIST must be a literal symbol naming a plist variable. PROPS is
+evaluated and should result in a list. Key comparison is done
+with `eq'."
+  ;; The following subroutine is adapted from [1].
+  ;;
+  ;; [1]: https://lists.gnu.org/archive/html/help-gnu-emacs/2015-08/msg00019.html
+  (let ((props-sym (make-symbol "props")))
+    `(let ((,props-sym ,props))
+       (setq ,plist
+             (cl-loop for (prop val) on ,plist by #'cddr
+                      unless (memq prop ,props-sym)
+                      collect prop and collect val)))))
 
 (defun straight--insert (n key value table)
   "Associate index N in KEY with VALUE in hash table TABLE.
@@ -185,6 +207,22 @@ modified and returned."
     table))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; String manipulation
+
+(cl-defun straight--uniquify (prefix taken)
+  "Generate a string with PREFIX that is not in list TAKEN.
+This is done by trying PREFIX-1, PREFIX-2, etc. if PREFIX is
+already in TAKEN."
+  (if (member prefix taken)
+      (let ((n 1))
+        (while t
+          (let ((candidate (format "%s-%d" prefix n)))
+            (if (member candidate taken)
+                (setq n (1+ n))
+              (cl-return-from straight--uniquify candidate)))))
+    prefix))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Constructing filesystem paths
 
 (defun straight--dir (&rest segments)
@@ -197,6 +235,19 @@ slashes and postpended to the straight directory.
   (expand-file-name
    (apply 'concat user-emacs-directory
           (mapcar (lambda (segment)
+                    ;; So let me tell you of a fun story. It begins
+                    ;; with an innocuous:
+                    ;;
+                    ;; (delete-directory
+                    ;;   (straight--dir "repos" local-repo)
+                    ;;   'recursive)
+                    ;;
+                    ;; Except -- plot twist! -- it turns out that
+                    ;; local-repo is accidentally nil. So we just
+                    ;; deleted all your repositories. Let's try not to
+                    ;; do that, mkay?
+                    (unless segment
+                      (error "Nil path segment"))
                     (concat segment "/"))
                   (cons "straight" segments)))))
 
@@ -226,12 +277,6 @@ the COMMAND does not exist, or if another error occurs, throw an
 error."
   (= 0 (apply #'call-process command nil nil nil args)))
 
-(defun straight--ensure-call (command &rest args)
-  "Call COMMAND with ARGS, raising an error if it fails."
-  (unless (apply #'straight--check-call command args)
-    (error "Command failed: %s %s"
-           command (string-join args " "))))
-
 (defun straight--get-call (command &rest args)
   "Call COMMAND with ARGS, returning its stdout and stderr as a string.
 Return a string with whitespace trimmed from both ends. If the
@@ -239,15 +284,778 @@ command fails, throw an error."
   (with-temp-buffer
     (unless (= 0 (apply #'call-process command
                         nil '(t t) nil args))
-      (error "Command failed: %s %s"
-             command (string-join args " ")))
+      (error "Command failed: %s %s (output: %S)"
+             command (string-join args " ") (buffer-string)))
     (string-trim (buffer-string))))
 
-(defun straight--call-has-output-p (command &rest args)
-  "Call COMMAND with ARGS, returning non-nil if it outputs something on stdout."
-  (with-temp-buffer
-    (apply #'straight--check-call command args)
-    (> (buffer-size) 0)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Displaying popups
+
+;; FIXME: this is a *temporary* implementation of the popup logic
+;; meant only as a proof-of-concept so that the VC workflows can be
+;; developed. It will later be replaced with something both prettier
+;; and more robust.
+(defun straight--popup-raw (prompt actions)
+  "Display PROMPT and allow user to choose between one of several ACTIONS.
+PROMPT is a string, generally a complete sentence. ACTIONS is a
+list of lists (KEY DESC FUNC ARGS...). KEY is a string
+identifying the key that triggers this action; it is passed to
+`kbd'. DESC is a description string to be displayed in the popup.
+If it is nil, the action and its binding is not displayed in the
+popup, although it still takes effect. If the user selects an
+action, its FUNC is called with ARGS and the popup is dismissed.
+The return value of `straight--popup' is the return value of
+FUNC.
+
+ACTIONS later in the list take precedence over earlier ones with
+regard to keybindings."
+  (let ((keymap (make-sparse-keymap))
+        (func nil)
+        (prompt (concat prompt "\n"))
+        (max-length (apply #'max (mapcar #'length (mapcar #'car actions)))))
+    (unless (assoc "C-g" actions)
+      (add-to-list 'actions '("C-g" "Cancel" keyboard-quit) 'append))
+    (dolist (action actions)
+      (cl-destructuring-bind (key desc func . args) action
+        (when desc
+          ;; I would welcome a better way to pad strings in Elisp,
+          ;; because this is kind of horrifying.
+          (setq prompt
+                (format
+                 (format "%%s\n %%%ds %%s" max-length)
+                 prompt key desc)))
+        (define-key keymap (kbd key)
+          (lambda ()
+            (interactive)
+            (apply func args)))))
+    (setq prompt (concat prompt "\n\n"))
+    (let ((max-mini-window-height 1.0)
+          (cursor-in-echo-area t))
+      (when minibuffer-auto-raise
+        (raise-frame (window-frame (minibuffer-window))))
+      (while (not func)
+        (setq func (lookup-key keymap (vector (read-key prompt))))))
+    (funcall func)))
+
+(defmacro straight--popup (prompt &rest actions)
+  "Same as `straight--popup-raw', but with reduced need for quoting.
+PROMPT is still evaluated at runtime. So are all elements of
+ACTIONS, except for FUNC, which is wrapped in a `lambda'
+automatically, and ARGS, which are superfluous and therefore
+instead used as additional forms to place in the `lambda' after
+FUNC."
+  (declare (indent defun))
+  `(straight--popup-raw
+    ,prompt
+    (list
+     ,@(mapcar
+        (lambda (action)
+          (cl-destructuring-bind (key desc . args) action
+            `(list ,key ,desc (lambda () ,@args))))
+        actions))))
+
+(defun straight--are-you-sure (&optional prompt)
+  "Display a popup asking the user to confirm their questionable actions.
+PROMPT has a sensible default; otherwise it is a string. Return
+non-nil if the user confirms; nil if they abort."
+  (straight--popup (or prompt "Are you sure?")
+    ("y" "Yes, proceed" t)
+    ("n" "No, abort" nil)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Version control backend system
+
+(defun straight--vc (method type &rest args)
+  "Call a VC backend method.
+METHOD is a symbol naming a backend method, like symbol `clone'.
+TYPE is a symbol naming a VC backend, like symbol `git'. ARGS are
+passed to the method.
+
+For example:
+   (straight--vc \\='check-out-commit \\='git ...)
+=> (straight--vc-git-check-out-commit ...)"
+  (let* ((func (intern (format "straight--vc-%S-%S"
+                               type method))))
+    (apply func args)))
+
+(defun straight--vc-clone (recipe)
+  "Clone the local repository specified by straight.el-style RECIPE.
+This method sets `default-directory' to the repos directory and
+delegates to the relevant `straight--vc-TYPE-clone' method, where
+TYPE is the `:type' specified in RECIPE. If the repository
+already exists, throw an error."
+  (straight--with-plist recipe
+      (type local-repo)
+    (let ((default-directory (straight--dir "repos")))
+      (when (file-exists-p (straight--dir "repos" local-repo))
+        (error "Repository already exists: %S" local-repo))
+      (straight--vc 'clone type recipe))))
+
+(defun straight--vc-normalize (recipe)
+  "Normalize the local repository specified by straight.el-style RECIPE.
+The meaning of normalization is backend-defined, but typically
+involves validating repository configuration and cleaning the
+working directory.
+
+This method sets `default-directory' to the local repository
+directory and delegates to the relevant
+`straight--vc-TYPE-normalize' method, where TYPE is the `:type'
+specified in RECIPE."
+  (straight--with-plist recipe
+      (local-repo type)
+    (let ((default-directory (straight--dir "repos" local-repo)))
+      (straight--vc 'normalize type recipe))))
+
+(defun straight--vc-pull-from-remote (recipe)
+  "Pull from the primary remote for straight.el-style RECIPE.
+
+This method sets `default-directory' to the local repository
+directory and delegates to the relevant
+`straight--vc-TYPE-pull-from-remote' method, where TYPE is the
+`:type' specified in RECIPE."
+  (straight--with-plist recipe
+      (local-repo type)
+    (let ((default-directory (straight--dir "repos" local-repo)))
+      (straight--vc 'pull-from-remote type recipe))))
+
+(defun straight--vc-pull-from-upstream (recipe)
+  "Pull from the upstream remote for straight.el-style RECIPE.
+If there is no upstream configured, this method does nothing.
+
+This method sets `default-directory' to the local repository
+directory and delegates to the relevant
+`straight--vc-TYPE-pull-from-upstream' method, where TYPE is the
+`:type' specified in RECIPE."
+  "Using straight.el-style RECIPE, pull from upstream if configured."
+  (straight--with-plist recipe
+      (local-repo type)
+    (let ((default-directory (straight--dir "repos" local-repo)))
+      (straight--vc 'pull-from-upstream type recipe))))
+
+(defun straight--vc-push-to-remote (recipe)
+  "Push to the primary remote for straight.el-style RECIPE, if necessary.
+
+This method sets `default-directory' to the local repository
+directory and delegates to the relevant
+`straight--vc-TYPE-pull-from-remote' method, where TYPE is the
+`:type' specified in RECIPE."
+  (straight--with-plist recipe
+      (local-repo type)
+    (let ((default-directory (straight--dir "repos" local-repo)))
+      (straight--vc 'push-to-remote type recipe))))
+
+(defun straight--vc-check-out-commit (type local-repo commit)
+  "Using VC backend TYPE, in LOCAL-REPO, check out COMMIT.
+TYPE is a symbol like symbol `git', etc. LOCAL-REPO is a string
+naming a local package repository. The interpretation of COMMIT
+is defined by the backend, but it should be compatible with
+`straight--vc-get-commit'.
+
+This method sets `default-directory' to the local repository
+directory and delegates to the relevant
+`straight--vc-TYPE-check-out-commit'."
+  (let ((default-directory (straight--dir "repos" local-repo)))
+    (straight--vc 'check-out-commit type local-repo commit)))
+
+(defun straight--vc-get-commit (type local-repo)
+  "Using VC backend TYPE, in LOCAL-REPO, return current commit.
+TYPE is a symbol like symbol `git', etc. LOCAL-REPO is a string
+naming a local package repository. The type of object returned is
+defined by the backend, but it should be compatible with
+`straight--vc-check-out-commit'.
+
+This method sets `default-directory' to the local repository
+directory and delegates to the relevant
+`straight--vc-TYPE-get-commit' method."
+  (let ((default-directory (straight--dir "repos" local-repo)))
+    (straight--vc 'get-commit type local-repo)))
+
+(defun straight--vc-local-repo-name (recipe)
+  "Generate a repository name from straight.el-style RECIPE.
+If a repository name cannot be generated, return nil. This is
+used for the default value of `:local-repo'. If nil is returned,
+the package name is used instead.
+
+This method sets `default-directory' to the local repository
+directory and delegates to the relevant
+`straight--vc-TYPE-local-repo-name' method, where TYPE is the
+`:type' specified in RECIPE."
+  (straight--with-plist recipe
+      (type)
+    (straight--vc 'local-repo-name type recipe)))
+
+(defun straight--vc-keywords (type)
+  "Return a list of keywords used by the VC backend TYPE.
+This does include the `:type' keyword itself.
+
+This method simply delegates to the relevant
+`straight--vc-TYPE-keywords' method."
+  (straight--vc 'keywords type))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Git backend variables
+
+(defvar straight--vc-git-default-branch "master"
+  "The default value for `:branch' when `:type' is symbol `git'.")
+
+(defvar straight--vc-git-primary-remote "origin"
+  "The remote name to use for the primary remote.")
+
+(defvar straight--vc-git-upstream-remote "upstream"
+  "The remote name to use for the upstream remote.")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Git backend utility methods
+
+(defun straight--vc-git-encode-url (repo host)
+  "Generate a URL from a REPO depending on the value of HOST.
+REPO is a string which is either a URL or something of the form
+\"username/repo\", like \"raxod502/straight.el\". If HOST is one
+of the symbols `github', `gitlab', or `bitbucket', then REPO is
+transformed into a standard SSH URL for the corresponding
+service; otherwise, HOST should be nil, and in that case REPO is
+returned unchanged. See also `straight--vc-git-decode-url'."
+  (pcase host
+    ('nil repo)
+    ((or 'github 'gitlab 'bitbucket)
+     (format "git@%s:%s.git"
+             (pcase host
+               ('bitbucket "bitbucket.org")
+               (_ (format "%s.com" host)))
+             repo))
+    (_ (error "Unknown value for host: %S" host))))
+
+(defun straight--vc-git-decode-url (url)
+  "Separate a URL into a REPO and HOST, returning a cons cell of the two.
+All common forms of HTTPS and SSH URLs are accepted for GitHub,
+GitLab, and Bitbucket. If one is recognized, then HOST is one of
+the symbols `github', `gitlab', or `bitbucket', and REPO is a
+string of the form \"username/repo\". Otherwise HOST is nil and
+REPO is just URL. See also `straight--vc-git-encode-url'."
+  (when (or (string-match
+             "^git@\\(.+?\\):\\(.+?\\)\\(?:\\.git\\)?$"
+             url)
+            (string-match
+             "^ssh://git@\\(.+?\\)/\\(.+?\\)\\(?:\\.git\\)?$"
+             url)
+            (string-match
+             "^https://\\(.+?\\)/\\(.+?\\)\\(?:\\.git\\)?$"
+             url))
+    (pcase (match-string 1 url)
+      ("github.com" (cons (match-string 2 url) 'github))
+      ("gitlab.com" (cons (match-string 2 url) 'gitlab))
+      ("bitbucket.org" (cons (match-string 2 url) 'bitbucket))
+      (_ (cons url nil)))))
+
+(defun straight--vc-git-urls-compatible-p (url1 url2)
+  "Return non-nil if URL1 and URL2 can be treated as equivalent.
+This means that `straight--vc-git-decode-url' returns the same
+for both. For example, HTTPS and SSH URLs for the same repository
+are equivalent, and it does not matter if a GitHub URL is
+suffixed with .git or not."
+  (equal (straight--vc-git-decode-url url1)
+         (straight--vc-git-decode-url url2)))
+
+(defun straight--vc-git-list-remotes ()
+  "Return a list of Git remotes as strings for the current directory.
+Do not suppress unexpected errors."
+  ;; Git remotes cannot have whitespace, thank goodness.
+  (split-string (straight--get-call "git" "remote") "\n"))
+
+(defun straight--vc-git-magit ()
+  "Open Magit for the current repository."
+  (magit-status-internal default-directory))
+
+(cl-defun straight--vc-git-validate-remote (local-repo remote desired-url)
+  "Validate that LOCAL-REPO has REMOTE set to DESIRED-URL or equivalent.
+All three arguments are strings. The URL of the REMOTE does not
+necessarily need to match DESIRED-URL; it just has to satisfy
+`straight--vc-git-urls-compatible-p'."
+  ;; Always return nil unless we use `cl-return-from'.
+  (ignore
+   (if-let ((actual-url (condition-case nil
+                            (straight--get-call
+                             "git" "remote" "get-url" remote)
+                          (error nil))))
+       (if (straight--vc-git-urls-compatible-p
+            actual-url desired-url)
+           ;; This is the only case where we return non-nil.
+           (cl-return-from straight--vc-git-validate-remote t)
+         (let ((new-remote (straight--uniquify
+                            remote
+                            (straight--vc-git-list-remotes))))
+           (straight--popup
+             (format "In repository %S, remote %S has URL
+  %S
+but recipe specifies a URL of
+  %S"
+                     local-repo remote actual-url desired-url)
+             ("u" (format "Set URL of remote %S correctly and fetch"
+                          remote)
+              (straight--get-call
+               "git" "remote" "set-url" remote desired-url)
+              (straight--get-call
+               "git" "fetch" remote))
+             ("U" (format "Set URL of remote %S manually and fetch"
+                          remote)
+              (straight--get-call
+               "git" "remote" "set-url" remote
+               (read-string "Enter new remote URL: "))
+              (straight--get-call
+               "git" "fetch" remote))
+             ("r" (format (concat "Rename remote %S to %S, "
+                                  "re-create %S with correct URL, and fetch")
+                          remote new-remote remote)
+              (straight--get-call
+               "git" "remote" "rename" remote new-remote)
+              (straight--get-call
+               "git" "remote" "add" remote desired-url)
+              (straight--get-call
+               "git" "fetch" remote))
+             ("R" (format (concat "Rename remote %S manually, re-create "
+                                  "it with correct URL, and fetch")
+                          remote)
+              (straight--get-call
+               "git" "remote" "rename" remote
+               (read-string "Enter new remote name: "))
+              (straight--get-call
+               "git" "remote" "add" remote desired-url)
+              (straight--get-call
+               "git" "fetch" remote))
+             ("d" (format (concat "Delete remote %S, re-create it "
+                                  "with correct URL, and fetch")
+                          remote)
+              (when (straight--are-you-sure
+                     (format "Really delete remote %S?" remote))
+                (straight--get-call
+                 "git" "remote" "remove" remote)
+                (straight--get-call
+                 "git" "remote" "add" remote desired-url)
+                (straight--get-call
+                 "git" "fetch" remote)))
+             ("D" (format (concat "Delete remote %S, re-create it "
+                                  "with manually set URL, and fetch")
+                          remote)
+              (when (straight--are-you-sure
+                     (format "Really delete remote %S?" remote))
+                (straight--get-call
+                 "git" "remote" "remove" remote)
+                (straight--get-call
+                 "git" "remote" "add" remote
+                 (read-string "Enter new remote URL: "))
+                (straight--get-call
+                 "git" "fetch" remote)))
+             ("g" "Magit and open recursive edit"
+              (straight--vc-git-magit)
+              (recursive-edit))
+             ("e" "Open recursive edit"
+              (recursive-edit)))))
+     ;; General policy is that if we make any modifications
+     ;; whatsoever, then validation fails. You never know when you
+     ;; might run into a weird edge case of Git and have an operation
+     ;; unexpectedly violate a previously established assumption.
+     (straight--get-call
+      "git" "remote" "add" remote desired-url))))
+
+(defun straight--vc-git-validate-remotes (recipe)
+  "Validate that repository for RECIPE has remotes set correctly.
+RECIPE is a straight.el-style plist.
+
+This means the primary remote and (if :upstream is provided)
+upstream remote have their URLs set to the same as what is
+specified in the RECIPE. The URLs do not necessarily need to
+match exactly; they just have to satisfy
+`straight--vc-git-urls-compatible-p'."
+  (straight--with-plist recipe
+      (local-repo repo host)
+    (let ((desired-url (straight--vc-git-encode-url repo host)))
+      (and (straight--vc-git-validate-remote
+            local-repo straight--vc-git-primary-remote desired-url)
+           (or (not (plist-member recipe :upstream))
+               (straight--with-plist (plist-get recipe :upstream)
+                   (repo host)
+                 (let (;; NB: this is a different computation than
+                       ;; above.
+                       (desired-url (straight--vc-git-encode-url repo host)))
+                   (straight--vc-git-validate-remote
+                    local-repo straight--vc-git-upstream-remote
+                    desired-url))))))))
+
+(defun straight--vc-git-validate-nothing-in-progress (local-repo)
+  "Validate that no merge conflict is active in LOCAL-REPO.
+LOCAL-REPO is a string."
+  (let ((conflicted-files
+         (straight--get-call
+          "git" "ls-files" "--unmerged")))
+    (or (string-empty-p conflicted-files)
+        (ignore
+         (straight--popup
+           ;; FIXME: handle rebases, maybe [1] is helpful?
+           ;;
+           ;; [1]: https://stackoverflow.com/q/3921409/3538165
+           (format "Repository %S has a merge conflict:\n%S"
+                   local-repo
+                   (string-join
+                    (mapcar (lambda (line)
+                              (concat "  " line))
+                            (split-string conflicted-files "\n"))
+                    "\n"))
+           ("a" "Abort merge"
+            (straight--get-call "git" "merge" "--abort"))
+           ("g" "Magit and open recursive edit"
+            (progn
+              (straight--vc-git-magit)
+              (recursive-edit)))
+           ("e" "Open recursive edit"
+            (recursive-edit)))))))
+
+(cl-defun straight--vc-git-validate-worktree (local-repo)
+  "Validate that LOCAL-REPO has a clean worktree.
+LOCAL-REPO is a string."
+  (let ((status (straight--get-call "git" "status" "--short")))
+    (if (string-empty-p status)
+        (cl-return-from straight--vc-git-validate-worktree t)
+      (straight--popup
+        (format "Repository %S has a dirty worktree:\n\n%s"
+                local-repo
+                (string-join
+                 (mapcar (lambda (line)
+                           (concat "  " line))
+                         (split-string status "\n"))
+                 "\n"))
+        ("z" "Stash changes"
+         (let ((msg (read-string "Optional stash message: ")))
+           (if (string-empty-p msg)
+               (straight--get-call
+                "git" "stash" "push" "--include-untracked")
+             (straight--get-call
+              "git" "stash" "save" "--include-untracked" msg))))
+        ("d" "Discard changes"
+         (when (straight--are-you-sure
+                (format "Discard all local changes permanently?"))
+           (and (straight--get-call "git" "reset" "--hard")
+                (straight--get-call "git" "clean" "-ffd"))))
+        ("g" "Magit and open recursive edit"
+         (progn
+           (straight--vc-git-magit)
+           (recursive-edit)))
+        ("e" "Open recursive edit"
+         (recursive-edit))))))
+
+(cl-defun straight--vc-git-validate-head (local-repo branch &optional ref)
+  "Validate that LOCAL-REPO has BRANCH checked out.
+If REF is non-nil, instead validate that BRANCH is ahead of REF.
+Any untracked files created by checkout will be deleted without
+confirmation, so this function should only be run after
+`straight--vc-git-validate-worktree' has passed."
+  (ignore
+   (let* ((cur-branch (straight--get-call
+                       "git" "rev-parse" "--abbrev-ref" "HEAD"))
+          (head-detached-p (string= cur-branch "HEAD"))
+          (ref-name (or ref "HEAD")))
+     (cond
+      ((and ref
+            (not (straight--check-call
+                  "git" "rev-parse" ref)))
+       (error "Branch %S does not exist" ref))
+      ((and (null ref) (string= branch cur-branch))
+       (cl-return-from straight--vc-git-validate-head t))
+      ((and (null ref) head-detached-p)
+       (straight--popup
+         (format "In repository %S, HEAD is even with branch %S, but detached."
+                 local-repo branch)
+         ("a" (format "Attach HEAD to branch %S" branch)
+          (straight--get-call "git" "checkout" branch))
+         ("g" "Magit and open recursive edit"
+          (progn
+            (straight--vc-git-magit)
+            (recursive-edit)))
+         ("e" "Open recursive edit"
+          (recursive-edit))))
+      (t
+       (let ((ref-ahead-p (straight--check-call
+                           "git" "merge-base" "--is-ancestor"
+                           branch ref-name))
+             (ref-behind-p (straight--check-call
+                            "git" "merge-base" "--is-ancestor"
+                            ref-name branch)))
+         (when (and ref ref-behind-p)
+           (cl-return-from straight--vc-git-validate-head t))
+         (straight--popup-raw
+          (concat
+           (format "In repository %S, " local-repo)
+           (if ref
+               (cond
+                (ref-behind-p
+                 (cl-return-from straight--vc-git-validate-head t))
+                (ref-ahead-p
+                 (format "branch %S is behind %S" branch ref))
+                (t (format "branch %S has diverged from %S" branch ref)))
+             (let ((on-branch (if head-detached-p ""
+                                (format " (on branch %S)"
+                                        cur-branch))))
+               (cond
+                (ref-ahead-p
+                 (format "HEAD%s is ahead of branch %S" on-branch branch))
+                (ref-behind-p
+                 (format "HEAD%s is behind branch %S" on-branch branch))
+                (t (format "HEAD%s has diverged from branch %S"
+                           on-branch branch))))))
+          ;; Here be dragons! Watch the quoting very carefully in
+          ;; order to get the lexical scoping to work right, and don't
+          ;; confuse this syntax with the syntax of the
+          ;; `straight--popup' macro.
+          `(,@(when ref-ahead-p
+                `(("f" ,(format "Fast-forward branch %S to %s" branch ref-name)
+                   ,(lambda ()
+                      (straight--get-call
+                       "git" "reset" "--hard" ref-name)))))
+            ,@(when (and ref-behind-p (null ref))
+                `(("f" ,(format "Fast-forward HEAD to branch %S" branch)
+                   ,(lambda ()
+                      (straight--get-call
+                       "git" "checkout" branch)))))
+            ,@(unless (or ref-ahead-p ref-behind-p)
+                `(("m" ,(format "Merge %S to branch %S" ref branch)
+                   ,(lambda ()
+                      (if ref
+                          (straight--check-call
+                           "git" "merge" ref)
+                        (let ((orig-head
+                               (straight--get-call
+                                "git" "rev-parse" ref-name)))
+                          (straight--get-call
+                           "git" "checkout" branch)
+                          ;; Merge might not succeed, so don't throw
+                          ;; on error.
+                          (straight--check-call
+                           "git" "merge" orig-head)))))
+                  ("r" ,(format "Reset branch %S to %S" branch ref)
+                   ,(lambda ()
+                      (straight--get-call
+                       "git" "reset" "--hard" ref-name)))
+                  ,@(unless ref
+                      `(("c" ,(format "Reset HEAD to branch %S" branch)
+                         ,(lambda ()
+                            (straight--get-call
+                             "git" "checkout" branch)))))
+                  ,(if ref
+                       `("R" ,(format (concat "Rebase HEAD onto branch %S "
+                                              "and fast-forward %S to HEAD")
+                                      branch branch)
+                         ,(lambda ()
+                            ;; If the rebase encounters a conflict, no
+                            ;; sweat: the possibility of a
+                            ;; fast-forward will be detected elsewhere
+                            ;; in this function the next time around.
+                            ;; But we might as well finish the job if
+                            ;; we can.
+                            (and (straight--check-call
+                                  "git" "rebase" branch)
+                                 (straight--get-call
+                                  "git" "reset" "--hard" ref-name))))
+                     `("R" ,(format "Rebase branch %S onto %S" branch ref)
+                       ,(lambda ()
+                          ;; Rebase might fail, don't throw on error.
+                          (straight--check-call
+                           "git" "rebase" ref branch))))))
+            ("g" "Magit and open recursive edit"
+             ,(lambda ()
+                (straight--vc-git-magit)
+                (recursive-edit)))
+            ("e" "Open recursive edit"
+             ,(lambda ()
+                (recursive-edit)))))))))))
+
+(cl-defun straight--vc-git-pull-from-remote-raw (recipe remote remote-branch)
+  "Using straight.el-style RECIPE, pull from REMOTE.
+REMOTE is a string. REMOTE-BRANCH is the branch in REMOTE that is
+used; it should be a string that is not prefixed with a remote
+name."
+  (straight--with-plist recipe
+      (local-repo branch)
+    (let ((branch (or branch straight--vc-git-default-branch))
+          (already-fetched nil))
+      (while t
+        (and (straight--vc-git-validate-local recipe)
+             (or already-fetched
+                 (progn
+                   (straight--get-call
+                    "git" "fetch" remote)
+                   (setq already-fetched t)))
+             (straight--vc-git-validate-head
+              local-repo branch (format "%s/%s" remote remote-branch))
+             (cl-return-from straight--vc-git-pull-from-remote-raw t))))))
+
+(cl-defun straight--vc-git-validate-head-pushed (recipe)
+  "Validate that in RECIPE's local repo, main branch is behind primary remote."
+  (ignore
+   (straight--with-plist recipe
+       (local-repo branch)
+     (let* ((branch (or branch straight--vc-git-default-branch))
+            (ref (format "%s/%s" straight--vc-git-primary-remote branch)))
+       (when (straight--check-call
+              "git" "merge-base" "--is-ancestor"
+              branch ref)
+         (cl-return-from straight--vc-git-validate-head-pushed t))
+       (straight--popup
+         (format "In repository %S, branch %S has commits unpushed to %S."
+                 local-repo branch ref)
+         ("p" "Pull and then push"
+          (unless (condition-case _
+                      (ignore
+                       (straight--vc-git-pull-from-remote-raw
+                        recipe straight--vc-git-primary-remote branch))
+                    (quit t))
+            (when (straight--are-you-sure
+                   (format "Really push to %S in %S?" ref local-repo))
+              ;; If push fails, fall back to higher-level error handling
+              ;; to allow the user the option to skip, come back later,
+              ;; etc. I think it's foolish to allow force-pushing; the
+              ;; user can do that manually if they *really* want to.
+              (straight--get-call
+               "git" "push" straight--vc-git-primary-remote
+               (format "refs/heads/%s:refs/heads/%s" branch branch)))))
+         ("g" "Magit and open recursive edit"
+          (progn
+            (straight--vc-git-magit)
+            (recursive-edit)))
+         ("e" "Open recursive edit"
+          (recursive-edit)))))))
+
+(defun straight--vc-git-validate-local (recipe)
+  "Validate that local repository for RECIPE is as expected.
+This means that the remote URLs are set correctly; there is no
+merge currently in progress; the worktree is pristine; and the
+primary :branch is checked out. The reason for \"local\" in the
+name of this function is that no network communication is done
+with the remotes."
+  (straight--with-plist recipe
+      (local-repo branch)
+    (let ((branch (or branch straight--vc-git-default-branch)))
+      (and (straight--vc-git-validate-remotes recipe)
+           (straight--vc-git-validate-nothing-in-progress local-repo)
+           (straight--vc-git-validate-worktree local-repo)
+           (straight--vc-git-validate-head local-repo branch)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Git backend API methods
+
+(defun straight--vc-git-clone (recipe)
+  "Clone local REPO for straight.el-style RECIPE."
+  (straight--with-plist recipe
+      (local-repo repo host branch upstream nonrecursive)
+    (let ((success nil)
+          (repo-dir (straight--dir "repos" local-repo))
+          (url (straight--vc-git-encode-url repo host))
+          (branch (or branch straight--vc-git-default-branch)))
+      (unwind-protect
+          (progn
+            (straight--get-call
+             "git" "clone" "--origin"
+             straight--vc-git-primary-remote
+             "--no-checkout" url)
+            (let ((default-directory repo-dir))
+              (unless (straight--check-call "git" "checkout" branch)
+                (straight--warn "Could not check out branch %S of repository %S"
+                                branch local-repo)
+                (straight--get-call "git" "checkout" "HEAD"))
+              (unless nonrecursive
+                (straight--get-call
+                 "git" "submodule" "update" "--init" "--recursive"))
+              (when upstream
+                (straight--with-plist upstream
+                    (repo host)
+                  (let ((url (straight--vc-git-encode-url repo host)))
+                    (straight--get-call
+                     "git" "remote" "add"
+                     straight--vc-git-upstream-remote url)
+                    (straight--get-call
+                     "git" "fetch" straight--vc-git-upstream-remote)))))
+            (setq success t))
+        ;; Make cloning an atomic operation.
+        (unless success
+          (when (file-exists-p repo-dir)
+            (delete-directory repo-dir 'recursive)))))))
+
+(cl-defun straight--vc-git-normalize (recipe)
+  "Using straight.el-style RECIPE, make the repository locally sane.
+This means that its remote URLs are set correctly; there is no
+merge currently in progress; its worktree is pristine; and the
+primary :branch is checked out."
+  (while t
+    (and (straight--vc-git-validate-local recipe)
+         (cl-return-from straight--vc-git-normalize t))))
+
+(cl-defun straight--vc-git-pull-from-remote (recipe &optional from-upstream)
+  "Using straight.el-style RECIPE, pull from a remote.
+If FROM-UPSTREAM is non-nil, pull from the upstream remote,
+unless no :upstream is configured, in which case do nothing. Else
+pull from the primary remote."
+  (straight--with-plist recipe
+      (branch upstream)
+    (unless (and from-upstream (null upstream))
+      (let* ((remote (if from-upstream
+                         straight--vc-git-upstream-remote
+                       straight--vc-git-primary-remote))
+             (branch (or branch straight--vc-git-default-branch))
+             (remote-branch
+              (if from-upstream
+                  (plist-get upstream :branch)
+                branch)))
+        (straight--vc-git-pull-from-remote-raw
+         recipe remote remote-branch)))))
+
+(defun straight--vc-git-pull-from-upstream (recipe)
+  "Using straight.el-style RECIPE, pull from upstream.
+If no upstream is configured, do nothing."
+  (straight--vc-git-pull-from-remote
+   recipe straight--vc-git-upstream-remote))
+
+(cl-defun straight--vc-git-push-to-remote (recipe)
+  "Using straight.el-style RECIPE, push to primary remote, if necessary."
+  (while t
+    (and (straight--vc-git-validate-local recipe)
+         (straight--vc-git-validate-head-pushed recipe)
+         (cl-return-from straight--vc-git-push-to-remote t))))
+
+(cl-defun straight--vc-git-check-out-commit (local-repo commit)
+  "In LOCAL-REPO, check out COMMIT.
+LOCAL-REPO is a string naming a local package repository. COMMIT
+is a 40-character string identifying a Git commit."
+  (while t
+    (and (straight--vc-git-validate-nothing-in-progress local-repo)
+         (straight--vc-git-validate-worktree local-repo)
+         (straight--get-call "git" "checkout" commit)
+         (cl-return-from straight--vc-git-check-out-commit))))
+
+(defun straight--vc-git-get-commit (_local-repo)
+  "Return the current commit for the current local repository.
+This is a 40-character string identifying the current position of
+HEAD in the Git repository."
+  (straight--get-call "git" "rev-parse" "HEAD"))
+
+(defun straight--vc-git-local-repo-name (recipe)
+  "Generate a repository name from straight.el-style RECIPE.
+For the GitHub, GitLab, and Bitbucket hosts, the repository name
+is used as-is. Otherwise, an attempt is made to extract the
+repository name from the URL. This may still fail, and nil is
+then returned."
+  (straight--with-plist recipe
+      (repo host)
+    (if host
+        (replace-regexp-in-string
+         "^.+/" "" repo)
+      ;; The following is a half-hearted attempt to turn arbitrary
+      ;; URLs into reasonable repository names.
+      (let ((regexp "^.*/\\(.+\\)\\.git$"))
+        ;; If this regexp does not match, just return nil.
+        (when (string-match regexp repo)
+          (match-string 1 repo))))))
+
+(defun straight--vc-git-keywords ()
+  "Return a list of keywords used by the VC backend for Git."
+  '(:repo :host :branch :nonrecursive))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Fetching repositories
@@ -269,9 +1077,7 @@ cloned."
                 (format "Cloning %s" local-repo)
                 (unless (string= package local-repo)
                   (format " (for %s)" package)))
-      (pbl-checkout
-       local-repo recipe
-       (straight--dir "repos" local-repo)))
+      (straight--vc-clone recipe))
     ;; We messed up the echo area.
     (setq straight--echo-area-dirty t)))
 
@@ -324,7 +1130,8 @@ by the function `straight-declare-init-succeeded', and is set
 back to nil when the straight.el bootstrap is run or
 `straight-use-package' is invoked.")
 
-(defvar gnu-elpa-url "https://git.savannah.gnu.org/git/emacs/elpa.git"
+(defvar straight--gnu-elpa-url
+  "https://git.savannah.gnu.org/git/emacs/elpa.git"
   "URL of the Git repository for the GNU ELPA package repository.")
 
 ;; These variables are used in the case that a bare package name is
@@ -332,28 +1139,43 @@ back to nil when the straight.el bootstrap is run or
 ;; by `straight--convert-recipe', so it's a bit of a chicken-and-egg
 ;; problem. Here we declare that their values will be assigned later,
 ;; so that the byte-compiler won't complain.
-(defvar melpa-recipe)
-(defvar gnu-elpa-recipe)
-(defvar emacsmirror-recipe)
+(defvar straight--melpa-recipe)
+(defvar straight--gnu-elpa-recipe)
+(defvar straight--emacsmirror-recipe)
 
 (defun straight--get-melpa-recipe (package &optional cause)
   "Look up a PACKAGE recipe in MELPA.
 PACKAGE should be a symbol. If the package has a recipe listed in
-MELPA, return it; otherwise return nil. If MELPA is not
-available, clone it automatically before looking up the recipe.
-CAUSE is a string explaining why MELPA might need to be cloned."
-  (unless (straight--repository-is-available-p melpa-recipe)
-    (straight--clone-repository melpa-recipe cause))
+MELPA that uses one of the Git fetchers, return it; otherwise
+return nil. If MELPA is not available, clone it automatically
+before looking up the recipe. CAUSE is a string explaining why
+MELPA might need to be cloned."
+  (unless (straight--repository-is-available-p straight--melpa-recipe)
+    (straight--clone-repository straight--melpa-recipe cause))
   (with-temp-buffer
-    (when
-        (condition-case nil
-            (insert-file-contents-literally
-             (straight--with-plist melpa-recipe
-                 (local-repo)
-               (straight--file "repos" local-repo "recipes"
-                               (symbol-name package))))
-          (error nil))
-      (read (current-buffer)))))
+    (condition-case nil
+        (progn
+          (insert-file-contents-literally
+           (straight--with-plist straight--melpa-recipe
+               (local-repo)
+             (straight--file "repos" local-repo "recipes"
+                             (symbol-name package))))
+          (let ((melpa-recipe (read (current-buffer)))
+                (plist ()))
+            (cl-destructuring-bind (name . melpa-plist) melpa-recipe
+              (straight--put plist :type 'git)
+              (when-let ((files (plist-get melpa-plist :files)))
+                (straight--put plist :files files))
+              (pcase (plist-get melpa-plist :fetcher)
+                ('git (straight--put plist :repo (plist-get melpa-plist :url)))
+                ((or 'github 'gitlab 'bitbucket)
+                 (straight--put plist :host (plist-get melpa-plist :fetcher))
+                 (straight--put plist :repo (plist-get melpa-plist :repo)))
+                ;; This error is caught by `condition-case', no need
+                ;; for a message.
+                (_ (error "")))
+              (cons name plist))))
+      (error nil))))
 
 (defun straight--get-gnu-elpa-recipe (package &optional cause)
   "Look up a PACKAGE recipe in GNU ELPA.
@@ -362,17 +1184,17 @@ ELPA, a MELPA-style recipe is returned. Otherwise nil is
 returned. If GNU ELPA is not available, clone it automatically
 before looking up the recipe. CAUSE is a string explaining why
 GNU ELPA might need to be cloned."
-  (unless (straight--repository-is-available-p gnu-elpa-recipe)
-    (straight--clone-repository gnu-elpa-recipe cause))
-  (straight--with-plist gnu-elpa-recipe
+  (unless (straight--repository-is-available-p straight--gnu-elpa-recipe)
+    (straight--clone-repository straight--gnu-elpa-recipe cause))
+  (straight--with-plist straight--gnu-elpa-recipe
       (local-repo)
     (when (file-exists-p (straight--dir
                           "repos" local-repo "packages"
                           (symbol-name package)))
       ;; All the packages in GNU ELPA are just subdirectories of the
       ;; same repository.
-      `(,package :fetcher git
-                 :url ,gnu-elpa-url
+      `(,package :type git
+                 :repo ,straight--gnu-elpa-url
                  :files (,(format "packages/%s/*.el"
                                   (symbol-name package)))
                  :local-repo "elpa"))))
@@ -384,9 +1206,9 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil.
 If Emacsmirror is not available, clone it automatically before
 looking up the recipe. CAUSE is a string explaining why
 Emacsmirror might need to be cloned."
-  (unless (straight--repository-is-available-p emacsmirror-recipe)
-    (straight--clone-repository emacsmirror-recipe cause))
-  (straight--with-plist emacsmirror-recipe
+  (unless (straight--repository-is-available-p straight--emacsmirror-recipe)
+    (straight--clone-repository straight--emacsmirror-recipe cause))
+  (straight--with-plist straight--emacsmirror-recipe
       (local-repo)
     (let ((default-directory (straight--dir "repos" local-repo)))
       ;; Try to get the URL for the submodule. If it doesn't exist,
@@ -404,32 +1226,12 @@ Emacsmirror might need to be cloned."
              ;; this writing, there are no Gitlab URLs (which makes
              ;; sense, since all the repositories should be hosted on
              ;; github.com/emacsmirror).
-             (if (string-match
-                  (concat "^git@github\\.com:\\([A-Za-z0-9_.-]+"
-                          "/[A-Za-z0-9_.-]+\\)\\.git$")
-                  url)
-                 `(,package :fetcher github
-                            :repo ,(match-string 1 url))
-               `(,package :fetcher git
-                          :url ,url)))))))
-
-(defvar straight--fetch-keywords
-  '(:fetcher :url :repo :commit :branch :module)
-  "Keywords that affect how a repository is cloned.
-If two recipes specify the same `:local-repo', but have different
-values for any of these keywords, then they are incompatible.")
-
-(defvar straight--build-keywords
-  '(:local-repo :files)
-  "Keywords that affect how a package is built locally.
-If the values for any of these keywords change, then the package
-needs to be rebuild.")
-
-(defvar straight--keywords
-  '(:local-repo :files :fetcher :url :repo :commit :branch :module)
-  "Keywords that affect a package's definition.
-If two recipes specify the same `:package', but have different
-values for any of these keywords, then they are incompatible.")
+             (cl-destructuring-bind (repo . host)
+                 (straight--vc-git-decode-url url)
+               (if host
+                   `(,package :type git :host ,host
+                              :repo ,repo)
+                 `(,package :type git :repo ,repo))))))))
 
 (defun straight--lookup-recipe (package &optional sources cause)
   "Look up a PACKAGE recipe in one or more SOURCES.
@@ -437,44 +1239,25 @@ PACKAGE should be a symbol, and SOURCES should be a list
 containing one or more of `gnu-elpa', `melpa', and
 `emacsmirror'. (If it is omitted, it defaults to allowing all
 three sources.) Git-based MELPA recipes are preferred, then GNU
-ELPA, then Emacsmirror, then non-Git MELPA recipes. If the recipe
-is not found in any of the provided sources, return nil. CAUSE is
-a string indicating the reason recipe repositories might need to
-be cloned."
-  ;; We want to prefer Git, since that's the only VCS currently
-  ;; supported. So we prefer MELPA recipes, but only if they are Git
-  ;; repos, and then fall back to GNU ELPA and then Emacsmirror, and
-  ;; as a last resort, non-Git MELPA recipes.
+ELPA, then Emacsmirror. Non-Git MELPA recipes are not considered.
+If the recipe is not found in any of the provided sources, return
+nil. CAUSE is a string indicating the reason recipe repositories
+might need to be cloned."
   (let* (;; If `sources' is omitted, allow all sources.
          (sources (or sources '(melpa gnu-elpa emacsmirror)))
          ;; Update the `cause' to explain why repositories might be
          ;; getting cloned.
          (cause (concat cause (when cause straight-arrow)
-                        (format "Looking for %s recipe" package)))
-         ;; Get the MELPA recipe first. We're keeping it around so
-         ;; that if it's a non-Git-based recipe, but we can't find the
-         ;; package anywhere else, then we can avoid needing to
-         ;; recalculate the recipe.
-         (melpa-recipe (and (member 'melpa sources)
-                            (straight--get-melpa-recipe package cause))))
-    ;; Git-based recipes in MELPA are ideal (since Git is the only VCS
-    ;; that straight.el supports).
-    (if (member (plist-get (cdr melpa-recipe) :fetcher)
-                '(git github gitlab))
-        melpa-recipe
-      ;; Next most preferred is GNU ELPA.
-      (or (and (member 'gnu-elpa sources)
-               (straight--get-gnu-elpa-recipe package cause))
-          ;; Emacsmirror comes after GNU ELPA because we prefer
-          ;; "official" sources, so that it is easier to figure out
-          ;; what upstream to submit changes against.
-          (and (member 'emacsmirror sources)
-               (straight--get-emacsmirror-recipe package cause))
-          ;; This shouldn't be possible in normal cases, since
-          ;; Emacsmirror ostensibly contains all packages that are in
-          ;; MELPA. But you never know. It's better to return a
-          ;; non-Git recipe than to error out entirely.
-          melpa-recipe))))
+                        (format "Looking for %s recipe" package))))
+    (or (and (member 'melpa sources)
+             (straight--get-melpa-recipe package cause))
+        (and (member 'gnu-elpa sources)
+             (straight--get-gnu-elpa-recipe package cause))
+        ;; Emacsmirror comes after GNU ELPA because we prefer
+        ;; "official" sources, so that it is easier to figure out
+        ;; what upstream to submit changes against.
+        (and (member 'emacsmirror sources)
+             (straight--get-emacsmirror-recipe package cause)))))
 
 ;; `cl-defun' creates a block so we can use `cl-return-from'.
 (cl-defun straight--convert-recipe (melpa-style-recipe &optional cause)
@@ -560,42 +1343,31 @@ for dependency resolution."
         ;; MELPA-style recipe format is a list whose car is the
         ;; package name as a symbol, and whose cdr is a plist.
         (cl-destructuring-bind (package . plist) full-melpa-style-recipe
-          ;; Recipes taken from MELPA would not normally have
-          ;; `:local-repo' specified. But if the recipe was specified
-          ;; manually, then you can specify `:local-repo' to override
-          ;; the default value (which is determined according to
-          ;; several heuristics based on `:repo', `:url', and
-          ;; `:package').
+          ;; Recipes taken from recipe repositories would not normally
+          ;; have `:local-repo' specified. But if the recipe was
+          ;; specified manually, then you can specify `:local-repo' to
+          ;; override the default value (which is determined according
+          ;; to the selected VC backend).
           (straight--with-plist plist
-              (local-repo repo url)
+              (local-repo type)
             ;; The normalized recipe format will have the package name
             ;; as a string, not a symbol.
             (let ((package (symbol-name package)))
               ;; Note that you can't override `:package'. That would
               ;; just be silly.
               (straight--put plist :package package)
+              ;; If no `:type' is specified, use the default.
+              (unless type
+                (straight--put plist :type straight-default-vc))
               ;; This `unless' allows overriding `:local-repo' in a
               ;; manual recipe specification.
               (unless local-repo
-                (straight--put plist :local-repo
-                               ;; If the `:repo' is provided, then
-                               ;; it's probably what the user wants
-                               ;; the local repository name to be.
-                               (or (when repo
-                                     ;; Trim off the username, leaving
-                                     ;; just the repository name.
-                                     (replace-regexp-in-string
-                                      "^.+/" "" repo))
-                                   ;; The following is a half-hearted
-                                   ;; attempt to turn arbitrary URLs
-                                   ;; into reasonable repository
-                                   ;; names.
-                                   (let ((regexp "^.*/\\(.+\\)\\.git$"))
-                                     (when (and url (string-match regexp url))
-                                       (match-string 1 url)))
-                                   ;; If all else fails, we can just
-                                   ;; use the name of the package.
-                                   package)))
+                (straight--put
+                 plist :local-repo
+                 (or (straight--vc-local-repo-name plist)
+                     ;; If no sane repository name can be generated,
+                     ;; just use the package name.
+                     package)))
               ;; This code is here to deal with complications that can
               ;; arise with manual recipe specifications when multiple
               ;; packages are versioned in the same repository.
@@ -637,9 +1409,28 @@ for dependency resolution."
                   ;; of the primary uses of `straight--repo-cache'.
                   (when-let (original-recipe (gethash local-repo
                                                       straight--repo-cache))
-                    ;; Copy all the potentially relevant keywords from
-                    ;; the old recipe into the current one.
-                    (dolist (keyword straight--fetch-keywords)
+                    ;; Remove all VC-specific attributes from the
+                    ;; recipe we got from the recipe repositories.
+                    (straight--remq
+                     plist (cons :type
+                             (straight--vc-keywords
+                              ;; To determine which keywords to remove
+                              ;; from `plist', we want to use the VC
+                              ;; backend specified for that same
+                              ;; recipe. This is important in case the
+                              ;; recipe repository and the existing
+                              ;; recipe specify different values for
+                              ;; `:type'.
+                              (plist-get plist :type))))
+                    ;; Now copy over all the VC-specific attributes
+                    ;; from the existing recipe.
+                    (dolist (keyword
+                             (cons :type
+                               (straight--vc-keywords
+                                ;; Same logic as above. This time
+                                ;; we're using the VC backend
+                                ;; specified by the original recipe.
+                                (plist-get original-recipe :type))))
                       (when-let ((value (plist-get original-recipe keyword)))
                         (straight--put plist keyword value))))))
               ;; Return the newly normalized recipe.
@@ -653,31 +1444,34 @@ for dependency resolution."
 ;; name (instead of a list). Note that there's no reason to provide a
 ;; `cause', since no messages should be printed.
 
-(setq melpa-recipe (straight--convert-recipe
-                    '(melpa :fetcher github
-                            :repo "melpa/melpa")))
+(setq straight--melpa-recipe (straight--convert-recipe
+                              '(melpa :type git :host github
+                                      :repo "melpa/melpa")))
 
-(setq gnu-elpa-recipe (straight--convert-recipe
-                       `(elpa :fetcher git
-                              :url ,gnu-elpa-url)))
+(setq straight--gnu-elpa-recipe (straight--convert-recipe
+                                 `(elpa :type git
+                                        :repo ,straight--gnu-elpa-url)))
 
-(setq emacsmirror-recipe (straight--convert-recipe
-                          ;; Note that `:nonrecursive' is an
-                          ;; undocumented keyword only present in my
-                          ;; fork of `package-build' (i.e. `pbl'),
-                          ;; which prevents Git from cloning
-                          ;; recursively. (Cloning `epkgs' recursively
-                          ;; causes you to download all 6,000 or so
-                          ;; known Emacs packages as submodules.)
-                          `(epkgs :fetcher github
-                                  :repo "emacsmirror/epkgs"
-                                  :nonrecursive t)))
+(setq straight--emacsmirror-recipe (straight--convert-recipe
+                                    ;; Cloning `epkgs' recursively
+                                    ;; causes you to download all
+                                    ;; 6,000 or so known Emacs
+                                    ;; packages as submodules.
+                                    `(epkgs :type git :host github
+                                            :repo "emacsmirror/epkgs"
+                                            :nonrecursive t)))
+
+(defvar straight--build-keywords
+  '(:local-repo :files)
+  "Keywords that affect how a file is built locally.
+If the values for any of these keywords change, then package
+needs to be rebuilt. See also `straight--vc-keywords'.")
 
 (defun straight--register-recipe (recipe)
   "Make the various caches aware of RECIPE.
 RECIPE should be a straight.el-style recipe plist."
   (straight--with-plist recipe
-      (package local-repo)
+      (package local-repo type)
     ;; Step 1 is to check if the given recipe conflicts with an
     ;; existing recipe for a *different* package with the *same*
     ;; repository.
@@ -689,9 +1483,11 @@ RECIPE should be a straight.el-style recipe plist."
       ;; share the same repository.
       (unless (equal (plist-get recipe :package)
                      (plist-get existing-recipe :package))
-        ;; Only the `straight--fetch-keywords' are relevant for this,
-        ;; not the full `straight--keywords' list.
-        (cl-dolist (keyword straight--fetch-keywords)
+        ;; Only the VC-specific keywords are relevant for this.
+        (cl-dolist (keyword (cons :type (straight--vc-keywords type)))
+          ;; Note that it doesn't matter which recipe we get `:type'
+          ;; from. If the two are different, then the first iteration
+          ;; of this loop will terminate with a warning, as desired.
           (unless (equal (plist-get recipe keyword)
                          (plist-get existing-recipe keyword))
             ;; We're using a warning rather than an error here, because
@@ -712,7 +1508,12 @@ RECIPE should be a straight.el-style recipe plist."
     ;; Step 2 is to check if the given recipe conflicts with an
     ;; existing recipe for the *same* package.
     (when-let ((existing-recipe (gethash package straight--recipe-cache)))
-      (cl-dolist (keyword straight--keywords)
+      (cl-dolist (keyword
+                  (cons :type
+                    (append straight--build-keywords
+                            ;; As in Step 1, it doesn't matter which
+                            ;; recipe we get `:type' from.
+                            (straight--vc-keywords type))))
         (unless (equal (plist-get recipe keyword)
                        (plist-get existing-recipe keyword))
           ;; Same reasoning as with the previous warning.
@@ -732,7 +1533,9 @@ RECIPE should be a straight.el-style recipe plist."
     (puthash local-repo recipe straight--repo-cache)
     (cl-pushnew straight-current-profile
                 (gethash package straight--profile-cache)
-                :test #'eq) ; profiles are symbols
+                ;; Profiles are symbols and can be compared more
+                ;; efficiently using `eq'.
+                :test #'eq)
     ;; If we've registered a new package, then we no longer know that
     ;; the set of registered packages actually corresponds to the
     ;; packages requested in the init-file. (For instance, this could
@@ -760,153 +1563,6 @@ of one of the packages using the local repository."
      (straight--with-plist recipe
          (package)
        (funcall func package)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Managing repositories
-
-(defun straight--version-controlled-p ()
-  "Check if the current directory is the root of a Git repository."
-  (file-exists-p ".git"))
-
-(defun straight--fetch-remotes ()
-  "Fetch history from all remotes of the current Git repository.
-Raise an error if the command fails."
-  (straight--ensure-call "git" "fetch" "--all" "--tags"
-                         "--recurse-submodules"))
-
-(defun straight--get-branch ()
-  "Return the branch of the current Git repository.
-If the HEAD is detached, return nil."
-  (when-let ((symbolic-ref (condition-case nil
-                               (straight--get-call
-                                "git" "symbolic-ref" "HEAD")
-                             (error nil))))
-    (when (string-match "^refs/heads/\\(.+\\)" symbolic-ref)
-      (match-string 1 symbolic-ref))))
-
-(defun straight--get-upstream (branch)
-  "Given a BRANCH, return its upstream (e.g. \"origin/master\").
-If the branch has no upstream, return nil."
-  (or (condition-case nil
-          (straight--get-call
-           "git" "rev-parse" "--abbrev-ref"
-           "--symbolic-full-name" "@{u}")
-        (error nil))
-      ;; FIXME: does this cover all the cases? We might want to look
-      ;; at pushRemote and pushDefault config options.
-      (with-temp-buffer
-        (straight--ensure-call "git" "remote")
-        (let ((remotes (split-string (buffer-string))))
-          (unless (cdr remotes)
-            (let ((remote (car remotes)))
-              (erase-buffer)
-              (call-process "git" nil t nil "branch" "-r")
-              (goto-char (point-min))
-              (let ((upstream (format "%s/%s" remote branch)))
-                (when (re-search-forward upstream nil 'noerror)
-                  upstream))))))))
-
-(defun straight--is-ancestor (ancestor descendant)
-  "Return non-nil if ref ANCESTOR is an ancestor of ref DESCENDANT."
-  (straight--check-call "git" "merge-base" "--is-ancestor"
-                        ancestor descendant))
-
-(defun straight--merge-with-upstream (upstream)
-  "Merge the current branch with an UPSTREAM ref.
-If the command fails, raise an error. After this function
-returns, the working directory will perfectly reflect the state
-of UPSTREAM."
-  (straight--ensure-call "git" "merge" upstream)
-  (straight--ensure-call "git" "submodule" "update")
-  (straight--ensure-call "git" "clean" "-f"))
-
-(defun straight--update-package (recipe)
-  "Attempt to update the package specified by the RECIPE.
-RECIPE should be a straight.el-style recipe plist. If the update
-cannot be done, signal a warning."
-  (straight--with-plist recipe
-      (local-repo)
-    (let ((default-directory (straight--dir "repos" local-repo)))
-      (if (straight--version-controlled-p)
-          (progn
-            (straight--fetch-remotes)
-            (if-let ((branch (straight--get-branch)))
-                (if-let ((upstream (straight--get-upstream branch)))
-                    (if (straight--is-ancestor branch upstream)
-                        ;; Local branch is behind upstream, merge (maybe).
-                        (if (straight--working-directory-dirty-p
-                             local-repo)
-                            (straight--warn
-                             (concat "In repository %S, working directory "
-                                     "is dirty, cannot update"))
-                          (straight--merge-with-upstream upstream))
-                      (unless (straight--is-ancestor upstream branch)
-                        ;; Local branch has diverged from upstream,
-                        ;; but is not purely ahead. Warn.
-                        (straight--warn
-                         (concat "In repository %S, cannot merge "
-                                 "branch %S with upstream %S without "
-                                 "merge or rebase")
-                         local-repo branch upstream)))
-                  (straight--warn
-                   (concat "In repository %S, current branch %S has "
-                           "no upstream, cannot update")
-                   local-repo branch))
-              (straight--warn
-               "In repository %S, HEAD is detached, cannot update"
-               local-repo)))
-        (straight--warn
-         (concat "Repository %S is not version-controlled with Git, "
-                 "cannot update")
-         local-repo)))))
-
-(defun straight--get-head (local-repo)
-  "Return the commit SHA of HEAD in the given LOCAL-REPO.
-If the repository is not version-controlled with Git, return
-nil."
-  (let ((default-directory (straight--dir "repos" local-repo)))
-    (when (straight--version-controlled-p)
-      (straight--get-call "git" "rev-parse" "HEAD"))))
-
-(defun straight--validate-head-is-reachable (local-repo head remote-urls)
-  "Return non-nil if the LOCAL-REPO has a reachable HEAD.
-This means that the commit SHA given by HEAD is reachable by some
-commit available from at least one remote with a URL in the list
-REMOTE-URLS."
-  (let ((default-directory (straight--dir "repos" local-repo)))
-    (cl-some (lambda (remote-branch)
-               (when (string-match "^\\(.+?\\)/\\(.+\\)$" remote-branch)
-                 (let ((remote (match-string 1 remote-branch))
-                       (branch (match-string 2 remote-branch)))
-                   (and (member (straight--get-call
-                                 "git" "remote" "get-url" remote)
-                                remote-urls)
-                        (straight--is-ancestor
-                         head remote-branch)))))
-             (split-string (straight--get-call "git" "branch" "-r")))))
-
-(defun straight--set-head (local-repo head)
-  "In LOCAL-REPO, attempt to set HEAD to the given commit SHA.
-If this cannot be done, signal a warning."
-  (let ((default-directory (straight--dir "repos" local-repo)))
-    (if (straight--version-controlled-p)
-        (unless (or (equal head (straight--get-head local-repo))
-                    (straight--check-call "git" "checkout" head))
-          (straight--warn "Could not perform checkout in repo %S" local-repo))
-      (straight--warn
-       (concat "Repository %S is not version-controlled with Git, "
-               "cannot set HEAD")
-       local-repo))))
-
-(defun straight--working-directory-dirty-p (local-repo)
-  "Return non-nil if LOCAL-REPO has a dirty working directory.
-It is assumed that the repository is version-controlled with Git."
-  (let ((default-directory (straight--dir "repos" local-repo)))
-    (with-temp-buffer
-      (call-process "git" nil t nil
-                    "status" "--porcelain"
-                    "--ignore-submodules=none")
-      (> (buffer-size) 0))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Figuring out whether packages need to be rebuilt
@@ -1053,8 +1709,8 @@ reinit has been completed."
           (let ((repos nil) ; prevent double-checking repositories
                 (args nil)) ; find(1) argument list
             (maphash
-             (lambda (package build-info)
-               (cl-destructuring-bind (mtime dependencies recipe) build-info
+             (lambda (_package build-info)
+               (cl-destructuring-bind (mtime _dependencies recipe) build-info
                  (straight--with-plist recipe
                      (local-repo)
                    ;; It might be faster to use a hash table to keep
@@ -1334,7 +1990,7 @@ repository."
 RECIPE should be a straight.el-style plist. The build mtime and
 recipe in `straight--build-cache' for the package are updated."
   (straight--with-plist recipe
-      (package local-repo)
+      (package)
     (let (;; This time format is compatible with BSD and GNU find(1).
           ;; Which is why we're using it, of course.
           (mtime (format-time-string "%FT%T%z")))
@@ -1437,7 +2093,7 @@ or whitespace."
   (completing-read
    (concat message ": ")
    (hash-table-keys straight--recipe-cache)
-   (lambda (elt) t)
+   (lambda (_) t)
    'require-match))
 
 (defun straight--get-recipe-interactively (sources &optional action)
@@ -1452,14 +2108,14 @@ kill ring. Interactively, copy it if a prefix argument is
 provided, and insert it otherwise."
   (let ((sources (or sources '(melpa gnu-elpa emacsmirror))))
     (when (and (member 'melpa sources)
-               (not (straight--repository-is-available-p melpa-recipe)))
-      (straight--clone-repository melpa-recipe))
+               (not (straight--repository-is-available-p straight--melpa-recipe)))
+      (straight--clone-repository straight--melpa-recipe))
     (when (and (member 'gnu-elpa sources)
-               (not (straight--repository-is-available-p gnu-elpa-recipe)))
-      (straight--clone-repository gnu-elpa-recipe))
+               (not (straight--repository-is-available-p straight--gnu-elpa-recipe)))
+      (straight--clone-repository straight--gnu-elpa-recipe))
     (when (and (member 'emacsmirror sources)
-               (not (straight--repository-is-available-p emacsmirror-recipe)))
-      (straight--clone-repository emacsmirror-recipe))
+               (not (straight--repository-is-available-p straight--emacsmirror-recipe)))
+      (straight--clone-repository straight--emacsmirror-recipe))
     (let* ((package (intern
                      (completing-read
                       "Which recipe? "
@@ -1467,19 +2123,19 @@ provided, and insert it otherwise."
                        (delete-dups
                         (append
                          (when (member 'melpa sources)
-                           (straight--with-plist melpa-recipe
+                           (straight--with-plist straight--melpa-recipe
                                (local-repo)
                              (directory-files
                               (straight--dir "repos" local-repo "recipes")
                               nil "^[^.]" 'nosort)))
                          (when (member 'gnu-elpa sources)
-                           (straight--with-plist gnu-elpa-recipe
+                           (straight--with-plist straight--gnu-elpa-recipe
                                (local-repo)
                              (directory-files
                               (straight--dir "repos" local-repo "packages")
                               nil "^[^.]" 'nosort)))
                          (when (member 'emacsmirror sources)
-                           (straight--with-plist emacsmirror-recipe
+                           (straight--with-plist straight--emacsmirror-recipe
                                (local-repo)
                              (append
                               (directory-files
@@ -1489,7 +2145,7 @@ provided, and insert it otherwise."
                                (straight--dir "repos" local-repo "attic")
                                nil "^[^.]" 'nosort))))))
                        'string-lessp)
-                      (lambda (elt) t)
+                      (lambda (_) t)
                       'require-match)))
            ;; No need to provide a `cause' to
            ;; `straight--lookup-recipe'; it should not be printing any
@@ -1524,6 +2180,71 @@ is nil. Any packages in this list are immune to the effects of
 This is used to prevent building dependencies twice when
 `straight-rebuild-package' or `straight-rebuild-all' is
 invoked.")
+
+(cl-defun straight--map-repos-interactively (func &optional action)
+  "Apply function FUNC for all local repositories, interactively.
+FUNC is passed the name of one of the packages drawn from each
+local repository, as a string. If FUNC throws an error or a quit
+signal, the user is asked about what to do. They can choose to
+skip the repository and come back to it later, cancel its
+processing entirely, or halt the entire operation (skipping the
+processing of all pending repositories). The return value of this
+function is the list of recipes for repositories that were not
+processed.
+
+ACTION is an optional string that describes the action being
+performed on each repository, to be used for progress messages.
+The default value is \"Processing\"."
+  (let ((next-repos ())
+        (skipped-repos ())
+        (canceled-repos ()))
+    (straight--map-repos
+     (lambda (recipe)
+       (push recipe next-repos)))
+    (while t
+      (cond
+       (next-repos
+        (let ((recipe (car next-repos)))
+          (straight--with-plist recipe
+              (package local-repo)
+            (straight--with-progress
+                (format "%s repository %S" (or action "Processing") local-repo)
+              (cl-block loop
+                (while t
+                  (straight--popup
+                    (if-let ((err
+                              (condition-case-unless-debug e
+                                  (progn
+                                    (funcall func package)
+                                    (setq next-repos (cdr next-repos))
+                                    (cl-return-from loop))
+                                (error e)
+                                (quit nil))))
+                        (format (concat "While processing repository %S, an error "
+                                        "occurred:\n\n  %S")
+                                local-repo (error-message-string err))
+                      (format "Processing of repository %S paused at your request."
+                              local-repo))
+                    ("SPC" "Go back to processing this repository")
+                    ("s" "Skip this repository for now and come back to it later"
+                     (push skipped-repos recipe)
+                     (setq next-repos (cdr next-repos))
+                     (cl-return-from loop))
+                    ("c" (concat "Cancel processing of this repository; "
+                                 "move on and do not come back to it later")
+                     (push canceled-repos recipe)
+                     (setq next-repos (cdr next-repos))
+                     (cl-return-from loop))
+                    ("e" "Open recursive edit"
+                     (let ((default-directory
+                             (straight--dir "repos" local-repo)))
+                       (recursive-edit)))
+                    ("C-g" "Stop immediately and do not process more repositories"
+                     (keyboard-quit)))))))))
+       (skipped-repos
+        (setq next-repos skipped-repos)
+        (setq skipped-repos ()))
+       (t (cl-return-from straight--map-repos-interactively skipped-repos))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; API
@@ -1606,17 +2327,18 @@ This is the main entry point to the functionality of straight.el.
 
 MELPA-STYLE-RECIPE is either a symbol naming a package, or a list
 whose car is a symbol naming a package and whose cdr is a
-property list containing e.g. `:fetcher', `:repo', `:local-repo',
-`:files', etc. By default, if the local repository for a package
-is not available, it is cloned automatically. This behavior can
-be suppressed by passing a non-nil value for ONLY-IF-INSTALLED.
-If ONLY-IF-INSTALLED is `prompt', `y-or-n-p' is used to determine
-its value. CAUSE is a string explaining the reason why
-`straight-use-package' has been called. It is for internal use
-only, and is used to construct progress messages. INTERACTIVE is
-non-nil if the function has been called interactively. It is for
-internal use only, and is used to determine whether to show a
-hint about how to install the package permanently.
+property list containing e.g. `:type', `:local-repo', `:files',
+and VC backend specific keywords. By default, if the local
+repository for a package is not available, it is cloned
+automatically. This behavior can be suppressed by passing a
+non-nil value for ONLY-IF-INSTALLED. If ONLY-IF-INSTALLED is
+`prompt', `y-or-n-p' is used to determine its value. CAUSE is a
+string explaining the reason why `straight-use-package' has been
+called. It is for internal use only, and is used to construct
+progress messages. INTERACTIVE is non-nil if the function has
+been called interactively. It is for internal use only, and is
+used to determine whether to show a hint about how to install the
+package permanently.
 
 Return non-nil if package was actually installed, and nil
 otherwise (this can only happen if ONLY-IF-INSTALLED is
@@ -1774,125 +2496,83 @@ See also `straight-check-all' and `straight-rebuild-package'."
       (run-hooks 'straight--after-reinit-hook))))
 
 ;;;###autoload
-(defun straight-update-package (package)
-  "Try to update a PACKAGE.
+(defun straight-normalize-package (package)
+  "Normalize a PACKAGE's local repository to its recipe's configuration.
 PACKAGE is a string naming a package. Interactively, select
 PACKAGE from the known packages in the current Emacs session
 using `completing-read'."
   (interactive (list (straight--select-package "Update package")))
-  (straight--with-progress (format "Updating package %S" package)
-    (straight--update-package (gethash package straight--recipe-cache))))
+  (let ((recipe (gethash package straight--recipe-cache)))
+    (straight--vc-normalize recipe)))
 
 ;;;###autoload
-(defun straight-update-all ()
-  "Try to update all packages."
+(defun straight-normalize-all ()
+  "Normalize all packages. See `straight-normalize-package'.
+Return a list of recipes for packages that were not successfully
+normalized. If multiple packages come from the same local
+repository, only one is normalized."
   (interactive)
-  (straight--map-repo-packages #'straight-update-package))
+  (straight--map-repos-interactively #'straight-normalize-package))
 
 ;;;###autoload
-(defun straight-validate-package (package &optional nomsg)
-  "Check if a PACKAGE's configuration is reproducible.
-This means that it is versioned with Git and its HEAD is
-reachable from at least one branch in one of the remotes with a
-URL consistent with the one specified in the recipe.
-
-PACKAGE is a string naming a package that has been activated in
-the current Emacs session. Return non-nil if the package is
-valid, and nil otherwise. If the package is not valid, display a
-warning. If it is valid, display a message, unless NOMSG is
-non-nil. Interactively, select a package using `completing-read'
-and set NOMSG to nil."
-  (interactive (list (straight--select-package "Validate package")))
-  (straight--with-plist (gethash package straight--recipe-cache)
-      (local-repo fetcher repo url)
-    (let ((default-directory (straight--dir "repos" local-repo)))
-      (if (straight--version-controlled-p)
-          (if-let ((head (straight--get-head local-repo)))
-              (if-let ((remote-urls
-                        (pcase fetcher
-                          ('git (list url))
-                          ('github
-                           (list
-                            ;; Allow both HTTPS and SSH protocols;
-                            ;; they function identically and both are
-                            ;; seen in the wild (e.g. `pbl' uses HTTPS
-                            ;; by default but the hub(1) command line
-                            ;; utility uses SSH by default when
-                            ;; creating forks).
-                            (format "https://github.com/%s.git" repo)
-                            (format "git@github.com:%s.git" repo))))))
-                  (if (straight--validate-head-is-reachable
-                       local-repo head remote-urls)
-                      (if (straight--working-directory-dirty-p
-                           local-repo)
-                          (straight--warn
-                           (concat "Repository %S has a dirty "
-                                   "working directory")
-                           local-repo)
-                        (unless nomsg
-                          (message "Package %S is all good" package))
-                        ;; This is the only path where the package is
-                        ;; valid.
-                        t)
-                    (straight--warn
-                     "HEAD of repository %S%s is not reachable from remote"
-                     local-repo
-                     (if-let ((branch (straight--get-branch)))
-                         (format " (on branch %S)" branch)
-                       "")))
-                (straight--warn "Repository %S uses non-Git fetcher `%S'"
-                                local-repo fetcher))
-            (straight--warn "Repository %S has a detached HEAD" local-repo))
-        (straight--warn "Repository %S is not version-controlled with Git"
-                        local-repo)))))
+(defun straight-pull-package (package &optional from-upstream)
+  "Try to pull a PACKAGE from the primary remote.
+PACKAGE is a string naming a package. Interactively, select
+PACKAGE from the known packages in the current Emacs session
+using `completing-read'. With prefix argument FROM-UPSTREAM, pull
+not just from primary remote but also from configured upstream."
+  (interactive (list (straight--select-package "Pull package")
+                     current-prefix-arg))
+  (let ((recipe (gethash package straight--recipe-cache)))
+    (and (straight--vc-pull-from-remote recipe)
+         (when from-upstream
+           (straight--vc-pull-from-upstream recipe)))))
 
 ;;;###autoload
-(defun straight-validate-all (&optional nomsg)
-  "Validate all packages. See `straight-validate-package'.
-Any invalid packages result in warnings. A summary of the numbers
-of valid and invalid packages is displayed as a message, unless
-NOMSG is non-nil (this is not the case in interactive usage)."
+(defun straight-pull-all (&optional from-upstream)
+  "Try to pull all packages from their primary remotes.
+With prefix argument FROM-UPSTREAM, pull not just from primary
+remotes but also from configured upstreams.
+
+Return a list of recipes for packages that were not successfully
+pulled. If multiple packages come from the same local repository,
+only one is pulled."
+  (interactive "P")
+  (straight--map-repos-interactively
+   (lambda (package)
+     (straight-pull-package package from-upstream))))
+
+;;;###autoload
+(defun straight-push-package (package)
+  "Push a PACKAGE to its primary remote, if necessary.
+PACKAGE is a string naming a package. Interactively, select
+PACKAGE from the known packages in the current Emacs session
+using `completing-read'."
+  (interactive (list (straight--select-package "Push package")))
+  (let ((recipe (gethash package straight--recipe-cache)))
+    (straight--vc-push-to-remote recipe)))
+
+;;;###autoload
+(defun straight-push-all ()
+  "Try to push all packages to their primary remotes.
+
+Return a list of recipes for packages that were not successfully
+pushed. If multiple packages come from the same local repository,
+only one is pushed."
   (interactive)
-  (let ((valid-repos 0)
-        (total-repos 0))
-    (straight--map-repos
-     (lambda (recipe)
-       (straight--with-plist recipe
-           (package)
-         (when (straight-validate-package
-                package 'nomsg)
-           (setq valid-repos (1+ valid-repos)))
-         (setq total-repos (1+ total-repos)))))
-    (cond
-     ((zerop total-repos)
-      (user-error "No packages loaded"))
-     ((zerop valid-repos)
-      (unless nomsg
-        (message
-         "All %d packages have irreproducible configurations"
-         total-repos)))
-     ((= valid-repos total-repos)
-      (unless nomsg
-        (message
-         "All %d packages have reproducible configurations"
-         total-repos)))
-     (t
-      (unless nomsg
-        (message
-         "%d packages have reproducible configurations, %d packages do not"
-         valid-repos (- total-repos valid-repos)))))
-    (= valid-repos total-repos)))
+  (straight--map-repos-interactively #'straight-push-package))
 
+;; FIXME
 ;;;###autoload
 (defun straight-freeze-versions (&optional force)
   "Write version lockfiles for currently activated packages.
-If any packages have non-reproducible configurations (see
-`straight-validate-package'), refuse to write the lockfile. If
-the package management system has been used since the last time
-the init-file was reloaded (or `straight-declare-init-succeeded'
-is not called in the init-file), refuse to write the lockfile. If
-FORCE is non-nil (interactively, if a prefix argument is
-provided), skip these checks and write the lockfile anyway.
+This implies first pushing all packages that have unpushed local
+changes. If the package management system has been used since the
+last time the init-file was reloaded (or
+`straight-declare-init-succeeded' is not called in the
+init-file), refuse to write the lockfile. If FORCE is
+non-nil (interactively, if a prefix argument is provided), skip
+all checks and write the lockfile anyway.
 
 Multiple lockfiles may be written (one for each profile),
 according to the value of `straight-profiles'."
@@ -1904,10 +2584,17 @@ according to the value of `straight-profiles'."
                                        (if straight--finalization-guaranteed
                                            "(please reload your init-file)"
                                          "(please restart Emacs)")))))
-                 (or (straight-validate-all 'nomsg)
-                     (ignore
-                      (message
-                       "Not all packages have reachable HEADS, aborting")))))
+                 (let ((unpushed-recipes (straight-push-all)))
+                   (or
+                    (null unpushed-recipes)
+                    (straight--are-you-sure
+                     (format (concat "The following packages were not pushed:"
+                                     "\n\n  %s\n\nReally write lockfiles?")
+                             (string-join
+                              (mapcar (lambda (recipe)
+                                        (plist-get recipe :local-repo))
+                                      unpushed-recipes)
+                              ", ")))))))
     (dolist (spec straight-profiles)
       (cl-destructuring-bind (profile . versions-lockfile) spec
         (let ((versions-alist nil)
@@ -1916,11 +2603,10 @@ according to the value of `straight-profiles'."
           (straight--map-repos
            (lambda (recipe)
              (straight--with-plist recipe
-                 (package local-repo)
+                 (package local-repo type)
                (when (memq profile (gethash package straight--profile-cache))
                  (push (cons local-repo
-                             (straight--get-head
-                              local-repo))
+                             (straight--vc-get-commit type local-repo))
                        versions-alist)))))
           (setq versions-alist
                 (cl-sort versions-alist #'string-lessp :key #'car))
@@ -1934,19 +2620,22 @@ according to the value of `straight-profiles'."
   "Read version lockfiles and restore package versions to those listed."
   (interactive)
   (dolist (spec straight-profiles)
-    (cl-destructuring-bind (profile . versions-lockfile) spec
-      (lambda (profile versions-lockfile)
-        (let ((lockfile-path (straight--file "versions" versions-lockfile)))
-          (if-let ((versions-alist (with-temp-buffer
-                                     (insert-file-contents-literally
-                                      lockfile-path)
-                                     (ignore-errors
-                                       (read (current-buffer))))))
-              (dolist (spec versions-alist)
-                (let ((repo (car spec))
-                      (head (cdr spec)))
-                  (straight--set-head repo head)))
-            (straight--warn "Could not read from %S" lockfile-path)))))))
+    (cl-destructuring-bind (_profile . versions-lockfile) spec
+      (let ((lockfile-path (straight--file "versions" versions-lockfile)))
+        (if-let ((versions-alist (with-temp-buffer
+                                   (insert-file-contents-literally
+                                    lockfile-path)
+                                   (ignore-errors
+                                     (read (current-buffer))))))
+            (straight--map-repos-interactively
+             (lambda (package)
+               (let ((recipe (gethash package straight--recipe-cache)))
+                 (straight--with-plist recipe
+                     (type local-repo)
+                   (when-let ((commit (alist-get local-repo versions-alist)))
+                     (straight--vc-check-out-commit
+                      type local-repo commit))))))
+          (error "Could not read from %S" lockfile-path))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Mess with other packages

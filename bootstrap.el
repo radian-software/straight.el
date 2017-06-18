@@ -56,7 +56,7 @@
 
 ;; So meta. This updates the various caches, so that straight.el shows
 ;; up properly in the lockfile and other things like that.
-(straight-use-package '(straight :fetcher github
+(straight-use-package '(straight :type git :host github
                                  :repo "raxod502/straight.el"))
 
 ;;; bootstrap.el ends here

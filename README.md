@@ -54,12 +54,10 @@ and select a package from the list.
 ## But what about my fork of (random package)?
 
 `straight.el` makes it **trivial to hack** on packages. If you have
-**your own fork** of [`projectile`][projectile] on Github, specify it
-like this (yes, it's a [MELPA recipe][recipe format], and you can
-check out existing recipes with `M-x straight-get-recipe` and
-friends):
+**your own fork** of [`projectile`][projectile] on GitHub, specify it
+like this:
 
-    (straight-use-package '(projectile :fetcher github
+    (straight-use-package '(projectile :host github
                                        :repo "your-name/projectile"))
 
 Evaluating this **won't overwrite the existing repository**, if you
