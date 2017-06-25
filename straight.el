@@ -29,10 +29,11 @@
 
 ;;; Code:
 
-;; To see the outline of this file, run M-x occur with a query of four
-;; semicolons followed by a space.
+;; To see the outline of this file, run M-x outline-minor-mode and
+;; then press C-c @ C-t. To also show the top-level functions and
+;; variable declarations in each section, run M-x occur with the
+;; following query: ^;;;;* \|^(
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Libraries
 
 ;; For `if-let', `when-let', `hash-table-keys', `string-join',
@@ -43,8 +44,7 @@
 ;; `cl-subseq', etc.
 (require 'cl-lib)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Customization
+;;;; Customization variables
 
 (defgroup straight nil
   "The straightforward package manager for Emacs."
@@ -79,8 +79,8 @@ different parts of your init-file.")
 Functions named like `straight--vc-TYPE-clone', etc. should be
 defined, where TYPE is the value of this variable.")
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Utility functions: association lists
+;;;; Utility functions
+;;;;; Association lists
 
 (defun straight--normalize-alist (alist &optional test)
   "Return copy of ALIST with duplicate keys removed.
@@ -96,8 +96,7 @@ of the entries that are kept will be the same as in ALIST."
         (puthash (car entry) t hash)))
     new-alist))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Utility functions: property lists
+;;;;; Property lists
 
 (defmacro straight--with-plist (plist props &rest body)
   "Binding from PLIST the given PROPS, eval and return BODY.
@@ -138,8 +137,7 @@ with `eq'."
                       unless (memq prop ,props-sym)
                       collect prop and collect val)))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Utility functions: hash tables
+;;;;; Hash tables
 
 (defun straight--insert (n key value table)
   "Associate index N in KEY with VALUE in hash table TABLE.
@@ -175,8 +173,7 @@ that may contain `straight--not-present' as a value."
            (eq (gethash key table straight--not-present-paranoid)
                straight--not-present-paranoid))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Utility functions: strings
+;;;;; Strings
 
 (cl-defun straight--uniquify (prefix taken)
   "Generate a string with PREFIX that is not in list TAKEN.
@@ -191,8 +188,7 @@ already in TAKEN."
               (cl-return-from straight--uniquify candidate)))))
     prefix))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Utility functions: messaging
+;;;;; Messaging
 
 (defmacro straight--with-progress (task &rest body)
   "Displaying TASK as a progress indicator, eval and return BODY.
@@ -248,8 +244,7 @@ This is used as an internal bookkeeping variable to determine if
 a progress message has been bumped out of the echo area by
 another message, and needs to be redisplayed.")
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Utility functions: paths
+;;;;; Paths
 
 (defun straight--dir (&rest segments)
   "Get a subdirectory of the straight.el directory.
@@ -293,8 +288,7 @@ PACKAGE should be a string. The filename does not include the
 directory component."
   (format "%s-autoloads.el" package))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Utility functions: external processes
+;;;;; External processes
 
 (defun straight--check-call (command &rest args)
   "Call COMMAND with ARGS, returning non-nil if it succeeds.
@@ -314,8 +308,7 @@ command fails, throw an error."
              command (string-join args " ") (buffer-string)))
     (string-trim (buffer-string))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Utility functions: interactive popup windows
+;;;;; Interactive popup windows
 
 ;; FIXME: this is a *temporary* implementation of the popup logic
 ;; meant only as a proof-of-concept so that the VC workflows can be
@@ -388,8 +381,7 @@ non-nil if the user confirms; nil if they abort."
     ("y" "Yes, proceed" t)
     ("n" "No, abort" nil)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Version control API
+;;;; Version control
 
 (defun straight--vc (method type &rest args)
   "Call a VC backend method.
@@ -538,8 +530,7 @@ This method simply delegates to the relevant
 `straight--vc-TYPE-keywords' method."
   (straight--vc 'keywords type))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Version control - Git: variables
+;;;;; Git
 
 (defvar straight--vc-git-default-branch "master"
   "The default value for `:branch' when `:type' is symbol `git'.")
@@ -550,8 +541,7 @@ This method simply delegates to the relevant
 (defvar straight--vc-git-upstream-remote "upstream"
   "The remote name to use for the upstream remote.")
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Version control - Git: utility functions
+;;;;;; Utility functions
 
 (defun straight--vc-git-encode-url (repo host)
   "Generate a URL from a REPO depending on the value of HOST.
@@ -612,8 +602,7 @@ Do not suppress unexpected errors."
   "Open Magit for the current repository."
   (magit-status-internal default-directory))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Version control - Git: validation functions
+;;;;;; Validation functions
 
 (cl-defun straight--vc-git-validate-remote (local-repo remote desired-url)
   "Validate that LOCAL-REPO has REMOTE set to DESIRED-URL or equivalent.
@@ -987,8 +976,7 @@ with the remotes."
            (straight--vc-git-validate-worktree local-repo)
            (straight--vc-git-validate-head local-repo branch)))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Version control - Git: backend API
+;;;;;; API
 
 (defun straight--vc-git-clone (recipe commit)
   "Clone local REPO for straight.el-style RECIPE, checking out COMMIT.
@@ -1124,7 +1112,6 @@ then returned."
   "Return a list of keywords used by the VC backend for Git."
   '(:repo :host :branch :nonrecursive))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Fetching repositories
 
 (defun straight--repository-is-available-p (recipe)
@@ -1148,8 +1135,8 @@ cloned."
     ;; We messed up the echo area.
     (setq straight--echo-area-dirty t)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Declaration of caches
+;;;; Recipe handling
+;;;;; Declaration of caches
 
 (defvar straight--recipe-cache (make-hash-table :test #'equal)
   "Hash table listing known recipes by package.
@@ -1197,8 +1184,7 @@ by the function `straight-declare-init-succeeded', and is set
 back to nil when the straight.el bootstrap is run or
 `straight-use-package' is invoked.")
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Recipe repository support
+;;;;; Recipe repository support
 
 (defvar straight--gnu-elpa-url
   "https://git.savannah.gnu.org/git/emacs/elpa.git"
@@ -1329,8 +1315,7 @@ might need to be cloned."
         (and (member 'emacsmirror sources)
              (straight--get-emacsmirror-recipe package cause)))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Recipe conversion
+;;;;; Recipe conversion
 
 ;; `cl-defun' creates a block so we can use `cl-return-from'.
 (cl-defun straight--convert-recipe (melpa-style-recipe &optional cause)
@@ -1534,8 +1519,7 @@ for dependency resolution."
                                             :repo "emacsmirror/epkgs"
                                             :nonrecursive t)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Recipe registration
+;;;;; Recipe registration
 
 (defvar straight--build-keywords
   '(:local-repo :files)
@@ -1640,8 +1624,8 @@ of one of the packages using the local repository."
          (package)
        (funcall func package)))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Figuring out whether packages need to be rebuilt
+;;;; Checking for package modifications
+;;;;; Build cache
 
 (defvar straight--build-cache nil
   "Hash table keeping track of information about built packages, or nil.
@@ -1683,6 +1667,8 @@ least once."
   (remove-hook 'after-init-hook #'straight--save-build-cache)
   (remove-hook 'straight--after-reinit-hook #'straight--save-build-cache))
 
+;;;;; Bookkeeping
+
 (defvar straight--finalization-guaranteed nil
   "Non-nil if `straight-declare-init-finished' is guaranteed to be called.
 This variable is part of the system that works to reduce
@@ -1722,6 +1708,8 @@ be inhibited. This prevents changes made by the first few phases
 of building the root package (namely, writing the dependency list
 to the build cache) from being overwritten when its dependencies
 are built.")
+
+;;;;; Conditional build cache handling
 
 (defun straight--maybe-load-build-cache ()
   "Invoke `straight--load-build-cache' if necessary.
@@ -1768,6 +1756,8 @@ This variable is used as a cache to memoize the function
 `straight--cached-packages-might-be-modified-p'. (Its value is
 `:unknown' if that function has not yet been called to get the
 value to cache.)")
+
+;;;;; Primary checking logic
 
 (defun straight--cached-packages-might-be-modified-p ()
   "Check whether any of the packages in the build cache might be modified.
@@ -1894,8 +1884,8 @@ all files in the package's local repository."
                         "-o" "-newermt" last-mtime "-print")
                        (> (buffer-size) 0)))))))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Building packages
+;;;;; Files directive processing
 
 (defvar straight--default-files-directive
   '("*.el" "*.el.in" "dir"
@@ -2111,6 +2101,8 @@ the MELPA recipe repository, with some minor differences:
      ;; Keys are strings.
      #'equal)))
 
+;;;;; Symlinking
+
 (defun straight--symlink-package (recipe)
   "Symlink the package for the given RECIPE into the build directory.
 This deletes any existing files in the relevant subdirectory of
@@ -2131,6 +2123,8 @@ the build directory, creating a pristine set of symlinks."
       (cl-destructuring-bind (repo-file . build-file) spec
         (make-directory (file-name-directory build-file) 'parents)
         (make-symbolic-link repo-file build-file)))))
+
+;;;;; Dependency management
 
 (defun straight--process-dependencies (dependencies)
   "Normalize a package.el-style list of DEPENDENCIES.
@@ -2192,6 +2186,8 @@ they were previously registered in the build cache by
 `straight--compute-dependencies'."
   (nth 1 (gethash package straight--build-cache)))
 
+;;;;; Autoload generation
+
 (defun straight--generate-package-autoloads (recipe)
   "Generate autoloads for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. See
@@ -2235,6 +2231,8 @@ modifies the build folder, not the original repository."
       (when-let ((buf (find-buffer-visiting generated-autoload-file)))
         (kill-buffer buf)))))
 
+;;;;; Byte-compilation
+
 (defun straight--byte-compile-package (recipe)
   "Byte-compile files for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
@@ -2271,6 +2269,8 @@ repository."
          (straight--dir "build" package)
          0 'force)))))
 
+;;;;; Cache handling
+
 (defun straight--finalize-build (recipe)
   "Update `straight--build-cache' to reflect a successful build of RECIPE.
 RECIPE should be a straight.el-style plist. The build mtime and
@@ -2282,6 +2282,8 @@ recipe in `straight--build-cache' for the package are updated."
           (mtime (format-time-string "%FT%T%z")))
       (straight--insert 0 package mtime straight--build-cache))
     (straight--insert 2 package recipe straight--build-cache)))
+
+;;;;; Main entry point
 
 (defun straight--build-package (recipe &optional cause)
   "Build the package specified by the RECIPE.
@@ -2345,7 +2347,6 @@ the reason this package is being built."
       ;; We messed up the echo area.
       (setq straight--echo-area-dirty t))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Loading packages
 
 (defun straight--add-package-to-load-path (recipe)
@@ -2369,8 +2370,8 @@ RECIPE is a straight.el-style plist."
            "build" package (straight--autoload-file-name package))
           nil 'nomessage)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Interactive helpers
+;;;;; Package selection
 
 (defun straight--select-package (message)
   "Use `completing-read' to select a package.
@@ -2443,6 +2444,8 @@ provided, and insert it otherwise."
                (message "Copied \"%S\" to kill ring" recipe))
         (_ recipe)))))
 
+;;;;; Bookkeeping
+
 (defvar straight--success-cache (make-hash-table :test #'equal)
   "Hash table containing successfully built packages as keys.
 The keys are package names as strings; the values are
@@ -2466,6 +2469,8 @@ is nil. Any packages in this list are immune to the effects of
 This is used to prevent building dependencies twice when
 `straight-rebuild-package' or `straight-rebuild-all' is
 invoked.")
+
+;;;;; Interactive mapping
 
 (cl-defun straight--map-repos-interactively (func &optional action)
   "Apply function FUNC for all local repositories, interactively.
@@ -2532,8 +2537,8 @@ The default value is \"Processing\"."
         (setq skipped-repos ()))
        (t (cl-return-from straight--map-repos-interactively skipped-repos))))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; User-facing functions
+;;;;; Declarations
 
 ;;;###autoload
 (defun straight-declare-init-finished ()
@@ -2563,6 +2568,8 @@ pruned."
   (dolist (package (hash-table-keys straight--build-cache))
     (unless (gethash package straight--recipe-cache)
       (remhash package straight--build-cache))))
+
+;;;;; Recipe acquiry
 
 ;;;###autoload
 (defun straight-get-recipe (&optional action)
@@ -2604,6 +2611,8 @@ ACTION can be nil, `copy', or `insert'."
                          'copy
                        'insert)))
   (straight--get-recipe-interactively '(emacsmirror) action))
+
+;;;;; The main event
 
 ;;;###autoload
 (defun straight-use-package
@@ -2709,6 +2718,8 @@ non-nil)."
             (puthash package t straight--success-cache)
             t))))))
 
+;;;;; Rebuilding packages
+
 ;;;###autoload
 (defun straight-check-package (package)
   "Rebuild a PACKAGE if it has been modified.
@@ -2781,6 +2792,8 @@ See also `straight-check-all' and `straight-rebuild-package'."
           (straight-use-package (intern package)))
       (run-hooks 'straight--after-reinit-hook))))
 
+;;;;; Normalization, pushing, pulling
+
 ;;;###autoload
 (defun straight-normalize-package (package)
   "Normalize a PACKAGE's local repository to its recipe's configuration.
@@ -2847,6 +2860,8 @@ pushed. If multiple packages come from the same local repository,
 only one is pushed."
   (interactive)
   (straight--map-repos-interactively #'straight-push-package))
+
+;;;;; Lockfile management
 
 ;;;###autoload
 (defun straight-freeze-versions (&optional force)
@@ -2922,7 +2937,6 @@ according to the value of `straight-profiles'."
                       type local-repo commit))))))
           (error "Could not read from %S" lockfile-path))))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Mess with other packages
 
 ;; Prevent package.el from inserting a call to `package-initialize' in
@@ -2997,9 +3011,12 @@ according to the value of `straight-profiles'."
   (setq use-package-pre-ensure-function
         #'straight--use-package-pre-ensure-function))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Closing remarks
 
 (provide 'straight)
 
 ;;; straight.el ends here
+
+;; Local Variables:
+;; outline-regexp: ";;;;* "
+;; End:
