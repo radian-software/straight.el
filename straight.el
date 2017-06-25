@@ -119,7 +119,8 @@ The MESSAGE is postpended with \"...\" and then passed to
 (defun straight--progress-end (message)
   "Display a MESSAGE indicating completed progress.
 The MESSAGE is postpended with \"...done\" and then passed to
-`message'. See also `"
+`message'. See also `straight--with-progress' and
+`straight--progress-begin'."
   (message "%s...done" message))
 
 (defun straight--warn (message &rest args)
