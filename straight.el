@@ -80,7 +80,119 @@ Functions named like `straight--vc-TYPE-clone', etc. should be
 defined, where TYPE is the value of this variable.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Displaying messages and warnings
+;;;; Utility functions: association lists
+
+(defun straight--normalize-alist (alist &optional test)
+  "Return copy of ALIST with duplicate keys removed.
+The value for a duplicated key will be the last one in ALIST.
+Duplicates are tested with TEST, which must be accepted by the
+`make-hash-table' function and which defaults to `eq'. The order
+of the entries that are kept will be the same as in ALIST."
+  (let ((hash (make-hash-table :test (or test #'eq)))
+        (new-alist ()))
+    (dolist (entry (reverse alist))
+      (unless (gethash (car entry) hash)
+        (push entry new-alist)
+        (puthash (car entry) t hash)))
+    new-alist))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Utility functions: property lists
+
+(defmacro straight--with-plist (plist props &rest body)
+  "Binding from PLIST the given PROPS, eval and return BODY.
+PROPS is a list of symbols. Each one is converted to a keyword
+and then its value is looked up in the PLIST and bound to the
+symbol for the duration of BODY."
+  (declare (indent 2))
+  (let ((plist-sym (make-symbol "plist")))
+    `(let* ((,plist-sym ,plist)
+            ,@(mapcar (lambda (prop)
+                        `(,prop
+                          (plist-get
+                           ,plist-sym
+                           ,(intern (concat ":" (symbol-name prop))))))
+                      props))
+       ,@body)))
+
+(defmacro straight--put (plist prop value)
+  "Make copy of PLIST with key PROP mapped to VALUE, and re-set it.
+PLIST must be a literal symbol naming a plist variable. PROP and
+VALUE are evaluated."
+  `(progn
+     (setq ,plist (copy-sequence ,plist))
+     (setq ,plist (plist-put ,plist ,prop ,value))))
+
+(defmacro straight--remq (plist props)
+  "Make copy of PLIST with keys PROPS removed, and re-set it.
+PLIST must be a literal symbol naming a plist variable. PROPS is
+evaluated and should result in a list. Key comparison is done
+with `eq'."
+  ;; The following subroutine is adapted from [1].
+  ;;
+  ;; [1]: https://lists.gnu.org/archive/html/help-gnu-emacs/2015-08/msg00019.html
+  (let ((props-sym (make-symbol "props")))
+    `(let ((,props-sym ,props))
+       (setq ,plist
+             (cl-loop for (prop val) on ,plist by #'cddr
+                      unless (memq prop ,props-sym)
+                      collect prop and collect val)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Utility functions: hash tables
+
+(defun straight--insert (n key value table)
+  "Associate index N in KEY with VALUE in hash table TABLE.
+TABLE should be a hash whose values are lists. This function will
+set the Nth entry of the list mapped to KEY in TABLE to VALUE. If
+the list does not have an Nth entry, it will be padded with nils
+so that it does, before the setting happens. The TABLE will be
+modified and returned."
+  (let ((list (gethash key table)))
+    (if (>= n (length list))
+        (puthash key
+                 (append list
+                         (make-list (- n (length list)) nil)
+                         (list value))
+                 table)
+      (setcar (nthcdr n list) value))
+    table))
+
+(defvar straight--not-present 'straight--not-present
+  "Value used as a default argument to `gethash'.")
+
+(defvar straight--not-present-paranoid 'straight--not-present-paranoid
+  "Value used as a default argument to `gethash'.
+Why do we need this? Because whoever wrote the Elisp hash table
+API didn't actually know how to write hash table APIs.")
+
+(defun straight--checkhash (key table &optional paranoid)
+  "Return non-nil if KEY is present in hash TABLE.
+If PARANOID is non-nil, ensure correctness even for hash tables
+that may contain `straight--not-present' as a value."
+  (and (eq (gethash key table straight--not-present) straight--not-present)
+       (or paranoid
+           (eq (gethash key table straight--not-present-paranoid)
+               straight--not-present-paranoid))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Utility functions: strings
+
+(cl-defun straight--uniquify (prefix taken)
+  "Generate a string with PREFIX that is not in list TAKEN.
+This is done by trying PREFIX-1, PREFIX-2, etc. if PREFIX is
+already in TAKEN."
+  (if (member prefix taken)
+      (let ((n 1))
+        (while t
+          (let ((candidate (format "%s-%d" prefix n)))
+            (if (member candidate taken)
+                (setq n (1+ n))
+              (cl-return-from straight--uniquify candidate)))))
+    prefix))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Utility functions: messaging
 
 (defmacro straight--with-progress (task &rest body)
   "Displaying TASK as a progress indicator, eval and return BODY.
@@ -137,113 +249,7 @@ a progress message has been bumped out of the echo area by
 another message, and needs to be redisplayed.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Accessing and modifying data structures
-
-(defmacro straight--with-plist (plist props &rest body)
-  "Binding from PLIST the given PROPS, eval and return BODY.
-PROPS is a list of symbols. Each one is converted to a keyword
-and then its value is looked up in the PLIST and bound to the
-symbol for the duration of BODY."
-  (declare (indent 2))
-  (let ((plist-sym (make-symbol "plist")))
-    `(let* ((,plist-sym ,plist)
-            ,@(mapcar (lambda (prop)
-                        `(,prop
-                          (plist-get
-                           ,plist-sym
-                           ,(intern (concat ":" (symbol-name prop))))))
-                      props))
-       ,@body)))
-
-(defmacro straight--put (plist prop value)
-  "Make copy of PLIST with key PROP mapped to VALUE, and re-set it.
-PLIST must be a literal symbol naming a plist variable. PROP and
-VALUE are evaluated."
-  `(progn
-     (setq ,plist (copy-sequence ,plist))
-     (setq ,plist (plist-put ,plist ,prop ,value))))
-
-(defmacro straight--remq (plist props)
-  "Make copy of PLIST with keys PROPS removed, and re-set it.
-PLIST must be a literal symbol naming a plist variable. PROPS is
-evaluated and should result in a list. Key comparison is done
-with `eq'."
-  ;; The following subroutine is adapted from [1].
-  ;;
-  ;; [1]: https://lists.gnu.org/archive/html/help-gnu-emacs/2015-08/msg00019.html
-  (let ((props-sym (make-symbol "props")))
-    `(let ((,props-sym ,props))
-       (setq ,plist
-             (cl-loop for (prop val) on ,plist by #'cddr
-                      unless (memq prop ,props-sym)
-                      collect prop and collect val)))))
-
-(defun straight--insert (n key value table)
-  "Associate index N in KEY with VALUE in hash table TABLE.
-TABLE should be a hash whose values are lists. This function will
-set the Nth entry of the list mapped to KEY in TABLE to VALUE. If
-the list does not have an Nth entry, it will be padded with nils
-so that it does, before the setting happens. The TABLE will be
-modified and returned."
-  (let ((list (gethash key table)))
-    (if (>= n (length list))
-        (puthash key
-                 (append list
-                         (make-list (- n (length list)) nil)
-                         (list value))
-                 table)
-      (setcar (nthcdr n list) value))
-    table))
-
-(defvar straight--not-present 'straight--not-present
-  "Value used as a default argument to `gethash'.")
-
-(defvar straight--not-present-paranoid 'straight--not-present-paranoid
-  "Value used as a default argument to `gethash'.
-Why do we need this? Because whoever wrote the Elisp hash table
-API didn't actually know how to write hash table APIs.")
-
-(defun straight--checkhash (key table &optional paranoid)
-  "Return non-nil if KEY is present in hash TABLE.
-If PARANOID is non-nil, ensure correctness even for hash tables
-that may contain `straight--not-present' as a value."
-  (and (eq (gethash key table straight--not-present) straight--not-present)
-       (or paranoid
-           (eq (gethash key table straight--not-present-paranoid)
-               straight--not-present-paranoid))))
-
-(defun straight--normalize-alist (alist &optional test)
-  "Return copy of ALIST with duplicate keys removed.
-The value for a duplicated key will be the last one in ALIST.
-Duplicates are tested with TEST, which must be accepted by the
-`make-hash-table' function and which defaults to `eq'. The order
-of the entries that are kept will be the same as in ALIST."
-  (let ((hash (make-hash-table :test (or test #'eq)))
-        (new-alist ()))
-    (dolist (entry (reverse alist))
-      (unless (gethash (car entry) hash)
-        (push entry new-alist)
-        (puthash (car entry) t hash)))
-    new-alist))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; String manipulation
-
-(cl-defun straight--uniquify (prefix taken)
-  "Generate a string with PREFIX that is not in list TAKEN.
-This is done by trying PREFIX-1, PREFIX-2, etc. if PREFIX is
-already in TAKEN."
-  (if (member prefix taken)
-      (let ((n 1))
-        (while t
-          (let ((candidate (format "%s-%d" prefix n)))
-            (if (member candidate taken)
-                (setq n (1+ n))
-              (cl-return-from straight--uniquify candidate)))))
-    prefix))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Constructing filesystem paths
+;;;; Utility functions: paths
 
 (defun straight--dir (&rest segments)
   "Get a subdirectory of the straight.el directory.
@@ -288,7 +294,7 @@ directory component."
   (format "%s-autoloads.el" package))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Calling external commands
+;;;; Utility functions: external processes
 
 (defun straight--check-call (command &rest args)
   "Call COMMAND with ARGS, returning non-nil if it succeeds.
@@ -309,7 +315,7 @@ command fails, throw an error."
     (string-trim (buffer-string))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Displaying popups
+;;;; Utility functions: interactive popup windows
 
 ;; FIXME: this is a *temporary* implementation of the popup logic
 ;; meant only as a proof-of-concept so that the VC workflows can be
@@ -383,7 +389,7 @@ non-nil if the user confirms; nil if they abort."
     ("n" "No, abort" nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Version control backend system
+;;;; Version control API
 
 (defun straight--vc (method type &rest args)
   "Call a VC backend method.
@@ -533,7 +539,7 @@ This method simply delegates to the relevant
   (straight--vc 'keywords type))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Git backend variables
+;;;; Version control - Git: variables
 
 (defvar straight--vc-git-default-branch "master"
   "The default value for `:branch' when `:type' is symbol `git'.")
@@ -545,7 +551,7 @@ This method simply delegates to the relevant
   "The remote name to use for the upstream remote.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Git backend utility methods
+;;;; Version control - Git: utility functions
 
 (defun straight--vc-git-encode-url (repo host)
   "Generate a URL from a REPO depending on the value of HOST.
@@ -605,6 +611,9 @@ Do not suppress unexpected errors."
 (defun straight--vc-git-magit ()
   "Open Magit for the current repository."
   (magit-status-internal default-directory))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Version control - Git: validation functions
 
 (cl-defun straight--vc-git-validate-remote (local-repo remote desired-url)
   "Validate that LOCAL-REPO has REMOTE set to DESIRED-URL or equivalent.
@@ -979,7 +988,7 @@ with the remotes."
            (straight--vc-git-validate-head local-repo branch)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Git backend API methods
+;;;; Version control - Git: backend API
 
 (defun straight--vc-git-clone (recipe commit)
   "Clone local REPO for straight.el-style RECIPE, checking out COMMIT.
@@ -1140,7 +1149,7 @@ cloned."
     (setq straight--echo-area-dirty t)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Managing package profiles
+;;;; Declaration of caches
 
 (defvar straight--recipe-cache (make-hash-table :test #'equal)
   "Hash table listing known recipes by package.
@@ -1187,6 +1196,9 @@ a version lockfile if this variable is nil. It is set to non-nil
 by the function `straight-declare-init-succeeded', and is set
 back to nil when the straight.el bootstrap is run or
 `straight-use-package' is invoked.")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Recipe repository support
 
 (defvar straight--gnu-elpa-url
   "https://git.savannah.gnu.org/git/emacs/elpa.git"
@@ -1316,6 +1328,9 @@ might need to be cloned."
         ;; what upstream to submit changes against.
         (and (member 'emacsmirror sources)
              (straight--get-emacsmirror-recipe package cause)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Recipe conversion
 
 ;; `cl-defun' creates a block so we can use `cl-return-from'.
 (cl-defun straight--convert-recipe (melpa-style-recipe &optional cause)
@@ -1518,6 +1533,9 @@ for dependency resolution."
                                     `(epkgs :type git :host github
                                             :repo "emacsmirror/epkgs"
                                             :nonrecursive t)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Recipe registration
 
 (defvar straight--build-keywords
   '(:local-repo :files)
@@ -2515,7 +2533,7 @@ The default value is \"Processing\"."
        (t (cl-return-from straight--map-repos-interactively skipped-repos))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; API
+;;;; User-facing functions
 
 ;;;###autoload
 (defun straight-declare-init-finished ()
@@ -2830,7 +2848,6 @@ only one is pushed."
   (interactive)
   (straight--map-repos-interactively #'straight-push-package))
 
-;; FIXME
 ;;;###autoload
 (defun straight-freeze-versions (&optional force)
   "Write version lockfiles for currently activated packages.
