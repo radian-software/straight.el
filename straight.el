@@ -399,16 +399,36 @@ For example:
 
 (defun straight--vc-clone (recipe)
   "Clone the local repository specified by straight.el-style RECIPE.
+If a commit is specified in one of the lockfiles, attempt to
+check out that revision. If this fails, signal a warning.
+
 This method sets `default-directory' to the repos directory and
 delegates to the relevant `straight--vc-TYPE-clone' method, where
 TYPE is the `:type' specified in RECIPE. If the repository
 already exists, throw an error."
   (straight--with-plist recipe
       (type local-repo)
-    (let ((default-directory (straight--dir "repos")))
+    (let ((default-directory (straight--dir "repos"))
+          (commit nil))
       (when (file-exists-p (straight--dir "repos" local-repo))
         (error "Repository already exists: %S" local-repo))
-      (straight--vc 'clone type recipe))))
+      ;; We're reading the lockfiles inline here, instead of caching
+      ;; them like we do with the build cache. The reason is that
+      ;; reading the lockfiles appears to be much faster than reading
+      ;; the build cache, and also time is not really a concern if
+      ;; we're already going to be cloning a repository.
+      (dolist (spec straight-profiles)
+        (cl-destructuring-bind (_profile . versions-lockfile) spec
+          (let ((lockfile-path (straight--file "versions" versions-lockfile)))
+            (when-let ((versions-alist (with-temp-buffer
+                                         (insert-file-contents-literally
+                                          lockfile-path)
+                                         (ignore-errors
+                                           (read (current-buffer))))))
+              (when-let ((frozen-commit
+                          (cdr (assoc local-repo versions-alist))))
+                (setq commit frozen-commit))))))
+      (straight--vc 'clone type recipe commit))))
 
 (defun straight--vc-normalize (recipe)
   "Normalize the local repository specified by straight.el-style RECIPE.
@@ -960,8 +980,11 @@ with the remotes."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Git backend API methods
 
-(defun straight--vc-git-clone (recipe)
-  "Clone local REPO for straight.el-style RECIPE."
+(defun straight--vc-git-clone (recipe commit)
+  "Clone local REPO for straight.el-style RECIPE, checking out COMMIT.
+COMMIT is a 40-character SHA-1 Git hash. If it cannot be checked
+out, signal a warning. If COMMIT is nil, check out the branch
+specified in RECIPE instead. If that fails, signal a warning."
   (straight--with-plist recipe
       (local-repo repo host branch upstream nonrecursive)
     (let ((success nil)
@@ -975,10 +998,25 @@ with the remotes."
              straight--vc-git-primary-remote
              "--no-checkout" url)
             (let ((default-directory repo-dir))
-              (unless (straight--check-call "git" "checkout" branch)
-                (straight--warn "Could not check out branch %S of repository %S"
-                                branch local-repo)
-                (straight--get-call "git" "checkout" "HEAD"))
+              (when commit
+                (unless (straight--check-call
+                         "git" "checkout" commit)
+                  (straight--warn
+                   "Could not check out commit %S in repository %S"
+                   commit local-repo)
+                  ;; We couldn't check out the commit, best to proceed
+                  ;; as if we weren't given one.
+                  (setq commit nil)))
+              (unless commit
+                (unless (straight--check-call
+                         "git" "checkout" branch)
+                  (straight--warn
+                   "Could not check out branch %S of repository %S"
+                   branch local-repo)
+                  ;; Since we passed --no-checkout, we need to
+                  ;; explicitly check out *something*, even if it's
+                  ;; not the right thing.
+                  (straight--get-call "git" "checkout" "HEAD")))
               (unless nonrecursive
                 (straight--get-call
                  "git" "submodule" "update" "--init" "--recursive"))
