@@ -44,18 +44,6 @@
 (require 'cl-lib)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Lazy-load pbl
-
-;; Normally we don't autoload things explicitly. Instead, autoload
-;; cookies are placed before each function we want to autoload.
-;; However, `pbl' is a dependency of `straight', and `straight' is
-;; what provides the autoload cookie processing functionality. So this
-;; is really the only elegant way to lazy-load `pbl' (we do not want
-;; to load it unless a package needs to be built), at least for now.
-(autoload 'pbl-expand-file-specs "pbl")
-(autoload 'pbl--config-file-list "pbl")
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Customization
 
 (defgroup straight nil
@@ -206,6 +194,37 @@ modified and returned."
       (setcar (nthcdr n list) value))
     table))
 
+(defvar straight--not-present 'straight--not-present
+  "Value used as a default argument to `gethash'.")
+
+(defvar straight--not-present-paranoid 'straight--not-present-paranoid
+  "Value used as a default argument to `gethash'.
+Why do we need this? Because whoever wrote the Elisp hash table
+API didn't actually know how to write hash table APIs.")
+
+(defun straight--checkhash (key table &optional paranoid)
+  "Return non-nil if KEY is present in hash TABLE.
+If PARANOID is non-nil, ensure correctness even for hash tables
+that may contain `straight--not-present' as a value."
+  (and (eq (gethash key table straight--not-present) straight--not-present)
+       (or paranoid
+           (eq (gethash key table straight--not-present-paranoid)
+               straight--not-present-paranoid))))
+
+(defun straight--normalize-alist (alist &optional test)
+  "Return copy of ALIST with duplicate keys removed.
+The value for a duplicated key will be the last one in ALIST.
+Duplicates are tested with TEST, which must be accepted by the
+`make-hash-table' function and which defaults to `eq'. The order
+of the entries that are kept will be the same as in ALIST."
+  (let ((hash (make-hash-table :test (or test #'eq)))
+        (new-alist ()))
+    (dolist (entry (reverse alist))
+      (unless (gethash (car entry) hash)
+        (push entry new-alist)
+        (puthash (car entry) t hash)))
+    new-alist))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; String manipulation
 
@@ -314,7 +333,7 @@ regard to keybindings."
         (prompt (concat prompt "\n"))
         (max-length (apply #'max (mapcar #'length (mapcar #'car actions)))))
     (unless (assoc "C-g" actions)
-      (add-to-list 'actions '("C-g" "Cancel" keyboard-quit) 'append))
+      (nconc actions '(("C-g" "Cancel" keyboard-quit))))
     (dolist (action actions)
       (cl-destructuring-bind (key desc func . args) action
         (when desc
@@ -1821,6 +1840,220 @@ all files in the package's local repository."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Building packages
 
+(defvar straight--default-files-directive
+  '("*.el" "*.el.in" "dir"
+    "*.info" "*.texi" "*.texinfo"
+    "doc/dir" "doc/*.info" "doc/*.texi" "doc/*.texinfo"
+    (:exclude ".dir-locals.el" "test.el" "tests.el" "*-test.el" "*-tests.el")))
+
+(defun straight--expand-files-directive-internal (files src-dir prefix)
+  "Expand FILES directive in SRC-DIR with path PREFIX.
+FILES is a list that can be used for the `:files' directive in a
+recipe. SRC-DIR is an absolute path to the directory relative to
+which wildcards are to be expanded. PREFIX is a string, either
+empty or ending with a slash, that should be prepended to all
+target paths.
+
+The return value is a cons cell of a list of mappings and a list
+of exclusions. The mappings are of the same form that is returned
+by `straight--expand-files-directive', while the exclusions are
+analogous except that they are only cars, and do not include
+destinations."
+  (unless (listp files)
+    (error "Invalid :files directive: %S" files))
+  (let ((mappings ())
+        (exclusions ()))
+    ;; We have to do some funny business to get `:defaults' splicing
+    ;; and wildcard expansion to work, hence `while' instead of
+    ;; `dolist'.
+    (while files
+      ;; Pop off the first spec. We might add some new specs back in
+      ;; later on.
+      (let ((spec (car files)))
+        (setq files (cdr files))
+        (cond
+         ((eq spec :defaults)
+          (setq files (append straight--default-files-directive files)))
+         ;; Replace string-only specs with a bunch of conses that have
+         ;; already been wildcard-expanded.
+         ((stringp spec)
+          (setq files
+                ;; Function `nconc' doesn't mutate its last argument.
+                ;; We use it for efficiency over `append'.
+                (nconc
+                 (mapcar
+                  (lambda (file)
+                    ;; Here we are using `file-name-nondirectory' to
+                    ;; achieve a default of linking to the root
+                    ;; directory of the target, but possibly with a
+                    ;; prefix if one was created by an enclosing list.
+                    (cons file (concat prefix (file-name-nondirectory file))))
+                  (file-expand-wildcards spec))
+                 files)))
+         ;; The only other possibilities were already taken care of.
+         ((not (consp spec))
+          (error "Invalid entry in :files directive: %S" spec))
+         ((eq (car spec) :exclude)
+          (cl-destructuring-bind
+              (rec-mappings . rec-exclusions)
+              (straight--expand-files-directive-internal
+               (cdr spec) src-dir prefix)
+            ;; We still want to make previously established mappings
+            ;; subject to removal, but this time we're inverting the
+            ;; meaning of the sub-list so that its mappings become our
+            ;; exclusions.
+            (setq mappings (cl-remove-if
+                            (lambda (mapping)
+                              (member (car mapping) rec-mappings))
+                            mappings))
+            ;; Same as above. Mappings become exclusions. We drop the
+            ;; actual exclusions of the `:exclude' sub-list, since
+            ;; they are only supposed to apply to which elements
+            ;; actually get excluded (a double exclusion does not make
+            ;; an inclusion, at least here).
+            (dolist (mapping rec-mappings)
+              (push (car mapping) exclusions))))
+         ;; Check if this is a proper list, rather than just a cons
+         ;; cell.
+         ((consp (cdr spec))
+          ;; If so, the car should be a path prefix. We don't accept
+          ;; `defaults' here obviously.
+          (unless (stringp (car spec))
+            (error "Invalid sub-list head in :files directive: %S" (car spec)))
+          (cl-destructuring-bind
+              ;; "rec" stands for "recursive".
+              (rec-mappings . rec-exclusions)
+              (straight--expand-files-directive-internal
+               (cdr spec) src-dir (concat prefix (car spec) "/"))
+            ;; Any previously established mappings are subject to
+            ;; removal from the `:exclude' clauses inside the
+            ;; sub-list, if any.
+            (setq mappings (cl-remove-if
+                            (lambda (mapping)
+                              (member (car mapping) rec-exclusions))
+                            mappings))
+            ;; We have to do this after the `cl-remove-if' above,
+            ;; since otherwise the mappings established within the
+            ;; sub-list after the `:exclude' clauses there would also
+            ;; be subject to removal.
+            (dolist (mapping rec-mappings)
+              ;; This is the place where mappings generated further
+              ;; down are propagated all the way up to the top (unless
+              ;; they get hit by a `cl-remove-if').
+              (push mapping mappings))
+            ;; The exclusions might also apply to some more mappings
+            ;; that were established in higher-level sub-lists.
+            (dolist (exclusion rec-exclusions)
+              (push exclusion exclusions))))
+         ((or (not (stringp (car spec)))
+              (not (stringp (cdr spec))))
+          (error "Invalid entry in :files directive: %S" spec))
+         (t
+          ;; Filter out nonexistent files silently. This only matters
+          ;; when mappings are specified explicitly with cons cells,
+          ;; since `file-expand-wildcards' will only report extant
+          ;; files, even if there are no wildcards to expand.
+          (when (file-exists-p (car spec))
+            ;; This is the only place where mappings are actually
+            ;; generated in the first place.
+            (push spec mappings))))))
+    ;; We've been using `push' to stick stuff onto the fronts of our
+    ;; lists, so we need to reverse them. Not that it should matter
+    ;; too much.
+    (cons (reverse mappings) (reverse exclusions))))
+
+(defun straight--expand-files-directive (files src-dir dest-dir)
+  "Expand FILES directive mapping from SRC-DIR to DEST-DIR.
+SRC-DIR and DEST-DIR are absolute paths; symlinks are created in
+DEST-DIR pointing to SRC-DIR. Return a list of cons cells
+representing the mappings from SRC-DIR to DEST-DIR. The paths in
+the cons cells are absolute.
+
+FILES is a list, or nil. Each element of FILES can be a string, a
+cons cell, a list, or the symbol `:defaults'.
+
+If an entry is a string, then it is expanded into a (possibly
+empty) list of extant files in SRC-DIR using
+`file-expand-wildcards'. Each of these files corresponds to a
+link from the file in SRC-DIR to a file with the same name (sans
+directory) in DEST-DIR.
+
+If an entry is a cons cell, then it is taken as a literal mapping
+from a file in SRC-DIR to a file in DEST-DIR (the directory is
+not removed). In this case, wildcard expansion does not take
+place.
+
+If an entry is a list, then it must begin with either a string or
+the symbol `:exclude'.
+
+If the list begins with a string, then the remainder of the list
+is expanded as a top-level FILES directive, except that all
+target paths have the first element of the list prepended to
+then. In other words, this form specifies further links to be
+placed within a particular subdirectory of DEST-DIR.
+
+If the list begins with the symbol `:exclude', then the remainder
+of the list is expanded as a top-level FILES directive, except
+that all previously defined links pointing to any files in the
+resulting list are removed. Note that this means any links
+specified previously in the current list are subject to removal,
+and also any links specified previously at any higher-level list,
+but not any links specified afterwards in the current list, or
+any higher-level list. Note also that `:exclude' can be nested:
+in this case the inner `:exclude' results in some files being
+excluded from the outer `:exclude', meaning that they will not
+actually be excluded.
+
+If the entry is the symbol `:default', then the value of
+`straight--default-files-directive' is spliced into the enclosing
+list to replace `:default'.
+
+If FILES is nil, it defaults to
+`straight--default-files-directive'.
+
+If two links are specified that take the same source path to
+different target paths, the one that is specified textually later
+in FILES will win.
+
+Note that this specification is quite similar to the one used by
+the MELPA recipe repository, with some minor differences:
+
+* MELPA recipes do not support cons cells to rename files or
+  specify explicit subdirectories
+
+* MELPA recipes do not support putting `:default' anywhere except
+  as the first element of the top-level list
+
+* When using `:exclude' in a MELPA recipe, the current DEST-DIR
+  prefix created by enclosing lists is not respected.
+
+* Whenever a *.el.in file is linked in a MELPA recipe, the target
+  of the link is named as *.el.
+
+* When using `:exclude' in a MELPA recipe, only links defined in
+  the current list are subject to removal, and not links defined
+  in higher-level lists."
+  ;; We bind `default-directory' here so we don't have to do it
+  ;; repeatedly in the recursive section.
+  (let* ((default-directory src-dir)
+         (result (straight--expand-files-directive-internal
+                  (or files straight--default-files-directive)
+                  src-dir ""))
+         ;; We can safely discard the exclusions in the cdr of
+         ;; `result', since any mappings that should have been
+         ;; subject to removal have already had the exclusions
+         ;; applied to them.
+         (mappings (car result)))
+    (straight--normalize-alist
+     (mapcar (lambda (mapping)
+               (cl-destructuring-bind (src . dest) mapping
+                 ;; Make the paths absolute.
+                 (cons (concat src-dir src)
+                       (concat dest-dir dest))))
+             mappings)
+     ;; Keys are strings.
+     #'equal)))
+
 (defun straight--symlink-package (recipe)
   "Symlink the package for the given RECIPE into the build directory.
 This deletes any existing files in the relevant subdirectory of
@@ -1833,16 +2066,12 @@ the build directory, creating a pristine set of symlinks."
         (delete-directory dir 'recursive)))
     ;; Make a new directory for the built package.
     (make-directory (straight--dir "build" package) 'parents)
-    ;; We use `pbl' to process MELPA's DSL for file copying. (We're
-    ;; doing the actual actions on the filesystem ourselves, though,
-    ;; since MELPA uses copying rather than symlinking like we need.
-    (dolist (spec (pbl-expand-file-specs
+    ;; Do the linking.
+    (dolist (spec (straight--expand-files-directive
+                   files
                    (straight--dir "repos" local-repo)
-                   (pbl--config-file-list `(:files ,files))))
-      (let ((repo-file (straight--file "repos" local-repo (car spec)))
-            (build-file (straight--file "build" package (cdr spec))))
-        (unless (file-exists-p repo-file)
-          (error "File %S does not exist" repo-file))
+                   (straight--dir "build" package)))
+      (cl-destructuring-bind (repo-file . build-file) spec
         (make-directory (file-name-directory build-file) 'parents)
         (make-symbolic-link repo-file build-file)))))
 
