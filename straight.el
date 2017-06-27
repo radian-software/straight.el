@@ -63,7 +63,8 @@
 The profile names should be symbols, and the filenames should not
 contain any directory components. Profiles later in the list take
 precedence."
-  :type '(alist :key-type symbol :value-type string))
+  :type '(alist :key-type symbol :value-type string)
+  :group 'straight)
 
 (defcustom straight-current-profile
   nil
@@ -71,13 +72,28 @@ precedence."
 This symbol should have an entry in `straight-profiles'. If you
 wish to take advantage of the multiple-profile system, you should
 bind this variable to different symbols using `let' over
-different parts of your init-file.")
+different parts of your init-file."
+  :type 'symbol
+  :group 'straight)
 
 (defcustom straight-default-vc
   'git
   "VC backend to use by default, if a recipe has no `:type'.
 Functions named like `straight--vc-TYPE-clone', etc. should be
-defined, where TYPE is the value of this variable.")
+defined, where TYPE is the value of this variable."
+  :type 'symbol
+  :group 'straight)
+
+(defcustom straight-recipe-repositories
+  '(melpa gnu-elpa emacsmirror)
+  "List of recipe repositories to find recipes in.
+These are used when you provide only a package name, rather than
+a full recipe, to `straight-use-package' or
+`straight-use-recipes'. The order in this list determines the
+precedence. Functions named like `straight--recipes-NAME-list',
+etc. should be defined, where NAME is any element of this list."
+  :type '(list symbol)
+  :group 'straight)
 
 ;;;; Utility functions
 ;;;;; Association lists
@@ -297,16 +313,21 @@ the COMMAND does not exist, or if another error occurs, throw an
 error."
   (= 0 (apply #'call-process command nil nil nil args)))
 
-(defun straight--get-call (command &rest args)
+(defun straight--get-call-raw (command &rest args)
   "Call COMMAND with ARGS, returning its stdout and stderr as a string.
-Return a string with whitespace trimmed from both ends. If the
-command fails, throw an error."
+If the command fails, throw an error."
   (with-temp-buffer
     (unless (= 0 (apply #'call-process command
                         nil '(t t) nil args))
       (error "Command failed: %s %s (output: %S)"
              command (string-join args " ") (buffer-string)))
-    (string-trim (buffer-string))))
+    (buffer-string)))
+
+(defun straight--get-call (command &rest args)
+  "Call COMMAND with ARGS, returning its stdout and stderr as a string.
+Return a string with whitespace trimmed from both ends. If the
+command fails, throw an error."
+  (string-trim (apply #'straight--get-call-raw command args)))
 
 ;;;;; Interactive popup windows
 
@@ -392,8 +413,8 @@ passed to the method.
 For example:
    (straight--vc \\='check-out-commit \\='git ...)
 => (straight--vc-git-check-out-commit ...)"
-  (let* ((func (intern (format "straight--vc-%S-%S"
-                               type method))))
+  (let ((func (intern (format "straight--vc-%S-%S"
+                              type method))))
     (apply func args)))
 
 (defun straight--vc-clone (recipe)
@@ -419,10 +440,10 @@ already exists, throw an error."
       (dolist (spec straight-profiles)
         (cl-destructuring-bind (_profile . versions-lockfile) spec
           (let ((lockfile-path (straight--file "versions" versions-lockfile)))
-            (when-let ((versions-alist (with-temp-buffer
-                                         (insert-file-contents-literally
-                                          lockfile-path)
-                                         (ignore-errors
+            (when-let ((versions-alist (ignore-errors
+                                         (with-temp-buffer
+                                           (insert-file-contents-literally
+                                            lockfile-path)
                                            (read (current-buffer))))))
               (when-let ((frozen-commit
                           (cdr (assoc local-repo versions-alist))))
@@ -723,8 +744,10 @@ match exactly; they just have to satisfy
   "Validate that no merge conflict is active in LOCAL-REPO.
 LOCAL-REPO is a string."
   (let ((conflicted-files
-         (straight--get-call
-          "git" "ls-files" "--unmerged")))
+         (string-remove-suffix
+          "\n"
+          (straight--get-call
+           "git" "ls-files" "--unmerged"))))
     (or (string-empty-p conflicted-files)
         (ignore
          (straight--popup
@@ -750,7 +773,7 @@ LOCAL-REPO is a string."
 (cl-defun straight--vc-git-validate-worktree (local-repo)
   "Validate that LOCAL-REPO has a clean worktree.
 LOCAL-REPO is a string."
-  (let ((status (straight--get-call "git" "status" "--short")))
+  (let ((status (straight--get-call-raw "git" "status" "--short")))
     (if (string-empty-p status)
         (cl-return-from straight--vc-git-validate-worktree t)
       (straight--popup
@@ -1184,38 +1207,94 @@ by the function `straight-declare-init-succeeded', and is set
 back to nil when the straight.el bootstrap is run or
 `straight-use-package' is invoked.")
 
-;;;;; Recipe repository support
+;;;;; Recipe repositories
 
-(defvar straight--gnu-elpa-url
-  "https://git.savannah.gnu.org/git/emacs/elpa.git"
-  "URL of the Git repository for the GNU ELPA package repository.")
+(defvar straight--recipe-repository-stack ()
+  "A list of recipe repositories that are currently being searched.
+This is used to detect and prevent an infinite recursion when
+searching for recipe repository recipes in other recipe
+repositories.
 
-;; These variables are used in the case that a bare package name is
-;; passed to `straight--convert-recipe'. But their values are computed
-;; by `straight--convert-recipe', so it's a bit of a chicken-and-egg
-;; problem. Here we declare that their values will be assigned later,
-;; so that the byte-compiler won't complain.
-(defvar straight--melpa-recipe)
-(defvar straight--gnu-elpa-recipe)
-(defvar straight--emacsmirror-recipe)
+If you set this to something other than nil, beware of
+velociraptors.")
 
-(defun straight--get-melpa-recipe (package &optional cause)
+(defun straight--recipes (method name cause &rest args)
+  "Call a recipe backend method.
+METHOD is a symbol naming a backend method, like symbol
+`retrieve'. NAME is a symbol naming the recipe repository, like
+symbol `melpa'. ARGS are passed to the method.
+
+If the package repository is not available, clone it. If the
+package cannot be found, return nil. CAUSE is a string explaining
+why the recipe repository might need to be cloned.
+
+This function sets `default-directory' appropriately, handles
+cloning the repository if necessary, and then delegates to the
+appropriate `straight--recipes-NAME-METHOD' function.
+
+For example:
+   (straight--recipes \\='retrieve \\='melpa ...)
+=> (straight--recipes-melpa-retrieve ...)"
+  (unless (memq name straight--recipe-repository-stack)
+    (let ((straight--recipe-repository-stack
+           (cons name straight--recipe-repository-stack)))
+      (straight-use-package name)
+      (let ((recipe (straight--convert-recipe name cause)))
+        (straight--with-plist recipe
+            (local-repo)
+          (let ((default-directory (straight--dir "repos" local-repo))
+                (func (intern (format "straight--recipes-%S-%S"
+                                      name method))))
+            (apply func args)))))))
+
+(defun straight--recipes-retrieve (package &optional sources cause)
+  "Look up a PACKAGE recipe in one or more SOURCES.
+PACKAGE should be a symbol, and SOURCES should be a list that is
+a subset of `straight-recipe-repositories'. (If it is omitted, it
+defaults to allowing all sources in
+`straight-recipe-repositories'.) If the recipe is not found in
+any of the provided sources, return nil. CAUSE is a string
+indicating the reason recipe repositories might need to be
+cloned."
+  (let* (;; If `sources' is omitted, allow all sources.
+         (sources (or sources straight-recipe-repositories))
+         ;; Update the `cause' to explain why repositories might be
+         ;; getting cloned.
+         (cause (concat cause (when cause straight-arrow)
+                        (format "Looking for %s recipe" package))))
+    (cl-dolist (source sources)
+      (when-let ((recipe (straight--recipes 'retrieve source cause package)))
+        (cl-return recipe)))))
+
+(defun straight--recipes-list (&optional sources cause)
+  "List recipes available in one or more SOURCES.
+PACKAGE should be a symbol, and SOURCES should be a list that is
+a subset of `straight-recipe-repositories'. (If it is omitted, it
+defaults to allowing all sources in
+`straight-recipe-repositories'.)
+
+Return a list of package names as strings."
+  (let ((sources (or sources straight-recipe-repositories))
+        (recipes ()))
+    (dolist (source sources (sort (delete-dups recipes)
+                                  #'string-lessp))
+      (let ((cause (concat cause (when cause straight-arrow)
+                           (format "Listing %S recipes" source))))
+        (setq recipes (nconc recipes (straight--recipes
+                                      'list source cause)))))))
+
+;;;;;; MELPA
+
+(defun straight--recipes-melpa-retrieve (package)
   "Look up a PACKAGE recipe in MELPA.
 PACKAGE should be a symbol. If the package has a recipe listed in
 MELPA that uses one of the Git fetchers, return it; otherwise
-return nil. If MELPA is not available, clone it automatically
-before looking up the recipe. CAUSE is a string explaining why
-MELPA might need to be cloned."
-  (unless (straight--repository-is-available-p straight--melpa-recipe)
-    (straight--clone-repository straight--melpa-recipe cause))
+return nil."
   (with-temp-buffer
     (condition-case nil
         (progn
           (insert-file-contents-literally
-           (straight--with-plist straight--melpa-recipe
-               (local-repo)
-             (straight--file "repos" local-repo "recipes"
-                             (symbol-name package))))
+           (concat "recipes/" (symbol-name package)))
           (let ((melpa-recipe (read (current-buffer)))
                 (plist ()))
             (cl-destructuring-bind (name . melpa-plist) melpa-recipe
@@ -1233,99 +1312,79 @@ MELPA might need to be cloned."
               (cons name plist))))
       (error nil))))
 
-(defun straight--get-gnu-elpa-recipe (package &optional cause)
+(defun straight--recipes-melpa-list ()
+  "Return a list of recipes available in MELPA, as a list of strings."
+  (directory-files "recipes" nil "^[^.]" 'nosort))
+
+;;;;;; GNU ELPA
+
+(defvar straight--recipes-gnu-elpa-url
+  "https://git.savannah.gnu.org/git/emacs/elpa.git"
+  "URL of the Git repository for the GNU ELPA package repository.")
+
+(defun straight--recipes-gnu-elpa-retrieve (package)
   "Look up a PACKAGE recipe in GNU ELPA.
 PACKAGE should be a symbol. If the package is maintained in GNU
 ELPA, a MELPA-style recipe is returned. Otherwise nil is
-returned. If GNU ELPA is not available, clone it automatically
-before looking up the recipe. CAUSE is a string explaining why
-GNU ELPA might need to be cloned."
-  (unless (straight--repository-is-available-p straight--gnu-elpa-recipe)
-    (straight--clone-repository straight--gnu-elpa-recipe cause))
-  (straight--with-plist straight--gnu-elpa-recipe
-      (local-repo)
-    (when (file-exists-p (straight--dir
-                          "repos" local-repo "packages"
-                          (symbol-name package)))
-      ;; All the packages in GNU ELPA are just subdirectories of the
-      ;; same repository.
-      `(,package :type git
-                 :repo ,straight--gnu-elpa-url
-                 :files (,(format "packages/%s/*.el"
-                                  (symbol-name package)))
-                 :local-repo "elpa"))))
+returned."
+  (when (file-exists-p (concat "packages/" (symbol-name package)))
+    ;; All the packages in GNU ELPA are just subdirectories of the
+    ;; same repository.
+    `(,package :type git
+               :repo ,straight--recipes-gnu-elpa-url
+               :files (,(format "packages/%s/*.el"
+                                (symbol-name package)))
+               :local-repo "elpa")))
 
-(defun straight--get-emacsmirror-recipe (package &optional cause)
+(defun straight--recipes-gnu-elpa-list ()
+  "Return a list of recipes available in GNU ELPA, as a list of strings."
+  (directory-files "packages" nil "^[^.]" 'nosort))
+
+;;;;;; EmacsMirror
+
+(defun straight--recipes-emacsmirror-retrieve (package)
   "Look up a PACKAGE recipe in Emacsmirror.
 PACKAGE should be a symbol. If the package is available from
-Emacsmirror, return a MELPA-style recipe; otherwise return nil.
-If Emacsmirror is not available, clone it automatically before
-looking up the recipe. CAUSE is a string explaining why
-Emacsmirror might need to be cloned."
-  (unless (straight--repository-is-available-p straight--emacsmirror-recipe)
-    (straight--clone-repository straight--emacsmirror-recipe cause))
-  (straight--with-plist straight--emacsmirror-recipe
-      (local-repo)
-    (let ((default-directory (straight--dir "repos" local-repo)))
-      ;; Try to get the URL for the submodule. If it doesn't exist,
-      ;; return nil. This will work both for packages in the mirror
-      ;; and packages in the attic.
-      (when-let ((url (condition-case nil
-                          (straight--get-call
-                           "git" "config" "--file" ".gitmodules"
-                           "--get" (format "submodule.%s.url"
-                                           (symbol-name package)))
-                        (error nil))))
-        (and (not (string-empty-p url))
-             ;; For the sake of elegance, we convert Github URLs to
-             ;; use the `github' fetcher, if possible. At the time of
-             ;; this writing, there are no Gitlab URLs (which makes
-             ;; sense, since all the repositories should be hosted on
-             ;; github.com/emacsmirror).
-             (cl-destructuring-bind (repo . host)
-                 (straight--vc-git-decode-url url)
-               (if host
-                   `(,package :type git :host ,host
-                              :repo ,repo)
-                 `(,package :type git :repo ,repo))))))))
+Emacsmirror, return a MELPA-style recipe; otherwise return nil."
+  ;; Try to get the URL for the submodule. If it doesn't exist,
+  ;; return nil. This will work both for packages in the mirror
+  ;; and packages in the attic.
+  (when-let ((url (condition-case nil
+                      (straight--get-call
+                       "git" "config" "--file" ".gitmodules"
+                       "--get" (format "submodule.%s.url"
+                                       (symbol-name package)))
+                    (error nil))))
+    (and (not (string-empty-p url))
+         ;; For the sake of elegance, we convert Github URLs to
+         ;; use the `github' fetcher, if possible. At the time of
+         ;; this writing, there are no Gitlab URLs (which makes
+         ;; sense, since all the repositories should be hosted on
+         ;; github.com/emacsmirror).
+         (cl-destructuring-bind (repo . host)
+             (straight--vc-git-decode-url url)
+           (if host
+               `(,package :type git :host ,host
+                          :repo ,repo)
+             `(,package :type git :repo ,repo))))))
 
-(defun straight--lookup-recipe (package &optional sources cause)
-  "Look up a PACKAGE recipe in one or more SOURCES.
-PACKAGE should be a symbol, and SOURCES should be a list
-containing one or more of `gnu-elpa', `melpa', and
-`emacsmirror'. (If it is omitted, it defaults to allowing all
-three sources.) Git-based MELPA recipes are preferred, then GNU
-ELPA, then Emacsmirror. Non-Git MELPA recipes are not considered.
-If the recipe is not found in any of the provided sources, return
-nil. CAUSE is a string indicating the reason recipe repositories
-might need to be cloned."
-  (let* (;; If `sources' is omitted, allow all sources.
-         (sources (or sources '(melpa gnu-elpa emacsmirror)))
-         ;; Update the `cause' to explain why repositories might be
-         ;; getting cloned.
-         (cause (concat cause (when cause straight-arrow)
-                        (format "Looking for %s recipe" package))))
-    (or (and (member 'melpa sources)
-             (straight--get-melpa-recipe package cause))
-        (and (member 'gnu-elpa sources)
-             (straight--get-gnu-elpa-recipe package cause))
-        ;; Emacsmirror comes after GNU ELPA because we prefer
-        ;; "official" sources, so that it is easier to figure out
-        ;; what upstream to submit changes against.
-        (and (member 'emacsmirror sources)
-             (straight--get-emacsmirror-recipe package cause)))))
+(defun straight--recipes-emacsmirror-list ()
+  "Return a list of recipes available in EmacsMirror, as a list of strings."
+  (append
+   (directory-files "mirror" nil "^[^.]" 'nosort)
+   (directory-files "attic" nil "^[^.]" 'nosort)))
 
 ;;;;; Recipe conversion
 
 ;; `cl-defun' creates a block so we can use `cl-return-from'.
 (cl-defun straight--convert-recipe (melpa-style-recipe &optional cause)
   "Convert a MELPA-STYLE-RECIPE to a normalized straight.el recipe.
-MELPA, GNU ELPA, and Emacsmirror may be cloned and searched for
-recipes if the MELPA-STYLE-RECIPE is just a package name;
-otherwise, the MELPA-STYLE-RECIPE should be a list and it is
-modified slightly to conform to the internal straight.el recipe
-format. CAUSE is a string indicating the reason recipe
-repositories might need to be cloned.
+Recipe repositories specified in `straight-recipe-repositories'
+may be cloned and searched for recipes if the MELPA-STYLE-RECIPE
+is just a package name; otherwise, the MELPA-STYLE-RECIPE should
+be a list and it is modified slightly to conform to the internal
+straight.el recipe format. CAUSE is a string indicating the
+reason recipe repositories might need to be cloned.
 
 Return nil if MELPA-STYLE-RECIPE was just a symbol, and no recipe
 could be found for it, and package.el indicates that the package
@@ -1368,11 +1427,12 @@ for dependency resolution."
       (let* (;; It's important to remember whether the recipe was
              ;; provided explicitly, or if it was just given as a
              ;; package name (meaning that the recipe needs to be
-             ;; looked up in a recipe repository, i.e. MELPA, GNU
-             ;; ELPA, or Emacsmirror). Why, you ask? It's so that we
-             ;; can be a little more tolerant of conflicts in certain
-             ;; cases -- see the comment below, before the block of
-             ;; code that runs when `recipe-specified-p' is nil.
+             ;; looked up in a recipe repository, i.e. something in
+             ;; `straight-recipe-repositories'). Why, you ask? It's so
+             ;; that we can be a little more tolerant of conflicts in
+             ;; certain cases -- see the comment below, before the
+             ;; block of code that runs when `recipe-specified-p' is
+             ;; nil.
              (recipe-specified-p (listp melpa-style-recipe))
              ;; Now we normalize the provided recipe so that it is
              ;; still a MELPA-style recipe, but it is guaranteed to be
@@ -1381,7 +1441,7 @@ for dependency resolution."
              (full-melpa-style-recipe
               (if recipe-specified-p
                   melpa-style-recipe
-                (or (straight--lookup-recipe
+                (or (straight--recipes-retrieve
                      ;; Second argument is the sources list, defaults
                      ;; to all known sources.
                      melpa-style-recipe nil cause)
@@ -1395,9 +1455,9 @@ for dependency resolution."
                       (if (package-built-in-p melpa-style-recipe)
                           (cl-return-from straight--convert-recipe)
                         (error (concat "Could not find package %S "
-                                       "in MELPA, GNU ELPA, or "
-                                       "Emacsmirror")
-                               melpa-style-recipe)))))))
+                                       "in recipe repositories: %S")
+                               melpa-style-recipe
+                               straight-recipe-repositories)))))))
         ;; MELPA-style recipe format is a list whose car is the
         ;; package name as a symbol, and whose cdr is a plist.
         (cl-destructuring-bind (package . plist) full-melpa-style-recipe
@@ -1493,31 +1553,6 @@ for dependency resolution."
                         (straight--put plist keyword value))))))
               ;; Return the newly normalized recipe.
               plist))))))
-
-;; Now we can use the newly defined `straight--convert-recipe' to
-;; define the recipes for the recipe repositories. This sounds like
-;; infinite recursion, but it isn't -- remember that the recipe
-;; repositories are only consulted by `straight--convert-recipe' in
-;; the case that the MELPA-style recipe is provided as just a package
-;; name (instead of a list). Note that there's no reason to provide a
-;; `cause', since no messages should be printed.
-
-(setq straight--melpa-recipe (straight--convert-recipe
-                              '(melpa :type git :host github
-                                      :repo "melpa/melpa")))
-
-(setq straight--gnu-elpa-recipe (straight--convert-recipe
-                                 `(elpa :type git
-                                        :repo ,straight--gnu-elpa-url)))
-
-(setq straight--emacsmirror-recipe (straight--convert-recipe
-                                    ;; Cloning `epkgs' recursively
-                                    ;; causes you to download all
-                                    ;; 6,000 or so known Emacs
-                                    ;; packages as submodules.
-                                    `(epkgs :type git :host github
-                                            :repo "emacsmirror/epkgs"
-                                            :nonrecursive t)))
 
 ;;;;; Recipe registration
 
@@ -2385,59 +2420,27 @@ or whitespace."
 
 (defun straight--get-recipe-interactively (sources &optional action)
   "Use `completing-read' to select an available package.
-SOURCES is a list containing one or more of `melpa', `gnu-elpa',
-and `emacsmirror'. (If it is nil, then all three of the sources
-are assumed to be present.) The relevant recipe repositories are
+SOURCES is a list that is a subset of
+`straight-recipe-repositories'. (If it is nil, then all of the
+repositories are used.) The relevant recipe repositories are
 cloned if necessary first. If `action' is nil or omitted, return
 the recipe. If ACTION is `insert', then insert it into the
-current buffer. If ACTION is `copy', then insert it into the
-kill ring. Interactively, copy it if a prefix argument is
-provided, and insert it otherwise."
-  (let ((sources (or sources '(melpa gnu-elpa emacsmirror))))
-    (when (and (member 'melpa sources)
-               (not (straight--repository-is-available-p straight--melpa-recipe)))
-      (straight--clone-repository straight--melpa-recipe))
-    (when (and (member 'gnu-elpa sources)
-               (not (straight--repository-is-available-p straight--gnu-elpa-recipe)))
-      (straight--clone-repository straight--gnu-elpa-recipe))
-    (when (and (member 'emacsmirror sources)
-               (not (straight--repository-is-available-p straight--emacsmirror-recipe)))
-      (straight--clone-repository straight--emacsmirror-recipe))
+current buffer. If ACTION is `copy', then insert it into the kill
+ring. Interactively, copy it if a prefix argument is provided,
+and insert it otherwise."
+  (let ((sources (or sources straight-recipe-repositories)))
     (let* ((package (intern
                      (completing-read
                       "Which recipe? "
-                      (sort
-                       (delete-dups
-                        (append
-                         (when (member 'melpa sources)
-                           (straight--with-plist straight--melpa-recipe
-                               (local-repo)
-                             (directory-files
-                              (straight--dir "repos" local-repo "recipes")
-                              nil "^[^.]" 'nosort)))
-                         (when (member 'gnu-elpa sources)
-                           (straight--with-plist straight--gnu-elpa-recipe
-                               (local-repo)
-                             (directory-files
-                              (straight--dir "repos" local-repo "packages")
-                              nil "^[^.]" 'nosort)))
-                         (when (member 'emacsmirror sources)
-                           (straight--with-plist straight--emacsmirror-recipe
-                               (local-repo)
-                             (append
-                              (directory-files
-                               (straight--dir "repos" local-repo "mirror")
-                               nil "^[^.]" 'nosort)
-                              (directory-files
-                               (straight--dir "repos" local-repo "attic")
-                               nil "^[^.]" 'nosort))))))
-                       'string-lessp)
+                      (straight--recipes-list sources)
                       (lambda (_) t)
                       'require-match)))
            ;; No need to provide a `cause' to
-           ;; `straight--lookup-recipe'; it should not be printing any
-           ;; messages.
-           (recipe (straight--lookup-recipe package sources)))
+           ;; `straight--recipes-retrieve'; it should not be printing
+           ;; any messages.
+           (recipe (straight--recipes-retrieve package sources)))
+      (unless recipe
+        (user-error "Recipe for %S is malformed" package))
       (pcase action
         ('insert (insert (format "%S" recipe)))
         ('copy (kill-new (format "%S" recipe))
@@ -2518,12 +2521,12 @@ The default value is \"Processing\"."
                               local-repo))
                     ("SPC" "Go back to processing this repository")
                     ("s" "Skip this repository for now and come back to it later"
-                     (push skipped-repos recipe)
+                     (push recipe skipped-repos)
                      (setq next-repos (cdr next-repos))
                      (cl-return-from loop))
                     ("c" (concat "Cancel processing of this repository; "
                                  "move on and do not come back to it later")
-                     (push canceled-repos recipe)
+                     (push recipe canceled-repos)
                      (setq next-repos (cdr next-repos))
                      (cl-return-from loop))
                     ("e" "Open recursive edit"
@@ -2535,7 +2538,7 @@ The default value is \"Processing\"."
        (skipped-repos
         (setq next-repos skipped-repos)
         (setq skipped-repos ()))
-       (t (cl-return-from straight--map-repos-interactively skipped-repos))))))
+       (t (cl-return-from straight--map-repos-interactively canceled-repos))))))
 
 ;;;; User-facing functions
 ;;;;; Declarations
@@ -2612,7 +2615,7 @@ ACTION can be nil, `copy', or `insert'."
                        'insert)))
   (straight--get-recipe-interactively '(emacsmirror) action))
 
-;;;;; The main event
+;;;;; Package registration
 
 ;;;###autoload
 (defun straight-use-package
@@ -2626,14 +2629,15 @@ property list containing e.g. `:type', `:local-repo', `:files',
 and VC backend specific keywords. By default, if the local
 repository for a package is not available, it is cloned
 automatically. This behavior can be suppressed by passing a
-non-nil value for ONLY-IF-INSTALLED. If ONLY-IF-INSTALLED is
-`prompt', `y-or-n-p' is used to determine its value. CAUSE is a
-string explaining the reason why `straight-use-package' has been
-called. It is for internal use only, and is used to construct
-progress messages. INTERACTIVE is non-nil if the function has
-been called interactively. It is for internal use only, and is
-used to determine whether to show a hint about how to install the
-package permanently.
+non-nil value for ONLY-IF-INSTALLED. If ONLY-IF-INSTALLED is a
+function, then it is called with the package name as a string,
+and a non-nil return value means really install the package.
+CAUSE is a string explaining the reason why
+`straight-use-package' has been called. It is for internal use
+only, and is used to construct progress messages. INTERACTIVE is
+non-nil if the function has been called interactively. It is for
+internal use only, and is used to determine whether to show a
+hint about how to install the package permanently.
 
 Return non-nil if package was actually installed, and nil
 otherwise (this can only happen if ONLY-IF-INSTALLED is
@@ -2644,7 +2648,7 @@ non-nil)."
   ;; built-in. No need to go any further.
   (when-let ((recipe (straight--convert-recipe melpa-style-recipe cause)))
     (straight--with-plist recipe
-        (package)
+        (package no-build)
       (let (;; Check if the package has been successfully built. If
             ;; not, and this is an interactive call, we'll want to
             ;; display a helpful hint message (see below).
@@ -2661,51 +2665,62 @@ non-nil)."
           ;; If the condition in this `unless' evaluates to non-nil,
           ;; the package was not installed. Return nil.
           (unless (and (not available)
-                       only-if-installed
-                       (not (and (eq only-if-installed 'prompt)
-                                 (y-or-n-p
-                                  (format "Install package %S? "
-                                          package)))))
+                       (if (and (functionp only-if-installed)
+                                ;; This makes it so that my favorite
+                                ;; idiom is supported: if an argument
+                                ;; just needs to be non-nil, then
+                                ;; instead of just passing t, pass the
+                                ;; name of the argument as a symbol.
+                                ;; Much more clear. But the problem
+                                ;; is, if somebody defines a function
+                                ;; called `only-if-installed' one
+                                ;; day... so we explicitly discard
+                                ;; that case.
+                                (not (eq only-if-installed
+                                         'only-if-installed)))
+                           (not (funcall only-if-installed package))
+                         only-if-installed))
             (unless available
               (straight--clone-repository recipe cause))
-            ;; Multi-file packages will need to be on the `load-path'
-            ;; in order to byte-compile properly.
-            (straight--add-package-to-load-path recipe)
-            (straight--maybe-load-build-cache)
-            (when
-                (or
-                 (and
-                  straight--packages-to-rebuild
-                  (or (eq straight--packages-to-rebuild :all)
-                      (gethash package straight--packages-to-rebuild))
-                  (not (gethash package straight--packages-not-to-rebuild))
-                  ;; The following form returns non-nil, so it doesn't
-                  ;; affect the `and' logic.
-                  (puthash package t straight--packages-not-to-rebuild))
-                 (straight--package-might-be-modified-p recipe))
-              (straight--build-package recipe cause))
-            (straight--maybe-save-build-cache)
-            ;; Here we are not actually trying to build the
-            ;; dependencies, but activate their autoloads. (See the
-            ;; comment in `straight--build-package' about this code.)
-            (dolist (dependency (straight--get-dependencies package))
-              ;; There are three interesting things here. Firstly, the
-              ;; recipe used is just the name of the dependency. This
-              ;; causes the default recipe to be looked up, unless one
-              ;; of the special cases in `straight--convert-recipe'
-              ;; pops up. Secondly, the value of `only-if-installed'
-              ;; is always nil. If the user has agreed to install a
-              ;; package, we assume that they also want to install all
-              ;; of its dependencies without further prompts. Finally,
-              ;; we don't bother to update `cause', since we're not
-              ;; expecting any messages to be displayed here (all of
-              ;; the dependencies should have already been cloned [if
-              ;; necessary] and built back by
-              ;; `straight--build-package').
-              (straight-use-package (intern dependency) nil cause))
-            ;; Only make the package available after everything is
-            ;; kosher.
-            (straight--activate-package-autoloads recipe)
+            (unless no-build
+              ;; Multi-file packages will need to be on the `load-path'
+              ;; in order to byte-compile properly.
+              (straight--add-package-to-load-path recipe)
+              (straight--maybe-load-build-cache)
+              (when
+                  (or
+                   (and
+                    straight--packages-to-rebuild
+                    (or (eq straight--packages-to-rebuild :all)
+                        (gethash package straight--packages-to-rebuild))
+                    (not (gethash package straight--packages-not-to-rebuild))
+                    ;; The following form returns non-nil, so it doesn't
+                    ;; affect the `and' logic.
+                    (puthash package t straight--packages-not-to-rebuild))
+                   (straight--package-might-be-modified-p recipe))
+                (straight--build-package recipe cause))
+              (straight--maybe-save-build-cache)
+              ;; Here we are not actually trying to build the
+              ;; dependencies, but activate their autoloads. (See the
+              ;; comment in `straight--build-package' about this code.)
+              (dolist (dependency (straight--get-dependencies package))
+                ;; There are three interesting things here. Firstly, the
+                ;; recipe used is just the name of the dependency. This
+                ;; causes the default recipe to be looked up, unless one
+                ;; of the special cases in `straight--convert-recipe'
+                ;; pops up. Secondly, the value of `only-if-installed'
+                ;; is always nil. If the user has agreed to install a
+                ;; package, we assume that they also want to install all
+                ;; of its dependencies without further prompts. Finally,
+                ;; we don't bother to update `cause', since we're not
+                ;; expecting any messages to be displayed here (all of
+                ;; the dependencies should have already been cloned [if
+                ;; necessary] and built back by
+                ;; `straight--build-package').
+                (straight-use-package (intern dependency) nil cause))
+              ;; Only make the package available after everything is
+              ;; kosher.
+              (straight--activate-package-autoloads recipe))
             ;; In interactive use, tell the user how to install
             ;; packages permanently.
             (when (and interactive (not already-registered))
@@ -2922,10 +2937,11 @@ according to the value of `straight-profiles'."
   (dolist (spec straight-profiles)
     (cl-destructuring-bind (_profile . versions-lockfile) spec
       (let ((lockfile-path (straight--file "versions" versions-lockfile)))
-        (if-let ((versions-alist (with-temp-buffer
-                                   (insert-file-contents-literally
-                                    lockfile-path)
-                                   (ignore-errors
+        (if-let ((versions-alist (ignore-errors
+                                   (with-temp-buffer
+                                     (insert-file-contents-literally
+                                      lockfile-path)
+
                                      (read (current-buffer))))))
             (straight--map-repos-interactively
              (lambda (package)
@@ -2992,10 +3008,17 @@ according to the value of `straight-profiles'."
                         (plist-get state :recipe)
                         name)))
         (straight-use-package
-         recipe (or only-if-installed
-                    (unless (member context '(:byte-compile :ensure
-                                              :config :pre-ensure))
-                      'prompt))))))
+         recipe (or
+                 ;; Just in case some idiot passes a function as the
+                 ;; value of ONLY-IF-INSTALLED. (Actually, since all
+                 ;; symbols can be functions, that wouldn't be too
+                 ;; hard!)
+                 (and only-if-installed 0)
+                 (unless (member context '(:byte-compile :ensure
+                                           :config :pre-ensure))
+                   (lambda (package)
+                     (y-or-n-p
+                      (format "Install package %S? " package)))))))))
   (defun straight--use-package-pre-ensure-function
       (name ensure state)
     (straight--use-package-ensure-function

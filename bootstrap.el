@@ -59,4 +59,23 @@
 (straight-use-package '(straight :type git :host github
                                  :repo "raxod502/straight.el"))
 
+;; Now we need to register the default recipe repositories.
+
+(straight-use-package `(gnu-elpa :type git
+                                 :repo ,straight--recipes-gnu-elpa-url
+                                 :local-repo "elpa"
+                                 :no-build t)
+                      'only-if-installed)
+
+(straight-use-package '(melpa :type git :host github
+                              :repo "melpa/melpa"
+                              :no-build t)
+                      'only-if-installed)
+
+(straight-use-package '(emacsmirror :type git :host github
+                                    :repo "emacsmirror/epkgs"
+                                    :nonrecursive t
+                                    :no-build t)
+                      'only-if-installed)
+
 ;;; bootstrap.el ends here
