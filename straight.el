@@ -95,6 +95,17 @@ etc. should be defined, where NAME is any element of this list."
   :type '(list symbol)
   :group 'straight)
 
+(defcustom straight-recipe-overrides ()
+  "Alist specifying recipes to override those provided explicitly.
+The keys are symbols naming profiles, and the values are lists of
+MELPA-style package recipes. Because the car of a MELPA-style
+recipe is the package name as a symbol, this is actually an alist
+whose keys are symbols naming packages."
+  :type '(alist :key-type symbol :value-type
+           (alist :key-type symbol :value-type
+             (plist :key-type symbol :value-type sexp)))
+  :group 'straight)
+
 ;;;; Utility functions
 ;;;;; Association lists
 
@@ -1554,6 +1565,16 @@ for dependency resolution."
               ;; Return the newly normalized recipe.
               plist))))))
 
+(defun straight--get-overridden-recipe (package)
+  "Given a PACKAGE symbol, check if it has an overridden recipe.
+This means an entry in `straight-recipe-overrides'. If one is
+found, return it as a MELPA-style recipe. Otherwise, return
+nil."
+  (cl-dolist (profile (mapcar #'car straight-profiles))
+    (when-let ((recipes (alist-get profile straight-recipe-overrides)))
+      (when-let ((recipe (assoc package recipes)))
+        (cl-return recipe)))))
+
 ;;;;; Recipe registration
 
 (defvar straight--build-keywords
@@ -2646,7 +2667,14 @@ non-nil)."
                      nil nil 'interactive))
   ;; If `straight--convert-recipe' returns nil, the package is
   ;; built-in. No need to go any further.
-  (when-let ((recipe (straight--convert-recipe melpa-style-recipe cause)))
+  (when-let ((recipe (straight--convert-recipe
+                      (or
+                       (straight--get-overridden-recipe
+                        (if (listp melpa-style-recipe)
+                            (car melpa-style-recipe)
+                          melpa-style-recipe))
+                       melpa-style-recipe)
+                      cause)))
     (straight--with-plist recipe
         (package no-build)
       (let (;; Check if the package has been successfully built. If
@@ -2732,6 +2760,18 @@ non-nil)."
             ;; The package was installed successfully.
             (puthash package t straight--success-cache)
             t))))))
+
+;;;;; Recipe overrides
+
+;;;###autoload
+(defun straight-override-recipe (melpa-style-recipe)
+  "Register MELPA-STYLE-RECIPE as a recipe override.
+This puts it in `straight-recipe-overrides', depending on the
+value of `straight-current-profile'."
+  (setf (alist-get
+         (car melpa-style-recipe)
+         (alist-get straight-current-profile straight-recipe-overrides))
+        (cdr melpa-style-recipe)))
 
 ;;;;; Rebuilding packages
 
