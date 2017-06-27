@@ -211,7 +211,7 @@ already in TAKEN."
         (while t
           (let ((candidate (format "%s-%d" prefix n)))
             (if (member candidate taken)
-                (setq n (1+ n))
+                (incf n)
               (cl-return-from straight--uniquify candidate)))))
     prefix))
 
