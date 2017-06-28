@@ -330,8 +330,8 @@ If the command fails, throw an error."
   (with-temp-buffer
     (unless (= 0 (apply #'call-process command
                         nil '(t t) nil args))
-      (error "Command failed: %s %s (output: %S)"
-             command (string-join args " ") (buffer-string)))
+      (error "Command failed: %s %s (output: %S) (default-directory: %S)"
+             command (string-join args " ") (buffer-string) default-directory))
     (buffer-string)))
 
 (defun straight--get-call (command &rest args)
