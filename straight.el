@@ -317,21 +317,33 @@ directory component."
 
 ;;;;; External processes
 
+(defvar straight--default-directory nil
+  "Overrides value of `default-directory'.
+This is used because `default-directory' is buffer-local, which
+means binding it for the duration of a recursive edit causes fun
+side-effects like random buffers permanently forgetting which
+directory they're in, and straight.el executing Git commands
+against the wrong repositories.")
+
 (defun straight--check-call (command &rest args)
   "Call COMMAND with ARGS, returning non-nil if it succeeds.
 If the COMMAND exits with a non-zero return code, return nil. If
 the COMMAND does not exist, or if another error occurs, throw an
 error."
-  (= 0 (apply #'call-process command nil nil nil args)))
+  (let ((default-directory (or straight--default-directory
+                               default-directory)))
+    (= 0 (apply #'call-process command nil nil nil args))))
 
 (defun straight--get-call-raw (command &rest args)
   "Call COMMAND with ARGS, returning its stdout and stderr as a string.
 If the command fails, throw an error."
   (with-temp-buffer
-    (unless (= 0 (apply #'call-process command
-                        nil '(t t) nil args))
-      (error "Command failed: %s %s (output: %S)"
-             command (string-join args " ") (buffer-string)))
+    (let ((default-directory (or straight--default-directory
+                                 default-directory)))
+      (unless (= 0 (apply #'call-process command
+                          nil '(t t) nil args))
+        (error "Command failed: %s %s (output: %S)"
+               command (string-join args " ") (buffer-string))))
     (buffer-string)))
 
 (defun straight--get-call (command &rest args)
@@ -342,10 +354,6 @@ command fails, throw an error."
 
 ;;;;; Interactive popup windows
 
-;; FIXME: this is a *temporary* implementation of the popup logic
-;; meant only as a proof-of-concept so that the VC workflows can be
-;; developed. It will later be replaced with something both prettier
-;; and more robust.
 (defun straight--popup-raw (prompt actions)
   "Display PROMPT and allow user to choose between one of several ACTIONS.
 PROMPT is a string, generally a complete sentence. ACTIONS is a
@@ -433,13 +441,13 @@ For example:
 If a commit is specified in one of the lockfiles, attempt to
 check out that revision. If this fails, signal a warning.
 
-This method sets `default-directory' to the repos directory and
-delegates to the relevant `straight--vc-TYPE-clone' method, where
-TYPE is the `:type' specified in RECIPE. If the repository
-already exists, throw an error."
+This method sets `straight--default-directory' to the repos
+directory and delegates to the relevant `straight--vc-TYPE-clone'
+method, where TYPE is the `:type' specified in RECIPE. If the
+repository already exists, throw an error."
   (straight--with-plist recipe
       (type local-repo)
-    (let ((default-directory (straight--dir "repos"))
+    (let ((straight--default-directory (straight--dir "repos"))
           (commit nil))
       (when (file-exists-p (straight--dir "repos" local-repo))
         (error "Repository already exists: %S" local-repo))
@@ -467,51 +475,51 @@ The meaning of normalization is backend-defined, but typically
 involves validating repository configuration and cleaning the
 working directory.
 
-This method sets `default-directory' to the local repository
-directory and delegates to the relevant
+This method sets `straight--default-directory' to the local
+repository directory and delegates to the relevant
 `straight--vc-TYPE-normalize' method, where TYPE is the `:type'
 specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((default-directory (straight--dir "repos" local-repo)))
+    (let ((straight--default-directory (straight--dir "repos" local-repo)))
       (straight--vc 'normalize type recipe))))
 
 (defun straight--vc-pull-from-remote (recipe)
   "Pull from the primary remote for straight.el-style RECIPE.
 
-This method sets `default-directory' to the local repository
-directory and delegates to the relevant
+This method sets `straight--default-directory' to the local
+repository directory and delegates to the relevant
 `straight--vc-TYPE-pull-from-remote' method, where TYPE is the
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((default-directory (straight--dir "repos" local-repo)))
+    (let ((straight--default-directory (straight--dir "repos" local-repo)))
       (straight--vc 'pull-from-remote type recipe))))
 
 (defun straight--vc-pull-from-upstream (recipe)
   "Pull from the upstream remote for straight.el-style RECIPE.
 If there is no upstream configured, this method does nothing.
 
-This method sets `default-directory' to the local repository
-directory and delegates to the relevant
+This method sets `straight--default-directory' to the local
+repository directory and delegates to the relevant
 `straight--vc-TYPE-pull-from-upstream' method, where TYPE is the
 `:type' specified in RECIPE."
   "Using straight.el-style RECIPE, pull from upstream if configured."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((default-directory (straight--dir "repos" local-repo)))
+    (let ((straight--default-directory (straight--dir "repos" local-repo)))
       (straight--vc 'pull-from-upstream type recipe))))
 
 (defun straight--vc-push-to-remote (recipe)
   "Push to the primary remote for straight.el-style RECIPE, if necessary.
 
-This method sets `default-directory' to the local repository
-directory and delegates to the relevant
+This method sets `straight--default-directory' to the local
+repository directory and delegates to the relevant
 `straight--vc-TYPE-pull-from-remote' method, where TYPE is the
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((default-directory (straight--dir "repos" local-repo)))
+    (let ((straight--default-directory (straight--dir "repos" local-repo)))
       (straight--vc 'push-to-remote type recipe))))
 
 (defun straight--vc-check-out-commit (type local-repo commit)
@@ -521,10 +529,10 @@ naming a local package repository. The interpretation of COMMIT
 is defined by the backend, but it should be compatible with
 `straight--vc-get-commit'.
 
-This method sets `default-directory' to the local repository
-directory and delegates to the relevant
+This method sets `straight--default-directory' to the local
+repository directory and delegates to the relevant
 `straight--vc-TYPE-check-out-commit'."
-  (let ((default-directory (straight--dir "repos" local-repo)))
+  (let ((straight--default-directory (straight--dir "repos" local-repo)))
     (straight--vc 'check-out-commit type local-repo commit)))
 
 (defun straight--vc-get-commit (type local-repo)
@@ -534,10 +542,10 @@ naming a local package repository. The type of object returned is
 defined by the backend, but it should be compatible with
 `straight--vc-check-out-commit'.
 
-This method sets `default-directory' to the local repository
-directory and delegates to the relevant
+This method sets `straight--default-directory' to the local
+repository directory and delegates to the relevant
 `straight--vc-TYPE-get-commit' method."
-  (let ((default-directory (straight--dir "repos" local-repo)))
+  (let ((straight--default-directory (straight--dir "repos" local-repo)))
     (straight--vc 'get-commit type local-repo)))
 
 (defun straight--vc-local-repo-name (recipe)
@@ -546,8 +554,8 @@ If a repository name cannot be generated, return nil. This is
 used for the default value of `:local-repo'. If nil is returned,
 the package name is used instead.
 
-This method sets `default-directory' to the local repository
-directory and delegates to the relevant
+This method sets `straight--default-directory' to the local
+repository directory and delegates to the relevant
 `straight--vc-TYPE-local-repo-name' method, where TYPE is the
 `:type' specified in RECIPE."
   (straight--with-plist recipe
@@ -574,6 +582,50 @@ This method simply delegates to the relevant
   "The remote name to use for the upstream remote.")
 
 ;;;;;; Utility functions
+
+(defun straight--vc-git-popup-raw (prompt actions)
+  "Same as `straight--popup-raw', but specialized for vc-git methods.
+Two additional actions are inserted at the end of the list: \"e\"
+for Dired and recursive edit, and \"g\" for Magit and recursive
+edit. Otherwise, PROMPT and ACTIONS are as for
+`straight--popup-raw'."
+  (straight--popup-raw
+   prompt
+   (append
+    actions
+    '(("e" "Dired and open recursive edit"
+       (lambda ()
+         (dired (or straight--default-directory default-directory))
+         (recursive-edit)))
+      ("g" "Magit and open recursive edit"
+       (lambda ()
+         (magit-status-internal
+          (or straight--default-directory default-directory))
+         (recursive-edit)))))))
+
+(defmacro straight--vc-git-popup (prompt &rest actions)
+  "Same as `straight--popup', but specialized for vc-git methods.
+Two additional actions are inserted at the end of the list: \"e\"
+for Dired and recursive edit, and \"g\" for Magit and recursive
+edit. Otherwise, PROMPT and ACTIONS are as for
+`straight--popup'."
+  (declare (indent defun))
+  `(straight--popup
+     ,prompt
+     ,@actions
+     ("e" "Dired and open recursive edit"
+      (dired (or straight--default-directory default-directory))
+      ;; Don't mess up recursive straight.el operations. The wonderful
+      ;; thing about using our own variable is that since it's not
+      ;; buffer-local, a recursive binding to nil is actually able to
+      ;; undo the effects of the ambient binding.
+      (let ((straight--default-directory nil))
+        (recursive-edit)))
+     ("g" "Magit and open recursive edit"
+      (magit-status-internal
+       (or straight--default-directory default-directory))
+      (let ((straight--default-directory nil))
+        (recursive-edit)))))
 
 (defun straight--vc-git-encode-url (repo host)
   "Generate a URL from a REPO depending on the value of HOST.
@@ -630,10 +682,6 @@ Do not suppress unexpected errors."
   ;; Git remotes cannot have whitespace, thank goodness.
   (split-string (straight--get-call "git" "remote") "\n"))
 
-(defun straight--vc-git-magit ()
-  "Open Magit for the current repository."
-  (magit-status-internal default-directory))
-
 ;;;;;; Validation functions
 
 (cl-defun straight--vc-git-validate-remote (local-repo remote desired-url)
@@ -654,7 +702,7 @@ necessarily need to match DESIRED-URL; it just has to satisfy
          (let ((new-remote (straight--uniquify
                             remote
                             (straight--vc-git-list-remotes))))
-           (straight--popup
+           (straight--vc-git-popup
              (format "In repository %S, remote %S has URL
   %S
 but recipe specifies a URL of
@@ -714,12 +762,7 @@ but recipe specifies a URL of
                  "git" "remote" "add" remote
                  (read-string "Enter new remote URL: "))
                 (straight--get-call
-                 "git" "fetch" remote)))
-             ("g" "Magit and open recursive edit"
-              (straight--vc-git-magit)
-              (recursive-edit))
-             ("e" "Open recursive edit"
-              (recursive-edit)))))
+                 "git" "fetch" remote))))))
      ;; General policy is that if we make any modifications
      ;; whatsoever, then validation fails. You never know when you
      ;; might run into a weird edge case of Git and have an operation
@@ -761,7 +804,7 @@ LOCAL-REPO is a string."
            "git" "ls-files" "--unmerged"))))
     (or (string-empty-p conflicted-files)
         (ignore
-         (straight--popup
+         (straight--vc-git-popup
            ;; FIXME: handle rebases, maybe [1] is helpful?
            ;;
            ;; [1]: https://stackoverflow.com/q/3921409/3538165
@@ -773,13 +816,7 @@ LOCAL-REPO is a string."
                             (split-string conflicted-files "\n"))
                     "\n"))
            ("a" "Abort merge"
-            (straight--get-call "git" "merge" "--abort"))
-           ("g" "Magit and open recursive edit"
-            (progn
-              (straight--vc-git-magit)
-              (recursive-edit)))
-           ("e" "Open recursive edit"
-            (recursive-edit)))))))
+            (straight--get-call "git" "merge" "--abort")))))))
 
 (cl-defun straight--vc-git-validate-worktree (local-repo)
   "Validate that LOCAL-REPO has a clean worktree.
@@ -787,7 +824,7 @@ LOCAL-REPO is a string."
   (let ((status (straight--get-call-raw "git" "status" "--short")))
     (if (string-empty-p status)
         (cl-return-from straight--vc-git-validate-worktree t)
-      (straight--popup
+      (straight--vc-git-popup
         (format "Repository %S has a dirty worktree:\n\n%s"
                 local-repo
                 (string-join
@@ -806,13 +843,7 @@ LOCAL-REPO is a string."
          (when (straight--are-you-sure
                 (format "Discard all local changes permanently?"))
            (and (straight--get-call "git" "reset" "--hard")
-                (straight--get-call "git" "clean" "-ffd"))))
-        ("g" "Magit and open recursive edit"
-         (progn
-           (straight--vc-git-magit)
-           (recursive-edit)))
-        ("e" "Open recursive edit"
-         (recursive-edit))))))
+                (straight--get-call "git" "clean" "-ffd"))))))))
 
 (cl-defun straight--vc-git-validate-head (local-repo branch &optional ref)
   "Validate that LOCAL-REPO has BRANCH checked out.
@@ -833,17 +864,11 @@ confirmation, so this function should only be run after
       ((and (null ref) (string= branch cur-branch))
        (cl-return-from straight--vc-git-validate-head t))
       ((and (null ref) head-detached-p)
-       (straight--popup
+       (straight--vc-git-popup
          (format "In repository %S, HEAD is even with branch %S, but detached."
                  local-repo branch)
          ("a" (format "Attach HEAD to branch %S" branch)
-          (straight--get-call "git" "checkout" branch))
-         ("g" "Magit and open recursive edit"
-          (progn
-            (straight--vc-git-magit)
-            (recursive-edit)))
-         ("e" "Open recursive edit"
-          (recursive-edit))))
+          (straight--get-call "git" "checkout" branch))))
       (t
        (let ((ref-ahead-p (straight--check-call
                            "git" "merge-base" "--is-ancestor"
@@ -853,7 +878,7 @@ confirmation, so this function should only be run after
                             ref-name branch)))
          (when (and ref ref-behind-p)
            (cl-return-from straight--vc-git-validate-head t))
-         (straight--popup-raw
+         (straight--vc-git-popup-raw
           (concat
            (format "In repository %S, " local-repo)
            (if ref
@@ -930,14 +955,7 @@ confirmation, so this function should only be run after
                        ,(lambda ()
                           ;; Rebase might fail, don't throw on error.
                           (straight--check-call
-                           "git" "rebase" ref branch))))))
-            ("g" "Magit and open recursive edit"
-             ,(lambda ()
-                (straight--vc-git-magit)
-                (recursive-edit)))
-            ("e" "Open recursive edit"
-             ,(lambda ()
-                (recursive-edit)))))))))))
+                           "git" "rebase" ref branch))))))))))))))
 
 (cl-defun straight--vc-git-pull-from-remote-raw (recipe remote remote-branch)
   "Using straight.el-style RECIPE, pull from REMOTE.
@@ -970,7 +988,7 @@ name."
               "git" "merge-base" "--is-ancestor"
               branch ref)
          (cl-return-from straight--vc-git-validate-head-pushed t))
-       (straight--popup
+       (straight--vc-git-popup
          (format "In repository %S, branch %S has commits unpushed to %S."
                  local-repo branch ref)
          ("p" "Pull and then push"
@@ -987,13 +1005,7 @@ name."
               ;; user can do that manually if they *really* want to.
               (straight--get-call
                "git" "push" straight--vc-git-primary-remote
-               (format "refs/heads/%s:refs/heads/%s" branch branch)))))
-         ("g" "Magit and open recursive edit"
-          (progn
-            (straight--vc-git-magit)
-            (recursive-edit)))
-         ("e" "Open recursive edit"
-          (recursive-edit)))))))
+               (format "refs/heads/%s:refs/heads/%s" branch branch))))))))))
 
 (defun straight--vc-git-validate-local (recipe)
   "Validate that local repository for RECIPE is as expected.
@@ -2550,10 +2562,9 @@ The default value is \"Processing\"."
                      (push recipe canceled-repos)
                      (setq next-repos (cdr next-repos))
                      (cl-return-from loop))
-                    ("e" "Open recursive edit"
-                     (let ((default-directory
-                             (straight--dir "repos" local-repo)))
-                       (recursive-edit)))
+                    ("e" "Dired and open recursive edit"
+                     (dired (straight--dir "repos" local-repo))
+                     (recursive-edit))
                     ("C-g" "Stop immediately and do not process more repositories"
                      (keyboard-quit)))))))))
        (skipped-repos
