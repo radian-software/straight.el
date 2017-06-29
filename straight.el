@@ -342,8 +342,8 @@ If the command fails, throw an error."
                                  default-directory)))
       (unless (= 0 (apply #'call-process command
                           nil '(t t) nil args))
-        (error "Command failed: %s %s (output: %S)"
-               command (string-join args " ") (buffer-string))))
+        (error "Command failed: %s %s (output: %S) (default-directory: %S)"
+               command (string-join args " ") (buffer-string) default-directory)))
     (buffer-string)))
 
 (defun straight--get-call (command &rest args)
@@ -2988,21 +2988,21 @@ according to the value of `straight-profiles'."
   (dolist (spec straight-profiles)
     (cl-destructuring-bind (_profile . versions-lockfile) spec
       (let ((lockfile-path (straight--file "versions" versions-lockfile)))
-        (if-let ((versions-alist (ignore-errors
-                                   (with-temp-buffer
-                                     (insert-file-contents-literally
-                                      lockfile-path)
-
-                                     (read (current-buffer))))))
-            (straight--map-repos-interactively
-             (lambda (package)
-               (let ((recipe (gethash package straight--recipe-cache)))
-                 (straight--with-plist recipe
-                     (type local-repo)
-                   (when-let ((commit (alist-get local-repo versions-alist)))
-                     (straight--vc-check-out-commit
-                      type local-repo commit))))))
-          (error "Could not read from %S" lockfile-path))))))
+        (when-let ((versions-alist (ignore-errors
+                                     (with-temp-buffer
+                                       (insert-file-contents-literally
+                                        lockfile-path)
+                                       (read (current-buffer))))))
+          (straight--map-repos-interactively
+           (lambda (package)
+             (let ((recipe (gethash package straight--recipe-cache)))
+               (straight--with-plist recipe
+                   (type local-repo)
+                 ;; We can't use `alist-get' here because that uses
+                 ;; `eq', and our hash-table keys are strings.
+                 (when-let ((commit (cdr (assoc local-repo versions-alist))))
+                   (straight--vc-check-out-commit
+                    type local-repo commit)))))))))))
 
 ;;;; Mess with other packages
 
