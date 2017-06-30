@@ -323,7 +323,10 @@ This is used because `default-directory' is buffer-local, which
 means binding it for the duration of a recursive edit causes fun
 side-effects like random buffers permanently forgetting which
 directory they're in, and straight.el executing Git commands
-against the wrong repositories.")
+against the wrong repositories.
+
+If you set this to something other than nil, you may be eaten by
+a grue.")
 
 (defun straight--check-call (command &rest args)
   "Call COMMAND with ARGS, returning non-nil if it succeeds.
@@ -1041,7 +1044,8 @@ specified in RECIPE instead. If that fails, signal a warning."
              "git" "clone" "--origin"
              straight--vc-git-primary-remote
              "--no-checkout" url)
-            (let ((default-directory repo-dir))
+            (let ((straight--default-directory nil)
+                  (default-directory repo-dir))
               (when commit
                 (unless (straight--check-call
                          "git" "checkout" commit)
