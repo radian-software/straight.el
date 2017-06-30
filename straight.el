@@ -3141,7 +3141,8 @@ according to the value of `straight-profiles'."
                  ;; Normalize value of `only-if-installed'.
                  (and only-if-installed 'lazy)
                  (unless (member context '(:byte-compile :ensure
-                                           :config :pre-ensure))
+                                           :config :pre-ensure
+                                           :interactive))
                    (lambda (package)
                      (y-or-n-p
                       (format "Install package %S? " package)))))))))
