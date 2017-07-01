@@ -123,6 +123,26 @@ of the entries that are kept will be the same as in ALIST."
         (puthash (car entry) t hash)))
     new-alist))
 
+(defun straight--alist-set (key val alist &optional symbol)
+  "Set property KEY to VAL in ALIST. Return new alist.
+This creates the association if it is missing, and otherwise sets
+the cdr of the first matching association in the list. It does
+not create duplicate associations. By default, key comparison is
+done with `equal'. However, if SYMBOL is non-nil, then `eq' is
+used instead.
+
+This method may mutate the original alist, but you still need to
+use the return value of this method instead of the original
+alist, to ensure correct results."
+  ;; See [1] for the genesis of this method, which should really be
+  ;; built in.
+  ;;
+  ;; [1]: https://emacs.stackexchange.com/q/33892/12534
+  (if-let ((pair (if symbol (assq key alist) (assoc key alist))))
+      (setcdr pair val)
+    (push (cons key val) alist))
+  alist)
+
 ;;;;; Property lists
 
 (defmacro straight--with-plist (plist props &rest body)
@@ -2516,9 +2536,28 @@ This is used to prevent building dependencies twice when
 `straight-rebuild-package' or `straight-rebuild-all' is
 invoked.")
 
+(defun straight--get-versions ()
+  "Read version lockfiles and return merged alist of saved versions.
+The alist maps repository names as strings to versions, whose
+interpretations are defined by the relevant VC backend."
+  (let ((versions ()))
+    (dolist (spec straight-profiles)
+      (cl-destructuring-bind (_profile . versions-lockfile) spec
+        (let ((lockfile-path (straight--file "versions" versions-lockfile)))
+          (when-let ((versions-alist (ignore-errors
+                                       (with-temp-buffer
+                                         (insert-file-contents-literally
+                                          lockfile-path)
+                                         (read (current-buffer))))))
+            (dolist (spec versions-alist)
+              (cl-destructuring-bind (local-repo . commit) spec
+                (setq versions (straight--alist-set
+                                local-repo commit versions))))))))
+    versions))
+
 ;;;;; Interactive mapping
 
-(cl-defun straight--map-repos-interactively (func &optional action)
+(cl-defun straight--map-repos-interactively (func &optional predicate action)
   "Apply function FUNC for all local repositories, interactively.
 FUNC is passed the name of one of the packages drawn from each
 local repository, as a string. If FUNC throws an error or a quit
@@ -2528,6 +2567,10 @@ processing entirely, or halt the entire operation (skipping the
 processing of all pending repositories). The return value of this
 function is the list of recipes for repositories that were not
 processed.
+
+PREDICATE, if provided, is passed the package name as a string,
+and should return a non-nil value to indicate that the package
+should actually be processed.
 
 ACTION is an optional string that describes the action being
 performed on each repository, to be used for progress messages.
@@ -2544,43 +2587,53 @@ The default value is \"Processing\"."
         (let ((recipe (car next-repos)))
           (straight--with-plist recipe
               (package local-repo)
-            (straight--with-progress
-                (format "%s repository %S" (or action "Processing") local-repo)
-              (cl-block loop
-                (while t
-                  (straight--popup
-                    (if-let ((err
-                              (condition-case-unless-debug e
-                                  (progn
-                                    (funcall func package)
-                                    (setq next-repos (cdr next-repos))
-                                    (cl-return-from loop))
-                                (error e)
-                                (quit nil))))
-                        (format (concat "While processing repository %S, an error "
-                                        "occurred:\n\n  %S")
-                                local-repo (error-message-string err))
-                      (format "Processing of repository %S paused at your request."
-                              local-repo))
-                    ("SPC" "Go back to processing this repository")
-                    ("s" "Skip this repository for now and come back to it later"
-                     (push recipe skipped-repos)
-                     (setq next-repos (cdr next-repos))
-                     (cl-return-from loop))
-                    ("c" (concat "Cancel processing of this repository; "
-                                 "move on and do not come back to it later")
-                     (push recipe canceled-repos)
-                     (setq next-repos (cdr next-repos))
-                     (cl-return-from loop))
-                    ("e" "Dired and open recursive edit"
-                     (dired (straight--dir "repos" local-repo))
-                     (recursive-edit))
-                    ("C-g" "Stop immediately and do not process more repositories"
-                     (keyboard-quit)))))))))
+            (if (or (null predicate)
+                    (funcall predicate package))
+                (straight--with-progress
+                    (format "%s repository %S"
+                            (or action "Processing")
+                            local-repo)
+                  (cl-block loop
+                    (while t
+                      (straight--popup
+                        (if-let ((err
+                                  (condition-case-unless-debug e
+                                      (progn
+                                        (funcall func package)
+                                        (setq next-repos (cdr next-repos))
+                                        (cl-return-from loop))
+                                    (error e)
+                                    (quit nil))))
+                            (format (concat "While processing repository %S, "
+                                            "an error occurred:\n\n  %S")
+                                    local-repo (error-message-string err))
+                          (format (concat "Processing of repository %S paused "
+                                          "at your request.")
+                                  local-repo))
+                        ("SPC" "Go back to processing this repository")
+                        ("s" (concat "Skip this repository for now and "
+                                     "come back to it later")
+                         (push recipe skipped-repos)
+                         (setq next-repos (cdr next-repos))
+                         (cl-return-from loop))
+                        ("c" (concat "Cancel processing of this "
+                                     "repository; move on and do not "
+                                     "come back to it later")
+                         (push recipe canceled-repos)
+                         (setq next-repos (cdr next-repos))
+                         (cl-return-from loop))
+                        ("e" "Dired and open recursive edit"
+                         (dired (straight--dir "repos" local-repo))
+                         (recursive-edit))
+                        ("C-g" (concat "Stop immediately and do not process "
+                                       "more repositories")
+                         (keyboard-quit))))))
+              (setq next-repos (cdr next-repos))))))
        (skipped-repos
         (setq next-repos skipped-repos)
         (setq skipped-repos ()))
-       (t (cl-return-from straight--map-repos-interactively canceled-repos))))))
+       (t (cl-return-from straight--map-repos-interactively
+            canceled-repos))))))
 
 ;;;; User-facing functions
 ;;;;; Declarations
@@ -2949,13 +3002,18 @@ using `completing-read'."
     (straight--vc-normalize recipe)))
 
 ;;;###autoload
-(defun straight-normalize-all ()
+(defun straight-normalize-all (&optional predicate)
   "Normalize all packages. See `straight-normalize-package'.
 Return a list of recipes for packages that were not successfully
 normalized. If multiple packages come from the same local
-repository, only one is normalized."
+repository, only one is normalized.
+
+PREDICATE, if provided, filters the packages that are normalized.
+It is called with the package name as a string, and should return
+non-nil if the package should actually be normalized."
   (interactive)
-  (straight--map-repos-interactively #'straight-normalize-package))
+  (straight--map-repos-interactively #'straight-normalize-package
+                                     predicate))
 
 ;;;###autoload
 (defun straight-pull-package (package &optional from-upstream)
@@ -2972,18 +3030,23 @@ not just from primary remote but also from configured upstream."
            (straight--vc-pull-from-upstream recipe)))))
 
 ;;;###autoload
-(defun straight-pull-all (&optional from-upstream)
+(defun straight-pull-all (&optional from-upstream predicate)
   "Try to pull all packages from their primary remotes.
 With prefix argument FROM-UPSTREAM, pull not just from primary
 remotes but also from configured upstreams.
 
 Return a list of recipes for packages that were not successfully
 pulled. If multiple packages come from the same local repository,
-only one is pulled."
+only one is pulled.
+
+PREDICATE, if provided, filters the packages that are normalized.
+It is called with the package name as a string, and should return
+non-nil if the package should actually be normalized."
   (interactive "P")
   (straight--map-repos-interactively
    (lambda (package)
-     (straight-pull-package package from-upstream))))
+     (straight-pull-package package from-upstream))
+   predicate))
 
 ;;;###autoload
 (defun straight-push-package (package)
@@ -2996,14 +3059,19 @@ using `completing-read'."
     (straight--vc-push-to-remote recipe)))
 
 ;;;###autoload
-(defun straight-push-all ()
+(defun straight-push-all (&optional predicate)
   "Try to push all packages to their primary remotes.
 
 Return a list of recipes for packages that were not successfully
 pushed. If multiple packages come from the same local repository,
-only one is pushed."
+only one is pushed.
+
+PREDICATE, if provided, filters the packages that are normalized.
+It is called with the package name as a string, and should return
+non-nil if the package should actually be normalized."
   (interactive)
-  (straight--map-repos-interactively #'straight-push-package))
+  (straight--map-repos-interactively #'straight-push-package
+                                     predicate))
 
 ;;;;; Lockfile management
 
@@ -3028,7 +3096,11 @@ according to the value of `straight-profiles'."
                                        (if straight--finalization-guaranteed
                                            "(please reload your init-file)"
                                          "(please restart Emacs)")))))
-                 (let ((unpushed-recipes (straight-push-all)))
+                 (let ((unpushed-recipes
+                        (straight-push-all
+                         (lambda (package)
+                           (straight--repository-is-available-p
+                            (gethash package straight--recipe-cache))))))
                    (or
                     (null unpushed-recipes)
                     (straight--are-you-sure
@@ -3039,6 +3111,14 @@ according to the value of `straight-profiles'."
                                         (plist-get recipe :local-repo))
                                       unpushed-recipes)
                               ", ")))))))
+    (let ((versions-alist (straight--get-versions)))
+      (straight--map-repos
+       (lambda (recipe)
+         (straight--with-plist recipe
+             (local-repo package)
+           (unless (or (assoc local-repo versions-alist)
+                       (straight--repository-is-available-p recipe))
+             (straight-use-package package))))))
     (dolist (spec straight-profiles)
       (cl-destructuring-bind (profile . versions-lockfile) spec
         (let ((versions-alist nil)
@@ -3050,7 +3130,8 @@ according to the value of `straight-profiles'."
                  (package local-repo type)
                (when (memq profile (gethash package straight--profile-cache))
                  (push (cons local-repo
-                             (straight--vc-get-commit type local-repo))
+                             (or (cdr (assoc local-repo versions-alist))
+                                 (straight--vc-get-commit type local-repo)))
                        versions-alist)))))
           (setq versions-alist
                 (cl-sort versions-alist #'string-lessp :key #'car))
@@ -3063,24 +3144,17 @@ according to the value of `straight-profiles'."
 (defun straight-thaw-versions ()
   "Read version lockfiles and restore package versions to those listed."
   (interactive)
-  (dolist (spec straight-profiles)
-    (cl-destructuring-bind (_profile . versions-lockfile) spec
-      (let ((lockfile-path (straight--file "versions" versions-lockfile)))
-        (when-let ((versions-alist (ignore-errors
-                                     (with-temp-buffer
-                                       (insert-file-contents-literally
-                                        lockfile-path)
-                                       (read (current-buffer))))))
-          (straight--map-repos-interactively
-           (lambda (package)
-             (let ((recipe (gethash package straight--recipe-cache)))
-               (straight--with-plist recipe
-                   (type local-repo)
-                 ;; We can't use `alist-get' here because that uses
-                 ;; `eq', and our hash-table keys are strings.
-                 (when-let ((commit (cdr (assoc local-repo versions-alist))))
-                   (straight--vc-check-out-commit
-                    type local-repo commit)))))))))))
+  (let ((versions-alist (straight--get-versions)))
+    (straight--map-repos-interactively
+     (lambda (package)
+       (let ((recipe (gethash package straight--recipe-cache)))
+         (straight--with-plist recipe
+             (type local-repo)
+           ;; We can't use `alist-get' here because that uses
+           ;; `eq', and our hash-table keys are strings.
+           (when-let ((commit (cdr (assoc local-repo versions-alist))))
+             (straight--vc-check-out-commit
+              type local-repo commit))))))))
 
 ;;;; Mess with other packages
 
