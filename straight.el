@@ -3148,13 +3148,14 @@ according to the value of `straight-profiles'."
     (straight--map-repos-interactively
      (lambda (package)
        (let ((recipe (gethash package straight--recipe-cache)))
-         (straight--with-plist recipe
-             (type local-repo)
-           ;; We can't use `alist-get' here because that uses
-           ;; `eq', and our hash-table keys are strings.
-           (when-let ((commit (cdr (assoc local-repo versions-alist))))
-             (straight--vc-check-out-commit
-              type local-repo commit))))))))
+         (when (straight--repository-is-available-p recipe)
+           (straight--with-plist recipe
+               (type local-repo)
+             ;; We can't use `alist-get' here because that uses
+             ;; `eq', and our hash-table keys are strings.
+             (when-let ((commit (cdr (assoc local-repo versions-alist))))
+               (straight--vc-check-out-commit
+                type local-repo commit)))))))))
 
 ;;;; Mess with other packages
 
