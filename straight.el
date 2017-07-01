@@ -278,18 +278,18 @@ The MESSAGE is postpended with \"...done\" and then passed to
 `straight--progress-begin'."
   (message "%s...done" message))
 
+(defvar straight--echo-area-dirty nil
+  "Non-nil if a progress message has been wiped from the echo area.
+This is used as an internal bookkeeping variable to determine if
+a progress message has been bumped out of the echo area by
+another message, and needs to be redisplayed.")
+
 (defun straight--warn (message &rest args)
   "Display a warning from `straight'. Return nil.
 The warning message is obtained by passing MESSAGE and ARGS to
 `format'."
   (ignore
    (display-warning 'straight (apply #'format message args))))
-
-(defvar straight--echo-area-dirty nil
-  "Non-nil if a progress message has been wiped from the echo area.
-This is used as an internal bookkeeping variable to determine if
-a progress message has been bumped out of the echo area by
-another message, and needs to be redisplayed.")
 
 ;;;;; Paths
 
