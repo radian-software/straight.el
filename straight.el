@@ -1199,7 +1199,15 @@ cloned."
     (straight--with-progress
         (concat cause (when cause straight-arrow)
                 (format "Cloning %s" local-repo)
-                (unless (string= package local-repo)
+                ;; If this `member' check fails, then it means the
+                ;; repository has a name that is substantially
+                ;; different than the package name, and the user might
+                ;; be confused about why we are cloning it.
+                (unless (member local-repo
+                                (list
+                                 package
+                                 (format "%s.el" package)
+                                 (format "emacs-%s" package)))
                   (format " (for %s)" package)))
       (straight--vc-clone recipe))
     ;; We messed up the echo area.
