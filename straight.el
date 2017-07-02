@@ -2678,45 +2678,30 @@ pruned."
 ;;;;; Recipe acquiry
 
 ;;;###autoload
-(defun straight-get-recipe (&optional action)
+(defun straight-get-recipe (&optional sources action)
   "Interactively select a recipe from one of the recipe repositories.
-All three recipe repositories will first be cloned. If a prefix
-argument is provided, copy the recipe to the kill ring;
-otherwise, insert it into the current buffer. From Lisp code,
-copying is achieved by passing ACTION as `copy'; insertion is
-achieved by passing ACTION as `insert'; neither are done if
-ACTION is nil or omitted."
-  (interactive (list (if current-prefix-arg
-                         'copy
-                       'insert)))
-  (straight--get-recipe-interactively nil action))
+All recipe repositories in `straight-recipe-repositories' will
+first be cloned. After the recipe is selected, it will be copied
+to the kill ring. With a prefix argument, first prompt for a
+recipe repository to search. Only that repository will be
+cloned.
 
-;;;###autoload
-(defun straight-get-melpa-recipe (&optional action)
-  "Interactively select a MELPA recipe. See `straight-get-recipe'.
-ACTION can be nil, `copy', or `insert'."
-  (interactive (list (if current-prefix-arg
-                         'copy
-                       'insert)))
-  (straight--get-recipe-interactively '(melpa) action))
-
-;;;###autoload
-(defun straight-get-gnu-elpa-recipe (&optional action)
-  "Interactively select a GNU ELPA recipe. See `straight-get-recipe'.
-ACTION can be nil, `copy', or `insert'."
-  (interactive (list (if current-prefix-arg
-                         'copy
-                       'insert)))
-  (straight--get-recipe-interactively '(gnu-elpa) action))
-
-;;;###autoload
-(defun straight-get-emacsmirror-recipe (&optional action)
-  "Interactively select an Emacsmirror recipe. See `straight-get-recipe'.
-ACTION can be nil, `copy', or `insert'."
-  (interactive (list (if current-prefix-arg
-                         'copy
-                       'insert)))
-  (straight--get-recipe-interactively '(emacsmirror) action))
+From Lisp code, SOURCES should be a subset of the symbols in
+`straight-recipe-repositories'. If it is nil or omitted, then the
+value of `straight-recipe-repositories' is used. ACTION may be
+`copy' (copy recipe to the kill ring), `insert' (insert at
+point), or nil (no action, just return it)."
+  (interactive (list
+                (when current-prefix-arg
+                  (list
+                   (intern
+                    (completing-read
+                     "Which recipe repository? "
+                     straight-recipe-repositories
+                     nil
+                     'require-match))))
+                'copy))
+  (straight--get-recipe-interactively sources action))
 
 ;;;;; Package registration
 
