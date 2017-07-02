@@ -85,7 +85,7 @@ defined, where TYPE is the value of this variable."
   :group 'straight)
 
 (defcustom straight-recipe-repositories
-  '(melpa gnu-elpa emacsmirror)
+  ()
   "List of recipe repositories to find recipes in.
 These are used when you provide only a package name, rather than
 a full recipe, to `straight-use-package' or

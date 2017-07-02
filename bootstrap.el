@@ -61,21 +61,18 @@
 
 ;; Now we need to register the default recipe repositories.
 
-(straight-use-package `(gnu-elpa :type git
+(straight-use-recipes `(gnu-elpa :type git
                                  :repo ,straight--recipes-gnu-elpa-url
                                  :local-repo "elpa"
-                                 :no-build t)
-                      'only-if-installed)
+                                 :no-build t))
 
-(straight-use-package '(melpa :type git :host github
+(straight-use-recipes '(melpa :type git :host github
                               :repo "melpa/melpa"
-                              :no-build t)
-                      'only-if-installed)
+                              :no-build t))
 
-(straight-use-package '(emacsmirror :type git :host github
+(straight-use-recipes '(emacsmirror :type git :host github
                                     :repo "emacsmirror/epkgs"
                                     :nonrecursive t
-                                    :no-build t)
-                      'only-if-installed)
+                                    :no-build t))
 
 ;;; bootstrap.el ends here
