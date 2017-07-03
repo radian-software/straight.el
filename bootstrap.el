@@ -61,14 +61,14 @@
 
 ;; Now we need to register the default recipe repositories.
 
+(straight-use-recipes '(melpa :type git :host github
+                              :repo "melpa/melpa"
+                              :no-build t))
+
 (straight-use-recipes `(gnu-elpa :type git
                                  :repo ,straight--recipes-gnu-elpa-url
                                  :local-repo "elpa"
                                  :no-build t))
-
-(straight-use-recipes '(melpa :type git :host github
-                              :repo "melpa/melpa"
-                              :no-build t))
 
 (straight-use-recipes '(emacsmirror :type git :host github
                                     :repo "emacsmirror/epkgs"
