@@ -44,6 +44,18 @@
 ;; `cl-subseq', etc.
 (require 'cl-lib)
 
+;;;; Functions from other packages
+
+(defvar use-package-defaults)
+(defvar use-package-ensure-function)
+(defvar use-package-keywords)
+(defvar use-package-pre-ensure-function)
+
+(declare-function magit-status-internal "magit-status")
+(declare-function use-package-as-symbol "use-package")
+(declare-function use-package-only-one "use-package")
+(declare-function use-package-process-keywords "use-package")
+
 ;;;; Customization variables
 
 (defgroup straight nil
@@ -3159,13 +3171,6 @@ according to the value of `straight-profiles'."
 (with-eval-after-load 'use-package
   ;; Declare variables and functions from `use-package' to the
   ;; byte-compiler.
-  (defvar use-package-keywords)
-  (defvar use-package-defaults)
-  (defvar use-package-ensure-function)
-  (defvar use-package-pre-ensure-function)
-  (declare-function use-package-only-one "use-package")
-  (declare-function use-package-process-keywords "use-package")
-  (declare-function use-package-as-symbol "use-package")
   ;; Register aliases for :ensure. Aliases later in the list will
   ;; override those earlier. (But there is no legitimate reason to use
   ;; more than one in a `use-package' declaration, at least in sane
