@@ -1699,8 +1699,8 @@ RECIPE should be a straight.el-style recipe plist."
     ;; Step 3, now that we've signaled any necessary warnings, is to
     ;; actually update the caches. Just FYI, `straight--build-cache'
     ;; is updated later (namely, at build time -- which may be quite a
-    ;; while later due to deferred installation via the
-    ;; `only-if-installed' argument to `straight-use-package').
+    ;; while later, or never, depending on the values of NO-CLONE and
+    ;; NO-BUILD that were passed to `straight-use-package'.
     (puthash package recipe straight--recipe-cache)
     (puthash local-repo recipe straight--repo-cache)
     (cl-pushnew straight-current-profile
@@ -3217,8 +3217,11 @@ according to the value of `straight-profiles'."
                                            :config :pre-ensure
                                            :interactive))
                    (lambda (package)
-                     (y-or-n-p
-                      (format "Install package %S? " package)))))))))
+                     ;; Value of NO-CLONE has a meaning that is the
+                     ;; opposite of ONLY-IF-INSTALLED.
+                     (not
+                      (y-or-n-p
+                       (format "Install package %S? " package))))))))))
   (defun straight--use-package-pre-ensure-function
       (name ensure state)
     (straight--use-package-ensure-function
