@@ -1203,7 +1203,7 @@ then returned."
     (file-exists-p (straight--dir "repos" local-repo))))
 
 (defun straight--clone-repository (recipe &optional cause)
-  "Clone the repository for the RECIPE, overwriting any existing copy.
+  "Clone the repository for the RECIPE, erroring if it already exists.
 CAUSE is a string indicating the reason this repository is being
 cloned."
   (straight--with-plist recipe
