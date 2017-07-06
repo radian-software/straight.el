@@ -1626,10 +1626,12 @@ for dependency resolution."
 This means an entry in `straight-recipe-overrides'. If one is
 found, return it as a MELPA-style recipe. Otherwise, return
 nil."
-  (cl-dolist (profile (mapcar #'car straight-profiles))
-    (when-let ((recipes (alist-get profile straight-recipe-overrides)))
-      (when-let ((recipe (assoc package recipes)))
-        (cl-return recipe)))))
+  (let ((recipe nil))
+    (cl-dolist (profile (mapcar #'car straight-profiles))
+      (when-let ((recipes (alist-get profile straight-recipe-overrides)))
+        (when-let ((overridden-recipe (assoc package recipes)))
+          (setq recipe overridden-recipe))))
+    recipe))
 
 ;;;;; Recipe registration
 
