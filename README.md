@@ -9,19 +9,16 @@ code and hack away with **no manual rebuilds** required.
 Add the following code to **initialize the package management
 system**:
 
-    (let ((repos-dir (concat user-emacs-directory "straight/repos/")))
-      (unless (file-exists-p (concat repos-dir "straight.el"))
-        (make-directory repos-dir 'parents)
-        (message "Cloning repository \"straight.el\"...")
-        (unless (= 0 (call-process
-                      "git" nil nil nil "clone" "--recursive"
-                      "https://github.com/raxod502/straight.el.git"
-                      (expand-file-name
-                       (concat repos-dir "straight.el"))))
-          (error "Could not clone straight.el"))
-        (message "Cloning repository \"straight.el\"...done"))
-      (load (concat repos-dir "straight.el/bootstrap.el")
-            nil 'nomessage))
+    (let ((bootstrap-file (concat user-emacs-directory "straight/bootstrap.el"))
+          (bootstrap-version 1))
+      (unless (file-exists-p bootstrap-file)
+        (with-current-buffer
+            (url-retrieve-synchronously
+             "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
+             'silent 'inhibit-cookies)
+          (delete-region (point-min) url-http-end-of-headers)
+          (eval-buffer)))
+      (load bootstrap-file nil 'nomessage))
 
 To **improve efficiency**, put the following code somewhere it is
 **guaranteed to be run** every time your init-file is loaded, **even

@@ -5,13 +5,23 @@
 (require 'bytecomp)
 (require 'cl-lib)
 
-(let ((straight-dir (expand-file-name
-                     (concat
-                      user-emacs-directory
-                      "straight/repos/straight.el/"))))
-  ;; In order for straight.el to be able to require `pbl', we need to
-  ;; add it to the load-path.
-  (add-to-list 'load-path straight-dir)
+(let* ((bootstrap.el
+        ;; If this file is accessed through a symlink (the normal
+        ;; case), resolve it. We need to be looking at the actual
+        ;; file, since the eventual target of the symlink is the only
+        ;; way we can actually identify the straight.el repository
+        ;; (which might be called something else).
+        (file-truename
+         (or
+          ;; If the file is being loaded from the init-file.
+          load-file-name
+          ;; If the file is being evaluated with something like
+          ;; `eval-buffer' (but please don't do this, as it breaks the
+          ;; contract of `straight-declare-init-finished').
+          buffer-file-name)))
+       (straight.el
+        (expand-file-name
+         "straight.el" (file-name-directory bootstrap.el))))
   ;; This logic replicates that in `straight--byte-compile-package',
   ;; and is used to silence byte-compile warnings and other cruft.
   (cl-letf (((symbol-function #'save-some-buffers) #'ignore)
@@ -22,10 +32,17 @@
           (byte-compile-verbose nil)
           (message-log-max nil)
           (inhibit-message t))
-      (byte-recompile-directory straight-dir 0))))
+      ;; Argument 0 means (for some reason) to byte-compile even if
+      ;; the .elc file does not already exist.
+      (byte-recompile-file straight.el nil 0)
+      ;; Actually load the package manager. This doesn't do anything
+      ;; except initialize some caches.
+      (load (concat straight.el "c") nil 'nomessage 'nosuffix))))
 
-;; Actually load the package manager. This doesn't do anything except
-;; initialize some caches.
+;; This assures the byte-compiler that we know what we are doing when
+;; we reference functions and variables from straight.el below. It
+;; does not actually do anything at runtime, since the `straight'
+;; feature has already been provided by loading straight.elc above.
 (require 'straight)
 
 ;; In case this is a reinit, and straight.el was already loaded, we
