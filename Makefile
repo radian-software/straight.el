@@ -1,5 +1,5 @@
 .PHONY: all
-all: compile
+all: compile toc
 
 .PHONY: compile
 compile:
@@ -9,6 +9,10 @@ compile:
              (push default-directory load-path)  \
              (batch-byte-compile))"              \
           *.el
+
+.PHONY: toc
+toc:
+	markdown-toc -i README.md
 
 .PHONY: clean
 clean:
