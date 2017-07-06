@@ -1208,6 +1208,7 @@ CAUSE is a string indicating the reason this repository is being
 cloned."
   (straight--with-plist recipe
       (package local-repo)
+    (make-directory (straight--dir "repos") 'parents)
     (straight--with-progress
         (concat cause (when cause straight-arrow)
                 (format "Cloning %s" local-repo)
