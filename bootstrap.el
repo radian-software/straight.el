@@ -57,7 +57,8 @@
 ;; So meta. This updates the various caches, so that straight.el shows
 ;; up properly in the lockfile and other things like that.
 (straight-use-package '(straight :type git :host github
-                                 :repo "raxod502/straight.el"))
+                                 :repo "raxod502/straight.el"
+                                 :files ("straight.el")))
 
 ;; Now we need to register the default recipe repositories.
 
