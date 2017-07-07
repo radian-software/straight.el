@@ -3145,19 +3145,25 @@ according to the value of `straight-profiles'."
                 (cl-sort versions-alist #'string-lessp :key #'car))
           (make-directory lockfile-directory 'parents)
           (with-temp-file lockfile-path
-            (pp versions-alist (current-buffer))
-            ;; When the recipe format is updated, this version keyword
-            ;; will be updated. It tells install.el which version of
-            ;; straight.el to use to interpret the recipe that must be
-            ;; used to clone straight.el itself. I'm using planets in
-            ;; the Solar System, for diversity (and because using
-            ;; consecutive integers would make it confusing when
-            ;; somebody else made a fork of the project and needed to
-            ;; fork the version sequence as well).
-            ;;
-            ;; The version keyword comes after the versions alist so
-            ;; that you can ignore it if you don't need it.
-            (insert ":mercury\n"))
+            (insert
+             (format
+              ;; When the recipe format is updated, this version
+              ;; keyword will be updated. It tells install.el which
+              ;; version of straight.el to use to interpret the recipe
+              ;; that must be used to clone straight.el itself. I'm
+              ;; using planets in the Solar System, for diversity (and
+              ;; because using consecutive integers would make it
+              ;; confusing when somebody else made a fork of the
+              ;; project and needed to fork the version sequence as
+              ;; well).
+              ;;
+              ;; The version keyword comes after the versions alist so
+              ;; that you can ignore it if you don't need it.
+              "(%s)\n:mercury\n"
+              (mapconcat
+               (apply-partially #'format "%S")
+               versions-alist
+               "\n "))))
           (message "Wrote %s" lockfile-path))))))
 
 ;;;###autoload
