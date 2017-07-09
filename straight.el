@@ -1275,6 +1275,14 @@ by the function `straight-declare-init-succeeded', and is set
 back to nil when the straight.el bootstrap is run or
 `straight-use-package' is invoked.")
 
+(defvar straight--profile-cache-validated nil
+  "Non-nil if `straight--profile-cache-valid' is meaningful.
+The function `straight-freeze-versions' will grudgingly accept a
+nil value of `straight--profile-cache-valid' if this variable is
+also nil. It is set to non-nil by the function
+`straight-declare-init-succeeded', and is set back to nil when
+the straight.el bootstrap is run.")
+
 ;;;;; Recipe repositories
 
 (defvar straight--recipe-repository-stack ()
@@ -2685,6 +2693,7 @@ packages actually in your init-file are written to the lockfile.
 It also improves performance by allowing the build cache to be
 pruned."
   (setq straight--profile-cache-valid t)
+  (setq straight--profile-cache-validated t)
   ;; We can safely prune the build cache if init succeeded.
   (dolist (package (hash-table-keys straight--build-cache))
     (unless (gethash package straight--recipe-cache)
@@ -3099,11 +3108,13 @@ according to the value of `straight-profiles'."
   (interactive "P")
   (when (or force
             (and (or straight--profile-cache-valid
+                     (and (not straight--profile-cache-validated)
+                          (y-or-n-p
+                           (concat "Have you installed any packages "
+                                   "since your init-file was last loaded?")))
                      (ignore
                       (message (concat "Caches are outdated, aborting "
-                                       (if straight--finalization-guaranteed
-                                           "(please reload your init-file)"
-                                         "(please restart Emacs)")))))
+                                       "(please reload your init-file)"))))
                  (let ((unpushed-recipes
                         (straight-push-all
                          (lambda (package)
