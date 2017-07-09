@@ -1269,7 +1269,7 @@ interactively, reloaded their init-file, and then called
 
 (defvar straight--profile-cache-valid nil
   "Non-nil if `straight--profile-cache' accurately reflects the init-file.
-The function `straight-save-versions' will be reluctant to create
+The function `straight-freeze-versions' will be reluctant to create
 a version lockfile if this variable is nil. It is set to non-nil
 by the function `straight-declare-init-succeeded', and is set
 back to nil when the straight.el bootstrap is run or
