@@ -103,7 +103,7 @@ init-file: `straight-declare-init-succeeded` and
 * Put the following code somewhere it is *guaranteed to be run* every
   time your init-file is loaded, *even if there is an error*:
 
-        (straight-declare-init-finished)
+      (straight-declare-init-finished)
 
   You can do this by wrapping your init-file in a `condition-case`
   statement. (It is generally desirable to do this anyway, since this
@@ -112,7 +112,7 @@ init-file: `straight-declare-init-succeeded` and
 * Put the following code at the end of your init-file, so that it will
   only be run if init finishes *without errors*:
 
-        (straight-declare-init-succeeded)
+      (straight-declare-init-succeeded)
 
 For information about why you want to do this, see the documentation
 on [the init lifecycle][init-lifecycle].
