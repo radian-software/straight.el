@@ -1192,7 +1192,7 @@ then returned."
 
 (defun straight--vc-git-keywords ()
   "Return a list of keywords used by the VC backend for Git."
-  '(:repo :host :branch :nonrecursive))
+  '(:repo :host :branch :nonrecursive :upstream))
 
 ;;;; Fetching repositories
 
