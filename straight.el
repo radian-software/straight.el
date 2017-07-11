@@ -2010,11 +2010,14 @@ all files in the package's local repository."
 ;;;; Building packages
 ;;;;; Files directive processing
 
-(defvar straight--default-files-directive
+(defvar straight-default-files-directive
   '("*.el" "*.el.in" "dir"
     "*.info" "*.texi" "*.texinfo"
     "doc/dir" "doc/*.info" "doc/*.texi" "doc/*.texinfo"
-    (:exclude ".dir-locals.el" "test.el" "tests.el" "*-test.el" "*-tests.el")))
+    (:exclude ".dir-locals.el" "test.el" "tests.el" "*-test.el" "*-tests.el"))
+  "Default value for the `:files' directive in recipes.
+It is also spliced in at any point where the `:default' keyword
+is used in a `:files' directive.")
 
 (defun straight--expand-files-directive-internal (files src-dir prefix)
   "Expand FILES directive in SRC-DIR with path PREFIX.
@@ -2043,7 +2046,7 @@ destinations."
         (setq files (cdr files))
         (cond
          ((eq spec :defaults)
-          (setq files (append straight--default-files-directive files)))
+          (setq files (append straight-default-files-directive files)))
          ;; Replace string-only specs with a bunch of conses that have
          ;; already been wildcard-expanded.
          ((stringp spec)
@@ -2175,11 +2178,11 @@ excluded from the outer `:exclude', meaning that they will not
 actually be excluded.
 
 If the entry is the symbol `:default', then the value of
-`straight--default-files-directive' is spliced into the enclosing
+`straight-default-files-directive' is spliced into the enclosing
 list to replace `:default'.
 
 If FILES is nil, it defaults to
-`straight--default-files-directive'.
+`straight-default-files-directive'.
 
 If two links are specified that take the same source path to
 different target paths, the one that is specified textually later
@@ -2207,7 +2210,7 @@ the MELPA recipe repository, with some minor differences:
   ;; repeatedly in the recursive section.
   (let* ((default-directory src-dir)
          (result (straight--expand-files-directive-internal
-                  (or files straight--default-files-directive)
+                  (or files straight-default-files-directive)
                   src-dir ""))
          ;; We can safely discard the exclusions in the cdr of
          ;; `result', since any mappings that should have been
