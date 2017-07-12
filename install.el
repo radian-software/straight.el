@@ -75,7 +75,9 @@
 (defvar url-http-end-of-headers)
 (defvar url-http-response-status)
 
-(let ((version nil)
+(let (;; This needs to have a default value, just in case the user
+      ;; doesn't have any lockfiles.
+      (version :mercury)
       (straight-profiles (if (boundp 'straight-profiles)
                              straight-profiles
                            '((nil . "default")))))
