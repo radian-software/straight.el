@@ -622,6 +622,26 @@ This method simply delegates to the relevant
   :type 'string
   :group 'straight)
 
+(defcustom straight-vc-git-default-protocol 'https
+  "The default protocol to use for auto-generated URLs.
+This affects the URLs used when `:host' is `github', `gitlab', or
+`bitbucket'. It does not cause manually specified URLs to be
+translated.
+
+This may be either `https' or `ssh'."
+  :type '(choice (const :tag "HTTPS" https)
+                 (const :tag "SSH" ssh))
+  :group 'straight)
+
+(defcustom straight-vc-git-force-protocol nil
+  "If non-nil, treat HTTPS and SSH URLs as incompatible.
+This means that operations like `straight-normalize-package' will
+re-set the remote URLs for packages whose recipes have non-nil
+`:host' values, if they are using a different protocol than the
+one specified in `straight-vc-git-default-protocol'."
+  :type 'boolean
+  :group 'straight)
+
 ;;;;;; Utility functions
 
 (defun straight-vc-git--popup-raw (prompt actions)
@@ -668,54 +688,74 @@ edit. Otherwise, PROMPT and ACTIONS are as for
       (let ((straight--default-directory nil))
         (recursive-edit)))))
 
-(defun straight-vc-git--encode-url (repo host)
-  "Generate a URL from a REPO depending on the value of HOST.
+(defun straight-vc-git--encode-url (repo host &optional protocol)
+  "Generate a URL from a REPO depending on the value of HOST and PROTOCOL.
 REPO is a string which is either a URL or something of the form
 \"username/repo\", like \"raxod502/straight.el\". If HOST is one
 of the symbols `github', `gitlab', or `bitbucket', then REPO is
 transformed into a standard SSH URL for the corresponding
 service; otherwise, HOST should be nil, and in that case REPO is
-returned unchanged. See also `straight-vc-git--decode-url'."
+returned unchanged. PROTOCOL must be either `https' or `ssh'; if
+it is omitted, it defaults to `straight-vc-git-default-protocol'.
+See also `straight-vc-git--decode-url'."
   (pcase host
     ('nil repo)
     ((or 'github 'gitlab 'bitbucket)
-     (format "git@%s:%s.git"
-             (pcase host
-               ('bitbucket "bitbucket.org")
-               (_ (format "%s.com" host)))
-             repo))
+     (let ((domain (pcase host
+                     ('bitbucket "bitbucket.org")
+                     (_ (format "%s.com" host)))))
+       (pcase (or protocol straight-vc-git-default-protocol)
+         ('https
+          (format "https://%s/%s.git" domain repo))
+         ('ssh
+          (format "git@%s:%s.git" domain repo))
+         (_ (error "Unknown protocol: %S" protocol)))))
     (_ (error "Unknown value for host: %S" host))))
 
 (defun straight-vc-git--decode-url (url)
-  "Separate a URL into a REPO and HOST, returning a cons cell of the two.
+  "Separate a URL into a REPO, HOST, and PROTOCOL, returning a list of them.
 All common forms of HTTPS and SSH URLs are accepted for GitHub,
 GitLab, and Bitbucket. If one is recognized, then HOST is one of
 the symbols `github', `gitlab', or `bitbucket', and REPO is a
 string of the form \"username/repo\". Otherwise HOST is nil and
-REPO is just URL. See also `straight-vc-git--encode-url'."
-  (when (or (string-match
-             "^git@\\(.+?\\):\\(.+?\\)\\(?:\\.git\\)?$"
-             url)
-            (string-match
-             "^ssh://git@\\(.+?\\)/\\(.+?\\)\\(?:\\.git\\)?$"
-             url)
-            (string-match
-             "^https://\\(.+?\\)/\\(.+?\\)\\(?:\\.git\\)?$"
-             url))
+REPO is just URL. In any case, PROTOCOL is either `https', `ssh',
+or nil (if the protocol cannot be determined, which happens when
+HOST is nil). See also `straight-vc-git--encode-url'."
+  (let ((protocol nil))
+    (or (and (string-match
+              "^git@\\(.+?\\):\\(.+?\\)\\(?:\\.git\\)?$"
+              url)
+             (setq protocol 'ssh))
+        (and (string-match
+              "^ssh://git@\\(.+?\\)/\\(.+?\\)\\(?:\\.git\\)?$"
+              url)
+             (setq protocol 'ssh))
+        (and (string-match
+              "^https://\\(.+?\\)/\\(.+?\\)\\(?:\\.git\\)?$"
+              url)
+             (setq protocol 'https)))
     (pcase (match-string 1 url)
-      ("github.com" (cons (match-string 2 url) 'github))
-      ("gitlab.com" (cons (match-string 2 url) 'gitlab))
-      ("bitbucket.org" (cons (match-string 2 url) 'bitbucket))
-      (_ (cons url nil)))))
+      ("github.com" (list (match-string 2 url) 'github protocol))
+      ("gitlab.com" (list (match-string 2 url) 'gitlab protocol))
+      ("bitbucket.org" (list (match-string 2 url) 'bitbucket protocol))
+      (_ (list url nil nil)))))
 
 (defun straight-vc-git--urls-compatible-p (url1 url2)
   "Return non-nil if URL1 and URL2 can be treated as equivalent.
 This means that `straight-vc-git--decode-url' returns the same
-for both. For example, HTTPS and SSH URLs for the same repository
-are equivalent, and it does not matter if a GitHub URL is
-suffixed with .git or not."
-  (equal (straight-vc-git--decode-url url1)
-         (straight-vc-git--decode-url url2)))
+for both (but if `straight-vc-git-force-protocol' is nil, then
+the returned protocol is allowed to differ). For example, HTTPS
+and SSH URLs for the same repository are equivalent (unless
+`straight-vc-git-force-protocol' is non-nil), and it does not
+matter if a GitHub URL is suffixed with .git or not."
+  (let ((spec1 (straight-vc-git--decode-url url1))
+        (spec2 (straight-vc-git--decode-url url2)))
+    (if straight-vc-git-force-protocol
+        (equal spec1 spec2)
+      ;; Only compare the first two elements; ignore the third, which
+      ;; is the protocol.
+      (equal (cl-subseq spec1 0 2)
+             (cl-subseq spec2 0 2)))))
 
 (defun straight-vc-git--list-remotes ()
   "Return a list of Git remotes as strings for the current directory.
@@ -1450,7 +1490,7 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
          ;; this writing, there are no Gitlab URLs (which makes
          ;; sense, since all the repositories should be hosted on
          ;; github.com/emacsmirror).
-         (cl-destructuring-bind (repo . host)
+         (cl-destructuring-bind (repo host _protocol)
              (straight-vc-git--decode-url url)
            (if host
                `(,package :type git :host ,host

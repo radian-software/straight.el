@@ -1614,6 +1614,15 @@ You can customize the following user options:
 * `straight-vc-git-upstream-remote`: the name to use for the upstream
   remote. Defaults to "upstream". This cannot be customized on a
   per-repository basis.
+* `straight-vc-git-default-protocol`: the default protocol to use for
+  automatically generated URLs when `:host` is non-nil. It can be
+  either `https` or `ssh`, and defaults to `https` because this
+  requires less work to set up.
+* `straight-vc-git-force-protocol`: if this is non-nil, then HTTPS and
+  SSH URLs are not treated as equivalent, so that bulk version-control
+  operations will offer to re-set your remote URLs from HTTPS to SSH
+  or vice versa, depending on the value of
+  `straight-vc-git-default-protocol`. This is nil by default.
 
 ### Recipe lookup
 
