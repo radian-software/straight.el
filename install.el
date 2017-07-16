@@ -135,7 +135,11 @@
                        straight-current-profile
                        straight-default-vc
                        straight-recipe-repositories
-                       straight-recipe-overrides)))
+                       straight-recipe-overrides
+                       straight-vc-git-default-branch
+                       straight-vc-git-primary-remote
+                       straight-vc-git-upstream-remote
+                       straight-recipes-gnu-elpa-url)))
      (current-buffer))
     (goto-char (point-max))
     (print

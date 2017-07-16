@@ -84,7 +84,7 @@
                               :no-build t))
 
 (straight-use-recipes `(gnu-elpa :type git
-                                 :repo ,straight--recipes-gnu-elpa-url
+                                 :repo ,straight-recipes-gnu-elpa-url
                                  :local-repo "elpa"
                                  :no-build t))
 
