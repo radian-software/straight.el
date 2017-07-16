@@ -1304,11 +1304,13 @@ velociraptors.")
   "Call a recipe backend method.
 METHOD is a symbol naming a backend method, like symbol
 `retrieve'. NAME is a symbol naming the recipe repository, like
-symbol `melpa'. ARGS are passed to the method.
+symbol `melpa'.
 
 If the package repository is not available, clone it. If the
 package cannot be found, return nil. CAUSE is a string explaining
 why the recipe repository might need to be cloned.
+
+ARGS are passed to the method.
 
 This function sets `default-directory' appropriately, handles
 cloning the repository if necessary, and then delegates to the
@@ -1354,6 +1356,9 @@ PACKAGE should be a symbol, and SOURCES should be a list that is
 a subset of `straight-recipe-repositories'. (If it is omitted, it
 defaults to allowing all sources in
 `straight-recipe-repositories'.)
+
+CAUSE is a string indicating why recipe repositories might need
+to be cloned.
 
 Return a list of package names as strings."
   (let ((sources (or sources straight-recipe-repositories))
@@ -2918,7 +2923,7 @@ MELPA-STYLE-RECIPE is as for `straight-use-package'."
 
 ;;;###autoload
 (defun straight-use-recipes (melpa-style-recipe)
-  "Register a recipe repository.
+  "Register a recipe repository using MELPA-STYLE-RECIPE.
 This registers the recipe and builds it if it is already cloned.
 Note that you probably want the recipe for a recipe repository to
 include a non-nil `:no-build' property, to unconditionally
@@ -3289,5 +3294,6 @@ according to the value of `straight-profiles'."
 ;;; straight.el ends here
 
 ;; Local Variables:
+;; checkdoc-symbol-words: ("top-level")
 ;; outline-regexp: ";;;;* "
 ;; End:
