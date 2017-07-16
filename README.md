@@ -126,14 +126,14 @@ for the [Emacs] hacker.
 First, place the following bootstrap code in your init-file:
 
     (let ((bootstrap-file (concat user-emacs-directory "straight/bootstrap.el"))
-          (bootstrap-version 1))
+          (bootstrap-version 2))
       (unless (file-exists-p bootstrap-file)
         (with-current-buffer
             (url-retrieve-synchronously
              "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
              'silent 'inhibit-cookies)
-          (delete-region (point-min) url-http-end-of-headers)
-          (eval-buffer)))
+          (goto-char (point-max))
+          (eval-print-last-sexp)))
       (load bootstrap-file nil 'nomessage))
 
 Even if you want to use a particular version or branch of
@@ -1308,14 +1308,14 @@ just use this snippet, which uses a copious amount of magic to take
 care of all these details for you:
 
     (let ((bootstrap-file (concat user-emacs-directory "straight/bootstrap.el"))
-          (bootstrap-version 1))
+          (bootstrap-version 2))
       (unless (file-exists-p bootstrap-file)
         (with-current-buffer
             (url-retrieve-synchronously
              "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
              'silent 'inhibit-cookies)
-          (delete-region (point-min) url-http-end-of-headers)
-          (eval-buffer)))
+          (goto-char (point-max))
+          (eval-print-last-sexp)))
       (load bootstrap-file nil 'nomessage))
 
 Despite the reference to `develop`, this snippet actually installs
