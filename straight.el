@@ -1819,7 +1819,8 @@ build-cache.el.")
 (defun straight--load-build-cache ()
   "Load the build cache from build-cache.el into `straight--build-cache'.
 If build-cache.el does not both exist and contain a valid Elisp
-form, then `straight--build-cache' is set to an empty hash table."
+hash table with the appropriate `:test', then
+`straight--build-cache' is set to an empty hash table."
   (setq straight--build-cache
         (with-temp-buffer
           (ignore-errors
@@ -1828,7 +1829,10 @@ form, then `straight--build-cache' is set to an empty hash table."
             (insert-file-contents-literally
              (straight--file "build-cache.el")))
           (or (ignore-errors
-                (read (current-buffer)))
+                (let ((table (read (current-buffer))))
+                  (cl-assert (hash-table-p table))
+                  (cl-assert (eq (hash-table-test table) #'equal))
+                  table))
               ;; The keys are package names as *strings*.
               (make-hash-table :test #'equal)))))
 
@@ -1948,71 +1952,88 @@ reinit has been completed."
    ;; and return it whether or not it's during init (or reinit).
    ((eq straight--cached-packages-might-be-modified-p :unknown)
     (setq straight--cached-packages-might-be-modified-p
-          (let ((repos nil) ; prevent double-checking repositories
-                (args nil)) ; find(1) argument list
-            (maphash
-             (lambda (_package build-info)
-               (cl-destructuring-bind (mtime _dependencies recipe) build-info
-                 (straight--with-plist recipe
-                     (local-repo)
-                   ;; It might be faster to use a hash table to keep
-                   ;; track of the known repos. (We can't use
-                   ;; `straight--repo-cache' since it's not
-                   ;; initialized yet; see the comment before the
-                   ;; second argument to `maphash'.)
-                   (unless (member local-repo repos)
-                     (push local-repo repos)
-                     ;; The basic idea of the find(1) command here is
-                     ;; that it is composed of a series of disjunctive
-                     ;; clauses, one for each repository. The first
-                     ;; clause matches anything named ".git" at a
-                     ;; depth of two, so that the Git directories are
-                     ;; ignored. Then each subsequent clause matches
-                     ;; and prints anything in a particular repository
-                     ;; that has an mtime greater than the last build
-                     ;; time for that repository. Just in case you're
-                     ;; wondering why this is done as a single find(1)
-                     ;; command, it's because it's substantially
-                     ;; faster. Of course, this command is a total
-                     ;; shot in the dark, since the list of packages
-                     ;; required in the init-file could have
-                     ;; completely changed since the last time the
-                     ;; build cache was written, but if that *hasn't*
-                     ;; happened then we're in luck and this
-                     ;; optimization speeds up init quite a lot.
-                     ;;
-                     ;; Just FYI, this find(1) command is compatible
-                     ;; with both GNU and BSD find.
-                     (setq args (append (list "-o"
-                                              "-path"
-                                              (format "./%s/*" local-repo)
-                                              "-newermt"
-                                              mtime
-                                              "-print")
-                                        args))))))
-             ;; The variables `straight--recipe-cache' and
-             ;; `straight--repo-cache' have not yet been
-             ;; populated (this code will be run at the very first
-             ;; invocation of `straight-use-package'), so we must use
-             ;; the build cache rather than either of those two.
-             straight--build-cache)
-            ;; The preamble to the find(1) command, which comes before
-            ;; the repository-specific subparts (see above).
-            (setq args (append (list "." "-depth" "2" "-name" ".git" "-prune")
-                               args))
-            (with-temp-buffer
-              (let ((default-directory (straight--dir "repos")))
-                ;; We're interleaving both stdout and stderr. The
-                ;; command shouldn't print anything if everything is
-                ;; as expected (and nothing has changed since the last
-                ;; build of each package).
-                (apply 'call-process "find" nil '(t t) nil args)
-                ;; If find(1) prints anything then we are screwed and
-                ;; have to check each package individually later on.
-                ;; That is,
-                ;; `straight--cached-packages-might-be-modified-p'
-                ;; will be non-nil.
-                (> (buffer-size) 0))))))
+          (cl-block find
+            (let ((repos nil) ; prevent double-checking repositories
+                  (args nil)) ; find(1) argument list
+              (maphash
+               (lambda (_package build-info)
+                 ;; Don't use `cl-destructuring-bind', as that will
+                 ;; error out on a list of insufficient length. We
+                 ;; want to be robust in the face of a malformed build
+                 ;; cache.
+                 (let ((mtime (nth 0 build-info))
+                       (recipe (nth 2 build-info)))
+                   ;; If no mtime is specified, it means the package
+                   ;; definitely needs to be (re)built. Probably there
+                   ;; was an error and we couldn't finish building the
+                   ;; package, but we wrote the build cache anyway.
+                   (unless mtime
+                     (cl-return-from find t))
+                   (straight--with-plist recipe
+                       (local-repo)
+                     ;; It might be faster to use a hash table to keep
+                     ;; track of the known repos. (We can't use
+                     ;; `straight--repo-cache' since it's not
+                     ;; initialized yet; see the comment before the
+                     ;; second argument to `maphash'.)
+                     (unless (member local-repo repos)
+                       (push local-repo repos)
+                       ;; The basic idea of the find(1) command here
+                       ;; is that it is composed of a series of
+                       ;; disjunctive clauses, one for each
+                       ;; repository. The first clause matches
+                       ;; anything named ".git" at a depth of two, so
+                       ;; that the Git directories are ignored. Then
+                       ;; each subsequent clause matches and prints
+                       ;; anything in a particular repository that has
+                       ;; an mtime greater than the last build time
+                       ;; for that repository. Just in case you're
+                       ;; wondering why this is done as a single
+                       ;; find(1) command, it's because it's
+                       ;; substantially faster. Of course, this
+                       ;; command is a total shot in the dark, since
+                       ;; the list of packages required in the
+                       ;; init-file could have completely changed
+                       ;; since the last time the build cache was
+                       ;; written, but if that *hasn't* happened then
+                       ;; we're in luck and this optimization speeds
+                       ;; up init quite a lot.
+                       ;;
+                       ;; Just FYI, this find(1) command is compatible
+                       ;; with both GNU and BSD find. But not
+                       ;; apparently with busybox/find, see [1].
+                       ;;
+                       ;; [1]: https://github.com/raxod502/straight.el/issues/78
+                       (setq args (append (list "-o"
+                                                "-path"
+                                                (format "./%s/*" local-repo)
+                                                "-newermt"
+                                                mtime
+                                                "-print")
+                                          args))))))
+               ;; The variables `straight--recipe-cache' and
+               ;; `straight--repo-cache' have not yet been populated
+               ;; (this code will be run at the very first invocation
+               ;; of `straight-use-package'), so we must use the build
+               ;; cache rather than either of those two.
+               straight--build-cache)
+              ;; The preamble to the find(1) command, which comes
+              ;; before the repository-specific subparts (see above).
+              (setq args (append (list "." "-depth" "2" "-name" ".git" "-prune")
+                                 args))
+              (with-temp-buffer
+                (let ((default-directory (straight--dir "repos")))
+                  ;; We're interleaving both stdout and stderr. The
+                  ;; command shouldn't print anything if everything is
+                  ;; as expected (and nothing has changed since the
+                  ;; last build of each package).
+                  (apply 'call-process "find" nil '(t t) nil args)
+                  ;; If find(1) prints anything then we are screwed
+                  ;; and have to check each package individually later
+                  ;; on. That is,
+                  ;; `straight--cached-packages-might-be-modified-p'
+                  ;; will be non-nil.
+                  (> (buffer-size) 0)))))))
    ;; If the value has already been calculated, but we've finished
    ;; init, then we can't trust that value any more. However, we can
    ;; treat a reinit like an init (where we only consider this to be a
