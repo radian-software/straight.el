@@ -82,7 +82,7 @@
 
   (let (;; This needs to have a default value, just in case the user
         ;; doesn't have any lockfiles.
-        (version :mercury)
+        (version :venus)
         (straight-profiles (if (boundp 'straight-profiles)
                                straight-profiles
                              '((nil . "default")))))
@@ -153,6 +153,8 @@
                          straight-vc-git-default-branch
                          straight-vc-git-primary-remote
                          straight-vc-git-upstream-remote
+                         straight-vc-git-default-protocol
+                         straight-vc-git-force-protocol
                          straight-recipes-gnu-elpa-url)))
        (current-buffer))
       (goto-char (point-max))
