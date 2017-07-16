@@ -7,4 +7,4 @@ install:
   - export PATH="/tmp/emacs-25.1-travis/bin:$PATH"
   - emacs --version
 script:
-  - make compile
+  - make travis
