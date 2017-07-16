@@ -8,7 +8,7 @@ compile:
              (setq byte-compile-error-on-warn t) \
              (push default-directory load-path)  \
              (batch-byte-compile))"              \
-          *.el
+          straight.el bootstrap.el install.el
 
 .PHONY: toc
 toc:
