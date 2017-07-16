@@ -97,7 +97,7 @@
                                    "straight/versions/"
                                    lockfile-name)))
         (when (file-exists-p lockfile-path)
-          (condition-case data
+          (condition-case nil
               (with-temp-buffer
                 (insert-file-contents-literally lockfile-path)
                 (read (current-buffer))
