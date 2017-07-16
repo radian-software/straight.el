@@ -97,21 +97,27 @@
                                    "straight/versions/"
                                    lockfile-name)))
         (when (file-exists-p lockfile-path)
-          (with-temp-buffer
-            (insert-file-contents-literally lockfile-path)
-            (read (current-buffer))
-            (let ((alleged-version (read (current-buffer))))
-              (cond
-               (version
-                (unless (eq alleged-version version)
-                  (error (concat "Incompatible recipe versions specified in "
-                                 "version lockfiles: %S and %S")
-                         version alleged-version)))
-               ((keywordp alleged-version)
-                (setq version alleged-version))
-               (t (error
-                   "Invalid recipe version specified in version lockfile: %S"
-                   alleged-version))))))))
+          (condition-case data
+              (with-temp-buffer
+                (insert-file-contents-literally lockfile-path)
+                (read (current-buffer))
+                (let ((alleged-version (read (current-buffer))))
+                  (cond
+                   (version
+                    (unless (eq alleged-version version)
+                      (error (concat "Incompatible recipe versions specified "
+                                     "in version lockfiles: %S and %S")
+                             version alleged-version)))
+                   ((keywordp alleged-version)
+                    (setq version alleged-version))
+                   (t (error
+                       (concat "Invalid recipe version specified "
+                               "in version lockfile: %S")
+                       alleged-version)))))
+            ;; Prevent end-of-file errors from being swallowed (they
+            ;; are ignored by default by the debugger).
+            (end-of-file
+             (error "Malformed version lockfile: %S" lockfile-name))))))
     (with-current-buffer
         (url-retrieve-synchronously
          (format
