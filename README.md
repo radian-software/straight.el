@@ -275,7 +275,7 @@ on [the package lifecycle][package-lifecycle].
 While being able to make arbitrary changes to your packages is very
 powerful, it can also get tiring to keep track of the all those
 changes. For this reason, `straight.el` provides a suite of powerful
-commands to interactively perform bulk operations on your packages.
+interactive workflows to perform bulk operations on your packages.
 
 * To restore each package to its canonical state (a clean working
   directory with the main branch checked out, and the remotes set
@@ -1157,7 +1157,7 @@ offer corrections for this section.
   operartions on your package's Git repositories. el-get allows this,
   but local changes will be overwritten when el-get performs an
   update.
-* `straight.el` provides a suite of powerful interactive tools for
+* `straight.el` provides a suite of powerful interactive workflows for
   performing bulk operations on your package's Git repositories.
   el-get only allows you to install, uninstall, and update packages.
 * `straight.el` operates quietly when all is going well. el-get
@@ -1186,6 +1186,10 @@ offer corrections for this section.
   arbitrary sources. `straight.el` does not support this and expects
   you to use a dedicated tool like [`use-package`][use-package] (with
   which integration is built in) for that purpose.
+* el-get has a user interface for package management that also
+  displays package metadata, similarly to `package.el`. `straight.el`
+  has no user interface for package management; any UI is provided by
+  the user's `completing-read` framework.
 
 ### Comparison to Borg
 
@@ -1814,9 +1818,10 @@ allow you to select a particular package to check or rebuild.
 
 ### Version control operations
 
-`straight.el` provides a number of highly interactive commands for
-managing your package's local repositories, using the configured
-[version-control backends][vc-backends]. They are as follows:
+`straight.el` provides a number of highly interactive workflows for
+managing your package's local repositories, using the
+configured [version-control backends][vc-backends]. They are as
+follows:
 
 * `M-x straight-normalize-package`: normalize a package
 * `M-x straight-normalize-all`: normalize all packages
