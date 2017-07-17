@@ -1159,8 +1159,7 @@ offer corrections for this section.
   update.
 * `straight.el` provides a suite of powerful interactive tools for
   performing bulk operations on your package's Git repositories.
-  el-get only allows you to install, uninstall, and update packages
-  noninteractively.
+  el-get only allows you to install, uninstall, and update packages.
 * `straight.el` operates quietly when all is going well. el-get
   reports its progress verbosely.
 
@@ -1182,10 +1181,11 @@ offer corrections for this section.
   more complex build process.
 * el-get supports texinfo, while `straight.el` does not yet (but this
   is a [planned feature][texinfo-issue]).
-* el-get provides for running initialization code for packages.
-  `straight.el` does not support this and expects you to use a
-  dedicated tool like [`use-package`][use-package] (with which
-  integration is built in) for that purpose.
+* el-get provides a number of features for running per-package
+  initialization and setup code, including pulling that code from
+  arbitrary sources. `straight.el` does not support this and expects
+  you to use a dedicated tool like [`use-package`][use-package] (with
+  which integration is built in) for that purpose.
 
 ### Comparison to Borg
 
