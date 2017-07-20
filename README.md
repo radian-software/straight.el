@@ -1223,11 +1223,12 @@ offer corrections for this section.
 #### Advantages of `straight.el`
 
 * `straight.el` supports GNU ELPA, MELPA, EmacsMirror, and custom
-  recipe sources. Borg only supports EmacsMirror. However, as the
-  EmacsMirror is a complete superset of both GNU ELPA and MELPA, this
-  does not mean you have access to more packages: it just means you
-  benefit from the recipe maintenance efforts of the MELPA team and
-  the EmacsMirror team, rather than only the latter.
+  recipe sources. Borg only supports EmacsMirror and custom recipe
+  sources. However, as the EmacsMirror is a complete superset of both
+  GNU ELPA and MELPA, this does not mean you have access to more
+  packages: it just means you benefit from the recipe maintenance
+  efforts of the MELPA team and the EmacsMirror team, rather than only
+  the latter.
 * Borg, even when combined with related tools, do not allow for the
   kind of massive interactive repository management provided by
   `straight.el`.
