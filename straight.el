@@ -3286,8 +3286,6 @@ according to the value of `straight-profiles'."
 (setq package-enable-at-startup nil)
 
 (with-eval-after-load 'use-package
-  ;; Declare variables and functions from `use-package' to the
-  ;; byte-compiler.
   ;; Register aliases for :ensure. Aliases later in the list will
   ;; override those earlier. (But there is no legitimate reason to use
   ;; more than one in a `use-package' declaration, at least in sane

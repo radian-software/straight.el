@@ -275,7 +275,7 @@ on [the package lifecycle][package-lifecycle].
 While being able to make arbitrary changes to your packages is very
 powerful, it can also get tiring to keep track of the all those
 changes. For this reason, `straight.el` provides a suite of powerful
-commands to interactively perform bulk operations on your packages.
+interactive workflows to perform bulk operations on your packages.
 
 * To restore each package to its canonical state (a clean working
   directory with the main branch checked out, and the remotes set
@@ -780,8 +780,8 @@ package managers:
   package that is versioned in something other than Git.
 * Use `straight.el` if you like reproducibility in your Emacs
   configuration, you regularly contribute changes to packages
-  upstream, and you think deferred installation is a really great
-  idea.
+  upstream, you think deferred installation is a really great idea, or
+  you are writing an Emacs configuration to be used by others.
 
 And here is a brief list of the main reasons you might not want to use
 `straight.el`:
@@ -874,6 +874,10 @@ And here is a brief list of the main reasons you might not want to use
   uncouth. `package.el` aggressively inserts a call to
   `package-initialize` into the init-file if it is not already
   present, whenever any package management operation is performed.
+* `straight.el` has a profile system that allows users of someone
+  else's Emacs configuration to manage an additional subset of
+  packages, or to overriding upstream package configuration, without
+  forking the upstream. `package.el` has no such concept.
 * `straight.el` is developed openly on GitHub, using a
   modern [issue tracker][issues] and continuous integration
   from [Travis CI][travis-build]. It welcomes contributions of any
@@ -1005,6 +1009,10 @@ And here is a brief list of the main reasons you might not want to use
   on `package.el`, it inherits the behavior of aggressively inserting
   a call to `package-initialize` into your init-file on any package
   management operation.
+* `straight.el` has a profile system that allows users of someone
+  else's Emacs configuration to manage an additional subset of
+  packages, or to overriding upstream package configuration, without
+  forking the upstream. Quelpa has no such concept.
 
 #### Advantages of Quelpa
 
@@ -1090,6 +1098,10 @@ offer corrections for this section.
 * `straight.el` operates quietly when all is going well. Since Cask is
   based on `package.el`, it displays all messages, errors, and
   warnings that come from byte-compilation and autoload generation.
+* `straight.el` has a profile system that allows users of someone
+  else's Emacs configuration to manage an additional subset of
+  packages, or to overriding upstream package configuration, without
+  forking the upstream. Cask has no such concept.
 
 #### Advantages of Cask
 
@@ -1157,12 +1169,15 @@ offer corrections for this section.
   operartions on your package's Git repositories. el-get allows this,
   but local changes will be overwritten when el-get performs an
   update.
-* `straight.el` provides a suite of powerful interactive tools for
+* `straight.el` provides a suite of powerful interactive workflows for
   performing bulk operations on your package's Git repositories.
-  el-get only allows you to install, uninstall, and update packages
-  noninteractively.
+  el-get only allows you to install, uninstall, and update packages.
 * `straight.el` operates quietly when all is going well. el-get
   reports its progress verbosely.
+* `straight.el` has a profile system that allows users of someone
+  else's Emacs configuration to manage an additional subset of
+  packages, or to overriding upstream package configuration, without
+  forking the upstream. el-get has no such concept.
 
 #### Advantages of el-get
 
@@ -1182,17 +1197,22 @@ offer corrections for this section.
   more complex build process.
 * el-get supports texinfo, while `straight.el` does not yet (but this
   is a [planned feature][texinfo-issue]).
-* el-get provides for running initialization code for packages.
-  `straight.el` does not support this and expects you to use a
-  dedicated tool like [`use-package`][use-package] (with which
-  integration is built in) for that purpose.
+* el-get provides a number of features for running per-package
+  initialization and setup code, including pulling that code from
+  arbitrary sources. `straight.el` does not support this and expects
+  you to use a dedicated tool like [`use-package`][use-package] (with
+  which integration is built in) for that purpose.
+* el-get has a user interface for package management that also
+  displays package metadata, similarly to `package.el`. `straight.el`
+  has no user interface for package management; any UI is provided by
+  the user's `completing-read` framework.
 
 ### Comparison to Borg
 
 * Borg and `straight.el` are perhaps the two most similar package
   managers on this list. The difference is that Borg is very minimal
   and expects you to complement it with other tools such as [Magit],
-  [epkg], [`use-package`][use-package], and [auto-compile]. On ther
+  [epkg], [`use-package`][use-package], and [auto-compile]. On the
   other hand, `straight.el` aspires to be a one-stop package
   management solution, although it does not try to replace dedicated
   version-control packages (Magit) or dedicated package
@@ -1203,13 +1223,15 @@ offer corrections for this section.
 #### Advantages of `straight.el`
 
 * `straight.el` supports GNU ELPA, MELPA, EmacsMirror, and custom
-  recipe sources. Borg only supports EmacsMirror.
+  recipe sources. Borg only supports EmacsMirror and custom recipe
+  sources. However, as the EmacsMirror is a complete superset of both
+  GNU ELPA and MELPA, this does not mean you have access to more
+  packages: it just means you benefit from the recipe maintenance
+  efforts of the MELPA team and the EmacsMirror team, rather than only
+  the latter.
 * Borg, even when combined with related tools, do not allow for the
   kind of massive interactive repository management provided by
   `straight.el`.
-* `straight.el` allows you to specify a custom recipe to install a
-  package from any Git repository. It appears that achieving the same
-  with Borg requires updating the EmacsMirror.
 * `straight.el` supports deferred and conditional installation. This
   is not supported by Borg, although it could in principle be
   implemented via lazy cloning of submodules.
@@ -1220,6 +1242,15 @@ offer corrections for this section.
   process in Borg.
 * `straight.el` provides mechanisms for updating your packages. This
   is a manual process in Borg.
+* `straight.el` is configured solely by how you use in your init-file.
+  Configuring Borg requires customizing `~/.emacs.d/.gitmodules`,
+  which means (for example) that you cannot generate recipes
+  dynamically. (However, the handling of configuration
+  is [planned][borg-improvements] to be improved in a future release.)
+* `straight.el` has a profile system that allows users of someone
+  else's Emacs configuration to manage an additional subset of
+  packages, or to overriding upstream package configuration, without
+  forking the upstream. Borg has no such concept.
 
 #### Advantages of Borg
 
@@ -1814,9 +1845,10 @@ allow you to select a particular package to check or rebuild.
 
 ### Version control operations
 
-`straight.el` provides a number of highly interactive commands for
-managing your package's local repositories, using the configured
-[version-control backends][vc-backends]. They are as follows:
+`straight.el` provides a number of highly interactive workflows for
+managing your package's local repositories, using the
+configured [version-control backends][vc-backends]. They are as
+follows:
 
 * `M-x straight-normalize-package`: normalize a package
 * `M-x straight-normalize-all`: normalize all packages
@@ -2133,6 +2165,7 @@ since `font-lock-mode` computes syntax highlighting lazily.
 
 [auto-compile]: https://github.com/tarsius/auto-compile
 [borg]: https://github.com/emacscollective/borg
+[borg-improvements]: https://github.com/raxod502/straight.el/issues/95#issuecomment-316379495https://github.com/raxod502/straight.el/issues/95#issuecomment-316379495
 [build-command-issue]: https://github.com/raxod502/straight.el/issues/72
 [cask]: https://github.com/cask/cask
 [el-get]: https://github.com/dimitri/el-get
