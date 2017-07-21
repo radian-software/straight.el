@@ -2567,9 +2567,15 @@ package. It is assumed that the package has already been built.
 RECIPE is a straight.el-style plist."
   (straight--with-plist recipe
       (package)
-    (load (straight--file
-           "build" package (straight--autoload-file-name package))
-          nil 'nomessage)))
+    (let ((autoloads (straight--file
+                      "build" package (straight--autoload-file-name package))))
+      ;; If the autoloads file doesn't exist, don't throw an error. It
+      ;; seems that in Emacs 26, an autoloads file is not actually
+      ;; written if there are no autoloads to generate (although this
+      ;; is unconfirmed), so this is especially important in that
+      ;; case.
+      (when (file-exists-p autoloads)
+        (load autoloads nil 'nomessage)))))
 
 ;;;; Interactive helpers
 ;;;;; Package selection
