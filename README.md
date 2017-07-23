@@ -2157,7 +2157,7 @@ since `font-lock-mode` computes syntax highlighting lazily.
 [repository-management]: #version-control-operations
 [straight-use-package-overview]: #what-happens-when-i-call-straight-use-package
 [straight-use-package-usage]: #installing-packages-programmatically
-[straight.el-recipe]: #overriding-the-recipe-for-straight-el
+[straight.el-recipe]: #overriding-the-recipe-for-straightel
 [straight.el-recipe-internals]: #FIXME
 [use-package-integration]: #integration-with-use-package-1
 [user-manual]: #user-manual
