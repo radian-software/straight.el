@@ -154,8 +154,7 @@
                          straight-vc-git-primary-remote
                          straight-vc-git-upstream-remote
                          straight-vc-git-default-protocol
-                         straight-vc-git-force-protocol
-                         straight-recipes-gnu-elpa-url)))
+                         straight-vc-git-force-protocol)))
        (current-buffer))
       (goto-char (point-max))
       (print
