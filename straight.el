@@ -936,7 +936,8 @@ confirmation, so this function should only be run after
    (let* ((cur-branch (straight--get-call
                        "git" "rev-parse" "--abbrev-ref" "HEAD"))
           (head-detached-p (string= cur-branch "HEAD"))
-          (ref-name (or ref "HEAD")))
+          (ref-name (or ref "HEAD"))
+          (quoted-ref-name (if ref (format "%S" ref) "HEAD")))
      (cond
       ((and ref
             (not (straight--check-call
@@ -984,7 +985,8 @@ confirmation, so this function should only be run after
           ;; confuse this syntax with the syntax of the
           ;; `straight-popup' macro.
           `(,@(when ref-ahead-p
-                `(("f" ,(format "Fast-forward branch %S to %s" branch ref-name)
+                `(("f" ,(format "Fast-forward branch %S to %s"
+                                branch quoted-ref-name)
                    ,(lambda ()
                       (straight--get-call
                        "git" "reset" "--hard" ref-name)))))
@@ -994,21 +996,22 @@ confirmation, so this function should only be run after
                       (straight--get-call
                        "git" "checkout" branch)))))
             ,@(unless (or ref-ahead-p ref-behind-p)
-                `(("m" ,(format "Merge %S to branch %S" ref branch)
+                `(("m" ,(format "Merge %S to branch %S" quoted-ref-name branch)
                    ,(lambda ()
                       (if ref
                           (straight--check-call
                            "git" "merge" ref)
                         (let ((orig-head
                                (straight--get-call
-                                "git" "rev-parse" ref-name)))
+                                "git" "rev-parse" "HEAD")))
                           (straight--get-call
                            "git" "checkout" branch)
                           ;; Merge might not succeed, so don't throw
                           ;; on error.
                           (straight--check-call
                            "git" "merge" orig-head)))))
-                  ("r" ,(format "Reset branch %S to %S" branch ref)
+                  ("r" ,(format "Reset branch %S to %s"
+                                branch quoted-ref-name)
                    ,(lambda ()
                       (straight--get-call
                        "git" "reset" "--hard" ref-name)))
@@ -1018,25 +1021,25 @@ confirmation, so this function should only be run after
                             (straight--get-call
                              "git" "checkout" branch)))))
                   ,(if ref
-                       `("R" ,(format (concat "Rebase HEAD onto branch %S "
-                                              "and fast-forward %S to HEAD")
-                                      branch branch)
+                       `("R" ,(format "Rebase branch %S onto %S" branch ref)
                          ,(lambda ()
-                            ;; If the rebase encounters a conflict, no
-                            ;; sweat: the possibility of a
-                            ;; fast-forward will be detected elsewhere
-                            ;; in this function the next time around.
-                            ;; But we might as well finish the job if
-                            ;; we can.
-                            (and (straight--check-call
-                                  "git" "rebase" branch)
-                                 (straight--get-call
-                                  "git" "reset" "--hard" ref-name))))
-                     `("R" ,(format "Rebase branch %S onto %S" branch ref)
+                            ;; Rebase might fail, don't throw on
+                            ;; error.
+                            (straight--check-call
+                             "git" "rebase" ref branch)))
+                     `("R" ,(format (concat "Rebase HEAD onto branch %S "
+                                            "and fast-forward %S to HEAD")
+                                    branch branch)
                        ,(lambda ()
-                          ;; Rebase might fail, don't throw on error.
-                          (straight--check-call
-                           "git" "rebase" ref branch))))))))))))))
+                          ;; If the rebase encounters a conflict, no
+                          ;; sweat: the possibility of a fast-forward
+                          ;; will be detected elsewhere in this
+                          ;; function the next time around. But we
+                          ;; might as well finish the job if we can.
+                          (and (straight--check-call
+                                "git" "rebase" branch)
+                               (straight--get-call
+                                "git" "reset" "--hard" ref-name)))))))))))))))
 
 (cl-defun straight-vc-git--pull-from-remote-raw (recipe remote remote-branch)
   "Using straight.el-style RECIPE, pull from REMOTE.
