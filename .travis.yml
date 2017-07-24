@@ -1,15 +1,15 @@
 dist: trusty
 sudo: false
-addons:
-  apt:
-    sources:
-      - debian-sid
-    packages:
-      - shellcheck
 install:
   - gem install evm
   - evm config path /tmp
   - evm install emacs-25.1-travis
   - export PATH="/tmp/emacs-25.1-travis/bin:$PATH"
+  # longlines-start
+  - wget https://storage.googleapis.com/shellcheck/shellcheck-latest.linux.x86_64.tar.xz
+      -O /tmp/shellcheck-latest.tar.xz
+  # longlines-stop
+  - tar -xz -C /tmp -f /tmp/shellcheck-latest.tar.xz
+  - export PATH="/tmp/shellcheck-latest:$PATH"
 script:
   - make travis
