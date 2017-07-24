@@ -3073,7 +3073,7 @@ See also `straight-check-all' and `straight-rebuild-package'."
 PACKAGE is a string naming a package. Interactively, select
 PACKAGE from the known packages in the current Emacs session
 using `completing-read'."
-  (interactive (list (straight--select-package "Update package")))
+  (interactive (list (straight--select-package "Normalize package")))
   (let ((recipe (gethash package straight--recipe-cache)))
     (straight-vc-normalize recipe)))
 
