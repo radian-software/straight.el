@@ -378,7 +378,8 @@ If the command fails, throw an error."
       (unless (= 0 (apply #'call-process command
                           nil '(t t) nil args))
         (error "Command failed: %s %s (output: %S) (default-directory: %S)"
-               command (string-join args " ") (buffer-string) default-directory)))
+               command (string-join args " ")
+               (buffer-string) default-directory)))
     (buffer-string)))
 
 (defun straight--get-call (command &rest args)
@@ -1996,7 +1997,8 @@ reinit has been completed."
                straight--build-cache)
               ;; The preamble to the find(1) command, which comes
               ;; before the repository-specific subparts (see above).
-              (setq args (append (list "." "-depth" "2" "-name" ".git" "-prune")
+              (setq args (append (list "." "-depth" "2"
+                                       "-name" ".git" "-prune")
                                  args))
               (with-temp-buffer
                 (let ((default-directory (straight--dir "repos")))
