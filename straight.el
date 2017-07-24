@@ -809,19 +809,6 @@ necessarily need to match DESIRED-URL; it just has to satisfy
 but recipe specifies a URL of
   %S"
                      local-repo remote actual-url desired-url)
-             ("u" (format "Set URL of remote %S correctly and fetch"
-                          remote)
-              (straight--get-call
-               "git" "remote" "set-url" remote desired-url)
-              (straight--get-call
-               "git" "fetch" remote))
-             ("U" (format "Set URL of remote %S manually and fetch"
-                          remote)
-              (straight--get-call
-               "git" "remote" "set-url" remote
-               (read-string "Enter new remote URL: "))
-              (straight--get-call
-               "git" "fetch" remote))
              ("r" (format (concat "Rename remote %S to %S, "
                                   "re-create %S with correct URL, and fetch")
                           remote new-remote remote)
