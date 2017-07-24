@@ -2059,8 +2059,10 @@ those in order to make your bug report.
 ### Integration with `use-package`
 
 By default, `straight.el` overrides `use-package` so that `:ensure`
-installs packages using `straight.el` instead of `package.el`. The
-algorithm is extremely simple. This:
+installs packages using `straight.el` instead of `package.el`. (You
+can override this behavior by customizing
+`straight-enable-use-package-integration`.) The algorithm is extremely
+simple. This:
 
     (use-package el-patch
       :ensure t)
@@ -2101,10 +2103,12 @@ And you may also provide just the package name:
 
 By default, `package.el` will automatically insert a call to
 `package-initialize` into your init-file as soon as Emacs starts,
-which is ridiculous. `straight.el` disables this "feature" by setting
-`package-enable-at-startup` to nil. Unfortunately, `package.el` will
-still do this if you perform any package management operation with it.
-So don't use `package.el` at all! It's evil!
+which is ridiculous. It will also do this when you perform any package
+management operation. A separate system inserts some `custom` forms
+into your init-file when you install a package. `straight.el` disables
+all of these "features" by setting `package-enable-at-startup` to nil
+and enabling some advices. You can override this behavior by
+customizing `straight-enable-package-integration`, however.
 
 ### Miscellaneous
 
