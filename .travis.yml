@@ -9,7 +9,7 @@ install:
   - wget https://storage.googleapis.com/shellcheck/shellcheck-latest.linux.x86_64.tar.xz
       -O /tmp/shellcheck-latest.tar.xz
   # longlines-stop
-  - tar -xz -C /tmp -f /tmp/shellcheck-latest.tar.xz
+  - tar -x -C /tmp -f /tmp/shellcheck-latest.tar.xz
   - export PATH="/tmp/shellcheck-latest:$PATH"
 script:
   - make travis
