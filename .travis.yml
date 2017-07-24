@@ -1,10 +1,15 @@
 dist: trusty
 sudo: false
+addons:
+  apt:
+    sources:
+      - debian-sid
+    packages:
+      - shellcheck
 install:
   - gem install evm
   - evm config path /tmp
   - evm install emacs-25.1-travis
   - export PATH="/tmp/emacs-25.1-travis/bin:$PATH"
-  - emacs --version
 script:
   - make travis

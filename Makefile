@@ -1,35 +1,31 @@
 .PHONY: all
-all: compile checkdoc longlines toc
+all:
+	@scripts/check.bash compile checkdoc shellcheck longlines toc
 
 .PHONY: travis
-travis: compile checkdoc longlines
+travis:
+	@scripts/check.bash compile checkdoc shellcheck longlines
 
 .PHONY: compile
 compile:
-	! emacs -Q --batch --eval                  \
-            "(progn                                \
-               (setq byte-compile-error-on-warn t) \
-               (push default-directory load-path)  \
-               (batch-byte-compile))"              \
-            straight.el bootstrap.el install.el    \
-            2>&1 | grep .
+	@scripts/check.bash compile
 
 .PHONY: checkdoc
 checkdoc:
-	! emacs --batch --eval                      \
-            "(progn                                 \
-               (setq sentence-end-double-space nil) \
-               (checkdoc-file \"straight.el\"))"    \
-            2>&1 | grep .
+	@scripts/check.bash checkdoc
+
+.PHONY: shellcheck
+shellcheck:
+	@scripts/check.bash shellcheck
 
 .PHONY: longlines
 longlines:
-	scripts/longlines.sh
+	@scripts/check.bash longlines
 
 .PHONY: toc
 toc:
-	markdown-toc -i README.md
+	@markdown-toc -i README.md
 
 .PHONY: clean
 clean:
-	rm -f *.elc
+	@rm -f *.elc

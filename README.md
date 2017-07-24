@@ -1,6 +1,8 @@
 **straight.el**: next-generation, purely functional package manager
 for the [Emacs] hacker.
 
+<!-- longlines-start -->
+
 <!-- toc -->
 
 - [Features](#features)
@@ -74,6 +76,8 @@ for the [Emacs] hacker.
 
 <!-- tocstop -->
 
+<!-- longlines-stop -->
+
 ## Features
 
 * Install Emacs packages from [MELPA], [EmacsMirror], or manually
@@ -125,6 +129,8 @@ for the [Emacs] hacker.
 
 First, place the following bootstrap code in your init-file:
 
+<!-- longlines-start -->
+
     (let ((bootstrap-file (concat user-emacs-directory "straight/bootstrap.el"))
           (bootstrap-version 2))
       (unless (file-exists-p bootstrap-file)
@@ -135,6 +141,8 @@ First, place the following bootstrap code in your init-file:
           (goto-char (point-max))
           (eval-print-last-sexp)))
       (load bootstrap-file nil 'nomessage))
+
+<!-- longlines-stop -->
 
 Even if you want to use a particular version or branch of
 `straight.el`, or even your own fork, this code does not need to be
@@ -406,6 +414,8 @@ have initialized `straight.el` and loaded package `el-patch`, then
 your `~/.emacs.d/straight` directory will look roughly like this (some
 irrelevant details have been omitted for pedagogical purposes):
 
+<!-- longlines-start -->
+
     straight
     ├── build
     │   ├── el-patch
@@ -429,6 +439,8 @@ irrelevant details have been omitted for pedagogical purposes):
             ├── bootstrap.el
             ├── install.el
             └── straight.el
+
+<!-- longlines-stop -->
 
 As you can see, the package names are `el-patch` and `straight`. While
 `el-patch` is built from a local repository of the same name,
@@ -750,7 +762,9 @@ alternatives to `straight.el`:
 * [`package.el`][package.el]: de facto standard, bundled with Emacs.
 * [Quelpa]: allows you to use external sources like GitHub with
   `package.el`. Essentially a local [MELPA].
-* [Cask]: another `package.el` wrapper. Specify your dependencies in a `Cask` file; can be used for project management or an Emacs configuration.
+* [Cask]: another `package.el` wrapper. Specify your dependencies in a
+  `Cask` file; can be used for project management or an Emacs
+  configuration.
 * [el-get]: ridiculously OP in terms of how many different sources you
   can pull packages from (`package.el`, every known VCS, distro
   package managers, `go get`(!!)).
@@ -1337,6 +1351,8 @@ lockfile to check out the right revision, and so on. Instead, you can
 just use this snippet, which uses a copious amount of magic to take
 care of all these details for you:
 
+<!-- longlines-start -->
+
     (let ((bootstrap-file (concat user-emacs-directory "straight/bootstrap.el"))
           (bootstrap-version 2))
       (unless (file-exists-p bootstrap-file)
@@ -1347,6 +1363,8 @@ care of all these details for you:
           (goto-char (point-max))
           (eval-print-last-sexp)))
       (load bootstrap-file nil 'nomessage))
+
+<!-- longlines-stop -->
 
 Despite the reference to `develop`, this snippet actually installs
 from the `master` branch by default, just like every other package.
