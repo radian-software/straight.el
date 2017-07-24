@@ -1,8 +1,8 @@
 .PHONY: all
-all: compile checkdoc toc
+all: compile checkdoc longlines toc
 
 .PHONY: travis
-travis: compile checkdoc
+travis: compile checkdoc longlines
 
 .PHONY: compile
 compile:
@@ -21,6 +21,10 @@ checkdoc:
                (setq sentence-end-double-space nil) \
                (checkdoc-file \"straight.el\"))"    \
             2>&1 | grep .
+
+.PHONY: longlines
+longlines:
+	scripts/longlines.sh
 
 .PHONY: toc
 toc:
