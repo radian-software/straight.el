@@ -425,7 +425,7 @@ irrelevant details have been omitted for pedagogical purposes):
     │   └── straight
     │       ├── straight-autoloads.el
     │       ├── straight.el -> ~/.emacs.d/straight/repos/straight.el/straight.el
-    │       └── straight.el
+    │       └── straight.elc
     └── repos
         ├── el-patch
         │   ├── CHANGELOG.md
