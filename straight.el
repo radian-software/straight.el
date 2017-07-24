@@ -118,6 +118,25 @@ whose keys are symbols naming packages."
              (plist :key-type symbol :value-type sexp)))
   :group 'straight)
 
+(defcustom straight-enable-package-integration t
+  "Whether to enable \"integration\" with package.el.
+This means that `package-enable-at-startup' is disabled, and
+advices are put on `package--ensure-init-file' and
+`package--save-selected-packages' to prevent package.el from
+modifying the init-file."
+  :type 'boolean
+  :group 'straight)
+
+(defcustom straight-enable-use-package-integration t
+  "Whether to enable integration with `use-package'.
+This means that a new `:recipe' handler is added, the normalizer
+for `:ensure' is overridden, and `use-package-ensure-function'
+and `use-package-pre-ensure-function' are set. The net effect is
+that `:ensure' uses straight.el instead of package.el by
+default."
+  :type 'boolean
+  :group 'straight)
+
 ;;;; Utility functions
 ;;;;; Association lists
 
@@ -3258,13 +3277,37 @@ according to the value of `straight-profiles'."
                (straight-vc-check-out-commit
                 type local-repo commit)))))))))
 
-;;;; Mess with other packages
+;;;; package.el "integration"
 
-;; Prevent package.el from inserting a call to `package-initialize' in
-;; the init-file.
-(setq package-enable-at-startup nil)
+(when straight-enable-package-integration
+
+  ;; Don't load package.el after init finishes.
+  (setq package-enable-at-startup nil)
+
+  ;; Prevent package.el from modifying the init-file.
+  (eval-and-compile
+    (defalias 'straight--advice-neuter-package-ensure-init-file #'ignore
+      "Prevent package.el from modifying the init-file.
+This is an `:override' advice for `package--ensure-init-file'.")
+    (defun straight--package-save-selected-packages (&optional value)
+      "Set and save `package-selected-packages' to VALUE.
+But don't mess with the init-file."
+      (when value
+        (setq package-selected-packages value)))
+    (defalias 'straight--advice-neuter-package-save-selected-packages
+      #'straight--package-save-selected-packages
+      "Prevent package.el from modifying the init-file.
+This is an `:override' advice for
+`package--save-selected-packages'."))
+  (advice-add #'package--ensure-init-file :override
+              #'straight--advice-neuter-package-ensure-init-file)
+  (advice-add #'package--save-selected-packages :override
+              #'straight--advice-neuter-package-save-selected-packages))
+
+;;;; use-package integration
 
 (with-eval-after-load 'use-package
+
   ;; Register aliases for :ensure. Aliases later in the list will
   ;; override those earlier. (But there is no legitimate reason to use
   ;; more than one in a `use-package' declaration, at least in sane
@@ -3272,6 +3315,7 @@ according to the value of `straight-profiles'."
   ;; default value of `use-package-normalize/:ensure' is not flexible
   ;; enough to handle recipes like we need it to.
   (dolist (keyword '(:recipe :ensure))
+
     ;; Insert the keyword just before `:ensure'.
     (unless (member keyword use-package-keywords)
       (setq use-package-keywords
@@ -3279,6 +3323,7 @@ according to the value of `straight-profiles'."
                    (head (cl-subseq use-package-keywords 0 pos))
                    (tail (cl-subseq use-package-keywords pos)))
               (append head (list keyword) tail))))
+
     ;; Define the normalizer for the keyword.
     (eval
      `(defun ,(intern (format "use-package-normalize/%S" keyword))
@@ -3288,6 +3333,7 @@ according to the value of `straight-profiles'."
             (if (keywordp (car-safe arg))
                 (cons name-symbol arg)
               arg)))))
+
     ;; Define the handler. We don't need to do this for `:ensure'.
     (unless (eq keyword :ensure)
       (eval
@@ -3295,41 +3341,48 @@ according to the value of `straight-profiles'."
             (name keyword recipe rest state)
           (use-package-process-keywords
             name rest (plist-put state :recipe recipe))))))
+
   ;; Make it so that `:ensure' uses `straight-use-package' instead of
   ;; `package-install'.
-  (defun straight--use-package-ensure-function
-      (name ensure state context &optional only-if-installed)
-    (when ensure
-      (let ((recipe (or (and (not (eq ensure t)) ensure)
-                        (plist-get state :recipe)
-                        name)))
-        (straight-use-package
-         recipe (or
-                 ;; Normalize value of `only-if-installed'.
-                 (and only-if-installed 'lazy)
-                 (unless (member context '(:byte-compile :ensure
-                                           :config :pre-ensure
-                                           :interactive))
-                   (lambda (package)
-                     ;; Value of NO-CLONE has a meaning that is the
-                     ;; opposite of ONLY-IF-INSTALLED.
-                     (not
-                      (y-or-n-p
-                       (format "Install package %S? " package))))))))))
-  (defun straight--use-package-pre-ensure-function
-      (name ensure state)
-    (straight--use-package-ensure-function
-     name ensure state :pre-ensure 'only-if-installed))
-  ;; The last two function definitions are not at the top level, so
-  ;; the byte-compiler doesn't know about them unless we explicitly
-  ;; use `declare-function'.
-  (declare-function straight--use-package-ensure-function "straight")
-  (declare-function straight--use-package-pre-ensure-function "straight")
-  ;; Set the package management functions
+  (eval-and-compile
+    (defun straight-use-package-ensure-function
+        (name ensure state context &optional only-if-installed)
+      "Value for `use-package-ensure-function' that uses straight.el.
+The meanings of args NAME, ENSURE, STATE, CONTEXT are the same as
+in `use-package-ensure-function' (which see). ONLY-IF-INSTALLED
+is a nonstandard argument that indicates the package should use
+lazy installation."
+      (when ensure
+        (let ((recipe (or (and (not (eq ensure t)) ensure)
+                          (plist-get state :recipe)
+                          name)))
+          (straight-use-package
+           recipe (or
+                   ;; Normalize value of `only-if-installed'.
+                   (and only-if-installed 'lazy)
+                   (unless (member context '(:byte-compile :ensure
+                                             :config :pre-ensure
+                                             :interactive))
+                     (lambda (package)
+                       ;; Value of NO-CLONE has a meaning that is the
+                       ;; opposite of ONLY-IF-INSTALLED.
+                       (not
+                        (y-or-n-p
+                         (format "Install package %S? " package))))))))))
+
+    (defun straight-use-package-pre-ensure-function
+        (name ensure state)
+      "Value for `use-package-pre-ensure-function' that uses straight.el.
+The meanings of args NAME, ENSURE, STATE are the same as in
+`use-package-pre-ensure-function'."
+      (straight-use-package-ensure-function
+       name ensure state :pre-ensure 'only-if-installed)))
+
+  ;; Set the package management functions.
   (setq use-package-ensure-function
-        #'straight--use-package-ensure-function)
+        #'straight-use-package-ensure-function)
   (setq use-package-pre-ensure-function
-        #'straight--use-package-pre-ensure-function))
+        #'straight-use-package-pre-ensure-function))
 
 ;;;; Closing remarks
 
