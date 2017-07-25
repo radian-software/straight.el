@@ -3293,7 +3293,49 @@ This is an `:override' advice for
 
 ;;;; use-package integration
 
+;; Make it so that `:ensure' uses `straight-use-package' instead of
+;; `package-install'.
+(eval-and-compile
+  (defun straight-use-package-ensure-function
+      (name ensure state context &optional only-if-installed)
+    "Value for `use-package-ensure-function' that uses straight.el.
+The meanings of args NAME, ENSURE, STATE, CONTEXT are the same as
+in `use-package-ensure-function' (which see). ONLY-IF-INSTALLED
+is a nonstandard argument that indicates the package should use
+lazy installation."
+    (when ensure
+      (let ((recipe (or (and (not (eq ensure t)) ensure)
+                        (plist-get state :recipe)
+                        name)))
+        (straight-use-package
+         recipe (or
+                 ;; Normalize value of `only-if-installed'.
+                 (and only-if-installed 'lazy)
+                 (unless (member context '(:byte-compile :ensure
+                                                         :config :pre-ensure
+                                                         :interactive))
+                   (lambda (package)
+                     ;; Value of NO-CLONE has a meaning that is the
+                     ;; opposite of ONLY-IF-INSTALLED.
+                     (not
+                      (y-or-n-p
+                       (format "Install package %S? " package))))))))))
+
+  (defun straight-use-package-pre-ensure-function
+      (name ensure state)
+    "Value for `use-package-pre-ensure-function' that uses straight.el.
+The meanings of args NAME, ENSURE, STATE are the same as in
+`use-package-pre-ensure-function'."
+    (straight-use-package-ensure-function
+     name ensure state :pre-ensure 'only-if-installed)))
+
 (with-eval-after-load 'use-package
+
+  ;; Set the package management functions.
+  (setq use-package-ensure-function
+        #'straight-use-package-ensure-function)
+  (setq use-package-pre-ensure-function
+        #'straight-use-package-pre-ensure-function)
 
   ;; Register aliases for :ensure. Aliases later in the list will
   ;; override those earlier. (But there is no legitimate reason to use
@@ -3327,49 +3369,7 @@ This is an `:override' advice for
        `(defun ,(intern (format "use-package-handler/%S" keyword))
             (name keyword recipe rest state)
           (use-package-process-keywords
-            name rest (plist-put state :recipe recipe))))))
-
-  ;; Make it so that `:ensure' uses `straight-use-package' instead of
-  ;; `package-install'.
-  (eval-and-compile
-    (defun straight-use-package-ensure-function
-        (name ensure state context &optional only-if-installed)
-      "Value for `use-package-ensure-function' that uses straight.el.
-The meanings of args NAME, ENSURE, STATE, CONTEXT are the same as
-in `use-package-ensure-function' (which see). ONLY-IF-INSTALLED
-is a nonstandard argument that indicates the package should use
-lazy installation."
-      (when ensure
-        (let ((recipe (or (and (not (eq ensure t)) ensure)
-                          (plist-get state :recipe)
-                          name)))
-          (straight-use-package
-           recipe (or
-                   ;; Normalize value of `only-if-installed'.
-                   (and only-if-installed 'lazy)
-                   (unless (member context '(:byte-compile :ensure
-                                             :config :pre-ensure
-                                             :interactive))
-                     (lambda (package)
-                       ;; Value of NO-CLONE has a meaning that is the
-                       ;; opposite of ONLY-IF-INSTALLED.
-                       (not
-                        (y-or-n-p
-                         (format "Install package %S? " package))))))))))
-
-    (defun straight-use-package-pre-ensure-function
-        (name ensure state)
-      "Value for `use-package-pre-ensure-function' that uses straight.el.
-The meanings of args NAME, ENSURE, STATE are the same as in
-`use-package-pre-ensure-function'."
-      (straight-use-package-ensure-function
-       name ensure state :pre-ensure 'only-if-installed)))
-
-  ;; Set the package management functions.
-  (setq use-package-ensure-function
-        #'straight-use-package-ensure-function)
-  (setq use-package-pre-ensure-function
-        #'straight-use-package-pre-ensure-function))
+            name rest (plist-put state :recipe recipe)))))))
 
 ;;;; Closing remarks
 
