@@ -1341,7 +1341,7 @@ the straight.el bootstrap is run.")
 
 ;;;;; Recipe repositories
 
-(defvar straight--recipe-repository-stack ()
+(defvar straight--recipe-repository-stack nil
   "A list of recipe repositories that are currently being searched.
 This is used to detect and prevent an infinite recursion when
 searching for recipe repository recipes in other recipe
