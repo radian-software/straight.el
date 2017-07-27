@@ -49,9 +49,9 @@
 (straight--reset-caches)
 
 ;; Treat the first init as a transaction.
-(unless after-init-time
-  (add-hook 'after-init-hook #'straight--finalize-transaction)
-  (straight--begin-transaction)
+(unless (and after-init-time (not (bound-and-true-p straight-treat-as-init)))
+  (add-hook 'after-init-hook #'straight-finalize-transaction)
+  (straight-begin-transaction)
   (straight-mark-transaction-as-init))
 
 ;; So meta. This updates the various caches, so that straight.el shows

@@ -526,32 +526,39 @@ calls."
     ;; reverse order.
     (push (cons id end-func) straight--transaction-alist)))
 
-(defun straight--begin-transaction ()
+(defun straight-begin-transaction ()
   "Begin a transaction. See `straight--transaction-p'.
 If you call this function, you *must* call
-`straight--finalize-transaction' after all of your operations
+`straight-finalize-transaction' after all of your operations
 have been performed, even if there was an error."
   (setq straight--transaction-depth (1+ straight--transaction-depth)))
 
-(defun straight--finalize-transaction ()
+(defun straight-finalize-transaction ()
   "Finalize a transaction. See `straight--transaction-p'."
-  (setq straight--transaction-depth (1- straight--transaction-depth))
-  ;; Do the error-prone operations last, so that we don't leave the
-  ;; transaction active.
-  (when (= straight--transaction-depth 0)
-    (let ((alist straight--transaction-alist))
-      (setq straight--transaction-alist nil)
-      (dolist (end-func (mapcar #'cdr alist))
-        (when end-func
-          (funcall end-func))))))
+  (unless (<= straight--transaction-depth 0)
+    (setq straight--transaction-depth (1- straight--transaction-depth))
+    ;; Do the error-prone operations last, so that we don't leave the
+    ;; transaction active.
+    (when (= straight--transaction-depth 0)
+      (let ((alist straight--transaction-alist))
+        (setq straight--transaction-alist nil)
+        (dolist (end-func (mapcar #'cdr alist))
+          (when end-func
+            (funcall end-func)))))))
 
 (defmacro straight-transaction (&rest body)
   "Eval BODY within transaction. Return value is result of last form in BODY."
   (declare (indent defun))
   `(progn
-     (straight--begin-transaction)
+     (straight-begin-transaction)
      (unwind-protect (progn ,@body)
-       (straight--finalize-transaction))))
+       (straight-finalize-transaction))))
+
+(defun straight-interactive-transaction ()
+  "Start a recursive edit within a transaction."
+  (interactive)
+  (straight-transaction
+    (recursive-edit)))
 
 ;;;; Version control
 
@@ -1422,6 +1429,14 @@ is nil, then `straight--profile-cache-valid' is set to nil.")
      (setq straight--functional-p t))
    (lambda ()
      (setq straight--functional-p nil))))
+
+(defvar straight-treat-as-init nil
+  "Non-nil if straight.el should pretend like initial init is in progress.
+This variable is designed for cases when your init-file is first
+loaded after init has completed, for some reason (e.g. if you are
+profiling it using `esup'). To use it, bind it to non-nil for the
+duration of loading your init-file, and then make sure to call
+`straight-finalize-transaction'")
 
 ;;;;; Recipe repositories
 
