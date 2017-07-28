@@ -2025,7 +2025,7 @@ modified since their last builds.")
         (maphash (lambda (local-repo _)
                    (goto-char (point-min))
                    (when (re-search-forward
-                          (regexp-quote (format "^./%s/" local-repo))
+                          (format "^\\./%s/" (regexp-quote local-repo))
                           nil 'noerror)
                      (puthash
                       local-repo t straight--cached-package-modifications)))
