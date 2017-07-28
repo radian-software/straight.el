@@ -13,8 +13,8 @@
 ;; clones packages into your ~/.emacs.d and handles byte-compilation,
 ;; autoload generation, and load path management. Dependency
 ;; management, powerful tools for managing your packages in bulk, and
-;; out-of-the-box compatibility with MELPA, GNU ELPA, and EmacsMirror
-;; are also included.
+;; out-of-the-box compatibility with MELPA and EmacsMirror are also
+;; included.
 
 ;; straight.el improves on other package managers in several ways.
 ;; Most importantly, it offers first-class support for easily
@@ -116,6 +116,25 @@ whose keys are symbols naming packages."
   :type '(alist :key-type symbol :value-type
            (alist :key-type symbol :value-type
              (plist :key-type symbol :value-type sexp)))
+  :group 'straight)
+
+(defcustom straight-enable-package-integration t
+  "Whether to enable \"integration\" with package.el.
+This means that `package-enable-at-startup' is disabled, and
+advices are put on `package--ensure-init-file' and
+`package--save-selected-packages' to prevent package.el from
+modifying the init-file."
+  :type 'boolean
+  :group 'straight)
+
+(defcustom straight-enable-use-package-integration t
+  "Whether to enable integration with `use-package'.
+This means that a new `:recipe' handler is added, the normalizer
+for `:ensure' is overridden, and `use-package-ensure-function'
+and `use-package-pre-ensure-function' are set. The net effect is
+that `:ensure' uses straight.el instead of package.el by
+default."
+  :type 'boolean
   :group 'straight)
 
 ;;;; Utility functions
@@ -378,7 +397,8 @@ If the command fails, throw an error."
       (unless (= 0 (apply #'call-process command
                           nil '(t t) nil args))
         (error "Command failed: %s %s (output: %S) (default-directory: %S)"
-               command (string-join args " ") (buffer-string) default-directory)))
+               command (string-join args " ")
+               (buffer-string) default-directory)))
     (buffer-string)))
 
 (defun straight--get-call (command &rest args)
@@ -789,19 +809,6 @@ necessarily need to match DESIRED-URL; it just has to satisfy
 but recipe specifies a URL of
   %S"
                      local-repo remote actual-url desired-url)
-             ("u" (format "Set URL of remote %S correctly and fetch"
-                          remote)
-              (straight--get-call
-               "git" "remote" "set-url" remote desired-url)
-              (straight--get-call
-               "git" "fetch" remote))
-             ("U" (format "Set URL of remote %S manually and fetch"
-                          remote)
-              (straight--get-call
-               "git" "remote" "set-url" remote
-               (read-string "Enter new remote URL: "))
-              (straight--get-call
-               "git" "fetch" remote))
              ("r" (format (concat "Rename remote %S to %S, "
                                   "re-create %S with correct URL, and fetch")
                           remote new-remote remote)
@@ -936,7 +943,8 @@ confirmation, so this function should only be run after
    (let* ((cur-branch (straight--get-call
                        "git" "rev-parse" "--abbrev-ref" "HEAD"))
           (head-detached-p (string= cur-branch "HEAD"))
-          (ref-name (or ref "HEAD")))
+          (ref-name (or ref "HEAD"))
+          (quoted-ref-name (if ref (format "%S" ref) "HEAD")))
      (cond
       ((and ref
             (not (straight--check-call
@@ -984,7 +992,8 @@ confirmation, so this function should only be run after
           ;; confuse this syntax with the syntax of the
           ;; `straight-popup' macro.
           `(,@(when ref-ahead-p
-                `(("f" ,(format "Fast-forward branch %S to %s" branch ref-name)
+                `(("f" ,(format "Fast-forward branch %S to %s"
+                                branch quoted-ref-name)
                    ,(lambda ()
                       (straight--get-call
                        "git" "reset" "--hard" ref-name)))))
@@ -994,21 +1003,22 @@ confirmation, so this function should only be run after
                       (straight--get-call
                        "git" "checkout" branch)))))
             ,@(unless (or ref-ahead-p ref-behind-p)
-                `(("m" ,(format "Merge %S to branch %S" ref branch)
+                `(("m" ,(format "Merge %S to branch %S" quoted-ref-name branch)
                    ,(lambda ()
                       (if ref
                           (straight--check-call
                            "git" "merge" ref)
                         (let ((orig-head
                                (straight--get-call
-                                "git" "rev-parse" ref-name)))
+                                "git" "rev-parse" "HEAD")))
                           (straight--get-call
                            "git" "checkout" branch)
                           ;; Merge might not succeed, so don't throw
                           ;; on error.
                           (straight--check-call
                            "git" "merge" orig-head)))))
-                  ("r" ,(format "Reset branch %S to %S" branch ref)
+                  ("r" ,(format "Reset branch %S to %s"
+                                branch quoted-ref-name)
                    ,(lambda ()
                       (straight--get-call
                        "git" "reset" "--hard" ref-name)))
@@ -1018,25 +1028,25 @@ confirmation, so this function should only be run after
                             (straight--get-call
                              "git" "checkout" branch)))))
                   ,(if ref
-                       `("R" ,(format (concat "Rebase HEAD onto branch %S "
-                                              "and fast-forward %S to HEAD")
-                                      branch branch)
+                       `("R" ,(format "Rebase branch %S onto %S" branch ref)
                          ,(lambda ()
-                            ;; If the rebase encounters a conflict, no
-                            ;; sweat: the possibility of a
-                            ;; fast-forward will be detected elsewhere
-                            ;; in this function the next time around.
-                            ;; But we might as well finish the job if
-                            ;; we can.
-                            (and (straight--check-call
-                                  "git" "rebase" branch)
-                                 (straight--get-call
-                                  "git" "reset" "--hard" ref-name))))
-                     `("R" ,(format "Rebase branch %S onto %S" branch ref)
+                            ;; Rebase might fail, don't throw on
+                            ;; error.
+                            (straight--check-call
+                             "git" "rebase" ref branch)))
+                     `("R" ,(format (concat "Rebase HEAD onto branch %S "
+                                            "and fast-forward %S to HEAD")
+                                    branch branch)
                        ,(lambda ()
-                          ;; Rebase might fail, don't throw on error.
-                          (straight--check-call
-                           "git" "rebase" ref branch))))))))))))))
+                          ;; If the rebase encounters a conflict, no
+                          ;; sweat: the possibility of a fast-forward
+                          ;; will be detected elsewhere in this
+                          ;; function the next time around. But we
+                          ;; might as well finish the job if we can.
+                          (and (straight--check-call
+                                "git" "rebase" branch)
+                               (straight--get-call
+                                "git" "reset" "--hard" ref-name)))))))))))))))
 
 (cl-defun straight-vc-git--pull-from-remote-raw (recipe remote remote-branch)
   "Using straight.el-style RECIPE, pull from REMOTE.
@@ -1331,7 +1341,7 @@ the straight.el bootstrap is run.")
 
 ;;;;; Recipe repositories
 
-(defvar straight--recipe-repository-stack ()
+(defvar straight--recipe-repository-stack nil
   "A list of recipe repositories that are currently being searched.
 This is used to detect and prevent an infinite recursion when
 searching for recipe repository recipes in other recipe
@@ -1442,32 +1452,6 @@ return nil."
 (defun straight-recipes-melpa-list ()
   "Return a list of recipes available in MELPA, as a list of strings."
   (directory-files "recipes" nil "^[^.]" 'nosort))
-
-;;;;;; GNU ELPA
-
-(defcustom straight-recipes-gnu-elpa-url
-  "https://git.savannah.gnu.org/git/emacs/elpa.git"
-  "URL of the Git repository for the GNU ELPA package repository."
-  :type 'string
-  :group 'straight)
-
-(defun straight-recipes-gnu-elpa-retrieve (package)
-  "Look up a PACKAGE recipe in GNU ELPA.
-PACKAGE should be a symbol. If the package is maintained in GNU
-ELPA, a MELPA-style recipe is returned. Otherwise nil is
-returned."
-  (when (file-exists-p (concat "packages/" (symbol-name package)))
-    ;; All the packages in GNU ELPA are just subdirectories of the
-    ;; same repository.
-    `(,package :type git
-               :repo ,straight-recipes-gnu-elpa-url
-               :files (,(format "packages/%s/*.el"
-                                (symbol-name package)))
-               :local-repo "elpa")))
-
-(defun straight-recipes-gnu-elpa-list ()
-  "Return a list of recipes available in GNU ELPA, as a list of strings."
-  (directory-files "packages" nil "^[^.]" 'nosort))
 
 ;;;;;; EmacsMirror
 
@@ -1637,11 +1621,11 @@ for dependency resolution."
               ;;
               ;; Instead, this code makes it so that if a recipe has
               ;; been automatically retrieved from a recipe repository
-              ;; (for example, MELPA, GNU ELPA, or Emacsmirror), and
-              ;; the `:local-repo' specified in that recipe has
-              ;; already been used for another package, then the
-              ;; configuration for that repository will silently be
-              ;; copied over, and everything should "just work".
+              ;; (for example, MELPA or Emacsmirror), and the
+              ;; `:local-repo' specified in that recipe has already
+              ;; been used for another package, then the configuration
+              ;; for that repository will silently be copied over, and
+              ;; everything should "just work".
               ;;
               ;; Note that this weird edge case is totally unrelated
               ;; to the weird edge cases discussed earlier (in the
@@ -2019,7 +2003,8 @@ reinit has been completed."
                straight--build-cache)
               ;; The preamble to the find(1) command, which comes
               ;; before the repository-specific subparts (see above).
-              (setq args (append (list "." "-depth" "2" "-name" ".git" "-prune")
+              (setq args (append (list "." "-depth" "2"
+                                       "-name" ".git" "-prune")
                                  args))
               (with-temp-buffer
                 (let ((default-directory (straight--dir "repos")))
@@ -2087,7 +2072,7 @@ all files in the package's local repository."
 (defvar straight-default-files-directive
   '("*.el" "*.el.in" "dir"
     "*.info" "*.texi" "*.texinfo"
-    "doc/dir" "doc/*.info" "doc/*.texi" "doc/*.texinfo"
+    "doc/dir" "doc/*.info" "doc/*.texi" "doc/*.texinfo" "lisp/*.el"
     (:exclude ".dir-locals.el" "test.el" "tests.el" "*-test.el" "*-tests.el"))
   "Default value for the `:files' directive in recipes.
 It is also spliced in at any point where the `:default' keyword
@@ -2567,9 +2552,15 @@ package. It is assumed that the package has already been built.
 RECIPE is a straight.el-style plist."
   (straight--with-plist recipe
       (package)
-    (load (straight--file
-           "build" package (straight--autoload-file-name package))
-          nil 'nomessage)))
+    (let ((autoloads (straight--file
+                      "build" package (straight--autoload-file-name package))))
+      ;; If the autoloads file doesn't exist, don't throw an error. It
+      ;; seems that in Emacs 26, an autoloads file is not actually
+      ;; written if there are no autoloads to generate (although this
+      ;; is unconfirmed), so this is especially important in that
+      ;; case.
+      (when (file-exists-p autoloads)
+        (load autoloads nil 'nomessage)))))
 
 ;;;; Interactive helpers
 ;;;;; Package selection
@@ -3093,7 +3084,7 @@ See also `straight-check-all' and `straight-rebuild-package'."
 PACKAGE is a string naming a package. Interactively, select
 PACKAGE from the known packages in the current Emacs session
 using `completing-read'."
-  (interactive (list (straight--select-package "Update package")))
+  (interactive (list (straight--select-package "Normalize package")))
   (let ((recipe (gethash package straight--recipe-cache)))
     (straight-vc-normalize recipe)))
 
@@ -3273,47 +3264,45 @@ according to the value of `straight-profiles'."
                (straight-vc-check-out-commit
                 type local-repo commit)))))))))
 
-;;;; Mess with other packages
+;;;; package.el "integration"
 
-;; Prevent package.el from inserting a call to `package-initialize' in
-;; the init-file.
-(setq package-enable-at-startup nil)
+(when straight-enable-package-integration
 
-(with-eval-after-load 'use-package
-  ;; Register aliases for :ensure. Aliases later in the list will
-  ;; override those earlier. (But there is no legitimate reason to use
-  ;; more than one in a `use-package' declaration, at least in sane
-  ;; situations.) The reason we also handle `:ensure' is because the
-  ;; default value of `use-package-normalize/:ensure' is not flexible
-  ;; enough to handle recipes like we need it to.
-  (dolist (keyword '(:recipe :ensure))
-    ;; Insert the keyword just before `:ensure'.
-    (unless (member keyword use-package-keywords)
-      (setq use-package-keywords
-            (let* ((pos (cl-position :ensure use-package-keywords))
-                   (head (cl-subseq use-package-keywords 0 pos))
-                   (tail (cl-subseq use-package-keywords pos)))
-              (append head (list keyword) tail))))
-    ;; Define the normalizer for the keyword.
-    (eval
-     `(defun ,(intern (format "use-package-normalize/%S" keyword))
-          (name-symbol keyword args)
-        (use-package-only-one (symbol-name keyword) args
-          (lambda (label arg)
-            (if (keywordp (car-safe arg))
-                (cons name-symbol arg)
-              arg)))))
-    ;; Define the handler. We don't need to do this for `:ensure'.
-    (unless (eq keyword :ensure)
-      (eval
-       `(defun ,(intern (format "use-package-handler/%S" keyword))
-            (name keyword recipe rest state)
-          (use-package-process-keywords
-            name rest (plist-put state :recipe recipe))))))
-  ;; Make it so that `:ensure' uses `straight-use-package' instead of
-  ;; `package-install'.
-  (defun straight--use-package-ensure-function
+  ;; Don't load package.el after init finishes.
+  (setq package-enable-at-startup nil)
+
+  ;; Prevent package.el from modifying the init-file.
+  (eval-and-compile
+    (defalias 'straight--advice-neuter-package-ensure-init-file #'ignore
+      "Prevent package.el from modifying the init-file.
+This is an `:override' advice for `package--ensure-init-file'.")
+    (defun straight--package-save-selected-packages (&optional value)
+      "Set and save `package-selected-packages' to VALUE.
+But don't mess with the init-file."
+      (when value
+        (setq package-selected-packages value)))
+    (defalias 'straight--advice-neuter-package-save-selected-packages
+      #'straight--package-save-selected-packages
+      "Prevent package.el from modifying the init-file.
+This is an `:override' advice for
+`package--save-selected-packages'."))
+  (advice-add #'package--ensure-init-file :override
+              #'straight--advice-neuter-package-ensure-init-file)
+  (advice-add #'package--save-selected-packages :override
+              #'straight--advice-neuter-package-save-selected-packages))
+
+;;;; use-package integration
+
+;; Make it so that `:ensure' uses `straight-use-package' instead of
+;; `package-install'.
+(eval-and-compile
+  (defun straight-use-package-ensure-function
       (name ensure state context &optional only-if-installed)
+    "Value for `use-package-ensure-function' that uses straight.el.
+The meanings of args NAME, ENSURE, STATE, CONTEXT are the same as
+in `use-package-ensure-function' (which see). ONLY-IF-INSTALLED
+is a nonstandard argument that indicates the package should use
+lazy installation."
     (when ensure
       (let ((recipe (or (and (not (eq ensure t)) ensure)
                         (plist-get state :recipe)
@@ -3323,28 +3312,64 @@ according to the value of `straight-profiles'."
                  ;; Normalize value of `only-if-installed'.
                  (and only-if-installed 'lazy)
                  (unless (member context '(:byte-compile :ensure
-                                           :config :pre-ensure
-                                           :interactive))
+                                                         :config :pre-ensure
+                                                         :interactive))
                    (lambda (package)
                      ;; Value of NO-CLONE has a meaning that is the
                      ;; opposite of ONLY-IF-INSTALLED.
                      (not
                       (y-or-n-p
                        (format "Install package %S? " package))))))))))
-  (defun straight--use-package-pre-ensure-function
+
+  (defun straight-use-package-pre-ensure-function
       (name ensure state)
-    (straight--use-package-ensure-function
-     name ensure state :pre-ensure 'only-if-installed))
-  ;; The last two function definitions are not at the top level, so
-  ;; the byte-compiler doesn't know about them unless we explicitly
-  ;; use `declare-function'.
-  (declare-function straight--use-package-ensure-function "straight")
-  (declare-function straight--use-package-pre-ensure-function "straight")
-  ;; Set the package management functions
+    "Value for `use-package-pre-ensure-function' that uses straight.el.
+The meanings of args NAME, ENSURE, STATE are the same as in
+`use-package-pre-ensure-function'."
+    (straight-use-package-ensure-function
+     name ensure state :pre-ensure 'only-if-installed)))
+
+(with-eval-after-load 'use-package
+
+  ;; Set the package management functions.
   (setq use-package-ensure-function
-        #'straight--use-package-ensure-function)
+        #'straight-use-package-ensure-function)
   (setq use-package-pre-ensure-function
-        #'straight--use-package-pre-ensure-function))
+        #'straight-use-package-pre-ensure-function)
+
+  ;; Register aliases for :ensure. Aliases later in the list will
+  ;; override those earlier. (But there is no legitimate reason to use
+  ;; more than one in a `use-package' declaration, at least in sane
+  ;; situations.) The reason we also handle `:ensure' is because the
+  ;; default value of `use-package-normalize/:ensure' is not flexible
+  ;; enough to handle recipes like we need it to.
+  (dolist (keyword '(:recipe :ensure))
+
+    ;; Insert the keyword just before `:ensure'.
+    (unless (member keyword use-package-keywords)
+      (setq use-package-keywords
+            (let* ((pos (cl-position :ensure use-package-keywords))
+                   (head (cl-subseq use-package-keywords 0 pos))
+                   (tail (cl-subseq use-package-keywords pos)))
+              (append head (list keyword) tail))))
+
+    ;; Define the normalizer for the keyword.
+    (eval
+     `(defun ,(intern (format "use-package-normalize/%S" keyword))
+          (name-symbol keyword args)
+        (use-package-only-one (symbol-name keyword) args
+          (lambda (label arg)
+            (if (keywordp (car-safe arg))
+                (cons name-symbol arg)
+              arg)))))
+
+    ;; Define the handler. We don't need to do this for `:ensure'.
+    (unless (eq keyword :ensure)
+      (eval
+       `(defun ,(intern (format "use-package-handler/%S" keyword))
+            (name keyword recipe rest state)
+          (use-package-process-keywords
+            name rest (plist-put state :recipe recipe)))))))
 
 ;;;; Closing remarks
 

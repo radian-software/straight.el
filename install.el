@@ -154,8 +154,7 @@
                          straight-vc-git-primary-remote
                          straight-vc-git-upstream-remote
                          straight-vc-git-default-protocol
-                         straight-vc-git-force-protocol
-                         straight-recipes-gnu-elpa-url)))
+                         straight-vc-git-force-protocol)))
        (current-buffer))
       (goto-char (point-max))
       (print
@@ -163,9 +162,10 @@
           ;; Don't worry, this recipe will be overridden by
           ;; `straight-recipe-overrides' if that variable has been
           ;; set. We're just mirroring bootstrap.el.
-          (straight-use-package-no-build '(straight :type git :host github
-                                                    :repo "raxod502/straight.el"
-                                                    :files ("straight.el")))
+          (straight-use-package-no-build
+           '(straight :type git :host github
+                      :repo "raxod502/straight.el"
+                      :files ("straight.el")))
           (let* ((recipe (gethash "straight" straight--recipe-cache))
                  (local-repo (plist-get recipe :local-repo))
                  ;; This is a relative symlink. It won't break if you
