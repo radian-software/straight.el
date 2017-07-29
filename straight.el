@@ -2002,8 +2002,7 @@ modified since their last builds.")
                 (puthash local-repo t repos)))))))
     ;; The preamble to the find(1) command, which comes before the
     ;; repository-specific subparts (see above).
-    (setq command (append (list "find" "." "-depth" "2"
-                                "-name" ".git" "-prune")
+    (setq command (append (list "find" "." "-name" ".git" "-prune")
                           command))
     (with-temp-buffer
       (let ((default-directory (straight--dir "repos"))
