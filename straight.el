@@ -2018,7 +2018,7 @@ modified since their last builds.")
           ;; find(1) always returns zero unless there was some kind of
           ;; error.
           (unless (= 0 return)
-            (error "Command failed: %s: %s"
+            (error "Command failed: %s:\n%s"
                    (string-join (mapcar #'shell-quote-argument command) " ")
                    (with-current-buffer stderr-buffer
                      (buffer-string)))))
@@ -2088,7 +2088,7 @@ all files in the package's local repository."
                                     :buffer (current-buffer)
                                     :stderr stderr-buffer)))
                       (unless (= 0 return)
-                        (error "Command failed: %s: %s"
+                        (error "Command failed: %s:\n%s"
                                (string-join
                                 (mapcar #'shell-quote-argument command)
                                 " ")
