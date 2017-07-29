@@ -2145,8 +2145,8 @@ things in your config:
 * Don't bother calling `straight-declare-init-finished`; it's no
   longer needed.
 * In any function that is likely to evaluate multiple
-  `straight-use-package` (for example, the function that reloads your
-  init-file), you should wrap the evaluation in a
+  `straight-use-package` forms (for example, a function that reloads
+  your init-file), you should wrap the evaluation in a
   `straight-transaction` block for improved performance.
 * In any function that loads your whole init-file, put a call to
   `straight-mark-transaction-as-init` at the start of the transaction
