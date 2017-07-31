@@ -407,16 +407,6 @@ Return a string with whitespace trimmed from both ends. If the
 command fails, throw an error."
   (string-trim (apply #'straight--get-call-raw command args)))
 
-(defun straight--make-process (&rest args)
-  "Like `make-process' on ARGS, but synchronous. Return the exit code.
-Also set the default process sentinel to `ignore', and add a
-default `:name'."
-  (let ((process (apply #'make-process (append args `(:sentinel ,#'ignore
-                                                      :name "straight")))))
-    (while (process-live-p process)
-      (accept-process-output process nil nil 'just-this-one))
-    (process-exit-status process)))
-
 ;;;;; Interactive popup windows
 
 (defun straight-popup-raw (prompt actions)
@@ -1955,7 +1945,7 @@ modified since their last builds.")
         ;; already. This table maps repo names to booleans.
         (repos (make-hash-table :test #'equal))
         ;; The systematically generated arguments for find(1).
-        (command nil))
+        (args nil))
     (dolist (package straight--eagerly-checked-packages)
       (when-let (build-info (gethash package straight--build-cache))
         ;; Don't use `cl-destructuring-bind', as that will
@@ -1984,13 +1974,13 @@ modified since their last builds.")
                     ;; with busybox/find, see [1].
                     ;;
                     ;; [1]: https://github.com/raxod502/straight.el/issues/78
-                    (setq command (append (list "-o"
-                                                "-path"
-                                                (format "./%s/*" local-repo)
-                                                "-newermt"
-                                                mtime
-                                                "-print")
-                                          command))
+                    (setq args (append (list "-o"
+                                             "-path"
+                                             (format "./%s/*" local-repo)
+                                             "-newermt"
+                                             mtime
+                                             "-print")
+                                       args))
                   ;; If no mtime is specified, it means the package
                   ;; definitely needs to be (re)built. Probably there
                   ;; was an error and we couldn't finish building the
@@ -2002,25 +1992,17 @@ modified since their last builds.")
                 (puthash local-repo t repos)))))))
     ;; The preamble to the find(1) command, which comes before the
     ;; repository-specific subparts (see above).
-    (setq command (append (list "find" "." "-name" ".git" "-prune")
-                          command))
+    (setq args (append (list "." "-name" ".git" "-prune")
+                       args))
     (with-temp-buffer
-      (let ((default-directory (straight--dir "repos"))
-            (stderr-buffer (get-buffer-create " *straight-stderr*")))
-        ;; Just in case there was garbage from a previous command.
-        (with-current-buffer stderr-buffer
-          (erase-buffer))
-        (let ((return (straight--make-process
-                       :command command
-                       :buffer (current-buffer)
-                       :stderr stderr-buffer)))
+      (let ((default-directory (straight--dir "repos")))
+        (let ((return (apply #'call-process "find" nil '(t t) nil args)))
           ;; find(1) always returns zero unless there was some kind of
           ;; error.
           (unless (= 0 return)
-            (error "Command failed: %s:\n%s"
-                   (string-join (mapcar #'shell-quote-argument command) " ")
-                   (with-current-buffer stderr-buffer
-                     (buffer-string)))))
+            (error "Command failed: find %s:\n%s"
+                   (string-join (mapcar #'shell-quote-argument args) " ")
+                   (buffer-string))))
         (maphash (lambda (local-repo _)
                    (goto-char (point-min))
                    (when (re-search-forward
@@ -2074,25 +2056,20 @@ all files in the package's local repository."
                   (with-temp-buffer
                     (let* ((default-directory
                              (straight--dir "repos" local-repo))
-                           (stderr-buffer
-                            (get-buffer-create " *straight-stderr*"))
                            ;; This find(1) command ignores the .git
                            ;; directory, and prints the names of any
                            ;; files or directories with a newer mtime
                            ;; than the one specified.
-                           (command `("find" "." "-name" ".git" "-prune"
-                                      "-o" "-newermt" ,last-mtime "-print"))
-                           (return (straight--make-process
-                                    :command command
-                                    :buffer (current-buffer)
-                                    :stderr stderr-buffer)))
+                           (args `("." "-name" ".git" "-prune"
+                                   "-o" "-newermt" ,last-mtime "-print"))
+                           (return (apply #'call-process "find"
+                                          nil '(t t) nil args)))
                       (unless (= 0 return)
-                        (error "Command failed: %s:\n%s"
+                        (error "Command failed: find %s:\n%s"
                                (string-join
-                                (mapcar #'shell-quote-argument command)
+                                (mapcar #'shell-quote-argument args)
                                 " ")
-                               (with-current-buffer stderr-buffer
-                                 (buffer-string))))
+                               (buffer-string)))
                       ;; If anything was printed, the package has
                       ;; (maybe) been modified.
                       (> (buffer-size) 0))))))))))
