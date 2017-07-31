@@ -3314,8 +3314,8 @@ lazy installation."
                  ;; Normalize value of `only-if-installed'.
                  (and only-if-installed 'lazy)
                  (unless (member context '(:byte-compile :ensure
-                                                         :config :pre-ensure
-                                                         :interactive))
+                                           :config :pre-ensure
+                                           :interactive))
                    (lambda (package)
                      ;; Value of NO-CLONE has a meaning that is the
                      ;; opposite of ONLY-IF-INSTALLED.
