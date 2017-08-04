@@ -1,6 +1,8 @@
 **straight.el**: next-generation, purely functional package manager
 for the [Emacs] hacker.
 
+(If you've been here before, check out the [news]!)
+
 <!-- longlines-start -->
 
 <!-- toc -->
@@ -65,7 +67,7 @@ for the [Emacs] hacker.
   * [Version control operations](#version-control-operations)
   * [Lockfile management](#lockfile-management)
     + [The profile system](#the-profile-system)
-  * [The init lifecycle](#the-init-lifecycle)
+  * [The transaction system](#the-transaction-system)
   * [Using `straight.el` to reproduce bugs](#using-straightel-to-reproduce-bugs)
   * [Integration with `use-package`](#integration-with-use-package-1)
   * ["Integration" with `package.el`](#integration-with-packageel)
@@ -73,6 +75,8 @@ for the [Emacs] hacker.
 - [Developer manual](#developer-manual)
 - [Trivia](#trivia)
   * [Comments and docstrings](#comments-and-docstrings)
+- [News](#news)
+  * [July 27, 2017](#july-27-2017)
 
 <!-- tocstop -->
 
@@ -148,27 +152,6 @@ Even if you want to use a particular version or branch of
 `straight.el`, or even your own fork, this code does not need to be
 modified. To learn more, see the documentation
 on [configuring the installation of straight.el][straight.el-recipe].
-
-It is recommended but not required to call two functions in your
-init-file: `straight-declare-init-succeeded` and
-`straight-declare-init-finished`.
-
-* Put the following code somewhere it is *guaranteed to be run* every
-  time your init-file is loaded, *even if there is an error*:
-
-      (straight-declare-init-finished)
-
-  You can do this by wrapping your init-file in a `condition-case`
-  statement. (It is generally desirable to do this anyway, since this
-  allows you to provide graceful error handling.)
-
-* Put the following code at the end of your init-file, so that it will
-  only be run if init finishes *without errors*:
-
-      (straight-declare-init-succeeded)
-
-For information about why you want to do this, see the documentation
-on [the init lifecycle][init-lifecycle].
 
 ### Install packages
 
@@ -350,9 +333,7 @@ disabled).
 `straight.el` determines which packages are installed solely by how
 and when `straight-use-package` is invoked in your init-file, so some
 optimizations and validation operations require you to provide
-additional contextual information about the init process via
-`straight-declare-init-succeeded` and
-`straight-declare-init-finished`.
+additional contextual information by declaring "transaction" blocks.
 
 ### What is a package?
 
@@ -665,88 +646,49 @@ advanced features such as bulk package management and version locking.
 This creates some interesting challenges which other package managers
 do not have to deal with.
 
-`straight.el` solves these problems using a concept called the *init
-lifecycle*. Specifically, it treats your init-file like a function
-call that returns the packages that have been registered. This
-function is "called" when Emacs loads your init-file during
-initialization, and it is "called" again whenever you reload your
-init-file. It "returns" a value implicitly, by means of `straight.el`
-keeping track of when init begins and ends, as well as when and how
-`straight-use-package` was called during init.
+`straight.el` solves these problems using a concept called
+*transactions*. Transactions are a way of grouping calls to
+`straight-use-package`. They are actually used in many contexts to
+support various optimizations, but perhaps their most important use is
+in defining the packages that are loaded by your init-file.
 
-You communicate the init lifecycle to `straight.el` using two
-functions, `straight-declare-init-finished` and
-`straight-declare-init-succeeded`. They are used for different
-purposes.
+During initial Emacs init, `after-init-hook` is used to determine when
+your init-file has finished loading. Thus `straight.el` can tell the
+difference between packages loaded by your init-file, and packages
+installed interactively.
 
-* Since you call `straight-declare-init-succeeded` when your init-file
-  has loaded successfully in its entirety, this defines a set of
-  packages for `straight.el`. Everything from when `straight.el` is
-  bootstrapped (or the bootstrap code is invoked again, if you
-  re-loaded your init-file) to when `straight-declare-init-succeeded`
-  is called is considered as part of init, and `straight.el` defines
-  your packages to be the packages that were registered using
-  `straight-use-package` during init.
+However, you may want to add packages to your init-file without
+restarting Emacs. How can this be done? You need simply re-evaluate
+your whole init-file within a single transaction. Practically, this is
+done by having your function to reload your init-file wrap the `load`
+call in a `straight-transaction` block. This allows `straight.el` to
+tell exactly which packages are now referenced by your init-file.
 
-  If `straight-use-package` is called after init, then this
-  invalidates the knowledge that `straight.el` has of your packages.
-  Why? It is impossible to know whether the new package that has been
-  installed is supposed to be part of your Emacs configuration or not.
-  Perhaps you added a `straight-use-package` form to your init-file
-  permanently, and have just evaluated it for convenience, or perhaps
-  you called `M-x straight-use-package` to test out a package
-  temporarily. (Or you could have evaluated a temporary
-  `straight-use-package` to temporarily install a package from a
-  custom source.)
+So what is the use of this? Well, an operation like `M-x
+straight-freeze-versions` requires an exact knowledge of what packages
+are required by your init-file, so that it does not write
+interactively installed packages into your lockfiles. The
+`straight-freeze-versions` function uses the information it gains from
+the transaction system in order to prompt you to reload your init-file
+if you have installed packages since the last time your init-file was
+loaded (and `straight.el` therefore was able to determine which
+packages were actually part of your init-file).
 
-  If you attempt to perform an action like `M-x
-  straight-freeze-versions` after the package data is invalidated,
-  `straight.el` will ask you to re-load your init-file first. This
-  allows `straight.el` to compute the list of packages from scratch,
-  and determine whether that new package was actually supposed to be
-  part of your Emacs configuration (based on whether it was registered
-  during that re-init).
-
-  Now, calling `straight-declare-init-succeeded` is not actually
-  required. However, it does mean that `straight.el` has no way of
-  distinguishing packages that are part of your Emacs configuration
-  from ones that were installed ad-hoc (other than simply asking the
-  user, which is exactly what `straight.el` does if you do not bother
-  to call `straight-declare-init-succeeded`).
-
-* While `straight-declare-init-succeeded` is mostly for validation
-  purposes, `straight-declare-init-finished` is for optimization
-  purposes. Since `straight.el` keeps track of information about built
-  packages persistently (to avoid rebuilding packages unnecessarily),
-  it must write its build cache to disk. By default, it has no way of
-  knowing whether another instance of Emacs has written to the build
-  cache between invocations of `straight-use-package`, so it must load
-  and save the build cache from disk once for each package. This is
-  slow.
-
-  However, there is an obvious optimization: simply load the build
-  cache at the first invocation of `straight-use-package`, and save it
-  "later", after everything is "finished". This clearly does not work
-  in general, but it does work during Emacs initialization (and
-  re-initialization), provided we assume that only one instance of
-  Emacs is starting up at the same time, and provided that we have
-  some way of determining that init has finished.
-
-  This is where `straight-declare-init-finished` comes in: it tells
-  `straight.el` when init has finished (as the name suggests). We
-  cannot use `straight-declare-init-succeeded` for this purpose, since
-  the build cache needs to be written even when there is an error
-  (otherwise, all the packages that were built on the run with the
-  error would be rebuilt the next time, because `straight.el` would
-  not realize that they had already been built; this would lead to
-  slow debugging).
-
-  There is one obvious concern with this scheme: how does
-  `straight.el` know that `straight-declare-init-finished` is actually
-  going to be called? Luckily, it does not need to know during init:
-  it can use `after-init-hook` instead. And after init has finished,
-  `straight.el` knows whether `straight-declare-init-finished` was
-  called, and assumes that the same will happen on a re-init.
+Finally, a note on the use of transactions for optimizations. There
+are a number of setup and tear-down operations associated with package
+management. For example, to keep track of when packages need to be
+rebuilt, `straight.el` keeps a persistent build cache. Normally, this
+cache needs to be read and written after every package install. But
+that is very slow: much better is to load it at the first package
+install, and to save it at the last package install. The question then
+is how to identify the last package install. This is not possible in
+general (although in the special case of initial Emacs init,
+`after-init-hook` can be used), so `straight.el` falls back on the
+transaction system. By wrapping the entire operation in a transaction,
+`straight.el` can safely optimize the loading and saving of the build
+cache, significantly improving performance. For this reason, reloading
+your init-file is likely to be rather slow if you do not wrap the call
+in a transaction using `straight-transaction`.
 
 ## Comparison to other package managers
 
@@ -1965,7 +1907,7 @@ Similarly, when using `M-x straight-thaw-versions`, if different
 lockfiles specify revisions for the same local repository, the last
 one in `straight-profiles` will take precedence.
 
-### The init lifecycle
+### The transaction system
 
 Package managers like `package.el` store mutable state outside your
 init-file, including the set of packages that are installed.
@@ -1990,40 +1932,73 @@ see whether or not that package is registered during your init-file.
 when its bootstrap code is invoked. When Emacs is first started, it
 can tell when the init-file is done loaded using `after-init-hook`.
 But unfortunately there is no way to tell when a *re-init* has
-finished. This is why you should call
-`straight-declare-init-succeeded` at the end of your init-file, so
-that `straight.el` can allow you to safely modify your package
-management after init, without restarting Emacs. Calling this function
-is not strictly required, but if you do not, it is your responsibility
-to make sure you do not accidentally save temporarily installed
-packages to your version lockfiles.
+finished. This is where the transaction system comes in.
 
-Knowing when init has finished is also helpful for the sake of various
-optimizations. One in particular deals with saving and loading the
-build cache, which keeps track of whether packages need to be rebuilt.
-It is slow to save and load the build cache at every
-`straight-use-package` form, and much more efficient to instead load
-it once at the beginning of init and save it once at the end. However,
-this again requires some manual work on your part, to tell
-`straight.el` when your init-file has finished loading. You do this by
-calling `straight-declare-init-finished`.
+You can use the `straight-transaction` macro to wrap a block of code
+in a single transaction. This allows `straight.el` to perform various
+optimizations, and also to analyze the results of that block of code
+on your package management state as a single operation. In particular,
+if you call `straight-mark-transaction-as-init` within the transaction
+body, then `straight.el` considers that block of code as having the
+effect of reloading your init-file. Importantly, the transaction block
+tells `straight.el` when your init-file has *finished* loading. This
+allows it to correctly identify whether your package management state
+perfectly reflects your init-file, or whether you need to reload your
+init-file. (This information is used by `M-x
+straight-freeze-versions`.)
 
-The reason we need two functions here is that the semantics are quite
-different. `straight-declare-init-succeeded` is for validation: it
-prevents you from accidentally saving an invalid state to your version
-lockfiles. In particular, if init fails and not all packages have been
-registered, you wouldn't want to write that state to your version
-lockfiles. On the other hand, `straight-declare-init-finished` is for
-correctness: it allows `straight.el` to optimize the saving and
-loading of the build cache, since otherwise it could not guarantee
-that the build cache was saved after a failed init. (The practical
-consequence of this would be that `straight.el` would forget about all
-the packages it rebuilt on the failed init, and rebuild them again
-next time -- making for very slow debugging indeed!) If you don't call
-`straight-declare-init-finished`, then your initial Emacs startup is
-still fast, since `straight.el` can use `after-init-hook` to perform
-its build-cache optimization correctly. But reloading your init-file
-will be very slow.
+Here is an example of a properly implemented interactive function to
+reload the init-file:
+
+    (defun radian-reload-init ()
+      "Reload init.el."
+      (interactive)
+      (straight-transaction
+        (straight-mark-transaction-as-init)
+        (message "Reloading init.el...")
+        (load user-init-file nil 'nomessage)
+        (message "Reloading init.el... done.")))
+
+The transaction system is also used for performing various
+optimizations. The details of these optimizations are relegated to
+the [developer manual][transactions-implementation], but the
+user-facing impact is as follows: any time you are evaluating more
+than one `straight-use-package` form, the operation will be faster if
+you wrap it in a `straight-transaction` block. If the operation
+happens to correspond to a reloading of the init-file, then you should
+call `straight-mark-transaction-as-init`: this will not increase
+performance further, but it will allow the `straight-freeze-versions`
+function to know that the resulting package management state is a
+clean reflection of the state of your init-file.
+
+Here is an example of an `eval-buffer` function that correctly takes
+advantage of the transaction system for performance, and also marks
+the transaction as an init-file reloading when appropriate:
+
+    (defun radian-eval-buffer ()
+      "Evaluate the current buffer as Elisp code."
+      (interactive)
+      (message "Evaluating %s..." (buffer-name))
+      (straight-transaction
+        (if (null buffer-file-name)
+            (eval-buffer)
+          (when (string= buffer-file-name user-init-file)
+            (straight-mark-transaction-as-init))
+          (load-file buffer-file-name)))
+      (message "Evaluating %s... done." (buffer-name)))
+
+There is one final user-facing note about the transaction system,
+which is important when you want to load your init-file after Emacs
+init has already completed, but before `straight.el` has been loaded
+(so you cannot just wrap the call in `straight-transaction`). To cover
+this edge case (which arises, for example, when you wish to profile
+your init-file using something like `esup`), you should use the
+following pattern:
+
+    (unwind-protect
+        (let ((straight-treat-as-init t))
+          "load your init-file here")
+      (straight-finalize-transaction))
 
 ### Using `straight.el` to reproduce bugs
 
@@ -2156,6 +2131,35 @@ highlighting.
 Note that you will have to scroll through the entire buffer first,
 since `font-lock-mode` computes syntax highlighting lazily.
 
+## News
+
+### July 27, 2017
+
+`straight.el` now uses a brand new transaction-based interface to
+optimize loading your init-file and evaluating sequences of
+`straight-use-package` forms. This means you'll need to update some
+things in your config:
+
+* Don't bother calling `straight-declare-init-succeeded`; it's no
+  longer needed.
+* Don't bother calling `straight-declare-init-finished`; it's no
+  longer needed.
+* In any function that is likely to evaluate multiple
+  `straight-use-package` forms (for example, a function that reloads
+  your init-file), you should wrap the evaluation in a
+  `straight-transaction` block for improved performance.
+* In any function that loads your whole init-file, put a call to
+  `straight-mark-transaction-as-init` at the start of the transaction
+  block.
+* If you have a function that loads your init-file, and you need to
+  call this function before loading your init-file in the first place,
+  the procedure is now to bind `straight-treat-as-init` and then
+  invoke `straight-finalize-transaction` in an enclosing
+  `unwind-protect`.
+
+Since `straight.el` has not yet reached a stable release, there is no
+backwards compatibility for the previous calling conventions.
+
 [bootstrap]: #getting-started
 [comments-and-docstrings]: #comments-and-docstrings
 [conceptual-overview]: #conceptual-overview
@@ -2164,9 +2168,9 @@ since `font-lock-mode` computes syntax highlighting lazily.
 [developer-manual]: #developer-manual
 [git-backend]: #git-backend
 [guiding-principles]: #guiding-principles
-[init-lifecycle]: #the-init-lifecycle
 [interactive-usage]: #interactive-usage
 [lockfiles]: #lockfile-management
+[news]: #news
 [overriding-recipes]: #overriding-recipes
 <!-- FIXME needs a separate section? -->
 [package-lifecycle]: #installing-packages-programmatically
@@ -2180,6 +2184,8 @@ since `font-lock-mode` computes syntax highlighting lazily.
 [straight-use-package-usage]: #installing-packages-programmatically
 [straight.el-recipe]: #overriding-the-recipe-for-straightel
 [straight.el-recipe-internals]: #FIXME
+[transactions]: #the-transaction-system
+[transactions-implementation]: #FIXME
 [use-package-integration]: #integration-with-use-package-1
 [user-manual]: #user-manual
 [vc-backends]: #version-control-backends

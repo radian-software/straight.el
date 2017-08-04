@@ -476,6 +476,80 @@ non-nil if the user confirms; nil if they abort."
     ("y" "Yes, proceed" t)
     ("n" "No, abort" nil)))
 
+;;;;; Transactions
+
+(defvar straight--transaction-depth 0
+  "Number of transactions currently executing.
+You can nest transactions, so it's important to keep track of the
+depth.")
+
+(defvar straight--transaction-alist nil
+  "Alist of actions being executed in the current transaction.
+See `straight--transaction-exec'. The cars are their IDs, and the
+cdrs are their END-FUNCs.")
+
+(defun straight--transaction-p ()
+  "Return non-nil if we are currently within a transaction.
+This means that we are guaranteed to be able to perform cleanup
+after all operations are complete, and we expect to benefit from
+optimizing for a number of operations being performed in
+sequence."
+  (> straight--transaction-depth 0))
+
+(defun straight--transaction-exec (id &optional begin-func end-func)
+  "Execute an action within a transaction.
+ID is a symbol that acts as a unique identifier of the action
+within the transaction. Only the first BEGIN-FUNC and END-FUNC
+with a given ID are used within a transaction. BEGIN-FUNC is
+invoked immediately, and END-FUNC is executed at the end of the
+transaction. These functions wrap the transaction, so the
+END-FUNCs are invoked in reverse order to the BEGIN-FUNCs. If
+either BEGIN-FUNC or END-FUNC is nil or omitted, it acts as a
+no-op, but the ID is still registered to block future exec
+calls."
+  (unless (straight--transaction-p)
+    (error "Can't `straight--transaction-exec' when not in transaction"))
+  (unless (assq id straight--transaction-alist)
+    (when begin-func
+      (funcall begin-func))
+    ;; Push to start of list. At the end, we'll read forward, thus in
+    ;; reverse order.
+    (push (cons id end-func) straight--transaction-alist)))
+
+(defun straight-begin-transaction ()
+  "Begin a transaction. See `straight--transaction-p'.
+If you call this function, you *must* call
+`straight-finalize-transaction' after all of your operations
+have been performed, even if there was an error."
+  (setq straight--transaction-depth (1+ straight--transaction-depth)))
+
+(defun straight-finalize-transaction ()
+  "Finalize a transaction. See `straight--transaction-p'."
+  (unless (<= straight--transaction-depth 0)
+    (setq straight--transaction-depth (1- straight--transaction-depth))
+    ;; Do the error-prone operations last, so that we don't leave the
+    ;; transaction active.
+    (when (= straight--transaction-depth 0)
+      (let ((alist straight--transaction-alist))
+        (setq straight--transaction-alist nil)
+        (dolist (end-func (mapcar #'cdr alist))
+          (when end-func
+            (funcall end-func)))))))
+
+(defmacro straight-transaction (&rest body)
+  "Eval BODY within transaction. Return value is result of last form in BODY."
+  (declare (indent defun))
+  `(progn
+     (straight-begin-transaction)
+     (unwind-protect (progn ,@body)
+       (straight-finalize-transaction))))
+
+(defun straight-interactive-transaction ()
+  "Start a recursive edit within a transaction."
+  (interactive)
+  (straight-transaction
+    (recursive-edit)))
+
 ;;;; Version control
 
 (defun straight-vc (method type &rest args)
@@ -1325,19 +1399,34 @@ interactively, reloaded their init-file, and then called
 
 (defvar straight--profile-cache-valid nil
   "Non-nil if `straight--profile-cache' accurately reflects the init-file.
-The function `straight-freeze-versions' will be reluctant to create
-a version lockfile if this variable is nil. It is set to non-nil
-by the function `straight-declare-init-succeeded', and is set
-back to nil when the straight.el bootstrap is run or
-`straight-use-package' is invoked.")
+The function `straight-freeze-versions' will be reluctant to
+create a version lockfile if this variable is nil. This variable
+is set to non-nil in the bootstrap code, and set back to nil when
+`straight-use-package' is invoked outside of init.")
 
-(defvar straight--profile-cache-validated nil
-  "Non-nil if `straight--profile-cache-valid' is meaningful.
-The function `straight-freeze-versions' will grudgingly accept a
-nil value of `straight--profile-cache-valid' if this variable is
-also nil. It is set to non-nil by the function
-`straight-declare-init-succeeded', and is set back to nil when
-the straight.el bootstrap is run.")
+(defvar straight--functional-p nil
+  "Non-nil if package operations are guaranteed to be functional.
+This means they faithfully represent the contents of the
+init-file. If package operations are performed when this variable
+is nil, then `straight--profile-cache-valid' is set to nil.")
+
+(defun straight-mark-transaction-as-init ()
+  "Mark the current transaction as a complete loading of the init-file."
+  (straight--transaction-exec
+   'init
+   (lambda ()
+     (setq straight--profile-cache-valid t)
+     (setq straight--functional-p t))
+   (lambda ()
+     (setq straight--functional-p nil))))
+
+(defvar straight-treat-as-init nil
+  "Non-nil if straight.el should pretend like initial init is in progress.
+This variable is designed for cases when your init-file is first
+loaded after init has completed, for some reason (e.g. if you are
+profiling it using `esup'). To use it, bind it to non-nil for the
+duration of loading your init-file, and then make sure to call
+`straight-finalize-transaction'")
 
 ;;;;; Recipe repositories
 
@@ -1759,8 +1848,11 @@ RECIPE should be a straight.el-style recipe plist."
     ;; If we've registered a new package, then we no longer know that
     ;; the set of registered packages actually corresponds to the
     ;; packages requested in the init-file. (For instance, this could
-    ;; be an interactive call.)
-    (setq straight--profile-cache-valid nil)))
+    ;; be an interactive call.) But we're OK if this operation is
+    ;; guaranteed to be functional (e.g. because we're currently
+    ;; loading the init-file).
+    (unless straight--functional-p
+      (setq straight--profile-cache-valid nil))))
 
 (defun straight--map-repos (func)
   "Call FUNC for each local repository referenced in the known recipes.
@@ -1800,233 +1892,132 @@ package needs to be rebuilt.
 The value of this variable is persisted in the file
 build-cache.el.")
 
+(defvar straight--eagerly-checked-packages nil
+  "List of packages that will be checked eagerly for modifications.
+This list is read from the build cache, and is originally
+generated at the end of an init from the keys of
+`straight--profile-cache'.")
+
 (defun straight--load-build-cache ()
   "Load the build cache from build-cache.el into `straight--build-cache'.
 If build-cache.el does not both exist and contain a valid Elisp
 hash table with the appropriate `:test', then
 `straight--build-cache' is set to an empty hash table."
-  (setq straight--build-cache
-        (with-temp-buffer
-          (ignore-errors
-            ;; Using `insert-file-contents-literally' avoids
-            ;; `find-file-hook', etc.
-            (insert-file-contents-literally
-             (straight--file "build-cache.el")))
+  (with-temp-buffer
+    (ignore-errors
+      ;; Using `insert-file-contents-literally' avoids
+      ;; `find-file-hook', etc.
+      (insert-file-contents-literally
+       (straight--file "build-cache.el")))
+    (setq straight--build-cache
           (or (ignore-errors
                 (let ((table (read (current-buffer))))
                   (cl-assert (hash-table-p table))
                   (cl-assert (eq (hash-table-test table) #'equal))
                   table))
               ;; The keys are package names as *strings*.
-              (make-hash-table :test #'equal)))))
+              (make-hash-table :test #'equal)))
+    (setq straight--eagerly-checked-packages
+          (or (ignore-errors
+                (let ((list (read (current-buffer))))
+                  (cl-assert (listp list))
+                  (cl-assert (cl-every #'stringp list))
+                  list))))))
 
 (defun straight--save-build-cache ()
-  "Write the build cache from `straight--build-cache' into build-cache.el.
-Also remove this function from `after-init-hook' and
-`straight--after-reinit-hook', the latter allowing further
-reinits to properly detect whether loading has taken place at
-least once."
+  "Write the build cache from `straight--build-cache' into build-cache.el."
   (with-temp-file (straight--file "build-cache.el")
-    (pp straight--build-cache (current-buffer)))
-  (remove-hook 'after-init-hook #'straight--save-build-cache)
-  (remove-hook 'straight--after-reinit-hook #'straight--save-build-cache))
+    (print straight--build-cache (current-buffer))
+    (print (hash-table-keys straight--profile-cache) (current-buffer))))
 
-;;;;; Bookkeeping
+;;;;; Bulk checking
 
-(defvar straight--finalization-guaranteed nil
-  "Non-nil if `straight-declare-init-finished' is guaranteed to be called.
-This variable is part of the system that works to reduce
-unnecessary saving and loading of the build cache, as well as to
-optimize the process of checking for package modifications. It is
-set to non-nil when `straight-declare-init-finished' is called
-for the first time, since the API of
-`straight-declare-init-finished' requires the user to guarantee
-that if the function is called once, then it will be called every
-time the user's init-file is loaded (either at Emacs
-initialization or later, during a reload of the init-file).")
+(defvar straight--cached-package-modifications (make-hash-table :test #'equal)
+  "Hash table indicating the modification status of cached packages.
+Valid for the duration of a single transaction. It is a hash
+table whose keys are local repository names as strings and whose
+values are booleans indicating whether the repositories have been
+modified since their last builds.")
 
-(defvar straight--reinit-in-progress nil
-  "Non-nil if init-file reloading is in progress.
-This variable will be set to non-nil in bootstrap.el if
-`straight--finalization-guaranteed' is non-nil. (If finalization
-is not guaranteed, then reloading the init-file does not count,
-since there is no way to reduce the saving and loading of the
-build cache while still guaranteeing that the build cache will
-actually get saved after init-file loading is complete.) It will
-be set back to nil by `straight-declare-init-finished'.")
+(defun straight--cache-package-modifications ()
+  "Compute `straight--cached-package-modifications'."
+  (let (;; Keep track of which local repositories we've processed
+        ;; already. This table maps repo names to booleans.
+        (repos (make-hash-table :test #'equal))
+        ;; The systematically generated arguments for find(1).
+        (args nil))
+    (dolist (package straight--eagerly-checked-packages)
+      (when-let (build-info (gethash package straight--build-cache))
+        ;; Don't use `cl-destructuring-bind', as that will
+        ;; error out on a list of insufficient length. We
+        ;; want to be robust in the face of a malformed build
+        ;; cache.
+        (let ((mtime (nth 0 build-info))
+              (recipe (nth 2 build-info)))
+          (straight--with-plist recipe
+              (local-repo)
+            (when local-repo
+              (unless (gethash local-repo repos)
+                (if mtime
+                    ;; The basic idea of the find(1) command here is
+                    ;; that it is composed of a series of disjunctive
+                    ;; clauses, one for each repository. The first
+                    ;; clause matches anything named ".git" at a depth
+                    ;; of two, so that the Git directories are
+                    ;; ignored. Then each subsequent clause matches
+                    ;; and prints anything in a particular repository
+                    ;; that has an mtime greater than the last build
+                    ;; time for that repository.
+                    ;;
+                    ;; Just FYI, this find(1) command is compatible
+                    ;; with both GNU and BSD find. But not apparently
+                    ;; with busybox/find, see [1].
+                    ;;
+                    ;; [1]: https://github.com/raxod502/straight.el/issues/78
+                    (setq args (append (list "-o"
+                                             "-path"
+                                             (format "./%s/*" local-repo)
+                                             "-newermt"
+                                             mtime
+                                             "-print")
+                                       args))
+                  ;; If no mtime is specified, it means the package
+                  ;; definitely needs to be (re)built. Probably there
+                  ;; was an error and we couldn't finish building the
+                  ;; package, but we wrote the build cache anyway.
+                  (puthash
+                   local-repo t straight--cached-package-modifications))
+                ;; Don't create duplicate entries in the find(1)
+                ;; command for this local repository.
+                (puthash local-repo t repos)))))))
+    ;; The preamble to the find(1) command, which comes before the
+    ;; repository-specific subparts (see above).
+    (setq args (append (list "." "-name" ".git" "-prune")
+                       args))
+    (with-temp-buffer
+      (let ((default-directory (straight--dir "repos")))
+        (let ((return (apply #'call-process "find" nil '(t t) nil args)))
+          ;; find(1) always returns zero unless there was some kind of
+          ;; error.
+          (unless (= 0 return)
+            (error "Command failed: find %s:\n%s"
+                   (string-join (mapcar #'shell-quote-argument args) " ")
+                   (buffer-string))))
+        (maphash (lambda (local-repo _)
+                   (goto-char (point-min))
+                   (when (re-search-forward
+                          (format "^\\./%s/" (regexp-quote local-repo))
+                          nil 'noerror)
+                     (puthash
+                      local-repo t straight--cached-package-modifications)))
+                 repos)))))
 
-(defvar straight--after-reinit-hook nil
-  "Normal hook run by `straight-declare-init-finished'.
-It is run only on a reload of the init-file (not on Emacs
-initialization), and only if there has been at least one
-invocation of `straight-use-package' since the last time the
-init-file was loaded.
+(defun straight--uncache-package-modifications ()
+  "Reset `straight--cached-package-modifications'."
+  (setq straight--cached-package-modifications
+        (make-hash-table :test #'equal)))
 
-The usual contents of this hook are either
-`straight--save-build-cache', or nothing.")
-
-(defvar straight--package-build-in-progress nil
-  "Non-nil if a package is currently being built.
-If this variable is non-nil, then loading of the build cache will
-be inhibited. This prevents changes made by the first few phases
-of building the root package (namely, writing the dependency list
-to the build cache) from being overwritten when its dependencies
-are built.")
-
-;;;;; Conditional build cache handling
-
-(defun straight--maybe-load-build-cache ()
-  "Invoke `straight--load-build-cache' if necessary.
-During init, loading will take place only the first time this
-method is called. After init, loading will take place every time.
-The exception to this is if the user calls
-`straight-declare-init-finished' (which see) in their init-file,
-which allows for loading to again only take place once when the
-user reloads their init-file. Also, loading will be inhibited
-when building dependencies, to avoid the dependency for the root
-package that was written into the build cache from being
-overwritten. See `straight--package-build-in-progress'."
-  (cond
-   ;; If this is a dependency, unconditionally inhibit loading.
-   (straight--package-build-in-progress nil)
-   ;; During initialization, we use `after-init-hook'.
-   ((not after-init-time)
-    (unless (member #'straight--save-build-cache after-init-hook)
-      (straight--load-build-cache))
-    (add-hook 'after-init-hook #'straight--save-build-cache))
-   ;; After initialization, we use `straight--after-reinit-hook'.
-   (straight--reinit-in-progress
-    (unless (member #'straight--save-build-cache straight--after-reinit-hook)
-      (straight--load-build-cache))
-    (add-hook 'straight--after-reinit-hook #'straight--save-build-cache))
-   ;; Otherwise, we just load the cache every time. (This is slower,
-   ;; but totally reliable.)
-   (t (straight--load-build-cache))))
-
-(defun straight--maybe-save-build-cache ()
-  "Invoke `straight--save-build-cache' if necessary.
-During init, saving will not take place until `after-init-hook'.
-After init, saving will take place every time. The exception to
-this is if the user calls `straight-declare-init-finished' (which
-see) in their init-file, which allows for saving to again only
-take place once (when `straight-declare-init-finished' is
-called)."
-  (unless (or (not after-init-time) straight--reinit-in-progress)
-    (straight--save-build-cache)))
-
-(defvar straight--cached-packages-might-be-modified-p :unknown
-  "Non-nil if any of the packages in the build cache might be modified.
-This variable is used as a cache to memoize the function
-`straight--cached-packages-might-be-modified-p'. (Its value is
-`:unknown' if that function has not yet been called to get the
-value to cache.)")
-
-;;;;; Primary checking logic
-
-(defun straight--cached-packages-might-be-modified-p ()
-  "Check whether any of the packages in the build cache might be modified.
-This is done by using find(1) to recursively check the mtimes of
-all packages in the build cache against the last build time
-recorded in the build cache. This function is memoized using the
-variable `straight--cached-packages-might-be-modified-p', but the
-memoized value is considered stale once the current init or
-reinit has been completed."
-  (cond
-   ;; If the value has not been calculated yet, then we can calculate
-   ;; and return it whether or not it's during init (or reinit).
-   ((eq straight--cached-packages-might-be-modified-p :unknown)
-    (setq straight--cached-packages-might-be-modified-p
-          (cl-block find
-            (let ((repos nil) ; prevent double-checking repositories
-                  (args nil)) ; find(1) argument list
-              (maphash
-               (lambda (_package build-info)
-                 ;; Don't use `cl-destructuring-bind', as that will
-                 ;; error out on a list of insufficient length. We
-                 ;; want to be robust in the face of a malformed build
-                 ;; cache.
-                 (let ((mtime (nth 0 build-info))
-                       (recipe (nth 2 build-info)))
-                   ;; If no mtime is specified, it means the package
-                   ;; definitely needs to be (re)built. Probably there
-                   ;; was an error and we couldn't finish building the
-                   ;; package, but we wrote the build cache anyway.
-                   (unless mtime
-                     (cl-return-from find t))
-                   (straight--with-plist recipe
-                       (local-repo)
-                     ;; It might be faster to use a hash table to keep
-                     ;; track of the known repos. (We can't use
-                     ;; `straight--repo-cache' since it's not
-                     ;; initialized yet; see the comment before the
-                     ;; second argument to `maphash'.)
-                     (unless (member local-repo repos)
-                       (push local-repo repos)
-                       ;; The basic idea of the find(1) command here
-                       ;; is that it is composed of a series of
-                       ;; disjunctive clauses, one for each
-                       ;; repository. The first clause matches
-                       ;; anything named ".git" at a depth of two, so
-                       ;; that the Git directories are ignored. Then
-                       ;; each subsequent clause matches and prints
-                       ;; anything in a particular repository that has
-                       ;; an mtime greater than the last build time
-                       ;; for that repository. Just in case you're
-                       ;; wondering why this is done as a single
-                       ;; find(1) command, it's because it's
-                       ;; substantially faster. Of course, this
-                       ;; command is a total shot in the dark, since
-                       ;; the list of packages required in the
-                       ;; init-file could have completely changed
-                       ;; since the last time the build cache was
-                       ;; written, but if that *hasn't* happened then
-                       ;; we're in luck and this optimization speeds
-                       ;; up init quite a lot.
-                       ;;
-                       ;; Just FYI, this find(1) command is compatible
-                       ;; with both GNU and BSD find. But not
-                       ;; apparently with busybox/find, see [1].
-                       ;;
-                       ;; [1]: https://github.com/raxod502/straight.el/issues/78
-                       (setq args (append (list "-o"
-                                                "-path"
-                                                (format "./%s/*" local-repo)
-                                                "-newermt"
-                                                mtime
-                                                "-print")
-                                          args))))))
-               ;; The variables `straight--recipe-cache' and
-               ;; `straight--repo-cache' have not yet been populated
-               ;; (this code will be run at the very first invocation
-               ;; of `straight-use-package'), so we must use the build
-               ;; cache rather than either of those two.
-               straight--build-cache)
-              ;; The preamble to the find(1) command, which comes
-              ;; before the repository-specific subparts (see above).
-              (setq args (append (list "." "-depth" "2"
-                                       "-name" ".git" "-prune")
-                                 args))
-              (with-temp-buffer
-                (let ((default-directory (straight--dir "repos")))
-                  ;; We're interleaving both stdout and stderr. The
-                  ;; command shouldn't print anything if everything is
-                  ;; as expected (and nothing has changed since the
-                  ;; last build of each package).
-                  (apply 'call-process "find" nil '(t t) nil args)
-                  ;; If find(1) prints anything then we are screwed
-                  ;; and have to check each package individually later
-                  ;; on. That is,
-                  ;; `straight--cached-packages-might-be-modified-p'
-                  ;; will be non-nil.
-                  (> (buffer-size) 0)))))))
-   ;; If the value has already been calculated, but we've finished
-   ;; init, then we can't trust that value any more. However, we can
-   ;; treat a reinit like an init (where we only consider this to be a
-   ;; reinit if finalization is guaranteed).
-   ((and after-init-time (not straight--reinit-in-progress)) t)
-   ;; But if init (or reinit) is still in progress, then we can just
-   ;; use the cached value.
-   (t straight--cached-packages-might-be-modified-p)))
+;;;;; Individual checking
 
 (defun straight--package-might-be-modified-p (recipe)
   "Check whether the package for the given RECIPE might be modified.
@@ -2046,25 +2037,42 @@ all files in the package's local repository."
             (unless (equal (plist-get recipe keyword)
                            (plist-get last-recipe keyword))
               (cl-return t)))
-          (and (straight--cached-packages-might-be-modified-p)
-               ;; If at least one of the cached packages has
-               ;; changed (we know by this point that the package
-               ;; under consideration was present in the build cache),
-               ;; then we still only need to rebuild it if it
-               ;; specifically has changed.
-               (or (not (stringp last-mtime)) ; shouldn't happen
-                   (with-temp-buffer
-                     (let ((default-directory
-                             (straight--dir "repos" local-repo)))
-                       (call-process
-                        ;; This find(1) command ignores the .git
-                        ;; directory, and prints the names of any
-                        ;; files or directories with a newer mtime
-                        ;; than the one specified.
-                        "find" nil '(t t) nil
-                        "." "-name" ".git" "-prune"
-                        "-o" "-newermt" last-mtime "-print")
-                       (> (buffer-size) 0)))))))))
+          (progn
+            ;; This method should always be called from a transaction.
+            ;; We'll get an error from `straight--transaction-exec' if
+            ;; that's somehow not the case.
+            (straight--transaction-exec
+             'bulk-find
+             #'straight--cache-package-modifications
+             #'straight--uncache-package-modifications)
+            (if (straight--checkhash
+                 local-repo straight--cached-package-modifications)
+                ;; Use the cached modification status if we've computed
+                ;; one.
+                (gethash local-repo straight--cached-package-modifications)
+              ;; `last-mtime' should always be a string but you never
+              ;; know.
+              (or (not (stringp last-mtime))
+                  (with-temp-buffer
+                    (let* ((default-directory
+                             (straight--dir "repos" local-repo))
+                           ;; This find(1) command ignores the .git
+                           ;; directory, and prints the names of any
+                           ;; files or directories with a newer mtime
+                           ;; than the one specified.
+                           (args `("." "-name" ".git" "-prune"
+                                   "-o" "-newermt" ,last-mtime "-print"))
+                           (return (apply #'call-process "find"
+                                          nil '(t t) nil args)))
+                      (unless (= 0 return)
+                        (error "Command failed: find %s:\n%s"
+                               (string-join
+                                (mapcar #'shell-quote-argument args)
+                                " ")
+                               (buffer-string)))
+                      ;; If anything was printed, the package has
+                      ;; (maybe) been modified.
+                      (> (buffer-size) 0))))))))))
 
 ;;;; Building packages
 ;;;;; Files directive processing
@@ -2488,8 +2496,9 @@ the reason this package is being built."
         (straight--symlink-package recipe)
         ;; The following function call causes the dependency list to
         ;; be written to the build cache. To prevent this from being
-        ;; overwritten when any dependencies are built, we have to be
-        ;; sure to bind `straight--package-build-in-progress' below!
+        ;; overwritten when any dependencies are built, we have to
+        ;; rely on the fact that `straight-use-package' runs this code
+        ;; within a transaction.
         (straight--compute-dependencies package)
         ;; Before we (possibly) build the dependencies, we need to set
         ;; this flag so that we know if our progress message will need
@@ -2505,23 +2514,18 @@ the reason this package is being built."
         ;; generated for the dependencies in that situation if we
         ;; don't do it again in `straight-use-package'.
         (when-let ((dependencies (straight--get-dependencies package)))
-          ;; This let-binding prevents the changes we already made to
-          ;; the build cache from being overwritten; see the comment
-          ;; above the `straight--compute-dependencies' call above.
-          (let ((straight--package-build-in-progress t))
-            (dolist (dependency dependencies)
-              ;; The implicit meaning of the first argument to
-              ;; `straight-use-package' here is that the default
-              ;; recipes (taken from one of the recipe repositories) are
-              ;; used for dependencies. (Well, maybe. See all the weird
-              ;; edge cases and exceptions in
-              ;; `straight--convert-recipe'.)
-              ;;
-              ;; Note that the second and third arguments are always
-              ;; nil. This means that dependencies will always be
-              ;; eagerly cloned and built, if we got to building this
-              ;; package.
-              (straight-use-package (intern dependency) nil nil task)))
+          (dolist (dependency dependencies)
+            ;; The implicit meaning of the first argument to
+            ;; `straight-use-package' here is that the default recipes
+            ;; (taken from one of the recipe repositories) are used
+            ;; for dependencies. (Well, maybe. See all the weird edge
+            ;; cases and exceptions in `straight--convert-recipe'.)
+            ;;
+            ;; Note that the second and third arguments are always
+            ;; nil. This means that dependencies will always be
+            ;; eagerly cloned and built, if we got to building this
+            ;; package.
+            (straight-use-package (intern dependency) nil nil task))
           ;; We might need to redisplay the progress message from
           ;; `straight--with-progress' up above.
           (when straight--echo-area-dirty
@@ -2736,38 +2740,6 @@ The default value is \"Processing\"."
             canceled-repos))))))
 
 ;;;; User-facing functions
-;;;;; Declarations
-
-;;;###autoload
-(defun straight-declare-init-finished ()
-  "Declare that init-file loading has finished.
-If you call this function, then you are required to ensure that
-it is called *every time* your init-file is loaded, even if there
-is an error. Calling this function is not mandatory, but it
-allows the use of an optimization that significantly improves the
-performance of reloading an init-file with many
-`straight-use-package' forms in it."
-  (setq straight--reinit-in-progress nil)
-  (setq straight--finalization-guaranteed t)
-  (run-hooks 'straight--after-reinit-hook))
-
-;;;###autoload
-(defun straight-declare-init-succeeded ()
-  "Declare that init-file loading has succeeded.
-This function should not be called unless init (or re-init) has
-finished with no errors. Calling this function is not mandatory,
-but it is strongly recommended if you want to use a version
-lockfile, since it allows straight.el to ensure that only
-packages actually in your init-file are written to the lockfile.
-It also improves performance by allowing the build cache to be
-pruned."
-  (setq straight--profile-cache-valid t)
-  (setq straight--profile-cache-validated t)
-  ;; We can safely prune the build cache if init succeeded.
-  (dolist (package (hash-table-keys straight--build-cache))
-    (unless (gethash package straight--recipe-cache)
-      (remhash package straight--build-cache))))
-
 ;;;;; Recipe acquiry
 
 ;;;###autoload
@@ -2840,112 +2812,125 @@ Return non-nil if package was actually installed, and nil
 otherwise (this can only happen if NO-CLONE is non-nil)."
   (interactive (list (straight--get-recipe-interactively nil)
                      nil nil nil 'interactive))
-  ;; If `straight--convert-recipe' returns nil, the package is
-  ;; built-in. No need to go any further.
-  (if-let ((recipe (straight--convert-recipe
-                    (or
-                     (straight--get-overridden-recipe
-                      (if (listp melpa-style-recipe)
-                          (car melpa-style-recipe)
-                        melpa-style-recipe))
-                     melpa-style-recipe)
-                    cause)))
-      (straight--with-plist recipe
-          (package)
-        (let (;; Check if the package has been successfully built. If
-              ;; not, and this is an interactive call, we'll want to
-              ;; display a helpful hint message (see below).
-              (already-registered
-               (gethash package straight--success-cache))
-              ;; Remember that `no-build' can come both from the
-              ;; arguments to `straight-use-package' and from the
-              ;; actual recipe.
-              (recipe-no-build (plist-get recipe :no-build)))
-          ;; We need to register the recipe before building the
-          ;; package, since the ability of `straight--convert-recipe'
-          ;; to deal properly with dependencies versioned in the same
-          ;; repository of their parent package will break unless the
-          ;; caches are updated before we recur to the dependencies.
-          (straight--register-recipe recipe)
-          (let ((available
-                 (straight--repository-is-available-p recipe)))
-            (unless available
-              (let ((no-clone (if (and (functionp no-clone)
-                                       ;; Make it so that if people
-                                       ;; define functions with silly
-                                       ;; names, it doesn't break
-                                       ;; invocations of this function
-                                       ;; with the special symbols
-                                       ;; `lazy' and `no-clone'.
-                                       (not (memq no-clone '(lazy no-clone))))
-                                  (funcall no-clone package)
-                                no-clone)))
-                (when (or no-clone
-                          (and (eq no-clone 'lazy)
-                               (not available)))
-                  ;; Package not installed. Return nil.
-                  (cl-return-from straight-use-package nil)))
-              ;; We didn't decide to abort, and the repository still
-              ;; isn't available. Make it available.
-              (straight--clone-repository recipe cause))
-            (unless (or recipe-no-build
-                        (if (and (functionp no-build)
-                                 ;; Same reasoning as above.
-                                 (not (eq no-build 'no-build)))
-                            (funcall no-build package)
-                          no-build))
-              ;; Multi-file packages will need to be on the `load-path'
-              ;; in order to byte-compile properly.
-              (straight--add-package-to-load-path recipe)
-              (straight--maybe-load-build-cache)
-              (when
-                  (or
-                   (and
-                    straight--packages-to-rebuild
-                    (or (eq straight--packages-to-rebuild :all)
-                        (gethash package straight--packages-to-rebuild))
-                    (not (gethash package straight--packages-not-to-rebuild))
-                    ;; The following form returns non-nil, so it doesn't
-                    ;; affect the `and' logic.
-                    (puthash package t straight--packages-not-to-rebuild))
-                   (straight--package-might-be-modified-p recipe))
-                (straight--build-package recipe cause))
-              (straight--maybe-save-build-cache)
-              ;; Here we are not actually trying to build the
-              ;; dependencies, but activate their autoloads. (See the
-              ;; comment in `straight--build-package' about this code.)
-              (dolist (dependency (straight--get-dependencies package))
-                ;; There are three interesting things here. Firstly,
-                ;; the recipe used is just the name of the dependency.
-                ;; This causes the default recipe to be looked up,
-                ;; unless one of the special cases in
-                ;; `straight--convert-recipe' pops up. Secondly, the
-                ;; values of `no-build' and `no-clone' are always nil.
-                ;; If the user has agreed to clone and build a
-                ;; package, we assume that they also want to clone and
-                ;; build all of its dependencies. Finally, we don't
-                ;; bother to update `cause', since we're not expecting
-                ;; any messages to be displayed here (all of the
-                ;; dependencies should have already been cloned [if
-                ;; necessary] and built back by
-                ;; `straight--build-package').
-                (straight-use-package (intern dependency) nil nil cause))
-              ;; Only make the package available after everything is
-              ;; kosher.
-              (straight--activate-package-autoloads recipe)
-              ;; In interactive use, tell the user how to install
-              ;; packages permanently.
-              (when (and interactive (not already-registered))
-                (message
-                 (concat "If you want to keep %s, put "
-                         "(straight-use-package %s%S) "
-                         "in your init-file.")
-                 package "'" (intern package))))
-            ;; The package was installed successfully.
-            (puthash package t straight--success-cache)
-            t)))
-    ;; Return non-nil for built-in packages.
-    t))
+  (straight-transaction
+    ;; If `straight--convert-recipe' returns nil, the package is
+    ;; built-in. No need to go any further.
+    (if-let ((recipe (straight--convert-recipe
+                      (or
+                       (straight--get-overridden-recipe
+                        (if (listp melpa-style-recipe)
+                            (car melpa-style-recipe)
+                          melpa-style-recipe))
+                       melpa-style-recipe)
+                      cause)))
+        (straight--with-plist recipe
+            (package local-repo)
+          (unless local-repo
+            (cl-return-from straight-use-package nil))
+          (straight--transaction-exec
+           (intern (format "use-package-%s" package))
+           (lambda ()
+             (let (;; Check if the package has been successfully
+                   ;; built. If not, and this is an interactive call,
+                   ;; we'll want to display a helpful hint message
+                   ;; (see below).
+                   (already-registered
+                    (gethash package straight--success-cache))
+                   ;; Remember that `no-build' can come both from the
+                   ;; arguments to `straight-use-package' and from the
+                   ;; actual recipe.
+                   (recipe-no-build (plist-get recipe :no-build)))
+               ;; We need to register the recipe before building the
+               ;; package, since the ability of
+               ;; `straight--convert-recipe' to deal properly with
+               ;; dependencies versioned in the same repository of
+               ;; their parent package will break unless the caches
+               ;; are updated before we recur to the dependencies.
+               (straight--register-recipe recipe)
+               (let ((available
+                      (straight--repository-is-available-p recipe)))
+                 (unless available
+                   (let ((no-clone
+                          (if (and (functionp no-clone)
+                                   ;; Make it so that if people define
+                                   ;; functions with silly names, it
+                                   ;; doesn't break invocations of
+                                   ;; this function with the special
+                                   ;; symbols `lazy' and `no-clone'.
+                                   (not (memq no-clone '(lazy no-clone))))
+                              (funcall no-clone package)
+                            no-clone)))
+                     (when (or no-clone
+                               (and (eq no-clone 'lazy)
+                                    (not available)))
+                       ;; Package not installed. Return nil.
+                       (cl-return-from straight-use-package nil)))
+                   ;; We didn't decide to abort, and the repository
+                   ;; still isn't available. Make it available.
+                   (straight--clone-repository recipe cause))
+                 (unless (or recipe-no-build
+                             (if (and (functionp no-build)
+                                      ;; Same reasoning as above.
+                                      (not (eq no-build 'no-build)))
+                                 (funcall no-build package)
+                               no-build))
+                   ;; Multi-file packages will need to be on the
+                   ;; `load-path' in order to byte-compile properly.
+                   (straight--add-package-to-load-path recipe)
+                   (straight--transaction-exec
+                    'build-cache
+                    #'straight--load-build-cache
+                    #'straight--save-build-cache)
+                   (when
+                       (or
+                        (and
+                         straight--packages-to-rebuild
+                         (or (eq straight--packages-to-rebuild :all)
+                             (gethash package straight--packages-to-rebuild))
+                         (not (gethash
+                               package straight--packages-not-to-rebuild))
+                         ;; The following form returns non-nil, so it
+                         ;; doesn't affect the `and' logic.
+                         (puthash package t straight--packages-not-to-rebuild))
+                        (straight--package-might-be-modified-p recipe))
+                     (straight--build-package recipe cause))
+                   ;; Here we are not actually trying to build the
+                   ;; dependencies, but activate their autoloads. (See
+                   ;; the comment in `straight--build-package' about
+                   ;; this code.)
+                   (dolist (dependency (straight--get-dependencies package))
+                     ;; There are three interesting things here.
+                     ;; Firstly, the recipe used is just the name of
+                     ;; the dependency. This causes the default recipe
+                     ;; to be looked up, unless one of the special
+                     ;; cases in `straight--convert-recipe' pops up.
+                     ;; Secondly, the values of `no-build' and
+                     ;; `no-clone' are always nil. If the user has
+                     ;; agreed to clone and build a package, we assume
+                     ;; that they also want to clone and build all of
+                     ;; its dependencies. Finally, we don't bother to
+                     ;; update `cause', since we're not expecting any
+                     ;; messages to be displayed here (all of the
+                     ;; dependencies should have already been cloned
+                     ;; [if necessary] and built back by
+                     ;; `straight--build-package').
+                     (straight-use-package (intern dependency) nil nil cause))
+                   ;; Only make the package available after everything
+                   ;; is kosher.
+                   (straight--activate-package-autoloads recipe)
+                   ;; In interactive use, tell the user how to install
+                   ;; packages permanently.
+                   (when (and interactive (not already-registered))
+                     (message
+                      (concat "If you want to keep %s, put "
+                              "(straight-use-package %s%S) "
+                              "in your init-file.")
+                      package "'" (intern package))))
+                 ;; The package was installed successfully.
+                 (puthash package t straight--success-cache)
+                 t)))))
+      ;; Return non-nil for built-in packages.
+      t)))
 
 ;;;###autoload
 (defun straight-register-package (melpa-style-recipe)
@@ -3020,20 +3005,9 @@ using `completing-read'. See also `straight-rebuild-package' and
 See also `straight-rebuild-all' and `straight-check-package'.
 This function should not be called during init."
   (interactive)
-  ;; We can consider this a reinit, since we're guaranteed to unset
-  ;; `straight--reinit-in-progress' after completing the check. This
-  ;; lets us avoid superfluous saving and loading of the build cache,
-  ;; and also to use a bulk find(1) operation to check for
-  ;; modifications, both of which improve performance considerably.
-  (let ((straight--reinit-in-progress t))
-    ;; Allows the find(1) operation to go ahead.
-    (setq straight--cached-packages-might-be-modified-p :unknown)
-    (unwind-protect
-        (dolist (package (hash-table-keys straight--recipe-cache))
-          (straight-use-package (intern package)))
-      ;; Of course, since we're treating this as a reinit, we have to
-      ;; call the after-reinit hook.
-      (run-hooks 'straight--after-reinit-hook))))
+  (straight-transaction
+    (dolist (package (hash-table-keys straight--recipe-cache))
+      (straight-use-package (intern package)))))
 
 ;;;###autoload
 (defun straight-rebuild-package (package &optional recursive)
@@ -3067,14 +3041,10 @@ See also `straight-check-all' and `straight-rebuild-package'."
   (interactive)
   (let ((straight--packages-to-rebuild :all)
         (straight--packages-not-to-rebuild
-         (make-hash-table :test #'equal))
-        ;; See `straight-check-all' for discussion.
-        (straight--reinit-in-progress t))
-    (setq straight--cached-packages-might-be-modified-p :unknown)
-    (unwind-protect
-        (dolist (package (hash-table-keys straight--recipe-cache))
-          (straight-use-package (intern package)))
-      (run-hooks 'straight--after-reinit-hook))))
+         (make-hash-table :test #'equal)))
+    (straight-transaction
+      (dolist (package (hash-table-keys straight--recipe-cache))
+        (straight-use-package (intern package))))))
 
 ;;;;; Normalization, pushing, pulling
 
@@ -3162,14 +3132,29 @@ non-nil if the package should actually be normalized."
 
 ;;;;; Lockfile management
 
+(cl-defun straight--ensure-profile-cache-valid ()
+  "Ensure that `straight--profile-cache' reflects the init-file correctly.
+If not, prompt the user to reload the init-file in a transaction."
+  (when straight--profile-cache-valid
+    (cl-return-from straight--ensure-profile-cache-valid t))
+  (unless (y-or-n-p "Caches are outdated, reload init-file? ")
+    (cl-return-from straight--ensure-profile-cache-valid nil))
+  (straight-transaction
+    (straight-mark-transaction-as-init)
+    (message "Reloading %S..." user-init-file)
+    (load user-init-file nil 'nomessage)
+    (message "Reloading %S...done" user-init-file))
+  (when straight--profile-cache-valid
+    (cl-return-from straight--ensure-profile-cache-valid t))
+  (error "Caches are still outdated; something is seriously wrong"))
+
 ;;;###autoload
 (defun straight-freeze-versions (&optional force)
   "Write version lockfiles for currently activated packages.
 This implies first pushing all packages that have unpushed local
 changes. If the package management system has been used since the
-last time the init-file was reloaded (or
-`straight-declare-init-succeeded' is not called in the
-init-file), refuse to write the lockfile. If FORCE is
+last time the init-file was reloaded, offer to fix the situation
+by reloading the init-file again. If FORCE is
 non-nil (interactively, if a prefix argument is provided), skip
 all checks and write the lockfile anyway.
 
@@ -3177,29 +3162,23 @@ Multiple lockfiles may be written (one for each profile),
 according to the value of `straight-profiles'."
   (interactive "P")
   (when (or force
-            (and (or straight--profile-cache-valid
-                     (and (not straight--profile-cache-validated)
-                          (y-or-n-p
-                           (concat "Have you installed any packages "
-                                   "since your init-file was last loaded?")))
-                     (ignore
-                      (message (concat "Caches are outdated, aborting "
-                                       "(please reload your init-file)"))))
-                 (let ((unpushed-recipes
-                        (straight-push-all
-                         (lambda (package)
-                           (straight--repository-is-available-p
-                            (gethash package straight--recipe-cache))))))
-                   (or
-                    (null unpushed-recipes)
-                    (straight-are-you-sure
-                     (format (concat "The following packages were not pushed:"
-                                     "\n\n  %s\n\nReally write lockfiles?")
-                             (string-join
-                              (mapcar (lambda (recipe)
-                                        (plist-get recipe :local-repo))
-                                      unpushed-recipes)
-                              ", ")))))))
+            (progn
+              (straight--ensure-profile-cache-valid)
+              (let ((unpushed-recipes
+                     (straight-push-all
+                      (lambda (package)
+                        (straight--repository-is-available-p
+                         (gethash package straight--recipe-cache))))))
+                (or
+                 (null unpushed-recipes)
+                 (straight-are-you-sure
+                  (format (concat "The following packages were not pushed:"
+                                  "\n\n  %s\n\nReally write lockfiles?")
+                          (string-join
+                           (mapcar (lambda (recipe)
+                                     (plist-get recipe :local-repo))
+                                   unpushed-recipes)
+                           ", ")))))))
     (let ((versions-alist (straight--get-versions)))
       (straight--map-repos
        (lambda (recipe)
@@ -3312,8 +3291,8 @@ lazy installation."
                  ;; Normalize value of `only-if-installed'.
                  (and only-if-installed 'lazy)
                  (unless (member context '(:byte-compile :ensure
-                                                         :config :pre-ensure
-                                                         :interactive))
+                                           :config :pre-ensure
+                                           :interactive))
                    (lambda (package)
                      ;; Value of NO-CLONE has a meaning that is the
                      ;; opposite of ONLY-IF-INSTALLED.

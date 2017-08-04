@@ -1,0 +1,4 @@
+task checkdoc straight.el
+task compile straight.el bootstrap.el install.el
+task longlines *.el *.md .gitignore .gitmodules .travis.yml checkers/* Makefile
+task toc README.md

@@ -16,8 +16,7 @@
           ;; If the file is being loaded from the init-file.
           load-file-name
           ;; If the file is being evaluated with something like
-          ;; `eval-buffer' (but please don't do this, as it breaks the
-          ;; contract of `straight-declare-init-finished').
+          ;; `eval-buffer'.
           buffer-file-name)))
        (straight.el
         (expand-file-name
@@ -49,27 +48,11 @@
 ;; have to explicitly clear the caches.
 (straight--reset-caches)
 
-;; Inform later logic that this is a reinit. However, we only consider
-;; a reinit to be like an init if we're guaranteed to know when it
-;; ends (i.e., `straight-declare-init-finished' is called at the end
-;; of the init-file, even if there is an error).
-(when (and after-init-time straight--finalization-guaranteed)
-  (setq straight--reinit-in-progress t))
-
-;; Even if finalization was performed correctly last init (or reinit),
-;; we don't want to assume that will continue to be the case. Of
-;; course, we are proceeding a little bit on faith, since we have no
-;; way of knowing that finalization will actually happen just because
-;; `straight-declare-init-finished' was called last time. But if we
-;; turn out to be wrong, we want to at least correct the error as soon
-;; as possible (i.e. the next time init is performed).
-(setq straight--finalization-guaranteed nil)
-
-;; If we do a reinit, we still want to use a bulk find(1) command to
-;; check for modified packages, since it speeds things up a lot. But
-;; if we don't reset the memoized value here, it won't be recomputed
-;; and will just be considered stale.
-(setq straight--cached-packages-might-be-modified-p :unknown)
+;; Treat the first init as a transaction.
+(unless (and after-init-time (not (bound-and-true-p straight-treat-as-init)))
+  (add-hook 'after-init-hook #'straight-finalize-transaction)
+  (straight-begin-transaction)
+  (straight-mark-transaction-as-init))
 
 ;; So meta. This updates the various caches, so that straight.el shows
 ;; up properly in the lockfile and other things like that.

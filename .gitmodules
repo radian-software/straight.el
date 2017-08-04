@@ -1,0 +1,3 @@
+[submodule "elint"]
+	path = elint
+	url = https://github.com/raxod502/elint.git

@@ -1,30 +1,26 @@
 .PHONY: all
 all:
-	@scripts/check.bash compile checkdoc shellcheck longlines toc
+	@elint/elint checkdoc compile longlines toc
 
 .PHONY: travis
 travis:
-	@scripts/check.bash compile checkdoc shellcheck longlines
-
-.PHONY: compile
-compile:
-	@scripts/check.bash compile
+	@elint/elint checkdoc compile longlines
 
 .PHONY: checkdoc
 checkdoc:
-	@scripts/check.bash checkdoc
+	@elint/elint checkdoc
 
-.PHONY: shellcheck
-shellcheck:
-	@scripts/check.bash shellcheck
+.PHONY: compile
+compile:
+	@elint/elint compile
 
 .PHONY: longlines
 longlines:
-	@scripts/check.bash longlines
+	@elint/elint longlines
 
 .PHONY: toc
 toc:
-	@markdown-toc -i README.md
+	@elint/elint toc
 
 .PHONY: clean
 clean:
