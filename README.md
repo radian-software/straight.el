@@ -77,6 +77,7 @@ for the [Emacs] hacker.
   * [Comments and docstrings](#comments-and-docstrings)
 - [News](#news)
   * [July 27, 2017](#july-27-2017)
+- [Known issue FAQ](#known-issue-faq)
 
 <!-- tocstop -->
 
@@ -2159,6 +2160,40 @@ things in your config:
 
 Since `straight.el` has not yet reached a stable release, there is no
 backwards compatibility for the previous calling conventions.
+
+## Known issue FAQ
+
+This section lists items from the [issue tracker][issues] which are
+particularly impactful to user experience.
+
+* *Switching to `straight.el` made my init time slower:*
+  See
+  [#9](https://github.com/raxod502/straight.el/issues/9),
+  [#41](https://github.com/raxod502/straight.el/issues/41),
+  [#118](https://github.com/raxod502/straight.el/issues/118),
+  [#119](https://github.com/raxod502/straight.el/issues/119).
+* *I only want to use stable versions of packages:*
+  See [#31](https://github.com/raxod502/straight.el/issues/31).
+* *The functions for pushing changes upstream are doing things that
+  don't make sense:*
+  See [#54](https://github.com/raxod502/straight.el/issues/54).
+* *When performing repository management operations, I get errors
+  about packages not being installed and commits not being available:*
+  See
+  [#58](https://github.com/raxod502/straight.el/issues/58),
+  [#110](https://github.com/raxod502/straight.el/issues/110).
+* *My texinfo manuals aren't being built:*
+  See [#71](https://github.com/raxod502/straight.el/issues/71).
+* *Org is giving me compile warnings:*
+  See
+  [#72](https://github.com/raxod502/straight.el/issues/72),
+  [#115](https://github.com/raxod502/straight.el/issues/115).
+* *It doesn't work on my (insert operating system or embedded device
+  here):*
+  See [#78](https://github.com/raxod502/straight.el/issues/78).
+* *It doesn't work on Windows:*
+  See [#124](https://github.com/raxod502/straight.el/issues/124), but
+  be prepared to wait a while.
 
 [bootstrap]: #getting-started
 [comments-and-docstrings]: #comments-and-docstrings
