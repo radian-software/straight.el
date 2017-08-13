@@ -850,9 +850,8 @@ And here is a brief list of the main reasons you might not want to use
   for `package.el`, only the Emacs bug tracker and the emacs-devel
   mailing list. Contributing to `package.el` requires a
   poorly-documented, cumbersome copyright assignment process and is
-  done by submitting patches to
-  an [unfriendly][emacs-devel-unfriendly] mailing list, unsupported by
-  modern code review tooling or continuous integration.
+  done by submitting patches to an antiquated mailing list,
+  unsupported by modern code review tooling or continuous integration.
 
 #### Advantages of `package.el`
 
@@ -2231,7 +2230,6 @@ particularly impactful to user experience.
 [build-command-issue]: https://github.com/raxod502/straight.el/issues/72
 [cask]: https://github.com/cask/cask
 [el-get]: https://github.com/dimitri/el-get
-[emacs-devel-unfriendly]: https://debbugs.gnu.org/cgi/bugreport.cgi?bug=19296#14
 [emacs]: https://www.gnu.org/software/emacs/
 [emacsmirror]: https://emacsmirror.net/
 [emacswiki]: https://www.emacswiki.org/
