@@ -1802,6 +1802,19 @@ Note that this will probably take a while. There are also `M-x
 straight-check-package` and `M-x straight-rebuild-package`, which
 allow you to select a particular package to check or rebuild.
 
+Finally, you may use `M-x straight-prune-build` in order to tell
+`straight.el` to forget about any packages which were not registered
+since the last init transaction
+(see [the transaction system][transactions]). This may improve
+performance, although only slightly, and will clean up stale entries
+in the `build` directory. You can call this function in your init-file
+if you really wish your filesystem to be as clean as possible,
+although it's not particularly recommended as the performance
+implications are uninvestigated. If you do call it in your init-file,
+be sure to only call it on a fully successful init; otherwise, an
+error during init will result in some packages' build information
+being discarded, and they will need to be rebuilt next time.
+
 ### Version control operations
 
 `straight.el` provides a number of highly interactive workflows for

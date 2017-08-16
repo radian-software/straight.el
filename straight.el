@@ -3046,6 +3046,36 @@ See also `straight-check-all' and `straight-rebuild-package'."
       (dolist (package (hash-table-keys straight--recipe-cache))
         (straight-use-package (intern package))))))
 
+;;;;; Cleanup
+
+;;;###autoload
+(defun straight-prune-build ()
+  "Prune the build cache and build directory.
+This means that only packages that were built in the last init
+run and subsequent interactive session will remain; other
+packages will have their build mtime information discarded and
+their build directory deleted."
+  (interactive)
+  (straight-transaction
+    (straight--transaction-exec
+     'build-cache
+     #'straight--load-build-cache
+     #'straight--save-build-cache)
+    (dolist (package (hash-table-keys straight--build-cache))
+      (unless (gethash package straight--profile-cache)
+        (remhash package straight--build-cache)))
+    (dolist (package (directory-files
+                      (straight--dir "build")
+                      nil nil 'nosort))
+      ;; So, let me tell you a funny story. Once upon a time I didn't
+      ;; have this `string-match-p' condition. But Emacs helpfully
+      ;; returns . and .. from the call to `list-directory', resulting
+      ;; in the entire build directory and its parent directory also
+      ;; being deleted. Fun fun fun.
+      (unless (or (string-match-p "^\\.\\.?$" package)
+                  (gethash package straight--profile-cache))
+        (delete-directory (straight--dir "build" package) 'recursive)))))
+
 ;;;;; Normalization, pushing, pulling
 
 ;;;###autoload
