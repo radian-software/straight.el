@@ -2585,35 +2585,6 @@ packages that have a nil `:no-build' property are considered."
    (lambda (_) t)
    'require-match))
 
-(defun straight--get-recipe-interactively (sources &optional action)
-  "Use `completing-read' to select an available package.
-SOURCES is a list that is a subset of
-`straight-recipe-repositories'. (If it is nil, then all of the
-repositories are used.) The relevant recipe repositories are
-cloned if necessary first. If `action' is nil or omitted, return
-the recipe. If ACTION is `insert', then insert it into the
-current buffer. If ACTION is `copy', then insert it into the kill
-ring. Interactively, copy it if a prefix argument is provided,
-and insert it otherwise."
-  (let ((sources (or sources straight-recipe-repositories)))
-    (let* ((package (intern
-                     (completing-read
-                      "Which recipe? "
-                      (straight-recipes-list sources)
-                      (lambda (_) t)
-                      'require-match)))
-           ;; No need to provide a `cause' to
-           ;; `straight-recipes-retrieve'; it should not be printing
-           ;; any messages.
-           (recipe (straight-recipes-retrieve package sources)))
-      (unless recipe
-        (user-error "Recipe for %S is malformed" package))
-      (pcase action
-        ('insert (insert (format "%S" recipe)))
-        ('copy (kill-new (format "%S" recipe))
-               (message "Copied \"%S\" to kill ring" recipe))
-        (_ recipe)))))
-
 ;;;;; Bookkeeping
 
 (defvar straight--success-cache (make-hash-table :test #'equal)
@@ -2767,7 +2738,24 @@ point), or nil (no action, just return it)."
                      nil
                      'require-match))))
                 'copy))
-  (straight--get-recipe-interactively sources action))
+  (let ((sources (or sources straight-recipe-repositories)))
+    (let* ((package (intern
+                     (completing-read
+                      "Which recipe? "
+                      (straight-recipes-list sources)
+                      (lambda (_) t)
+                      'require-match)))
+           ;; No need to provide a `cause' to
+           ;; `straight-recipes-retrieve'; it should not be printing
+           ;; any messages.
+           (recipe (straight-recipes-retrieve package sources)))
+      (unless recipe
+        (user-error "Recipe for %S is malformed" package))
+      (pcase action
+        ('insert (insert (format "%S" recipe)))
+        ('copy (kill-new (format "%S" recipe))
+               (message "Copied \"%S\" to kill ring" recipe))
+        (_ recipe)))))
 
 ;;;;; Package registration
 
@@ -2810,8 +2798,7 @@ hint about how to install the package permanently.
 
 Return non-nil if package was actually installed, and nil
 otherwise (this can only happen if NO-CLONE is non-nil)."
-  (interactive (list (straight--get-recipe-interactively nil)
-                     nil nil nil 'interactive))
+  (interactive (list (straight-get-recipe) nil nil nil 'interactive))
   (straight-transaction
     ;; If `straight--convert-recipe' returns nil, the package is
     ;; built-in. No need to go any further.
