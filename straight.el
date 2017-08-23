@@ -2585,35 +2585,6 @@ packages that have a nil `:no-build' property are considered."
    (lambda (_) t)
    'require-match))
 
-(defun straight--get-recipe-interactively (sources &optional action)
-  "Use `completing-read' to select an available package.
-SOURCES is a list that is a subset of
-`straight-recipe-repositories'. (If it is nil, then all of the
-repositories are used.) The relevant recipe repositories are
-cloned if necessary first. If `action' is nil or omitted, return
-the recipe. If ACTION is `insert', then insert it into the
-current buffer. If ACTION is `copy', then insert it into the kill
-ring. Interactively, copy it if a prefix argument is provided,
-and insert it otherwise."
-  (let ((sources (or sources straight-recipe-repositories)))
-    (let* ((package (intern
-                     (completing-read
-                      "Which recipe? "
-                      (straight-recipes-list sources)
-                      (lambda (_) t)
-                      'require-match)))
-           ;; No need to provide a `cause' to
-           ;; `straight-recipes-retrieve'; it should not be printing
-           ;; any messages.
-           (recipe (straight-recipes-retrieve package sources)))
-      (unless recipe
-        (user-error "Recipe for %S is malformed" package))
-      (pcase action
-        ('insert (insert (format "%S" recipe)))
-        ('copy (kill-new (format "%S" recipe))
-               (message "Copied \"%S\" to kill ring" recipe))
-        (_ recipe)))))
-
 ;;;;; Bookkeeping
 
 (defvar straight--success-cache (make-hash-table :test #'equal)
@@ -2767,7 +2738,24 @@ point), or nil (no action, just return it)."
                      nil
                      'require-match))))
                 'copy))
-  (straight--get-recipe-interactively sources action))
+  (let ((sources (or sources straight-recipe-repositories)))
+    (let* ((package (intern
+                     (completing-read
+                      "Which recipe? "
+                      (straight-recipes-list sources)
+                      (lambda (_) t)
+                      'require-match)))
+           ;; No need to provide a `cause' to
+           ;; `straight-recipes-retrieve'; it should not be printing
+           ;; any messages.
+           (recipe (straight-recipes-retrieve package sources)))
+      (unless recipe
+        (user-error "Recipe for %S is malformed" package))
+      (pcase action
+        ('insert (insert (format "%S" recipe)))
+        ('copy (kill-new (format "%S" recipe))
+               (message "Copied \"%S\" to kill ring" recipe))
+        (_ recipe)))))
 
 ;;;;; Package registration
 
@@ -2810,8 +2798,7 @@ hint about how to install the package permanently.
 
 Return non-nil if package was actually installed, and nil
 otherwise (this can only happen if NO-CLONE is non-nil)."
-  (interactive (list (straight--get-recipe-interactively nil)
-                     nil nil nil 'interactive))
+  (interactive (list (straight-get-recipe) nil nil nil 'interactive))
   (straight-transaction
     ;; If `straight--convert-recipe' returns nil, the package is
     ;; built-in. No need to go any further.
@@ -3046,6 +3033,36 @@ See also `straight-check-all' and `straight-rebuild-package'."
       (dolist (package (hash-table-keys straight--recipe-cache))
         (straight-use-package (intern package))))))
 
+;;;;; Cleanup
+
+;;;###autoload
+(defun straight-prune-build ()
+  "Prune the build cache and build directory.
+This means that only packages that were built in the last init
+run and subsequent interactive session will remain; other
+packages will have their build mtime information discarded and
+their build directory deleted."
+  (interactive)
+  (straight-transaction
+    (straight--transaction-exec
+     'build-cache
+     #'straight--load-build-cache
+     #'straight--save-build-cache)
+    (dolist (package (hash-table-keys straight--build-cache))
+      (unless (gethash package straight--profile-cache)
+        (remhash package straight--build-cache)))
+    (dolist (package (directory-files
+                      (straight--dir "build")
+                      nil nil 'nosort))
+      ;; So, let me tell you a funny story. Once upon a time I didn't
+      ;; have this `string-match-p' condition. But Emacs helpfully
+      ;; returns . and .. from the call to `list-directory', resulting
+      ;; in the entire build directory and its parent directory also
+      ;; being deleted. Fun fun fun.
+      (unless (or (string-match-p "^\\.\\.?$" package)
+                  (gethash package straight--profile-cache))
+        (delete-directory (straight--dir "build" package) 'recursive)))))
+
 ;;;;; Normalization, pushing, pulling
 
 ;;;###autoload
@@ -3272,83 +3289,85 @@ This is an `:override' advice for
 
 ;;;; use-package integration
 
-;; Make it so that `:ensure' uses `straight-use-package' instead of
-;; `package-install'.
-(eval-and-compile
-  (defun straight-use-package-ensure-function
-      (name ensure state context &optional only-if-installed)
-    "Value for `use-package-ensure-function' that uses straight.el.
+(when straight-enable-use-package-integration
+
+  (with-eval-after-load 'use-package
+
+    ;; Make it so that `:ensure' uses `straight-use-package' instead of
+    ;; `package-install'.
+    (eval-and-compile
+      (defun straight-use-package-ensure-function
+          (name ensure state context &optional only-if-installed)
+        "Value for `use-package-ensure-function' that uses straight.el.
 The meanings of args NAME, ENSURE, STATE, CONTEXT are the same as
 in `use-package-ensure-function' (which see). ONLY-IF-INSTALLED
 is a nonstandard argument that indicates the package should use
 lazy installation."
-    (when ensure
-      (let ((recipe (or (and (not (eq ensure t)) ensure)
-                        (plist-get state :recipe)
-                        name)))
-        (straight-use-package
-         recipe (or
-                 ;; Normalize value of `only-if-installed'.
-                 (and only-if-installed 'lazy)
-                 (unless (member context '(:byte-compile :ensure
-                                           :config :pre-ensure
-                                           :interactive))
-                   (lambda (package)
-                     ;; Value of NO-CLONE has a meaning that is the
-                     ;; opposite of ONLY-IF-INSTALLED.
-                     (not
-                      (y-or-n-p
-                       (format "Install package %S? " package))))))))))
+        (when ensure
+          (let ((recipe (or (and (not (eq ensure t)) ensure)
+                            (plist-get state :recipe)
+                            name)))
+            (straight-use-package
+             recipe (or
+                     ;; Normalize value of `only-if-installed'.
+                     (and only-if-installed 'lazy)
+                     (unless (member context '(:byte-compile :ensure
+                                               :config :pre-ensure
+                                               :interactive))
+                       (lambda (package)
+                         ;; Value of NO-CLONE has a meaning that is
+                         ;; the opposite of ONLY-IF-INSTALLED.
+                         (not
+                          (y-or-n-p
+                           (format "Install package %S? " package))))))))))
 
-  (defun straight-use-package-pre-ensure-function
-      (name ensure state)
-    "Value for `use-package-pre-ensure-function' that uses straight.el.
+      (defun straight-use-package-pre-ensure-function
+          (name ensure state)
+        "Value for `use-package-pre-ensure-function' that uses straight.el.
 The meanings of args NAME, ENSURE, STATE are the same as in
 `use-package-pre-ensure-function'."
-    (straight-use-package-ensure-function
-     name ensure state :pre-ensure 'only-if-installed)))
+        (straight-use-package-ensure-function
+         name ensure state :pre-ensure 'only-if-installed)))
 
-(with-eval-after-load 'use-package
+    ;; Set the package management functions.
+    (setq use-package-ensure-function
+          #'straight-use-package-ensure-function)
+    (setq use-package-pre-ensure-function
+          #'straight-use-package-pre-ensure-function)
 
-  ;; Set the package management functions.
-  (setq use-package-ensure-function
-        #'straight-use-package-ensure-function)
-  (setq use-package-pre-ensure-function
-        #'straight-use-package-pre-ensure-function)
+    ;; Register aliases for :ensure. Aliases later in the list will
+    ;; override those earlier. (But there is no legitimate reason to
+    ;; use more than one in a `use-package' declaration, at least in
+    ;; sane situations.) The reason we also handle `:ensure' is
+    ;; because the default value of `use-package-normalize/:ensure' is
+    ;; not flexible enough to handle recipes like we need it to.
+    (dolist (keyword '(:recipe :ensure))
 
-  ;; Register aliases for :ensure. Aliases later in the list will
-  ;; override those earlier. (But there is no legitimate reason to use
-  ;; more than one in a `use-package' declaration, at least in sane
-  ;; situations.) The reason we also handle `:ensure' is because the
-  ;; default value of `use-package-normalize/:ensure' is not flexible
-  ;; enough to handle recipes like we need it to.
-  (dolist (keyword '(:recipe :ensure))
+      ;; Insert the keyword just before `:ensure'.
+      (unless (member keyword use-package-keywords)
+        (setq use-package-keywords
+              (let* ((pos (cl-position :ensure use-package-keywords))
+                     (head (cl-subseq use-package-keywords 0 pos))
+                     (tail (cl-subseq use-package-keywords pos)))
+                (append head (list keyword) tail))))
 
-    ;; Insert the keyword just before `:ensure'.
-    (unless (member keyword use-package-keywords)
-      (setq use-package-keywords
-            (let* ((pos (cl-position :ensure use-package-keywords))
-                   (head (cl-subseq use-package-keywords 0 pos))
-                   (tail (cl-subseq use-package-keywords pos)))
-              (append head (list keyword) tail))))
-
-    ;; Define the normalizer for the keyword.
-    (eval
-     `(defun ,(intern (format "use-package-normalize/%S" keyword))
-          (name-symbol keyword args)
-        (use-package-only-one (symbol-name keyword) args
-          (lambda (label arg)
-            (if (keywordp (car-safe arg))
-                (cons name-symbol arg)
-              arg)))))
-
-    ;; Define the handler. We don't need to do this for `:ensure'.
-    (unless (eq keyword :ensure)
+      ;; Define the normalizer for the keyword.
       (eval
-       `(defun ,(intern (format "use-package-handler/%S" keyword))
-            (name keyword recipe rest state)
-          (use-package-process-keywords
-            name rest (plist-put state :recipe recipe)))))))
+       `(defun ,(intern (format "use-package-normalize/%S" keyword))
+            (name-symbol keyword args)
+          (use-package-only-one (symbol-name keyword) args
+            (lambda (label arg)
+              (if (keywordp (car-safe arg))
+                  (cons name-symbol arg)
+                arg)))))
+
+      ;; Define the handler. We don't need to do this for `:ensure'.
+      (unless (eq keyword :ensure)
+        (eval
+         `(defun ,(intern (format "use-package-handler/%S" keyword))
+              (name keyword recipe rest state)
+            (use-package-process-keywords
+              name rest (plist-put state :recipe recipe))))))))
 
 ;;;; Closing remarks
 
