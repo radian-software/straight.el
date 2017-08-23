@@ -815,7 +815,8 @@ string of the form \"username/repo\". Otherwise HOST is nil and
 REPO is just URL. In any case, PROTOCOL is either `https', `ssh',
 or nil (if the protocol cannot be determined, which happens when
 HOST is nil). See also `straight-vc-git--encode-url'."
-  (let ((protocol nil))
+  (let ((protocol nil)
+        (matched t))
     (or (and (string-match
               "^git@\\(.+?\\):\\(.+?\\)\\(?:\\.git\\)?$"
               url)
@@ -827,8 +828,12 @@ HOST is nil). See also `straight-vc-git--encode-url'."
         (and (string-match
               "^https://\\(.+?\\)/\\(.+?\\)\\(?:\\.git\\)?$"
               url)
-             (setq protocol 'https)))
-    (pcase (match-string 1 url)
+             (setq protocol 'https))
+        ;; We have to take care of this case separately because if
+        ;; `string-match' doesn't actually match anything, then
+        ;; `match-string' has undefined behavior.
+        (setq matched nil))
+    (pcase (and matched (match-string 1 url))
       ("github.com" (list (match-string 2 url) 'github protocol))
       ("gitlab.com" (list (match-string 2 url) 'gitlab protocol))
       ("bitbucket.org" (list (match-string 2 url) 'bitbucket protocol))
