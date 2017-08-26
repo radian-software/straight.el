@@ -988,7 +988,9 @@ LOCAL-REPO is a string."
 (cl-defun straight-vc-git--validate-worktree (local-repo)
   "Validate that LOCAL-REPO has a clean worktree.
 LOCAL-REPO is a string."
-  (let ((status (straight--get-call-raw "git" "status" "--short")))
+  (let ((status (straight--get-call-raw
+                 "git" "-c" "status.branch=false"
+                 "status" "--short")))
     (if (string-empty-p status)
         (cl-return-from straight-vc-git--validate-worktree t)
       (straight-vc-git--popup
