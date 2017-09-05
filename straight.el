@@ -1536,7 +1536,7 @@ return nil."
                 (straight--put plist :files files))
               (pcase (plist-get melpa-plist :fetcher)
                 ('git (straight--put plist :repo (plist-get melpa-plist :url)))
-                ((or 'github 'gitlab 'bitbucket)
+                ((or 'github 'gitlab)
                  (straight--put plist :host (plist-get melpa-plist :fetcher))
                  (straight--put plist :repo (plist-get melpa-plist :repo)))
                 ;; This error is caught by `condition-case', no need
