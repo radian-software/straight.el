@@ -132,6 +132,8 @@ for the [Emacs] hacker.
 
 ## Getting started
 
+> **Note: `straight.el` supports a minimum version of Emacs 25.**
+
 First, place the following bootstrap code in your init-file:
 
 <!-- longlines-start -->

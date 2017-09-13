@@ -154,7 +154,8 @@
                          straight-vc-git-primary-remote
                          straight-vc-git-upstream-remote
                          straight-vc-git-default-protocol
-                         straight-vc-git-force-protocol)))
+                         straight-vc-git-force-protocol
+                         user-emacs-directory)))
        (current-buffer))
       (goto-char (point-max))
       (print
