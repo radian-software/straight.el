@@ -1,5 +1,8 @@
-**straight.el**: next-generation, purely functional package manager
-for the [Emacs] hacker.
+straight.el
+===========
+> next-generation, purely functional package manager for the [Emacs] hacker.
+
+[![Build Status][travis-badge]][travis-build]
 
 (If you've been here before, check out the [news]!)
 
@@ -2264,3 +2267,4 @@ particularly impactful to user experience.
 [texinfo-issue]: https://github.com/raxod502/straight.el/issues/71
 [travis-build]: https://travis-ci.org/raxod502/straight.el
 [use-package]: https://github.com/jwiegley/use-package
+[travis-badge]: https://travis-ci.org/raxod502/straight.el.svg?branch=master
