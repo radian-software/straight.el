@@ -5,9 +5,11 @@ env:
   - EVM_VERSION=25.2
 
 install:
-  - gem install evm
+  - curl -fsSkL https://raw.github.com/rejeep/evm/master/go | bash
+  - export PATH="$HOME/.evm/bin:$PATH"
   - evm config path /tmp
   - evm install emacs-$EVM_VERSION-travis
   - export PATH="/tmp/emacs-$EVM_VERSION-travis/bin:$PATH"
+
 script:
   - make travis
