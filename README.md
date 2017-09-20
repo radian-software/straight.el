@@ -3,6 +3,8 @@ for the [Emacs] hacker.
 
 (If you've been here before, check out the [news]!)
 
+[![Build status][travis-badge]][travis-build]
+
 <!-- longlines-start -->
 
 <!-- toc -->
@@ -2262,5 +2264,6 @@ particularly impactful to user experience.
 [spacemacs]: http://spacemacs.org/
 [tag-only-issue]: https://github.com/raxod502/straight.el/issues/31
 [texinfo-issue]: https://github.com/raxod502/straight.el/issues/71
+[travis-badge]: https://travis-ci.org/raxod502/straight.el.svg?branch=develop
 [travis-build]: https://travis-ci.org/raxod502/straight.el
 [use-package]: https://github.com/jwiegley/use-package
