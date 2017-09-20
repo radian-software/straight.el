@@ -1,9 +1,13 @@
 dist: trusty
 sudo: false
+env:
+  - EVM_VERSION=25.1
+  - EVM_VERSION=25.2
+
 install:
   - gem install evm
   - evm config path /tmp
-  - evm install emacs-25.1-travis
-  - export PATH="/tmp/emacs-25.1-travis/bin:$PATH"
+  - evm install emacs-$EVM_VERSION-travis
+  - export PATH="/tmp/emacs-$EVM_VERSION-travis/bin:$PATH"
 script:
   - make travis
