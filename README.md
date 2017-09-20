@@ -1,5 +1,6 @@
-**straight.el**: next-generation, purely functional package manager
-for the [Emacs] hacker.
+straight.el
+===========
+> next-generation, purely functional package manager for the [Emacs] hacker.
 
 [![Build Status](https://travis-ci.org/raxod502/straight.el.svg?branch=master)](https://travis-ci.org/raxod502/straight.el)
 
