@@ -460,9 +460,9 @@ set of additional directives. For example, the `git` backend accepts:
 * `:upstream`
 
 If a local repository is not present, then its fetch recipe describes
-how to obtain it. This is done using the `straight--vc-clone`
-function, which delegates to one of the backend implementations of the
-`clone` operation, according to `:type`.
+how to obtain it. This is done using the `straight-vc-clone` function,
+which delegates to one of the backend implementations of the `clone`
+operation, according to `:type`.
 
 However, even with a particular repository source specified, there is
 still the question of which version of the repository to use. This is
@@ -475,9 +475,9 @@ of a commit identifier could be different across different backends.)
 
 The `straight-freeze-versions` and `straight-thaw-versions` methods
 also use backend-delegating methods; in this case, they are
-`straight--vc-get-commit` and `straight--vc-check-out-commit`.
+`straight-vc-get-commit` and `straight-vc-check-out-commit`.
 
-The fetch recipe and version lockfiles together, combined with the
+The fetch recipe and version lockfiles, together with the
 configuration options for `straight.el`, precisely define the state of
 a local repository. Of course, you may make any changes you want to
 the local repository. But this information defines a "canonical" state
