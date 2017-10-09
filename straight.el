@@ -1275,7 +1275,8 @@ pull from the primary remote."
              (branch (or branch straight-vc-git-default-branch))
              (remote-branch
               (if from-upstream
-                  (plist-get upstream :branch)
+                  (or (plist-get upstream :branch)
+                      straight-vc-git-default-branch)
                 branch)))
         (straight-vc-git--pull-from-remote-raw
          recipe remote remote-branch)))))
