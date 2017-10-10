@@ -507,11 +507,13 @@ calls."
   (unless (straight--transaction-p)
     (error "Can't `straight--transaction-exec' when not in transaction"))
   (unless (assq id straight--transaction-alist)
-    (when begin-func
-      (funcall begin-func))
-    ;; Push to start of list. At the end, we'll read forward, thus in
-    ;; reverse order.
-    (push (cons id end-func) straight--transaction-alist)))
+    ;; Make sure to return the actual function value, and not the
+    ;; current contents of the transaction alist, using `prog1'.
+    (prog1 (when begin-func
+             (funcall begin-func))
+      ;; Push to start of list. At the end, we'll read forward, thus
+      ;; in reverse order.
+      (push (cons id end-func) straight--transaction-alist))))
 
 (defun straight-begin-transaction ()
   "Begin a transaction. See `straight--transaction-p'.
