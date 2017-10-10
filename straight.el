@@ -263,6 +263,20 @@ already in TAKEN."
               (cl-return-from straight--uniquify candidate)))))
     prefix))
 
+;;;;; Functions
+
+(defmacro straight--functionp (object)
+  "Non-nil if OBJECT, an unquoted symbol, is bound to a function.
+However, if OBJECT evaluates to its own symbol value or t, then
+return nil. This is useful for allowing a function to be called
+with nil, non-nil, or a function object, without worrying about
+the non-nil value being interpreted as a function: just call the
+function with the quoted name of the argument, or use t."
+  (let ((object-sym (make-symbol "object")))
+    `(let ((,object-sym ,object))
+       (and (not (memq ,object-sym '(,object t)))
+            (functionp ,object-sym)))))
+
 ;;;;; Messaging
 
 (defmacro straight--with-progress (task &rest body)
@@ -2778,23 +2792,22 @@ property list containing e.g. `:type', `:local-repo', `:files',
 and VC backend specific keywords.
 
 First, the package recipe is registered with straight.el. If
-NO-CLONE has a non-nil value other than the symbol `lazy', then
-processing stops here. If NO-CLONE is nil, then processing always
-continues. If NO-CLONE is the symbol `lazy', then processing
-continues only if the local repository for the package already
-exists.
+NO-CLONE is a function, then it is called with two arguments: the
+package name as a string, and a boolean value indicating whether
+the local repository for the package is available. In that case,
+the return value of the function is used as the value of NO-CLONE
+instead. In any case, if NO-CLONE is non-nil, then processing
+stops here.
 
-If processing continues, then the repository is cloned, if it is
-missing. If NO-BUILD is non-nil, then processing halts here.
-Otherwise, the package is built and activated.
-
-NO-CLONE and NO-BUILD can both be functions; in that case, they
-are called with the package name as a string, and their return
-values are used instead. Note that NO-CLONE is only inspected
-after it is determined that the local repository for the package
-does not exist, and NO-BUILD is only inspected after the local
-repository has been cloned and it has been determined that there
-is no non-nil `:no-build' entry in the package recipe.
+Otherwise, the repository is cloned, if it is missing. If
+NO-BUILD is a function, then it is called with one argument: the
+package name as a string. In that case, the return value of the
+function is used as the value of NO-BUILD instead. In any case,
+if NO-BUILD is non-nil, then processing halts here. Otherwise,
+the package is built and activated. Note that if the package
+recipe has a non-nil `:no-build' entry, then NO-BUILD is ignored
+and processing always stops before building and activation
+occurs.
 
 CAUSE is a string explaining the reason why
 `straight-use-package' has been called. It is for internal use
@@ -2821,110 +2834,107 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
             (package local-repo)
           (unless local-repo
             (cl-return-from straight-use-package nil))
+          ;; We need to register the recipe before building the
+          ;; package, since the ability of `straight--convert-recipe'
+          ;; to deal properly with dependencies versioned in the same
+          ;; repository of their parent package will break unless the
+          ;; caches are updated before we recur to the dependencies.
+          ;;
+          ;; Furthermore, we need to register it before executing the
+          ;; transaction block, since otherwise conflicts between
+          ;; recipes cannot be detected (the transaction block will
+          ;; only be run once for any given package in a transaction).
+          (straight--register-recipe recipe)
           (straight--transaction-exec
            (intern (format "use-package-%s" package))
            (lambda ()
              (let (;; Check if the package has been successfully
                    ;; built. If not, and this is an interactive call,
                    ;; we'll want to display a helpful hint message
-                   ;; (see below).
+                   ;; (see below). We have to check this here, before
+                   ;; the package is actually built.
                    (already-registered
                     (gethash package straight--success-cache))
-                   ;; Remember that `no-build' can come both from the
-                   ;; arguments to `straight-use-package' and from the
-                   ;; actual recipe.
-                   (recipe-no-build (plist-get recipe :no-build)))
-               ;; We need to register the recipe before building the
-               ;; package, since the ability of
-               ;; `straight--convert-recipe' to deal properly with
-               ;; dependencies versioned in the same repository of
-               ;; their parent package will break unless the caches
-               ;; are updated before we recur to the dependencies.
-               (straight--register-recipe recipe)
-               (let ((available
-                      (straight--repository-is-available-p recipe)))
-                 (unless available
-                   (let ((no-clone
-                          (if (and (functionp no-clone)
-                                   ;; Make it so that if people define
-                                   ;; functions with silly names, it
-                                   ;; doesn't break invocations of
-                                   ;; this function with the special
-                                   ;; symbols `lazy' and `no-clone'.
-                                   (not (memq no-clone '(lazy no-clone))))
-                              (funcall no-clone package)
-                            no-clone)))
-                     (when (or no-clone
-                               (and (eq no-clone 'lazy)
-                                    (not available)))
-                       ;; Package not installed. Return nil.
-                       (cl-return-from straight-use-package nil)))
-                   ;; We didn't decide to abort, and the repository
-                   ;; still isn't available. Make it available.
-                   (straight--clone-repository recipe cause))
-                 (unless (or recipe-no-build
-                             (if (and (functionp no-build)
-                                      ;; Same reasoning as above.
-                                      (not (eq no-build 'no-build)))
-                                 (funcall no-build package)
-                               no-build))
-                   ;; Multi-file packages will need to be on the
-                   ;; `load-path' in order to byte-compile properly.
-                   (straight--add-package-to-load-path recipe)
-                   (straight--transaction-exec
-                    'build-cache
-                    #'straight--load-build-cache
-                    #'straight--save-build-cache)
-                   (when
-                       (or
-                        (and
-                         straight--packages-to-rebuild
-                         (or (eq straight--packages-to-rebuild :all)
-                             (gethash package straight--packages-to-rebuild))
-                         (not (gethash
-                               package straight--packages-not-to-rebuild))
-                         ;; The following form returns non-nil, so it
-                         ;; doesn't affect the `and' logic.
-                         (puthash package t straight--packages-not-to-rebuild))
-                        (straight--package-might-be-modified-p recipe))
-                     (straight--build-package recipe cause))
-                   ;; Here we are not actually trying to build the
-                   ;; dependencies, but activate their autoloads. (See
-                   ;; the comment in `straight--build-package' about
-                   ;; this code.)
-                   (dolist (dependency (straight--get-dependencies package))
-                     ;; There are three interesting things here.
-                     ;; Firstly, the recipe used is just the name of
-                     ;; the dependency. This causes the default recipe
-                     ;; to be looked up, unless one of the special
-                     ;; cases in `straight--convert-recipe' pops up.
-                     ;; Secondly, the values of `no-build' and
-                     ;; `no-clone' are always nil. If the user has
-                     ;; agreed to clone and build a package, we assume
-                     ;; that they also want to clone and build all of
-                     ;; its dependencies. Finally, we don't bother to
-                     ;; update `cause', since we're not expecting any
-                     ;; messages to be displayed here (all of the
-                     ;; dependencies should have already been cloned
-                     ;; [if necessary] and built back by
-                     ;; `straight--build-package').
-                     (straight-use-package (intern dependency) nil nil cause))
-                   ;; Only make the package available after everything
-                   ;; is kosher.
-                   (straight--activate-package-autoloads recipe)
-                   ;; In interactive use, tell the user how to install
-                   ;; packages permanently.
-                   (when (and interactive (not already-registered))
-                     (message
-                      (concat "If you want to keep %s, put "
-                              "(straight-use-package %s%S) "
-                              "in your init-file.")
-                      package "'" (intern package))))
-                 ;; The package was installed successfully.
-                 (puthash package t straight--success-cache)
-                 t)))))
-      ;; Return non-nil for built-in packages.
-      t)))
+                   (available
+                    (straight--repository-is-available-p recipe)))
+               ;; Possibly abort based on NO-CLONE.
+               (when (if (straight--functionp no-clone)
+                         (funcall no-clone package available)
+                       no-clone)
+                 (cl-return-from straight-use-package nil))
+               ;; If we didn't abort, ensure the repository is cloned.
+               (unless available
+                 ;; We didn't decide to abort, and the repository
+                 ;; still isn't available. Make it available.
+                 (straight--clone-repository recipe cause))
+               ;; Possibly abort based on NO-BUILD.
+               (when (or
+                      ;; Remember that `no-build' can come both from
+                      ;; the arguments to `straight-use-package' and
+                      ;; from the actual recipe.
+                      (plist-get recipe :no-build)
+                      (if (straight--functionp no-build)
+                          (funcall no-build package)
+                        no-build))
+                 (cl-return-from straight-use-package nil))
+               ;; Multi-file packages will need to be on the
+               ;; `load-path' in order to byte-compile properly.
+               (straight--add-package-to-load-path recipe)
+               (straight--transaction-exec
+                'build-cache
+                #'straight--load-build-cache
+                #'straight--save-build-cache)
+               (when (or
+                      ;; This clause provides support for
+                      ;; `straight-rebuild-package' and
+                      ;; `straight-rebuild-all'.
+                      (and
+                       straight--packages-to-rebuild
+                       (or (eq straight--packages-to-rebuild :all)
+                           (gethash package straight--packages-to-rebuild))
+                       (not (gethash
+                             package straight--packages-not-to-rebuild))
+                       ;; The following form returns non-nil, so it
+                       ;; doesn't affect the `and' logic.
+                       (puthash package t straight--packages-not-to-rebuild))
+                      (straight--package-might-be-modified-p recipe))
+                 (straight--build-package recipe cause))
+               ;; Here we are not actually trying to build the
+               ;; dependencies, but activate their autoloads. (See the
+               ;; comment in `straight--build-package' about this
+               ;; code.)
+               (dolist (dependency (straight--get-dependencies package))
+                 ;; There are three interesting things here. Firstly,
+                 ;; the recipe used is just the name of the
+                 ;; dependency. This causes the default recipe to be
+                 ;; looked up, unless one of the special cases in
+                 ;; `straight--convert-recipe' pops up. Secondly, the
+                 ;; values of NO-BUILD and NO-CLONE are always nil. If
+                 ;; the user has agreed to clone and build a package,
+                 ;; we assume that they also want to clone and build
+                 ;; all of its dependencies. Finally, we don't bother
+                 ;; to update `cause', since we're not expecting any
+                 ;; messages to be displayed here (all of the
+                 ;; dependencies should have already been cloned [if
+                 ;; necessary] and built back by
+                 ;; `straight--build-package').
+                 (straight-use-package (intern dependency) nil nil cause))
+               ;; Only make the package available after everything is
+               ;; kosher.
+               (straight--activate-package-autoloads recipe)
+               ;; In interactive use, tell the user how to install
+               ;; packages permanently.
+               (when (and interactive (not already-registered))
+                 (message
+                  (concat "If you want to keep %s, put "
+                          "(straight-use-package %s%S) "
+                          "in your init-file.")
+                  package "'" (intern package)))
+               ;; The package was installed successfully.
+               (puthash package t straight--success-cache)
+               t)))
+          ;; Return non-nil for built-in packages.
+          t))))
 
 ;;;###autoload
 (defun straight-register-package (melpa-style-recipe)
@@ -2950,7 +2960,11 @@ provided for convenience. MELPA-STYLE-RECIPE is as for
 This function is equivalent to calling `straight-use-package'
 with symbol `lazy' for NO-CLONE. It is provided for convenience.
 MELPA-STYLE-RECIPE is as for `straight-use-package'."
-  (straight-use-package melpa-style-recipe 'lazy))
+  (straight-use-package
+   melpa-style-recipe
+   ;; Don't clone the package if it's not available.
+   (lambda (_package available)
+     (not available))))
 
 ;;;###autoload
 (defun straight-use-recipes (melpa-style-recipe)
@@ -3315,18 +3329,25 @@ lazy installation."
                             (plist-get state :recipe)
                             name)))
             (straight-use-package
-             recipe (or
-                     ;; Normalize value of `only-if-installed'.
-                     (and only-if-installed 'lazy)
-                     (unless (member context '(:byte-compile :ensure
-                                               :config :pre-ensure
-                                               :interactive))
-                       (lambda (package)
-                         ;; Value of NO-CLONE has a meaning that is
-                         ;; the opposite of ONLY-IF-INSTALLED.
-                         (not
-                          (y-or-n-p
-                           (format "Install package %S? " package))))))))))
+             recipe
+             (lambda (package available)
+               (cond
+                ;; When doing lazy installation, don't clone if not
+                ;; available.
+                (only-if-installed (not available))
+                ;; In cases where installation should be automatic, do
+                ;; it.
+                ((memq context '(:byte-compile :ensure
+                                 :config :pre-ensure
+                                 :interactive))
+                 nil)
+                ;; Otherwise, prompt the user.
+                (t
+                 ;; Value of NO-CLONE has a meaning that is the
+                 ;; opposite of ONLY-IF-INSTALLED.
+                 (not
+                  (y-or-n-p
+                   (format "Install package %S? " package))))))))))
 
       (defun straight-use-package-pre-ensure-function
           (name ensure state)
