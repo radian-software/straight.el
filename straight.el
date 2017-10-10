@@ -78,8 +78,7 @@ precedence."
   :type '(alist :key-type symbol :value-type string)
   :group 'straight)
 
-(defcustom straight-current-profile
-  nil
+(defcustom straight-current-profile nil
   "Symbol identifying the current package profile.
 This symbol should have an entry in `straight-profiles'. If you
 wish to take advantage of the multiple-profile system, you should
@@ -88,16 +87,14 @@ different parts of your init-file."
   :type 'symbol
   :group 'straight)
 
-(defcustom straight-default-vc
-  'git
+(defcustom straight-default-vc 'git
   "VC backend to use by default, if a recipe has no `:type'.
 Functions named like `straight-vc-TYPE-clone', etc. should be
 defined, where TYPE is the value of this variable."
   :type 'symbol
   :group 'straight)
 
-(defcustom straight-recipe-repositories
-  ()
+(defcustom straight-recipe-repositories nil
   "List of recipe repositories to find recipes in.
 These are used when you provide only a package name, rather than
 a full recipe, to `straight-use-package' or
@@ -107,7 +104,7 @@ etc. should be defined, where NAME is any element of this list."
   :type '(list symbol)
   :group 'straight)
 
-(defcustom straight-recipe-overrides ()
+(defcustom straight-recipe-overrides nil
   "Alist specifying recipes to override those provided explicitly.
 The keys are symbols naming profiles, and the values are lists of
 MELPA-style package recipes. Because the car of a MELPA-style
