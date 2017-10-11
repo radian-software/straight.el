@@ -1225,7 +1225,7 @@ specified in RECIPE instead. If that fails, signal a warning."
             (straight--get-call
              "git" "clone" "--origin"
              straight-vc-git-primary-remote
-             "--no-checkout" url)
+             "--no-checkout" url local-repo)
             (let ((straight--default-directory nil)
                   (default-directory repo-dir))
               (when commit
