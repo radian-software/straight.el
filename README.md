@@ -134,7 +134,8 @@ for the [Emacs] hacker.
 
 ## Getting started
 
-> **Note: `straight.el` supports a minimum version of Emacs 25.**
+> **Note: `straight.el` supports a minimum version of Emacs 25, and
+> does not support Microsoft Windows.**
 
 First, place the following bootstrap code in your init-file:
 
