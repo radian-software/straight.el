@@ -3332,9 +3332,11 @@ lazy installation."
              recipe
              (lambda (package available)
                (cond
+                ;; If available, go ahead.
+                (available nil)
                 ;; When doing lazy installation, don't clone if not
                 ;; available.
-                (only-if-installed (not available))
+                (only-if-installed t)
                 ;; In cases where installation should be automatic, do
                 ;; it.
                 ((memq context '(:byte-compile :ensure
