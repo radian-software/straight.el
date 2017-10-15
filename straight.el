@@ -2492,9 +2492,11 @@ RECIPE should be a straight.el-style plist. The build mtime and
 recipe in `straight--build-cache' for the package are updated."
   (straight--with-plist recipe
       (package)
-    (let (;; This time format is compatible with BSD and GNU find(1).
-          ;; Which is why we're using it, of course.
-          (mtime (format-time-string "%FT%T%z")))
+    (let (;; This time format is compatible with:
+          ;;
+          ;; * BSD find shipped with macOS >=10.11
+          ;; * GNU find >=4.4.2
+          (mtime (format-time-string "%F %T%z")))
       (straight--insert 0 package mtime straight--build-cache))
     (straight--insert 2 package recipe straight--build-cache)))
 
