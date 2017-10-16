@@ -4,6 +4,7 @@ for the [Emacs] hacker.
 (If you've been here before, check out the [news]!)
 
 [![Build status][travis-badge]][travis-build]
+[![Gitter chat][gitter-badge]][gitter]
 
 <!-- longlines-start -->
 
@@ -2252,6 +2253,8 @@ particularly impactful to user experience.
 [emacsmirror]: https://emacsmirror.net/
 [emacswiki]: https://www.emacswiki.org/
 [epkg]: https://github.com/emacscollective/epkg
+[gitter]: https://gitter.im/raxod502/straight.el
+[gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg
 [issues]: https://github.com/raxod502/straight.el/issues
 [magit]: https://magit.vc/
 [melpa-recipe-format]: https://github.com/melpa/melpa#recipe-format
