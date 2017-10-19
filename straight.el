@@ -108,8 +108,21 @@ etc. should be defined, where NAME is any element of this list."
   "Alist specifying recipes to override those provided explicitly.
 The keys are symbols naming profiles, and the values are lists of
 MELPA-style package recipes. Because the car of a MELPA-style
-recipe is the package name as a symbol, this is actually an alist
-whose keys are symbols naming packages."
+recipe is the package name as a symbol, this means the values can
+also be interpreted as alists whose keys are symbols naming
+packages.
+
+If you have no need of the profile system, then using the default
+profile (nil) will suffice without additional setup. For example,
+you can run straight.el from the develop branch instead of the
+default by running the following code before the straight.el
+bootstrap sequence:
+
+\(setq straight-recipe-overrides
+      \\='((nil . ((straight :type git :host github
+                          :repo \"raxod502/straight.el\"
+                          :branch \"develop\"
+                          :files (\"straight.el\"))))))"
   :type '(alist :key-type symbol :value-type
            (alist :key-type symbol :value-type
              (plist :key-type symbol :value-type sexp)))
