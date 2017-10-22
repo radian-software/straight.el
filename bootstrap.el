@@ -5,6 +5,12 @@
 (require 'bytecomp)
 (require 'cl-lib)
 
+;; In Emacs 24.5, `inhibit-message' is not defined, so the
+;; byte-compiler complains that it is bound lexically here but not
+;; used. We make sure that Emacs 24.5 treats `inhibit-message' as a
+;; dynamic variable, even if it does not have any effect.
+(defvar inhibit-message)
+
 (let* ((bootstrap.el
         ;; If this file is accessed through a symlink (the normal
         ;; case), resolve it. We need to be looking at the actual

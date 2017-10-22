@@ -44,17 +44,193 @@
 ;; `cl-subseq', etc.
 (require 'cl-lib)
 
+;;;; Compatibility with Emacs 24.5
+
+;; Definitions needed only at compile time.
+;;
+;; The byte-compiler has a hard time believing things are really
+;; defined unless you split the definitions into multiple blocks. We
+;; have three, here. Any fewer and you'll get warnings/errors.
+
+(eval-when-compile
+  (when (version< emacs-version "25.1")
+
+    ;; Definition from Emacs 25.3, subr-x.el
+    (defmacro internal--thread-argument (first? &rest forms)
+      "Internal implementation for `thread-first' and `thread-last'.
+When Argument FIRST? is non-nil argument is threaded first, else
+last.  FORMS are the expressions to be threaded."
+      (pcase forms
+        (`(,x (,f . ,args) . ,rest)
+         `(internal--thread-argument
+           ,first? ,(if first? `(,f ,x ,@args) `(,f ,@args ,x)) ,@rest))
+        (`(,x ,f . ,rest) `(internal--thread-argument ,first? (,f ,x) ,@rest))
+        (_ (car forms))))
+
+    ;; Definition from Emacs 25.3, subr-x.el
+    (defmacro thread-first (&rest forms)
+      "Thread FORMS elements as the first argument of their successor.
+Example:
+    (thread-first
+      5
+      (+ 20)
+      (/ 25)
+      -
+      (+ 40))
+Is equivalent to:
+    (+ (- (/ (+ 5 20) 25)) 40)
+Note how the single `-' got converted into a list before
+threading."
+      (declare (indent 1)
+               (debug (form &rest [&or symbolp (sexp &rest form)])))
+      `(internal--thread-argument t ,@forms))
+
+    ;; Definition from Emacs 25.3, subr-x.el
+    (defsubst internal--listify (elt)
+      "Wrap ELT in a list if it is not one."
+      (if (not (listp elt))
+          (list elt)
+        elt))
+
+    ;; Definition from Emacs 25.3, subr-x.el
+    (defsubst internal--check-binding (binding)
+      "Check BINDING is properly formed."
+      (when (> (length binding) 2)
+        (signal
+         'error
+         (cons "`let' bindings can have only one value-form" binding)))
+      binding)
+
+    ;; Definition from Emacs 25.3, subr-x.el
+    (defsubst internal--build-binding-value-form (binding prev-var)
+      "Build the conditional value form for BINDING using PREV-VAR."
+      `(,(car binding) (and ,prev-var ,(cadr binding))))))
+
+(eval-when-compile
+  (when (version< emacs-version "25.1")
+
+    ;; Definition from Emacs 25.3, subr-x.el
+    (defun internal--build-binding (binding prev-var)
+      "Check and build a single BINDING with PREV-VAR."
+      (thread-first
+          binding
+        internal--listify
+        internal--check-binding
+        (internal--build-binding-value-form prev-var)))))
+
+(eval-when-compile
+  (when (version< emacs-version "25.1")
+
+    ;; Definition from Emacs 25.3, subr-x.el
+    (defun internal--build-bindings (bindings)
+      "Check and build conditional value forms for BINDINGS."
+      (let ((prev-var t))
+        (mapcar (lambda (binding)
+                  (let ((binding (internal--build-binding binding prev-var)))
+                    (setq prev-var (car binding))
+                    binding))
+                bindings)))))
+
+(eval-when-compile
+  (when (version< emacs-version "25.1")
+
+    ;; Defined by Emacs 25.3 in C source code
+    (defvar inhibit-message)
+
+    ;; Definition from Emacs 25.3, subr.el
+    (gv-define-expander alist-get
+      (lambda (do key alist &optional default remove)
+        (macroexp-let2 macroexp-copyable-p k key
+          (gv-letplace (getter setter) alist
+            (macroexp-let2 nil p `(assq ,k ,getter)
+              (funcall do (if (null default) `(cdr ,p)
+                            `(if ,p (cdr ,p) ,default))
+                       (lambda (v)
+                         (macroexp-let2 nil v v
+                           (let ((set-exp
+                                  `(if ,p (setcdr ,p ,v)
+                                     ,(funcall setter
+                                               `(cons (setq ,p (cons ,k ,v))
+                                                      ,getter)))))
+                             (cond
+                              ((null remove) set-exp)
+                              ((or (eql v default)
+                                   (and (eq (car-safe v) 'quote)
+                                        (eq (car-safe default) 'quote)
+                                        (eql (cadr v) (cadr default))))
+                               `(if ,p ,(funcall setter `(delq ,p ,getter))))
+                              (t
+                               `(cond
+                                 ((not (eql ,default ,v)) ,set-exp)
+                                 (,p ,(funcall setter
+                                               `(delq ,p ,getter)))))))))))))))
+
+
+
+    ;; Definition from Emacs 25.3, subr-x.el
+    (defmacro if-let (bindings then &rest else)
+      "Process BINDINGS and if all values are non-nil eval THEN, else ELSE.
+Argument BINDINGS is a list of tuples whose car is a symbol to be
+bound and (optionally) used in THEN, and its cadr is a sexp to be
+evalled to set symbol's value.  In the special case you only want
+to bind a single value, BINDINGS can just be a plain tuple."
+      (declare (indent 2)
+               (debug ([&or (&rest (symbolp form)) (symbolp form)] form body)))
+      (when (and (<= (length bindings) 2)
+                 (not (listp (car bindings))))
+        ;; Adjust the single binding case
+        (setq bindings (list bindings)))
+      `(let* ,(internal--build-bindings bindings)
+         (if ,(car (internal--listify (car (last bindings))))
+             ,then
+           ,@else)))
+
+    ;; Definition from Emacs 25.3, subr-x.el
+    (defmacro when-let (bindings &rest body)
+      "Process BINDINGS and if all values are non-nil eval BODY.
+Argument BINDINGS is a list of tuples whose car is a symbol to be
+bound and (optionally) used in BODY, and its cadr is a sexp to be
+evalled to set symbol's value.  In the special case you only want
+to bind a single value, BINDINGS can just be a plain tuple."
+      (declare (indent 1) (debug if-let))
+      (list 'if-let bindings (macroexp-progn body)))
+
+    ;; Defined by Emacs 25.3 in package.el
+    (defvar package-selected-packages)))
+
+;; Definitions needed both at compile time and at runtime.
+(eval-and-compile
+  (when (version< emacs-version "25.1")
+
+    ;; Definition from Emacs 25.3, subr.el
+    (defun alist-get (key alist &optional default remove)
+      "Return the value associated with KEY in ALIST, using `assq'.
+If KEY is not found in ALIST, return DEFAULT.
+
+This is a generalized variable suitable for use with `setf'.
+When using it to set a value, optional argument REMOVE non-nil
+means to remove KEY from ALIST if the new value is `eql' to DEFAULT."
+      (ignore remove) ;;Silence byte-compiler.
+      (let ((x (assq key alist)))
+        (if x (cdr x) default)))))
+
 ;;;; Functions from other packages
 
-(defvar use-package-defaults)
-(defvar use-package-ensure-function)
-(defvar use-package-keywords)
-(defvar use-package-pre-ensure-function)
+;; `package'
+(declare-function package--ensure-init-file "package")
+(declare-function package--save-selected-packages "package")
 
+;; `magit'
 (declare-function magit-status-internal "magit-status")
 (declare-function use-package-as-symbol "use-package")
 (declare-function use-package-only-one "use-package")
 (declare-function use-package-process-keywords "use-package")
+
+;; `use-package'
+(defvar use-package-defaults)
+(defvar use-package-ensure-function)
+(defvar use-package-keywords)
+(defvar use-package-pre-ensure-function)
 
 ;;;; Customization variables
 
@@ -818,15 +994,17 @@ returned unchanged. PROTOCOL must be either `https' or `ssh'; if
 it is omitted, it defaults to `straight-vc-git-default-protocol'.
 See also `straight-vc-git--decode-url'."
   (pcase host
-    ('nil repo)
-    ((or 'github 'gitlab 'bitbucket)
+    ;; Use backquote instead of regular quote here for compatibility
+    ;; with Emacs 24.5.
+    (`nil repo)
+    ((or `github `gitlab `bitbucket)
      (let ((domain (pcase host
-                     ('bitbucket "bitbucket.org")
+                     (`bitbucket "bitbucket.org")
                      (_ (format "%s.com" host)))))
        (pcase (or protocol straight-vc-git-default-protocol)
-         ('https
+         (`https
           (format "https://%s/%s.git" domain repo))
-         ('ssh
+         (`ssh
           (format "git@%s:%s.git" domain repo))
          (_ (error "Unknown protocol: %S" protocol)))))
     (_ (error "Unknown value for host: %S" host))))
@@ -1561,8 +1739,8 @@ return nil."
               (when-let ((files (plist-get melpa-plist :files)))
                 (straight--put plist :files files))
               (pcase (plist-get melpa-plist :fetcher)
-                ('git (straight--put plist :repo (plist-get melpa-plist :url)))
-                ((or 'github 'gitlab)
+                (`git (straight--put plist :repo (plist-get melpa-plist :url)))
+                ((or `github `gitlab)
                  (straight--put plist :host (plist-get melpa-plist :fetcher))
                  (straight--put plist :repo (plist-get melpa-plist :repo)))
                 ;; This error is caught by `condition-case', no need
@@ -2713,7 +2891,13 @@ The default value is \"Processing\"."
                                         (setq next-repos (cdr next-repos))
                                         (cl-return-from loop))
                                     (error e)
-                                    (quit nil))))
+                                    ;; Emacs 24.5 has a bug where the
+                                    ;; byte-compiler signals an unused
+                                    ;; argument warning for the target
+                                    ;; of a `condition-case' unless
+                                    ;; it's used on every error
+                                    ;; handler.
+                                    (quit (ignore e)))))
                             (format (concat "While processing repository %S, "
                                             "an error occurred:\n\n  %S")
                                     local-repo (error-message-string err))
@@ -2787,8 +2971,8 @@ point), or nil (no action, just return it)."
       (unless recipe
         (user-error "Recipe for %S is malformed" package))
       (pcase action
-        ('insert (insert (format "%S" recipe)))
-        ('copy (kill-new (format "%S" recipe))
+        (`insert (insert (format "%S" recipe)))
+        (`copy (kill-new (format "%S" recipe))
                (message "Copied \"%S\" to kill ring" recipe))
         (_ recipe)))))
 

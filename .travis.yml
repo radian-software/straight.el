@@ -1,6 +1,8 @@
 dist: trusty
 sudo: false
 env:
+  - EVM_VERSION=24.4
+  - EVM_VERSION=24.5
   - EVM_VERSION=25.1
   - EVM_VERSION=25.2
   - EVM_VERSION=25.3
