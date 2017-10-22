@@ -659,7 +659,6 @@ This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
 `straight-vc-TYPE-pull-from-upstream' method, where TYPE is the
 `:type' specified in RECIPE."
-  "Using straight.el-style RECIPE, pull from upstream if configured."
   (straight--with-plist recipe
       (local-repo type)
     (let ((straight--default-directory (straight--dir "repos" local-repo)))
@@ -719,7 +718,7 @@ repository directory and delegates to the relevant
 
 (defun straight-vc-keywords (type)
   "Return a list of keywords used by the VC backend TYPE.
-This does include the `:type' keyword itself.
+This does not include the `:type' keyword itself.
 
 This method simply delegates to the relevant
 `straight-vc-TYPE-keywords' method."
@@ -3149,9 +3148,9 @@ Return a list of recipes for packages that were not successfully
 pulled. If multiple packages come from the same local repository,
 only one is pulled.
 
-PREDICATE, if provided, filters the packages that are normalized.
-It is called with the package name as a string, and should return
-non-nil if the package should actually be normalized."
+PREDICATE, if provided, filters the packages that are pulled. It
+is called with the package name as a string, and should return
+non-nil if the package should actually be pulled."
   (interactive "P")
   (straight--map-repos-interactively
    (lambda (package)
