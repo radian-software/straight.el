@@ -3,9 +3,11 @@
 ;; Copyright (C) 2017 Radon Rosborough
 
 ;; Author: Radon Rosborough <radon.neon@gmail.com>
+;; Created: 1 Jan 2017
 ;; Homepage: https://github.com/raxod502/straight.el
 ;; Keywords: extensions
-;; Created: 1 Jan 2017
+;; Package-Requires: ((emacs "24.4"))
+;; Version: 1.0
 
 ;;; Commentary:
 
