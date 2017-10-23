@@ -2630,13 +2630,17 @@ modifies the build folder, not the original repository."
           ;; Tell Emacs to shut up.
           (message-log-max nil) ; no *Messages*
           (inhibit-message t)) ; no echo area
-      ;; Actually generate the autoload file.
-      (update-directory-autoloads
-       (straight--dir "build" package))
-      ;; And for some reason Emacs leaves a newly created buffer lying
-      ;; around. Let's kill it.
-      (when-let ((buf (find-buffer-visiting generated-autoload-file)))
-        (kill-buffer buf)))))
+      ;; If the package provides an autoload file already, then don't
+      ;; overwrite it (which would actually write into the source
+      ;; repository through the symlink).
+      (unless (file-exists-p generated-autoload-file)
+        ;; Actually generate the autoload file.
+        (update-directory-autoloads
+         (straight--dir "build" package))
+        ;; And for some reason Emacs leaves a newly created buffer lying
+        ;; around. Let's kill it.
+        (when-let ((buf (find-buffer-visiting generated-autoload-file)))
+          (kill-buffer buf))))))
 
 ;;;;; Byte-compilation
 
