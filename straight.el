@@ -817,6 +817,56 @@ specified in RECIPE."
     (let ((straight--default-directory (straight--dir "repos" local-repo)))
       (straight-vc 'normalize type recipe))))
 
+(defun straight-vc-fetch-from-remote (recipe)
+  "Fetch from the primary remote for straight.el-style RECIPE.
+
+This method sets `straight--default-directory' to the local
+repository directory and delegates to the relevant
+`straight-vc-TYPE-fetch-from-remote' method, where TYPE is the
+`:type' specified in RECIPE."
+  (straight--with-plist recipe
+      (local-repo type)
+    (let ((straight--default-directory (straight--dir "repos" local-repo)))
+      (straight-vc 'fetch-from-remote type recipe))))
+
+(defun straight-vc-fetch-from-upstream (recipe)
+  "Fetch from the upstream remote for straight.el-style RECIPE.
+If no upstream configured, do nothing.
+
+This method sets `straight--default-directory' to the local
+repository directory and delegates to the relevant
+`straight-vc-TYPE-fetch-from-upstream' method, where TYPE is the
+`:type' specified in RECIPE."
+  (straight--with-plist recipe
+      (local-repo type)
+    (let ((straight--default-directory (straight--dir "repos" local-repo)))
+      (straight-vc 'fetch-from-upstream type recipe))))
+
+(defun straight-vc-merge-from-remote (recipe)
+  "Merge from the primary remote for straight.el-style RECIPE.
+
+This method sets `straight--default-directory' to the local
+repository directory and delegates to the relevant
+`straight-vc-TYPE-merge-from-remote' method, where TYPE is the
+`:type' specified in RECIPE."
+  (straight--with-plist recipe
+      (local-repo type)
+    (let ((straight--default-directory (straight--dir "repos" local-repo)))
+      (straight-vc 'merge-from-remote type recipe))))
+
+(defun straight-vc-merge-from-upstream (recipe)
+  "Merge from the upstream remote for straight.el-style RECIPE.
+If no upstream configured, do nothing.
+
+This method sets `straight--default-directory' to the local
+repository directory and delegates to the relevant
+`straight-vc-TYPE-merge-from-upstream' method, where TYPE is the
+`:type' specified in RECIPE."
+  (straight--with-plist recipe
+      (local-repo type)
+    (let ((straight--default-directory (straight--dir "repos" local-repo)))
+      (straight-vc 'merge-from-upstream type recipe))))
+
 (defun straight-vc-pull-from-remote (recipe)
   "Pull from the primary remote for straight.el-style RECIPE.
 
@@ -1334,6 +1384,20 @@ confirmation, so this function should only be run after
                                (straight--get-call
                                 "git" "reset" "--hard" ref-name)))))))))))))))
 
+(cl-defun straight-vc-git--merge-from-remote-raw (recipe remote remote-branch)
+  "Using straight.el-style RECIPE, merge from REMOTE.
+REMOTE is a string. REMOTE-BRANCH is the branch in REMOTE that is
+used; it should be a string that is not prefixed with a remote
+name."
+  (straight--with-plist recipe
+      (local-repo branch)
+    (let ((branch (or branch straight-vc-git-default-branch)))
+      (while t
+        (and (straight-vc-git--validate-local recipe)
+             (straight-vc-git--validate-head
+              local-repo branch (format "%s/%s" remote remote-branch))
+             (cl-return-from straight-vc-git--merge-from-remote-raw t))))))
+
 (cl-defun straight-vc-git--pull-from-remote-raw (recipe remote remote-branch)
   "Using straight.el-style RECIPE, pull from REMOTE.
 REMOTE is a string. REMOTE-BRANCH is the branch in REMOTE that is
@@ -1465,6 +1529,52 @@ primary :branch is checked out."
   (while t
     (and (straight-vc-git--validate-local recipe)
          (cl-return-from straight-vc-git-normalize t))))
+
+(cl-defun straight-vc-git-fetch-from-remote (recipe &optional from-upstream)
+  "Using straight.el-style RECIPE, fetch from the primary remote.
+If FROM-UPSTREAM is non-nil, fetch from the upstream remote
+instead, if one is configured. The FROM-UPSTREAM argument is not
+part of the VC API."
+  (straight--with-plist recipe
+      (upstream)
+    (unless (and from-upstream (null upstream))
+      (let ((remote (if from-upstream
+                        straight-vc-git-upstream-remote
+                      straight-vc-git-primary-remote)))
+        (while t
+          (and (straight-vc-git--validate-remotes recipe)
+               (straight--get-call "git" "fetch" remote)
+               (cl-return-from straight-vc-git-fetch-from-remote t)))))))
+
+(cl-defun straight-vc-git-fetch-from-upstream (recipe)
+  "Using straight.el-style RECIPE, fetch from the upstream remote.
+If no upstream configured, do nothing."
+  (straight-vc-git-fetch-from-remote recipe 'from-upstream))
+
+(cl-defun straight-vc-git-merge-from-remote (recipe &optional from-upstream)
+  "Using straight.el-style RECIPE, merge from the primary remote.
+If FROM-UPSTREAM is non-nil, merge from the upstream remote
+instead, if one is configured. The FROM-UPSTREAM argument is not
+part of the VC API."
+  (straight--with-plist recipe
+      (branch upstream)
+    (unless (and from-upstream (null upstream))
+      (let* ((remote (if from-upstream
+                         straight-vc-git-upstream-remote
+                       straight-vc-git-primary-remote))
+             (branch (or branch straight-vc-git-default-branch))
+             (remote-branch
+              (if from-upstream
+                  (or (plist-get upstream :branch)
+                      straight-vc-git-default-branch)
+                branch)))
+        (straight-vc-git--merge-from-remote-raw
+         recipe remote remote-branch)))))
+
+(defun straight-vc-git-merge-from-upstream (recipe)
+  "Using straight.el-style RECIPE, merge from upstream.
+If no upstream is configured, do nothing."
+  (straight-vc-git-merge-from-remote recipe 'from-upstream))
 
 (cl-defun straight-vc-git-pull-from-remote (recipe &optional from-upstream)
   "Using straight.el-style RECIPE, pull from a remote.
@@ -3357,6 +3467,74 @@ non-nil if the package should actually be normalized."
   (interactive)
   (straight--map-repos-interactively #'straight-normalize-package
                                      predicate))
+
+;;;###autoload
+(defun straight-fetch-package (package &optional from-upstream)
+  "Try to fetch a PACKAGE from the primary remote.
+PACKAGE is a string naming a package. Interactively, select
+PACKAGE from the known packages in the current Emacs session
+using `completing-read'. With prefix argument FROM-UPSTREAM,
+fetch not just from primary remote but also from configured
+upstream."
+  (interactive (list (straight--select-package "Fetch package")
+                     current-prefix-arg))
+  (let ((recipe (gethash package straight--recipe-cache)))
+    (and (straight-vc-fetch-from-remote recipe)
+         (when from-upstream
+           (straight-vc-fetch-from-upstream recipe)))))
+
+;;;###autoload
+(defun straight-fetch-all (&optional from-upstream predicate)
+  "Try to fetch all packages from their primary remotes.
+With prefix argument FROM-UPSTREAM, fetch not just from primary
+remotes but also from configured upstreams.
+
+Return a list of recipes for packages that were not successfully
+fetched. If multiple packages come from the same local
+repository, only one is fetched.
+
+PREDICATE, if provided, filters the packages that are fetched. It
+is called with the package name as a string, and should return
+non-nil if the package should actually be fetched."
+  (interactive "P")
+  (straight--map-repos-interactively
+   (lambda (package)
+     (straight-fetch-package package from-upstream))
+   predicate))
+
+;;;###autoload
+(defun straight-merge-package (package &optional from-upstream)
+  "Try to merge a PACKAGE from the primary remote.
+PACKAGE is a string naming a package. Interactively, select
+PACKAGE from the known packages in the current Emacs session
+using `completing-read'. With prefix argument FROM-UPSTREAM,
+merge not just from primary remote but also from configured
+upstream."
+  (interactive (list (straight--select-package "Merge package")
+                     current-prefix-arg))
+  (let ((recipe (gethash package straight--recipe-cache)))
+    (and (straight-vc-merge-from-remote recipe)
+         (when from-upstream
+           (straight-vc-merge-from-upstream recipe)))))
+
+;;;###autoload
+(defun straight-merge-all (&optional from-upstream predicate)
+  "Try to merge all packages from their primary remotes.
+With prefix argument FROM-UPSTREAM, merge not just from primary
+remotes but also from configured upstreams.
+
+Return a list of recipes for packages that were not successfully
+merged. If multiple packages come from the same local
+repository, only one is merged.
+
+PREDICATE, if provided, filters the packages that are merged. It
+is called with the package name as a string, and should return
+non-nil if the package should actually be merged."
+  (interactive "P")
+  (straight--map-repos-interactively
+   (lambda (package)
+     (straight-merge-package package from-upstream))
+   predicate))
 
 ;;;###autoload
 (defun straight-pull-package (package &optional from-upstream)

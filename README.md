@@ -281,9 +281,13 @@ interactive workflows to perform bulk operations on your packages.
   correctly), run `M-x straight-normalize-package` or `M-x
   straight-normalize-all`.
 
-* To pull from each package's configured remote, run `M-x
-  straight-pull-package` or `M-x straight-pull-all`. To also pull from
-  the upstream, if one is configured, provide a prefix argument.
+* To fetch from each package's configured remote, run `M-x
+  straight-fetch-package` or `M-x straight-fetch-all`; to also fetch
+  from the upstream (if any), supply a prefix argument.
+
+* To merge changes from each package's configured remote, run `M-x
+  straight-merge-package` or `M-x straight-merge-all`; to also merge
+  from the upstream (if any), supply a prefix argument.
 
 * To push all local changes to each package's configured remote, run
   `M-x straight-push-package` or `M-x straight-push-all`.
@@ -1522,6 +1526,14 @@ a backend API method. The relevant methods are:
   generally means reverting it to a standard state, such as a clean
   working directory, but does not entail checking out any particular
   commit).
+* `fetch-from-remote`: given a recipe, fetch the latest version from
+  its configured remote, if one is specified.
+* `fetch-from-upstream`: given a recipe, fetch the latest version from
+  its configured upstream, if one is specified.
+* `merge-from-remote`: given a recipe, merge the latest version
+  fetched from the configured remote, if any, to the local copy.
+* `merge-from-upstream`: given a recipe, merge the latest version
+  fetched from the configured upstream, if any, to the local copy.
 * `pull-from-remote`: given a recipe, pull the latest version of the
   repository from its configured remote, if one is specified.
 * `pull-from-upstream`: given a recipe, pull the latest version of the
@@ -1577,6 +1589,14 @@ the version-control backend API:
 * `normalize`: verifies that remote URLs are set correctly, that no
   merge is in progress, that the worktree is clean, and that the
   primary `:branch` is checked out.
+* `fetch-from-remote`: checks that remote URLs are set correctly, then
+  fetches from the primary remote.
+* `fetch-from-upstream`: checks that remote URLs are set correctly,
+  then fetches from the upstream remote.
+* `merge-from-remote`: performs normalization, then merges from the
+  primary remote into the primary local `:branch`.
+* `merge-from-upstream`: performs normalization, then merges from the
+  upstream remote into the primary local `:branch`.
 * `pull-from-remote`: performs normalization, then pulls from the
   primary remote and merges with the primary `:branch`.
 * `pull-from-upstream`: performs normalization, then pulls from the
@@ -1823,10 +1843,20 @@ follows:
 
 * `M-x straight-normalize-package`: normalize a package
 * `M-x straight-normalize-all`: normalize all packages
-* `M-x straight-pull-package`: pull from a package's configured
-  remote; with prefix argument, also pull from upstream if present
-* `M-x straight-pull-all`: pull from all packages' configured remotes;
-  with prefix argument, also pull from upstreams if present
+* `M-x straight-fetch-package`: fetch from a package's configured
+  remote; with prefix argument, also fetch from upstream if present
+* `M-x straight-fetch-all`: fetch from all packages' configured
+  remotes; with prefix argument, also fetch from upstreams if present
+* `M-x straight-merge-package`: merge the latest version fetched from
+  a package's configured remote into the local copy; with prefix
+  argument, also merge from upstream
+* `M-x straight-merge-all`: merge the latest versions fetched from
+  each package's configured remote into its local copy; with prefix
+  argument, also merge from upstreams
+* `M-x straight-pull-package`: combination of `M-x
+  straight-fetch-package` and `M-x straight-merge-package`
+* `M-x straight-pull-all`: combination of `M-x straight-fetch-all` and
+  `M-x straight-merge-all`
 * `M-x straight-push-package`: push a package to its remote, if
   necessary
 * `M-x straight-push-all`: push all packages to their remotes, if
