@@ -2798,8 +2798,9 @@ package has already been built. This function calls
   (straight--with-plist recipe
       (package)
     ;; The `info-initialize' function is not autoloaded, for some
-    ;; reason.
-    (require 'info)
+    ;; reason. Do `eval-and-compile' for the byte-compiler.
+    (eval-and-compile
+      (require 'info))
     ;; Initialize the `Info-directory-list' variable. We have to do
     ;; this before adding to it, since otherwise the default paths
     ;; won't get added later.
