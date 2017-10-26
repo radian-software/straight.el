@@ -770,10 +770,6 @@ And here is a brief list of the main reasons you might not want to use
   a [planned feature][tag-only-issue]. If this is important to you,
   you probably want to go with `package.el` (with GNU ELPA and MELPA
   Stable), Cask, or Quelpa.
-* `straight.el` does not currently support Texinfo, although this is
-  a [planned feature][texinfo-issue]. Texinfo is supported by
-  `package.el`, Quelpa, el-get, Cask, and Borg. You can also compile
-  Texinfo manuals by hand.
 * `straight.el` does not currently support arbitrary build commands
   like `make`, although this is
   a [planned feature][build-command-issue]. This feature is supported
@@ -1157,8 +1153,6 @@ offer corrections for this section.
   powerful than that of `straight.el`, since it supports many more
   package sources that can be configured and since it allows for a
   more complex build process.
-* el-get supports texinfo, while `straight.el` does not yet (but this
-  is a [planned feature][texinfo-issue]).
 * el-get provides a number of features for running per-package
   initialization and setup code, including pulling that code from
   arbitrary sources. `straight.el` does not support this and expects
@@ -1218,9 +1212,8 @@ offer corrections for this section.
 * Borg does a heck of a lot less magic, so if you want a solution with
   simple implementation details, `straight.el` may not be for you.
   (But see the developer manual and docstrings, first.)
-* Borg supports texinfo and arbitrary build commands; `straight.el`
-  does not (although these
-  are [planned][texinfo-issue] [features][build-command-issue]).
+* Borg supports arbitrary build commands; `straight.el` does not
+  (although this is a [planned feature][build-command-issue]).
 
 ### Comparison to the manual approach
 
@@ -2200,8 +2193,6 @@ particularly impactful to user experience.
   See
   [#58](https://github.com/raxod502/straight.el/issues/58),
   [#110](https://github.com/raxod502/straight.el/issues/110).
-* *My texinfo manuals aren't being built:*
-  See [#71](https://github.com/raxod502/straight.el/issues/71).
 * *Org is giving me compile warnings:*
   See
   [#72](https://github.com/raxod502/straight.el/issues/72),
@@ -2267,7 +2258,6 @@ particularly impactful to user experience.
 [quelpa]: https://github.com/quelpa/quelpa
 [spacemacs]: http://spacemacs.org/
 [tag-only-issue]: https://github.com/raxod502/straight.el/issues/31
-[texinfo-issue]: https://github.com/raxod502/straight.el/issues/71
 [travis-badge]: https://travis-ci.org/raxod502/straight.el.svg?branch=develop
 [travis-build]: https://travis-ci.org/raxod502/straight.el
 [use-package]: https://github.com/jwiegley/use-package

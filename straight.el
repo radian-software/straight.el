@@ -2680,6 +2680,29 @@ repository."
          (straight--dir "build" package)
          0 'force)))))
 
+(defun straight--compile-package-texinfo (recipe)
+  "Compile .texi files into .info files for package specified by RECIPE.
+RECIPE should be a straight.el-style plist. Note that this
+function only modifies the build directory, not the original
+repository."
+  (straight--with-plist recipe
+      (package)
+    (when (and (executable-find "makeinfo")
+               (executable-find "install-info"))
+      (let ((default-directory (straight--dir "build" package)))
+        (when-let ((texinfo
+                    (directory-files
+                     default-directory
+                     nil "\\.texi\\(nfo\\)?$" 'nosort)))
+          (apply #'straight--check-call (cons "makeinfo" texinfo))
+          (unless (file-exists-p "dir")
+            (when-let ((info (directory-files
+                              default-directory
+                              nil "\\.info$" 'nosort)))
+              (apply #'straight--check-call
+                     (cons "install-info"
+                           (append info '("dir")))))))))))
+
 ;;;;; Cache handling
 
 (defun straight--finalize-build (recipe)
@@ -2751,6 +2774,7 @@ the reason this package is being built."
             (straight--progress-begin task)))
         (straight--generate-package-autoloads recipe)
         (straight--byte-compile-package recipe)
+        (straight--compile-package-texinfo recipe)
         ;; This won't get called if there is an error.
         (straight--finalize-build recipe))
       ;; We messed up the echo area.
@@ -2765,6 +2789,24 @@ package has already been built."
   (straight--with-plist recipe
       (package)
     (add-to-list 'load-path (straight--dir "build" package))))
+
+(defun straight--add-package-to-info-path (recipe)
+  "Add the package specified by RECIPE to the `Info-directory-list'.
+RECIPE is a straight.el-style plist. It is assumed that the
+package has already been built. This function calls
+`info-initialize'."
+  (straight--with-plist recipe
+      (package)
+    ;; The `info-initialize' function is not autoloaded, for some
+    ;; reason.
+    (require 'info)
+    ;; Initialize the `Info-directory-list' variable. We have to do
+    ;; this before adding to it, since otherwise the default paths
+    ;; won't get added later.
+    (info-initialize)
+    ;; Actually add the path. Only .info files at the top level will
+    ;; be seen, which is fine. (It's the way MELPA works.)
+    (add-to-list 'Info-directory-list (straight--dir "build" package))))
 
 (defun straight--activate-package-autoloads (recipe)
   "Evaluate the autoloads for the package specified by RECIPE.
@@ -3125,6 +3167,7 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
                  (straight-use-package (intern dependency) nil nil cause))
                ;; Only make the package available after everything is
                ;; kosher.
+               (straight--add-package-to-info-path recipe)
                (straight--activate-package-autoloads recipe)
                ;; In interactive use, tell the user how to install
                ;; packages permanently.
