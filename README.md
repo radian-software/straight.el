@@ -283,7 +283,9 @@ interactive workflows to perform bulk operations on your packages.
 
 * To pull from each package's configured remote, run `M-x
   straight-pull-package` or `M-x straight-pull-all`. To also pull from
-  the upstream, if one is configured, provide a prefix argument.
+  the upstream, if one is configured, provide a prefix argument. The
+  fetch and merge steps can be separated using the commands
+  `straight-fetch-package` and `straight-merge-package` (or `-all`).
 
 * To push all local changes to each package's configured remote, run
   `M-x straight-push-package` or `M-x straight-push-all`.
@@ -1522,6 +1524,11 @@ a backend API method. The relevant methods are:
   generally means reverting it to a standard state, such as a clean
   working directory, but does not entail checking out any particular
   commit).
+* `fetch`: given a recipe, fetch all remotes for its repository.
+* `merge-from-remote`: given a recipe, merge the latest version of the
+  repository from its configured, already fetched remote.
+* `merge-from-upstream`: same as `merge-from-remote` but using the
+  upstream remote.
 * `pull-from-remote`: given a recipe, pull the latest version of the
   repository from its configured remote, if one is specified.
 * `pull-from-upstream`: given a recipe, pull the latest version of the
@@ -1577,6 +1584,14 @@ the version-control backend API:
 * `normalize`: verifies that remote URLs are set correctly, that no
   merge is in progress, that the worktree is clean, and that the
   primary `:branch` is checked out.
+* `fetch`: check that remote URLs are set correctly, then
+  `git fetch --all`.
+* `merge-from-remote`: performs normalization, then if the local copy
+  of the primary remote is ahead of the primary branch prompts the
+  user to merge it.
+* `merge-from-upstream`: performs normalization, then if the local
+  copy of the upstream remote (if there is one) is ahead of the
+  primary branch prompts the user to merge it.
 * `pull-from-remote`: performs normalization, then pulls from the
   primary remote and merges with the primary `:branch`.
 * `pull-from-upstream`: performs normalization, then pulls from the
@@ -1823,6 +1838,13 @@ follows:
 
 * `M-x straight-normalize-package`: normalize a package
 * `M-x straight-normalize-all`: normalize all packages
+* `M-x straight-fetch-package`: fetch from all remotes of a package
+* `M-x straight-fetch-all`: fetch from all remotes of all packages
+* `M-x straight-merge-package`: merge from a package's configure
+  remote; with prefix argument, also merge from upstream if present.
+  This uses only locally available information prealably obtained e.g.
+  by `straight-fetch-package`.
+* `M-x straight-merge-all`: `straight-merge-package` on all packages.
 * `M-x straight-pull-package`: pull from a package's configured
   remote; with prefix argument, also pull from upstream if present
 * `M-x straight-pull-all`: pull from all packages' configured remotes;
