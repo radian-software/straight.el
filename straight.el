@@ -2774,11 +2774,16 @@ modifies the build folder, not the original repository."
       ;; overwrite it (which would actually write into the source
       ;; repository through the symlink).
       (unless (file-exists-p generated-autoload-file)
-        ;; Actually generate the autoload file.
-        (update-directory-autoloads
-         (straight--dir "build" package))
-        ;; And for some reason Emacs leaves a newly created buffer lying
-        ;; around. Let's kill it.
+        ;; Prevent `update-directory-autoloads' from running hooks
+        ;; (for example, adding to `recentf') when visiting the
+        ;; autoload file.
+        (let ((find-file-hook nil)
+              (write-file-functions nil))
+          ;; Actually generate the autoload file.
+          (update-directory-autoloads
+           (straight--dir "build" package)))
+        ;; And for some reason Emacs leaves a newly created buffer
+        ;; lying around. Let's kill it.
         (when-let ((buf (find-buffer-visiting generated-autoload-file)))
           (kill-buffer buf))))))
 
