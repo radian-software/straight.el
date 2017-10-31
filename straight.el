@@ -224,15 +224,15 @@ means to remove KEY from ALIST if the new value is `eql' to DEFAULT."
 
 ;; `magit'
 (declare-function magit-status-internal "magit-status")
-(declare-function use-package-as-symbol "use-package")
-(declare-function use-package-only-one "use-package")
-(declare-function use-package-process-keywords "use-package")
 
 ;; `use-package'
 (defvar use-package-defaults)
 (defvar use-package-ensure-function)
 (defvar use-package-keywords)
 (defvar use-package-pre-ensure-function)
+(declare-function use-package-as-symbol "use-package")
+(declare-function use-package-only-one "use-package")
+(declare-function use-package-process-keywords "use-package")
 
 ;;;; Customization variables
 
@@ -1021,6 +1021,23 @@ one specified in `straight-vc-git-default-protocol'."
 
 ;;;;;; Utility functions
 
+;; We don't define `straight--profile-cache' until later. (Should some
+;; things be rearranged to make this unnecessary?)
+(defvar straight--profile-cache)
+
+(cl-defun straight--magit-status (directory)
+  "Like `magit-status', but install Magit if necessary.
+Magit is only installed if the user responds to a `y-or-n-p'
+prompt. Return non-nil if Magit was installed. DIRECTORY is as in
+`magit-status'."
+  (unless (or (require 'magit nil 'noerror)
+              (gethash "magit" straight--profile-cache))
+    (if (y-or-n-p "Install Magit? ")
+        (straight-use-package 'magit)
+      (cl-return-from straight--magit-status)))
+  (prog1 t
+    (magit-status-internal directory)))
+
 (defun straight-vc-git--popup-raw (prompt actions)
   "Same as `straight-popup-raw', but specialized for vc-git methods.
 Two additional actions are inserted at the end of the list: \"e\"
@@ -1034,12 +1051,14 @@ edit. Otherwise, PROMPT and ACTIONS are as for
     '(("e" "Dired and open recursive edit"
        (lambda ()
          (dired (or straight--default-directory default-directory))
-         (recursive-edit)))
+         (let ((straight--default-directory nil))
+           (recursive-edit))))
       ("g" "Magit and open recursive edit"
        (lambda ()
-         (magit-status-internal
-          (or straight--default-directory default-directory))
-         (recursive-edit)))))))
+         (when (straight--magit-status
+                (or straight--default-directory default-directory))
+           (let ((straight--default-directory nil))
+             (recursive-edit)))))))))
 
 (defmacro straight-vc-git--popup (prompt &rest actions)
   "Same as `straight-popup', but specialized for vc-git methods.
@@ -1060,10 +1079,10 @@ edit. Otherwise, PROMPT and ACTIONS are as for
       (let ((straight--default-directory nil))
         (recursive-edit)))
      ("g" "Magit and open recursive edit"
-      (magit-status-internal
-       (or straight--default-directory default-directory))
-      (let ((straight--default-directory nil))
-        (recursive-edit)))))
+      (when (straight--magit-status
+             (or straight--default-directory default-directory))
+        (let ((straight--default-directory nil))
+          (recursive-edit))))))
 
 (defun straight-vc-git--encode-url (repo host &optional protocol)
   "Generate a URL from a REPO depending on the value of HOST and PROTOCOL.
