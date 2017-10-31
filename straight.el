@@ -582,7 +582,7 @@ SORT has been inverted from `directory-files'. Finally, the . and
                             full match (not sort)))))
 
 (defun straight--symlink-recursively (link-target link-name)
-  "Make a symbolic link to TARGET, named LINKNAME, recursively.
+  "Make a symbolic link to LINK-TARGET, named LINKNAME, recursively.
 This means that if the link target is a directory, then a
 corresponding directory is created (called LINK-NAME) and all
 descendants of LINK-TARGET are linked separately into
