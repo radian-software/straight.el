@@ -3684,7 +3684,7 @@ according to the value of `straight-profiles'."
              (local-repo package)
            (unless (or (assoc local-repo versions-alist)
                        (straight--repository-is-available-p recipe))
-             (straight-use-package package))))))
+             (straight-use-package (intern package)))))))
     (dolist (spec straight-profiles)
       (cl-destructuring-bind (profile . versions-lockfile) spec
         (let ((versions-alist nil)
