@@ -568,6 +568,36 @@ PACKAGE should be a string. The filename does not include the
 directory component."
   (format "%s-autoloads.el" package))
 
+;;;;; Filesystem operations
+
+(defun straight--directory-files (&optional directory match full sort)
+  "Like `directory-files', but with better defaults.
+DIRECTORY, MATCH, and FULL are as in `directory-files', but their
+order has been changed. Also, DIRECTORY defaults to
+`default-directory' if omitted. The meaning of the last argument
+SORT has been inverted from `directory-files'. Finally, the . and
+.. entries are never returned."
+  (delete "." (delete ".." (directory-files
+                            (or directory default-directory)
+                            full match (not sort)))))
+
+(defun straight--symlink-recursively (link-target link-name)
+  "Make a symbolic link to TARGET, named LINKNAME, recursively.
+This means that if the link target is a directory, then a
+corresponding directory is created (called LINK-NAME) and all
+descendants of LINK-TARGET are linked separately into
+LINK-NAME (except for directories, which are created directly)."
+  (make-directory (file-name-directory link-name) 'parents)
+  (if (and (file-directory-p link-target)
+           (not (file-symlink-p link-target)))
+      (progn
+        (make-directory link-name)
+        (dolist (entry (straight--directory-files link-target))
+          (straight--symlink-recursively
+           (expand-file-name entry link-target)
+           (expand-file-name entry link-name))))
+    (make-symbolic-link link-target link-name)))
+
 ;;;;; External processes
 
 (defvar straight--default-directory nil
@@ -1863,7 +1893,7 @@ return nil."
 
 (defun straight-recipes-melpa-list ()
   "Return a list of recipes available in MELPA, as a list of strings."
-  (directory-files "recipes" nil "^[^.]" 'nosort))
+  (straight--directory-files "recipes"))
 
 ;;;;;; EmacsMirror
 
@@ -1896,8 +1926,8 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
 (defun straight-recipes-emacsmirror-list ()
   "Return a list of recipes available in EmacsMirror, as a list of strings."
   (append
-   (directory-files "mirror" nil "^[^.]" 'nosort)
-   (directory-files "attic" nil "^[^.]" 'nosort)))
+   (straight--directory-files "mirror")
+   (straight--directory-files "attic")))
 
 ;;;;; Recipe conversion
 
@@ -2639,7 +2669,7 @@ the build directory, creating a pristine set of symlinks."
                    (straight--dir "build" package)))
       (cl-destructuring-bind (repo-file . build-file) spec
         (make-directory (file-name-directory build-file) 'parents)
-        (make-symbolic-link repo-file build-file)))))
+        (straight--symlink-recursively repo-file build-file)))))
 
 ;;;;; Dependency management
 
@@ -2801,14 +2831,11 @@ repository."
                (executable-find "install-info"))
       (let ((default-directory (straight--dir "build" package)))
         (when-let ((texinfo
-                    (directory-files
-                     default-directory
-                     nil "\\.texi\\(nfo\\)?$" 'nosort)))
+                    (straight--directory-files
+                     default-directory "\\.texi\\(nfo\\)?$")))
           (apply #'straight--check-call (cons "makeinfo" texinfo))
           (unless (file-exists-p "dir")
-            (when-let ((info (directory-files
-                              default-directory
-                              nil "\\.info$" 'nosort)))
+            (when-let ((info (straight--directory-files)))
               (apply #'straight--check-call
                      (cons "install-info"
                            (append info '("dir")))))))))))
@@ -3430,14 +3457,16 @@ their build directory deleted."
     (dolist (package (hash-table-keys straight--build-cache))
       (unless (gethash package straight--profile-cache)
         (remhash package straight--build-cache)))
-    (dolist (package (directory-files
-                      (straight--dir "build")
-                      nil nil 'nosort))
+    (dolist (package (straight--directory-files
+                      (straight--dir "build")))
       ;; So, let me tell you a funny story. Once upon a time I didn't
       ;; have this `string-match-p' condition. But Emacs helpfully
-      ;; returns . and .. from the call to `list-directory', resulting
-      ;; in the entire build directory and its parent directory also
-      ;; being deleted. Fun fun fun.
+      ;; returns . and .. from the call to `directory-files',
+      ;; resulting in the entire build directory and its parent
+      ;; directory also being deleted. Fun fun fun. (Now that I've
+      ;; replaced `directory-files' with `straight--directory-files',
+      ;; . and .. are no longer returned. But it's always good to be
+      ;; paranoid with recursive deletes.)
       (unless (or (string-match-p "^\\.\\.?$" package)
                   (gethash package straight--profile-cache))
         (delete-directory (straight--dir "build" package) 'recursive)))))
