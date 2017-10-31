@@ -2282,19 +2282,24 @@ hash table with the appropriate `:test', then
       (insert-file-contents-literally
        (straight--file "build-cache.el")))
     (setq straight--build-cache
+          ;; We have to use `ignore-errors' because of the potential
+          ;; for an error during parsing.
           (or (ignore-errors
                 (let ((table (read (current-buffer))))
-                  (cl-assert (hash-table-p table))
-                  (cl-assert (eq (hash-table-test table) #'equal))
-                  table))
-              ;; The keys are package names as *strings*.
+                  (when (and (hash-table-p table)
+                             (eq (hash-table-test table) #'equal))
+                    table)))
+              ;; If hash table is malformed, make a new one instead
+              ;; and rebuild all packages. As for :test, the keys are
+              ;; package names as *strings*.
               (make-hash-table :test #'equal)))
     (setq straight--eagerly-checked-packages
-          (or (ignore-errors
-                (let ((list (read (current-buffer))))
-                  (cl-assert (listp list))
-                  (cl-assert (cl-every #'stringp list))
-                  list))))))
+          (ignore-errors
+            (let ((list (read (current-buffer))))
+              ;; If list is malformed, use empty list instead.
+              (when (and (listp list)
+                         (cl-every #'stringp list))
+                list))))))
 
 (defun straight--save-build-cache ()
   "Write the build cache from `straight--build-cache' into build-cache.el."
