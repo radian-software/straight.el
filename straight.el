@@ -441,6 +441,30 @@ that may contain `straight--not-present' as a value."
 
 ;;;;; Strings
 
+(defun straight--split-and-trim (string &optional indent)
+  "Split the STRING on newlines, returning a list.
+Remove any blank lines at the beginning or end. If INDENT is
+non-nil, then add that many spaces to the beginning of each line
+and concatenate them with newlines, returning a string instead of
+a list."
+  (let ((parts (split-string string "\n")))
+    ;; Remove blank lines from beginning.
+    (while (equal (car parts) "")
+      (setq parts (cdr parts)))
+    (setq parts (nreverse parts))
+    ;; Remove blank lines from end.
+    (while (equal (car parts) "")
+      (setq parts (cdr parts)))
+    (setq parts (nreverse parts))
+    ;; Add indentation.
+    (if indent
+        (let ((indent (make-string (or indent 0) ? )))
+          (string-join (mapcar (lambda (part)
+                                 (concat indent part))
+                               parts)
+                       "\n"))
+      parts)))
+
 (cl-defun straight--uniquify (prefix taken)
   "Generate a string with PREFIX that is not in list TAKEN.
 This is done by trying PREFIX-1, PREFIX-2, etc. if PREFIX is
@@ -655,21 +679,19 @@ FUNC.
 
 ACTIONS later in the list take precedence over earlier ones with
 regard to keybindings."
+  (unless (assoc "C-g" actions)
+    (setq actions (append actions '(("C-g" "Cancel" keyboard-quit)))))
   (let ((keymap (make-sparse-keymap))
         (func nil)
         (prompt (concat prompt "\n"))
         (max-length (apply #'max (mapcar #'length (mapcar #'car actions)))))
-    (unless (assoc "C-g" actions)
-      (nconc actions '(("C-g" "Cancel" keyboard-quit))))
     (dolist (action actions)
       (cl-destructuring-bind (key desc func . args) action
         (when desc
-          ;; I would welcome a better way to pad strings in Elisp,
-          ;; because this is kind of horrifying.
           (setq prompt
-                (format
-                 (format "%%s\n %%%ds %%s" max-length)
-                 prompt key desc)))
+                (format "%s\n %s%s %s" prompt
+                        (make-string (- max-length (length key)) ? )
+                        key desc)))
         (define-key keymap (kbd key)
           (lambda ()
             (interactive)
@@ -1163,8 +1185,8 @@ matter if a GitHub URL is suffixed with .git or not."
 (defun straight-vc-git--list-remotes ()
   "Return a list of Git remotes as strings for the current directory.
 Do not suppress unexpected errors."
-  ;; Git remotes cannot have whitespace, thank goodness.
-  (split-string (straight--get-call "git" "remote") "\n"))
+  ;; Git remotes cannot have newlines in them, thank goodness.
+  (straight--split-and-trim (straight--get-call "git" "remote")))
 
 ;;;;;; Validation functions
 
@@ -1281,11 +1303,8 @@ LOCAL-REPO is a string."
            ;; [1]: https://stackoverflow.com/q/3921409/3538165
            (format "Repository %S has a merge conflict:\n%S"
                    local-repo
-                   (string-join
-                    (mapcar (lambda (line)
-                              (concat "  " line))
-                            (split-string conflicted-files "\n"))
-                    "\n"))
+                   (straight--split-and-trim
+                    conflicted-files 2))
            ("a" "Abort merge"
             (straight--get-call "git" "merge" "--abort")))))))
 
@@ -1300,11 +1319,8 @@ LOCAL-REPO is a string."
       (straight-vc-git--popup
         (format "Repository %S has a dirty worktree:\n\n%s"
                 local-repo
-                (string-join
-                 (mapcar (lambda (line)
-                           (concat "  " line))
-                         (split-string status "\n"))
-                 "\n"))
+                (straight--split-and-trim
+                 status 2))
         ("z" "Stash changes"
          (let ((msg (read-string "Optional stash message: ")))
            (if (string-empty-p msg)
