@@ -2320,8 +2320,13 @@ hash table with the appropriate `:test', then
 (defun straight--save-build-cache ()
   "Write the build cache from `straight--build-cache' into build-cache.el."
   (with-temp-file (straight--file "build-cache.el")
-    (print straight--build-cache (current-buffer))
-    (print (hash-table-keys straight--profile-cache) (current-buffer))))
+    ;; Prevent mangling of the form being printed in the case that
+    ;; this function was called by an `eval-expression' invocation of
+    ;; `straight-use-package'.
+    (let ((print-level nil)
+          (print-level nil))
+      (print straight--build-cache (current-buffer))
+      (print (hash-table-keys straight--profile-cache) (current-buffer)))))
 
 ;;;;; Bulk checking
 
