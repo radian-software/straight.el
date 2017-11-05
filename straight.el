@@ -586,6 +586,16 @@ and postpended to the straight directory.
   (expand-file-name
    (substring (apply 'straight--dir segments) 0 -1)))
 
+(defun straight--mtime-dir (&rest segments)
+  "Get a subdirectory of straight/mtimes/.
+SEGMENTS are passed to `straight--dir'."
+  (apply #'straight--dir "mtimes" segments))
+
+(defun straight--mtime-file (&rest segments)
+  "Get a file in the straight/mtimes/ directory.
+SEGMENTS are passed to `straight--file'."
+  (apply #'straight--file "mtimes" segments))
+
 (defun straight--autoload-file-name (package)
   "Get the bare filename of the autoload file for PACKAGE.
 PACKAGE should be a string. The filename does not include the
@@ -662,6 +672,18 @@ If the command fails, throw an error."
 Return a string with whitespace trimmed from both ends. If the
 command fails, throw an error."
   (string-trim (apply #'straight--get-call-raw command args)))
+
+(defun straight--make-mtime (mtime)
+  "Ensure that the `straight--mtime-file' for MTIME (a string) exists.
+This creates a file in the appropriate directory that has the
+corresponding mtime. Return the name of the file.
+
+This function may not work on all operating systems."
+  (make-directory (straight--mtime-dir) 'parents)
+  (let ((file (straight--mtime-file mtime)))
+    (unless (file-exists-p file)
+      (straight--check-call "touch" "-d" mtime file))
+    file))
 
 ;;;;; Interactive popup windows
 
@@ -805,6 +827,63 @@ have been performed, even if there was an error."
   (interactive)
   (straight-transaction
     (recursive-edit)))
+
+;;;; Feature detection
+
+(defun straight--determine-find-flavor ()
+  "Make an educated guess about `straight-find-flavor'.
+Return a symbol."
+  ;; Avoid at all costs throwing an error, since that would crash the
+  ;; loading of straight.el even before any code is run.
+  (condition-case _
+      (with-temp-buffer
+        ;; For reference, this is what "find --version" prints on some
+        ;; of the find(1) flavors supported by straight.el.
+        ;;
+        ;; == GNU find 4.6.0 on Arch Linux ==
+        ;;
+        ;; find (GNU findutils) 4.6.0
+        ;; Copyright (C) 2015 Free Software Foundation, Inc.
+        ;; [...]
+        ;; exit code 0
+        ;;
+        ;; == BSD find on macOS 10.11.6
+        ;;
+        ;; find: illegal option -- -
+        ;; usage: find [-H | -L | -P] [-EXdsx] [-f path] path ... [expression]
+        ;; find [-H | -L | -P] [-EXdsx] -f path [path ...] [expression]
+        ;; exit code 1
+        ;;
+        ;; == BusyBox 1.26.2
+        ;;
+        ;; find: unrecognized: --version
+        ;; BusyBox v1.26.2 (2017-10-04 13:37:41 GMT) multi-call binary.
+        ;;
+        ;; Usage: find [-HL] [PATH]... [OPTIONS] [ACTIONS]
+        ;; [...]
+        ;; exit code 1
+        (call-process "find" nil '(t t) nil "--version")
+        (goto-char (point-min))
+        (if (search-forward "BusyBox" nil 'noerror)
+            'busybox
+          'gnu/bsd))
+    ;; Just an educated guess.
+    (error 'gnu/bsd)))
+
+(defcustom straight-find-flavor (straight--determine-find-flavor)
+  "Symbol identifying what sort of find(1) binary is available.
+This affects how the find(1) commands for modification checking
+are constructed. The `gnu/bsd' value is compatible with:
+
+* GNU find >=4.4.2
+* BSD find shipped with macOS >=10.11
+
+The `busybox' value is compatible with:
+
+* BusyBox >=1.16.2"
+  :type '(choice (const :tag "GNU/BSD" gnu/bsd)
+                 (const :tag "BusyBox" busybox))
+  :group 'straight)
 
 ;;;; Version control
 
@@ -2286,46 +2365,71 @@ This list is read from the build cache, and is originally
 generated at the end of an init from the keys of
 `straight--profile-cache'.")
 
+(defvar straight--build-cache-version :jes
+  "The current version of the build cache format.
+When the format on disk changes, this value is changed, so that
+straight.el knows to regenerate the whole cache.")
+
 (defun straight--load-build-cache ()
-  "Load the build cache from build-cache.el into `straight--build-cache'.
-If build-cache.el does not both exist and contain a valid Elisp
-hash table with the appropriate `:test', then
-`straight--build-cache' is set to an empty hash table."
-  (with-temp-buffer
-    (ignore-errors
+  "Load data from build-cache.el into memory.
+This sets the variables `straight--build-cache' and
+`straight--eagerly-checked-packages'. If the build cache is
+malformed, don't signal an error, but set these variables to
+empty values (all packages will be rebuilt, with no caching)."
+  ;; Start by clearing the build cache. If the one on disk is
+  ;; malformed (or outdated), these values will be use.
+  (setq straight--build-cache (make-hash-table :test #'equal))
+  (setq straight--eagerly-checked-packages nil)
+  (ignore-errors
+    (with-temp-buffer
       ;; Using `insert-file-contents-literally' avoids
       ;; `find-file-hook', etc.
       (insert-file-contents-literally
-       (straight--file "build-cache.el")))
-    (setq straight--build-cache
-          ;; We have to use `ignore-errors' because of the potential
-          ;; for an error during parsing.
-          (or (ignore-errors
-                (let ((table (read (current-buffer))))
-                  (when (and (hash-table-p table)
-                             (eq (hash-table-test table) #'equal))
-                    table)))
-              ;; If hash table is malformed, make a new one instead
-              ;; and rebuild all packages. As for :test, the keys are
-              ;; package names as *strings*.
-              (make-hash-table :test #'equal)))
-    (setq straight--eagerly-checked-packages
-          (ignore-errors
-            (let ((list (read (current-buffer))))
-              ;; If list is malformed, use empty list instead.
-              (when (and (listp list)
-                         (cl-every #'stringp list))
-                list))))))
+       (straight--file "build-cache.el"))
+      (let ((version (read (current-buffer)))
+            (find-flavor (read (current-buffer)))
+            (cache (read (current-buffer)))
+            (packages (read (current-buffer))))
+        (unless (and
+                 ;; Format version should be the symbol currently in
+                 ;; use.
+                 (symbolp version)
+                 (eq version straight--build-cache-version)
+                 ;; Find flavor should be the symbol currently in use.
+                 (symbolp find-flavor)
+                 (eq find-flavor straight-find-flavor)
+                 ;; Build cache should be a hash table.
+                 (hash-table-p cache)
+                 (eq (hash-table-test cache) #'equal)
+                 ;; Eagerly checked packages should be a list of
+                 ;; strings.
+                 (listp packages)
+                 (cl-every #'stringp packages))
+          ;; If anything is wrong, abort and use the default values.
+          (error "Malformed or outdated build cache"))
+        ;; Otherwise, we can load from disk.
+        (setq straight--build-cache cache)
+        (setq straight--eagerly-checked-packages packages)))))
 
 (defun straight--save-build-cache ()
-  "Write the build cache from `straight--build-cache' into build-cache.el."
+  "Write data from memory into build-cache.el."
   (with-temp-file (straight--file "build-cache.el")
     ;; Prevent mangling of the form being printed in the case that
     ;; this function was called by an `eval-expression' invocation of
     ;; `straight-use-package'.
     (let ((print-level nil)
           (print-level nil))
+      ;; The version of the build cache.
+      (print straight--build-cache-version (current-buffer))
+      ;; The format of the timestamps that were saved; if this changes
+      ;; (due to a new find(1) command installed), we will have to
+      ;; re-generate the build cache. It would be more efficient to
+      ;; save the timestamps in an OS-independent way, but this
+      ;; approach is simpler.
+      (print straight-find-flavor (current-buffer))
+      ;; The actual build cache.
       (print straight--build-cache (current-buffer))
+      ;; Which packages should be checked eagerly next init.
       (print (hash-table-keys straight--profile-cache) (current-buffer)))))
 
 ;;;;; Bulk checking
@@ -2366,19 +2470,24 @@ modified since their last builds.")
                     ;; and prints anything in a particular repository
                     ;; that has an mtime greater than the last build
                     ;; time for that repository.
-                    ;;
-                    ;; Just FYI, this find(1) command is compatible
-                    ;; with both GNU and BSD find. But not apparently
-                    ;; with busybox/find, see [1].
-                    ;;
-                    ;; [1]: https://github.com/raxod502/straight.el/issues/78
-                    (setq args (append (list "-o"
-                                             "-path"
-                                             (format "./%s/*" local-repo)
-                                             "-newermt"
-                                             mtime
-                                             "-print")
-                                       args))
+                    (let ((newer-or-newermt nil)
+                          (mtime-or-file nil))
+                      (pcase straight-find-flavor
+                        (`gnu/bsd
+                         (setq newer-or-newermt "-newermt")
+                         (setq mtime-or-file mtime))
+                        (`busybox
+                         (setq newer-or-newermt "-newer")
+                         (setq mtime-or-file (straight--make-mtime mtime)))
+                        (_ (error "Unexpected `straight-find-flavor': %S"
+                                  straight-find-flavor)))
+                      (setq args (append (list "-o"
+                                               "-path"
+                                               (format "./%s/*" local-repo)
+                                               newer-or-newermt
+                                               mtime-or-file
+                                               "-print")
+                                         args)))
                   ;; If no mtime is specified, it means the package
                   ;; definitely needs to be (re)built. Probably there
                   ;; was an error and we couldn't finish building the
@@ -2452,25 +2561,38 @@ all files in the package's local repository."
               ;; know.
               (or (not (stringp last-mtime))
                   (with-temp-buffer
-                    (let* ((default-directory
-                             (straight--dir "repos" local-repo))
-                           ;; This find(1) command ignores the .git
-                           ;; directory, and prints the names of any
-                           ;; files or directories with a newer mtime
-                           ;; than the one specified.
-                           (args `("." "-name" ".git" "-prune"
-                                   "-o" "-newermt" ,last-mtime "-print"))
-                           (return (apply #'call-process "find"
-                                          nil '(t t) nil args)))
-                      (unless (= 0 return)
-                        (error "Command failed: find %s:\n%s"
-                               (string-join
-                                (mapcar #'shell-quote-argument args)
-                                " ")
-                               (buffer-string)))
-                      ;; If anything was printed, the package has
-                      ;; (maybe) been modified.
-                      (> (buffer-size) 0))))))))))
+                    (let ((newer-or-newermt nil)
+                          (mtime-or-file nil))
+                      (pcase straight-find-flavor
+                        (`gnu/bsd
+                         (setq newer-or-newermt "-newermt")
+                         (setq mtime-or-file last-mtime))
+                        (`busybox
+                         (setq newer-or-newermt "-newer")
+                         (setq mtime-or-file
+                               (straight--make-mtime last-mtime)))
+                        (_ (error "Unexpected `straight-find-flavor': %S"
+                                  straight-find-flavor)))
+                      (let* ((default-directory
+                               (straight--dir "repos" local-repo))
+                             ;; This find(1) command ignores the .git
+                             ;; directory, and prints the names of any
+                             ;; files or directories with a newer
+                             ;; mtime than the one specified.
+                             (args `("." "-name" ".git" "-prune"
+                                     "-o" ,newer-or-newermt ,mtime-or-file
+                                     "-print"))
+                             (return (apply #'call-process "find"
+                                            nil '(t t) nil args)))
+                        (unless (= 0 return)
+                          (error "Command failed: find %s:\n%s"
+                                 (string-join
+                                  (mapcar #'shell-quote-argument args)
+                                  " ")
+                                 (buffer-string)))
+                        ;; If anything was printed, the package has
+                        ;; (maybe) been modified.
+                        (> (buffer-size) 0)))))))))))
 
 ;;;; Building packages
 ;;;;; Files directive processing
@@ -2892,6 +3014,14 @@ repository."
 
 ;;;;; Cache handling
 
+(defun straight--format-timestamp (&optional timestamp)
+  "Format an Elisp TIMESTAMP for the operating system.
+See `format-time-string' for the format of TIMESTAMP."
+  (pcase straight-find-flavor
+    (`gnu/bsd (format-time-string "%F %T%z" timestamp))
+    (`busybox (format-time-string "%F %T" timestamp))
+    (_ (error "Unexpected `straight-find-flavor': %S" straight-find-flavor))))
+
 (defun straight--finalize-build (recipe)
   "Update `straight--build-cache' to reflect a successful build of RECIPE.
 RECIPE should be a straight.el-style plist. The build mtime and
@@ -2902,7 +3032,7 @@ recipe in `straight--build-cache' for the package are updated."
           ;;
           ;; * BSD find shipped with macOS >=10.11
           ;; * GNU find >=4.4.2
-          (mtime (format-time-string "%F %T%z")))
+          (mtime (straight--format-timestamp)))
       (straight--insert 0 package mtime straight--build-cache))
     (straight--insert 2 package recipe straight--build-cache)))
 
