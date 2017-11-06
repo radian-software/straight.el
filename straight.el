@@ -1974,7 +1974,7 @@ For example:
   (unless (memq name straight--recipe-repository-stack)
     (let ((straight--recipe-repository-stack
            (cons name straight--recipe-repository-stack)))
-      (straight-use-package name)
+      (straight-use-package name nil nil cause)
       (let ((recipe (straight--convert-recipe name cause)))
         (straight--with-plist recipe
             (local-repo)
