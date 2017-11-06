@@ -80,6 +80,10 @@ for the [Emacs] hacker.
 - [Trivia](#trivia)
   * [Comments and docstrings](#comments-and-docstrings)
 - [News](#news)
+  * [November 6, 2017](#november-6-2017)
+  * [October 30, 2017](#october-30-2017)
+  * [October 27, 2017](#october-27-2017)
+  * [October 22, 2017](#october-22-2017)
   * [July 27, 2017](#july-27-2017)
 - [Known issue FAQ](#known-issue-faq)
 
@@ -2198,6 +2202,27 @@ Note that you will have to scroll through the entire buffer first,
 since `font-lock-mode` computes syntax highlighting lazily.
 
 ## News
+
+### November 6, 2017
+
+You can now save about 500ms per 100 packages at Emacs init if you
+customize `straight-check-for-modifications` to `live`, which causes
+`straight.el` to detect package modifications as they are made instead
+of using `find(1)` at init time.
+
+### October 30, 2017
+
+`straight.el` now has a much more usable "package update" operation
+because `straight-pull-all` has been separated into
+`straight-fetch-all` and `straight-merge-all`.
+
+### October 27, 2017
+
+`straight.el` now supports texinfo manuals.
+
+### October 22, 2017
+
+`straight.el` now supports Emacs 24.5 and Emacs 24.4.
 
 ### July 27, 2017
 
