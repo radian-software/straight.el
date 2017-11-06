@@ -2414,12 +2414,12 @@ of one of the packages using the local repository."
 (defcustom straight-check-for-modifications 'at-startup
   "When to check for package modifications.
 Value `at-startup' means do it when straight.el is bootstrapped
-during Emacs init. Value `live' means hook into lots of places in
-Emacs to detect modifications as you make them (this means
-modifications made outside Emacs are not detected, but speeds up
-init). Value `never' means don't check automatically. In this
-case you must use `straight-rebuild-package' whenever you modify
-a package, before restarting Emacs."
+during Emacs init. Value `live' means hook into
+`before-save-hook' to detect modifications as you make them (this
+means modifications made outside Emacs are not detected, but
+speeds up init). Value `never' means don't check automatically.
+In this case you must use `straight-rebuild-package' whenever you
+modify a package, before restarting Emacs."
   :type '(choice
           (const :tag "At Emacs startup" at-startup)
           (const :tag "As you make them" live)

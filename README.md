@@ -59,6 +59,7 @@ for the [Emacs] hacker.
     + [Installing with a custom recipe](#installing-with-a-custom-recipe)
     + [Additional arguments to `straight-use-package`](#additional-arguments-to-straight-use-package)
     + [Variants of `straight-use-package`](#variants-of-straight-use-package)
+    + [Customizing how packages are built](#customizing-how-packages-are-built)
   * [The recipe format](#the-recipe-format)
     + [Version-control backends](#version-control-backends)
     + [Git backend](#git-backend)
@@ -1440,6 +1441,29 @@ recipe, and no additional arguments.
 * `straight-use-package-lazy`: stop at the clone step if the package's
   local repository is not already cloned. This is used for
   lazy-loading.
+
+#### Customizing how packages are built
+
+By default, when `straight.el` is bootstrapped during Emacs init, it
+uses a bulk `find(1)` command to identify files that were changed
+since the last time a package depending on them was built. These
+packages are then rebuilt when they are requested via
+`straight-use-package`. For about 100 packages on an SSD, this takes
+about 500ms. You can save this time by customizing
+`straight-check-for-modifications`.
+
+The default value is `at-startup`. If you change this to `never`, then
+`straight.el` will not check for package modifications, and you will
+have to manually (or programmatically) call `straight-rebuild-package`
+when you modify a file and need a package rebuilt.
+
+You can also change it to `live`, which means that `straight.el` will
+use `before-save-hook` in order to detect modifications as you make
+them. This saves init time, but has a caveat: namely, that
+modifications made outside Emacs or in some way that bypasses
+`before-save-hook` are not detected. Pull requests extending the
+number of cases in which `straight.el` is able to detect live
+modifications are welcome.
 
 ### The recipe format
 
