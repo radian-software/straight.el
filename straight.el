@@ -549,6 +549,11 @@ The warning message is obtained by passing MESSAGE and ARGS to
 
 ;;;;; Paths
 
+(defun straight--path-prefix-p (prefix-path full-path)
+  "Return non-nil if PREFIX-PATH is a prefix of FULL-PATH.
+This takes into account case insensitivity on macOS."
+  (string-prefix-p prefix-path full-path (eq system-type 'darwin)))
+
 (defun straight--emacs-dir (&rest segments)
   "Get a subdirectory of the `user-emacs-directory'.
 The SEGMENTS are path segments which are concatenated with
@@ -647,6 +652,21 @@ SEGMENTS are passed to `straight--file'."
   (if-let ((filename (alist-get profile straight-profiles)))
       (straight--versions-file filename)
     (error "Unknown profile: %S" profile)))
+
+(defun straight--determine-repo (path)
+  "Determine the local repository containing PATH, if any.
+If PATH, a string, corresponds to a file or directory inside (or
+equal to) any subfolder of `straight--repos-dir', then return the
+name of the local repository (not a path), as a string.
+Otherwise, return nil."
+  (let ((repos-dir (straight--repos-dir)))
+    (when (straight--path-prefix-p repos-dir path)
+      ;; Remove the ~/.emacs.d/straight/repos/ part.
+      (let* ((relative-path (substring path (length repos-dir))))
+        ;; Trim off any more path components after hte local
+        ;; repository.
+        (replace-regexp-in-string
+         "/.*" "" relative-path 'fixedcase 'literal)))))
 
 ;;;;; Filesystem operations
 
@@ -2390,6 +2410,22 @@ of one of the packages using the local repository."
        (funcall func package)))))
 
 ;;;; Checking for package modifications
+
+(defcustom straight-check-for-modifications 'at-startup
+  "When to check for package modifications.
+Value `at-startup' means do it when straight.el is bootstrapped
+during Emacs init. Value `live' means hook into lots of places in
+Emacs to detect modifications as you make them (this means
+modifications made outside Emacs are not detected, but speeds up
+init). Value `never' means don't check automatically. In this
+case you must use `straight-rebuild-package' whenever you modify
+a package, before restarting Emacs."
+  :type '(choice
+          (const :tag "At Emacs startup" at-startup)
+          (const :tag "As you make them" live)
+          (const :tag "Never" never))
+  :group 'straight)
+
 ;;;;; Build cache
 
 (defvar straight--build-cache nil
@@ -2411,6 +2447,11 @@ This list is read from the build cache, and is originally
 generated at the end of an init from the keys of
 `straight--profile-cache'.")
 
+(defvar straight--live-modified-repos nil
+  "List of local repos that were identified by live modification checking.
+All packages built from these local repositories need to be
+rebuilt at the next init.")
+
 (defvar straight--build-cache-version :jes
   "The current version of the build cache format.
 When the format on disk changes, this value is changed, so that
@@ -2418,10 +2459,11 @@ straight.el knows to regenerate the whole cache.")
 
 (defun straight--load-build-cache ()
   "Load data from build-cache.el into memory.
-This sets the variables `straight--build-cache' and
-`straight--eagerly-checked-packages'. If the build cache is
-malformed, don't signal an error, but set these variables to
-empty values (all packages will be rebuilt, with no caching)."
+This sets the variables `straight--build-cache',
+`straight--eagerly-checked-packages', and
+`straight--live-modified-repos'. If the build cache is malformed,
+don't signal an error, but set these variables to empty
+values (all packages will be rebuilt, with no caching)."
   ;; Start by clearing the build cache. If the one on disk is
   ;; malformed (or outdated), these values will be use.
   (setq straight--build-cache (make-hash-table :test #'equal))
@@ -2435,7 +2477,21 @@ empty values (all packages will be rebuilt, with no caching)."
       (let ((version (read (current-buffer)))
             (find-flavor (read (current-buffer)))
             (cache (read (current-buffer)))
-            (packages (read (current-buffer))))
+            (eager-packages (read (current-buffer)))
+            (live-repos nil))
+        ;; After the main data structures comes a list of other local
+        ;; repositories that were detected by live modification
+        ;; checking. Why aren't these a list? Well, the live
+        ;; modification checker needs to be very fast, so this allows
+        ;; it to operate by just appending to the file rather than
+        ;; regenerating it.
+        (ignore-errors
+          (while t
+            (push (read (current-buffer)) live-repos)))
+        ;; We might end up in a situation where multiple Emacs
+        ;; sessions push the same package to build-cache.el, so we'll
+        ;; get rid of those for the sake of cleanliness.
+        (setq live-repos (delete-dups live-repos))
         (unless (and
                  ;; Format version should be the symbol currently in
                  ;; use.
@@ -2449,16 +2505,22 @@ empty values (all packages will be rebuilt, with no caching)."
                  (eq (hash-table-test cache) #'equal)
                  ;; Eagerly checked packages should be a list of
                  ;; strings.
-                 (listp packages)
-                 (cl-every #'stringp packages))
+                 (listp eager-packages)
+                 (cl-every #'stringp eager-packages)
+                 ;; Live-modified repos should be strings.
+                 (cl-every #'stringp live-repos))
           ;; If anything is wrong, abort and use the default values.
           (error "Malformed or outdated build cache"))
         ;; Otherwise, we can load from disk.
         (setq straight--build-cache cache)
-        (setq straight--eagerly-checked-packages packages)))))
+        (setq straight--eagerly-checked-packages eager-packages)
+        (setq straight--live-modified-repos live-repos)))))
 
 (defun straight--save-build-cache ()
-  "Write data from memory into build-cache.el."
+  "Write data from memory into build-cache.el.
+This uses the values of `straight--build-cache',
+`straight--eagerly-checked-packages', and
+`straight--live-modified-repos'."
   (with-temp-file (straight--build-cache-file)
     ;; Prevent mangling of the form being printed in the case that
     ;; this function was called by an `eval-expression' invocation of
@@ -2476,7 +2538,44 @@ empty values (all packages will be rebuilt, with no caching)."
       ;; The actual build cache.
       (print straight--build-cache (current-buffer))
       ;; Which packages should be checked eagerly next init.
-      (print (hash-table-keys straight--profile-cache) (current-buffer)))))
+      (print (hash-table-keys straight--profile-cache) (current-buffer))
+      ;; Local repositories for which modifications were detected via
+      ;; the live modification checker, but which haven't been rebuilt
+      ;; yet (which would have removed them from the list).
+      (dolist (local-repo straight--live-modified-repos)
+        (print local-repo (current-buffer))))))
+
+;;;;; Live modification checking
+
+(defun straight--register-modification-in-build-cache (local-repo)
+  "Push the name of a LOCAL-REPO to the end of the build cache.
+Once there, it will be picked up into
+`straight--live-modified-repos' by any Emacs sessions that read
+the build cache."
+  (unless (member local-repo straight--live-modified-repos)
+    (with-temp-buffer
+      (print local-repo (current-buffer))
+      (write-region (point-min) (point-max) (straight--build-cache-file)
+                    'append 0))
+    (push local-repo straight--live-modified-repos)))
+
+(defun straight-register-file-modification ()
+  "Register a modification of the current file.
+This function is placed on `before-save-hook' by
+`straight-live-modifications-mode'."
+  (when buffer-file-name
+    (when-let ((local-repo (straight--determine-repo buffer-file-name)))
+      (straight--register-modification-in-build-cache local-repo))))
+
+(define-minor-mode straight-live-modifications-mode
+  "Mode that causes straight.el to check for modifications as you make them.
+This mode is automatically enabled or disabled as you bootstrap
+straight.el, according to the value of
+`straight-check-for-modifications'."
+  nil nil nil
+  (if straight-live-modifications-mode
+      (add-hook 'before-save-hook #'straight-register-file-modification)
+    (remove-hook 'before-save-hook #'straight-register-file-modification)))
 
 ;;;;; Bulk checking
 
@@ -2572,10 +2671,8 @@ modified since their last builds.")
 
 ;;;;; Individual checking
 
-(defun straight--package-might-be-modified-p (recipe)
-  "Check whether the package for the given RECIPE might be modified.
-This is done by using find(1) to recursively check the mtimes of
-all files in the package's local repository."
+(cl-defun straight--package-might-be-modified-p (recipe)
+  "Check whether the package for the given RECIPE might be modified."
   (straight--with-plist recipe
       (package local-repo)
     (let* (;; `build-info' is a list of length three containing the
@@ -2585,12 +2682,19 @@ all files in the package's local repository."
            (last-mtime (nth 0 build-info))
            (last-recipe (nth 2 build-info)))
       (or (null build-info)
+          (member local-repo straight--live-modified-repos)
           ;; Rebuild if relevant parts of the recipe have changed.
           (cl-dolist (keyword straight--build-keywords nil)
             (unless (equal (plist-get recipe keyword)
                            (plist-get last-recipe keyword))
               (cl-return t)))
+          ;; Somebody deleted the build directory...
+          (not (file-exists-p (straight--build-dir package)))
           (progn
+            ;; Don't look at mtimes unless we're told to. Otherwise,
+            ;; rely on live modification checking/user attention.
+            (unless (eq straight-check-for-modifications 'at-startup)
+              (cl-return-from straight--package-might-be-modified-p))
             ;; This method should always be called from a transaction.
             ;; We'll get an error from `straight--transaction-exec' if
             ;; that's somehow not the case.
@@ -3071,14 +3175,16 @@ See `format-time-string' for the format of TIMESTAMP."
 RECIPE should be a straight.el-style plist. The build mtime and
 recipe in `straight--build-cache' for the package are updated."
   (straight--with-plist recipe
-      (package)
+      (package local-repo)
     (let (;; This time format is compatible with:
           ;;
           ;; * BSD find shipped with macOS >=10.11
           ;; * GNU find >=4.4.2
           (mtime (straight--format-timestamp)))
       (straight--insert 0 package mtime straight--build-cache))
-    (straight--insert 2 package recipe straight--build-cache)))
+    (straight--insert 2 package recipe straight--build-cache)
+    (setq straight--live-modified-repos
+          (delete local-repo straight--live-modified-repos))))
 
 ;;;;; Main entry point
 
@@ -3958,7 +4064,14 @@ according to the value of `straight-profiles'."
                (straight-vc-check-out-commit
                 type local-repo commit)))))))))
 
-;;;; package.el "integration"
+;;;; Stateful actions
+;;;;; Live modification checking
+
+(if (eq straight-check-for-modifications 'live)
+    (straight-live-modifications-mode +1)
+  (straight-live-modifications-mode -1))
+
+;;;;; package.el "integration"
 
 (when straight-enable-package-integration
 
@@ -3985,7 +4098,7 @@ This is an `:override' advice for
   (advice-add #'package--save-selected-packages :override
               #'straight--advice-neuter-package-save-selected-packages))
 
-;;;; use-package integration
+;;;;; use-package integration
 
 (when straight-enable-use-package-integration
 
