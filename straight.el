@@ -250,9 +250,8 @@ means to remove KEY from ALIST if the new value is `eql' to DEFAULT."
 (defcustom straight-profiles
   '((nil . "default.el"))
   "Alist mapping package profile names to version lockfile names.
-The profile names should be symbols, and the filenames should not
-contain any directory components. Profiles later in the list take
-precedence."
+The profile names should be symbols, and the filenames may be
+relative (to straight/versions/) or absolute."
   :type '(alist :key-type symbol :value-type string)
   :group 'straight)
 
@@ -550,57 +549,104 @@ The warning message is obtained by passing MESSAGE and ARGS to
 
 ;;;;; Paths
 
-(defun straight--dir (&rest segments)
-  "Get a subdirectory of the straight.el directory.
+(defun straight--emacs-dir (&rest segments)
+  "Get a subdirectory of the `user-emacs-directory'.
 The SEGMENTS are path segments which are concatenated with
-slashes and postpended to the straight directory.
+slashes and postpended to the straight directory. With no
+SEGMENTS, return the `user-emacs-directory' itself.
 
-\(straight--dir \"build\" \"esup\")
+\(straight--dir \"straight\" \"build\" \"esup\")
 => \"~/.emacs.d/straight/build/esup/\""
-  (expand-file-name
-   (apply 'concat user-emacs-directory
-          (mapcar (lambda (segment)
-                    ;; So let me tell you of a fun story. It begins
-                    ;; with an innocuous:
-                    ;;
-                    ;; (delete-directory
-                    ;;   (straight--dir "repos" local-repo)
-                    ;;   'recursive)
-                    ;;
-                    ;; Except -- plot twist! -- it turns out that
-                    ;; local-repo is accidentally nil. So we just
-                    ;; deleted all your repositories. Let's try not to
-                    ;; do that, mkay?
-                    (unless segment
-                      (error "Nil path segment"))
-                    (concat segment "/"))
-                  (cons "straight" segments)))))
+  (let ((dir user-emacs-directory))
+    (while segments
+      (setq dir (expand-file-name
+                 (file-name-as-directory (car segments)) dir))
+      (setq segments (cdr segments)))
+    dir))
 
-(defun straight--file (&rest segments)
-  "Get a file in the straight.el directory.
+(defun straight--emacs-file (&rest segments)
+  "Get a file in the `user-emacs-directory'.
 The SEGMENTS are path segments with are concatenated with slashes
 and postpended to the straight directory.
 
-\(straight--file \"build\" \"esup\" \"esup-autoloads.el\")
+\(straight--file \"straight\" \"build\" \"esup\" \"esup-autoloads.el\")
 => \"~/.emacs.d/straight/build/esup/esup-autoloads.el\""
   (expand-file-name
-   (substring (apply 'straight--dir segments) 0 -1)))
+   (substring (apply 'straight--emacs-dir segments) 0 -1)))
 
-(defun straight--mtime-dir (&rest segments)
+(defun straight--dir (&rest segments)
+  "Get a subdirectory of the straight/ directory.
+SEGMENTS are passed to `straight--emacs-dir'. With no SEGMENTS,
+return the straight/ directory itself."
+  (apply #'straight--emacs-dir "straight" segments))
+
+(defun straight--file (&rest segments)
+  "Get a file in the straight/ directory.
+SEGMENTS are passed to `straight--emacs-file'."
+  (apply #'straight--emacs-file "straight" segments))
+
+(defun straight--bootstrap-file ()
+  "Get the symlink to bootstrap.el."
+  (straight--file "bootstrap.el"))
+
+(defun straight--build-dir (&rest segments)
+  "Get a subdirectory of the straight/build/ directory.
+SEGMENTS are passed to `straight--dir'. With no SEGMENTS, return
+the straight/build/ directory itself."
+  (apply #'straight--dir "build" segments))
+
+(defun straight--build-file (&rest segments)
+  "Get a file in the straight/build/ directory.
+SEGMENTS are passed to `straight--file'."
+  (apply #'straight--file "build" segments))
+
+(defun straight--autoload-file (package)
+  "Get the filename of the autoload file for PACKAGE.
+PACKAGE should be a string."
+  (straight--build-file package (format "%s-autoloads.el" package)))
+
+(defun straight--build-cache-file ()
+  "Get the file containing straight.el's build cache."
+  (straight--file "build-cache.el"))
+
+(defun straight--mtimes-dir (&rest segments)
   "Get a subdirectory of straight/mtimes/.
-SEGMENTS are passed to `straight--dir'."
+SEGMENTS are passed to `straight--dir'. With no SEGMENTS, return
+the straight/mtimes/ directory itself."
   (apply #'straight--dir "mtimes" segments))
 
-(defun straight--mtime-file (&rest segments)
+(defun straight--mtimes-file (&rest segments)
   "Get a file in the straight/mtimes/ directory.
 SEGMENTS are passed to `straight--file'."
   (apply #'straight--file "mtimes" segments))
 
-(defun straight--autoload-file-name (package)
-  "Get the bare filename of the autoload file for PACKAGE.
-PACKAGE should be a string. The filename does not include the
-directory component."
-  (format "%s-autoloads.el" package))
+(defun straight--repos-dir (&rest segments)
+  "Get a subdirectory of the straight/repos/ directory.
+SEGMENTS are passed to `straight--dir'. With no SEGMENTS, return
+the straight/repos/ directory itself."
+  (apply #'straight--dir "repos" segments))
+
+(defun straight--repos-file (&rest segments)
+  "Get a file in the straight/repos/ directory.
+SEGMENTS are passed to `straight--file'."
+  (apply #'straight--file "repos" segments))
+
+(defun straight--versions-dir (&rest segments)
+  "Get a subdirectory of the straight/versions/ directory.
+SEGMENTS are passed to `straight--dir'. With no SEGMENTS, return
+the straight/versions/ directory itself."
+  (apply #'straight--dir "versions" segments))
+
+(defun straight--versions-file (&rest segments)
+  "Get a file in the straight/versions/ directory.
+SEGMENTS are passed to `straight--file'."
+  (apply #'straight--file "versions" segments))
+
+(defun straight--versions-lockfile (profile)
+  "Get the version lockfile for given PROFILE, a symbol."
+  (if-let ((filename (alist-get profile straight-profiles)))
+      (straight--versions-file filename)
+    (error "Unknown profile: %S" profile)))
 
 ;;;;; Filesystem operations
 
@@ -674,13 +720,13 @@ command fails, throw an error."
   (string-trim (apply #'straight--get-call-raw command args)))
 
 (defun straight--make-mtime (mtime)
-  "Ensure that the `straight--mtime-file' for MTIME (a string) exists.
+  "Ensure that the `straight--mtimes-file' for MTIME (a string) exists.
 This creates a file in the appropriate directory that has the
 corresponding mtime. Return the name of the file.
 
 This function may not work on all operating systems."
-  (make-directory (straight--mtime-dir) 'parents)
-  (let ((file (straight--mtime-file mtime)))
+  (make-directory (straight--mtimes-dir) 'parents)
+  (let ((file (straight--mtimes-file mtime)))
     (unless (file-exists-p file)
       (straight--check-call "touch" "-d" mtime file))
     file))
@@ -911,9 +957,9 @@ method, where TYPE is the `:type' specified in RECIPE. If the
 repository already exists, throw an error."
   (straight--with-plist recipe
       (type local-repo)
-    (let ((straight--default-directory (straight--dir "repos"))
+    (let ((straight--default-directory (straight--repos-dir))
           (commit nil))
-      (when (file-exists-p (straight--dir "repos" local-repo))
+      (when (file-exists-p (straight--repos-dir local-repo))
         (error "Repository already exists: %S" local-repo))
       ;; We're reading the lockfiles inline here, instead of caching
       ;; them like we do with the build cache. The reason is that
@@ -922,7 +968,7 @@ repository already exists, throw an error."
       ;; we're already going to be cloning a repository.
       (dolist (spec straight-profiles)
         (cl-destructuring-bind (_profile . versions-lockfile) spec
-          (let ((lockfile-path (straight--file "versions" versions-lockfile)))
+          (let ((lockfile-path (straight--versions-file versions-lockfile)))
             (when-let ((versions-alist (ignore-errors
                                          (with-temp-buffer
                                            (insert-file-contents-literally
@@ -945,7 +991,7 @@ repository directory and delegates to the relevant
 specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--dir "repos" local-repo)))
+    (let ((straight--default-directory (straight--repos-dir local-repo)))
       (straight-vc 'normalize type recipe))))
 
 (defun straight-vc-fetch-from-remote (recipe)
@@ -957,7 +1003,7 @@ repository directory and delegates to the relevant
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--dir "repos" local-repo)))
+    (let ((straight--default-directory (straight--repos-dir local-repo)))
       (straight-vc 'fetch-from-remote type recipe))))
 
 (defun straight-vc-fetch-from-upstream (recipe)
@@ -970,7 +1016,7 @@ repository directory and delegates to the relevant
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--dir "repos" local-repo)))
+    (let ((straight--default-directory (straight--repos-dir local-repo)))
       (straight-vc 'fetch-from-upstream type recipe))))
 
 (defun straight-vc-merge-from-remote (recipe)
@@ -982,7 +1028,7 @@ repository directory and delegates to the relevant
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--dir "repos" local-repo)))
+    (let ((straight--default-directory (straight--repos-dir local-repo)))
       (straight-vc 'merge-from-remote type recipe))))
 
 (defun straight-vc-merge-from-upstream (recipe)
@@ -995,7 +1041,7 @@ repository directory and delegates to the relevant
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--dir "repos" local-repo)))
+    (let ((straight--default-directory (straight--repos-dir local-repo)))
       (straight-vc 'merge-from-upstream type recipe))))
 
 (defun straight-vc-pull-from-remote (recipe)
@@ -1007,7 +1053,7 @@ repository directory and delegates to the relevant
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--dir "repos" local-repo)))
+    (let ((straight--default-directory (straight--repos-dir local-repo)))
       (straight-vc 'pull-from-remote type recipe))))
 
 (defun straight-vc-pull-from-upstream (recipe)
@@ -1020,7 +1066,7 @@ repository directory and delegates to the relevant
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--dir "repos" local-repo)))
+    (let ((straight--default-directory (straight--repos-dir local-repo)))
       (straight-vc 'pull-from-upstream type recipe))))
 
 (defun straight-vc-push-to-remote (recipe)
@@ -1032,7 +1078,7 @@ repository directory and delegates to the relevant
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--dir "repos" local-repo)))
+    (let ((straight--default-directory (straight--repos-dir local-repo)))
       (straight-vc 'push-to-remote type recipe))))
 
 (defun straight-vc-check-out-commit (type local-repo commit)
@@ -1045,7 +1091,7 @@ is defined by the backend, but it should be compatible with
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
 `straight-vc-TYPE-check-out-commit'."
-  (let ((straight--default-directory (straight--dir "repos" local-repo)))
+  (let ((straight--default-directory (straight--repos-dir local-repo)))
     (straight-vc 'check-out-commit type local-repo commit)))
 
 (defun straight-vc-get-commit (type local-repo)
@@ -1058,7 +1104,7 @@ defined by the backend, but it should be compatible with
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
 `straight-vc-TYPE-get-commit' method."
-  (let ((straight--default-directory (straight--dir "repos" local-repo)))
+  (let ((straight--default-directory (straight--repos-dir local-repo)))
     (straight-vc 'get-commit type local-repo)))
 
 (defun straight-vc-local-repo-name (recipe)
@@ -1617,7 +1663,7 @@ specified in RECIPE instead. If that fails, signal a warning."
   (straight--with-plist recipe
       (local-repo repo host branch upstream nonrecursive)
     (let ((success nil)
-          (repo-dir (straight--dir "repos" local-repo))
+          (repo-dir (straight--repos-dir local-repo))
           (url (straight-vc-git--encode-url repo host))
           (branch (or branch straight-vc-git-default-branch)))
       (unwind-protect
@@ -1797,7 +1843,7 @@ then returned."
   "Determine if the repository for the RECIPE exists locally."
   (straight--with-plist recipe
       (local-repo)
-    (file-exists-p (straight--dir "repos" local-repo))))
+    (file-exists-p (straight--repos-dir local-repo))))
 
 (defun straight--clone-repository (recipe &optional cause)
   "Clone the repository for the RECIPE, erroring if it already exists.
@@ -1805,7 +1851,7 @@ CAUSE is a string indicating the reason this repository is being
 cloned."
   (straight--with-plist recipe
       (package local-repo)
-    (make-directory (straight--dir "repos") 'parents)
+    (make-directory (straight--repos-dir) 'parents)
     (straight--with-progress
         (concat cause (when cause straight-arrow)
                 (format "Cloning %s" local-repo)
@@ -1932,7 +1978,7 @@ For example:
       (let ((recipe (straight--convert-recipe name cause)))
         (straight--with-plist recipe
             (local-repo)
-          (let ((default-directory (straight--dir "repos" local-repo))
+          (let ((default-directory (straight--repos-dir local-repo))
                 (func (intern (format "straight-recipes-%S-%S"
                                       name method))))
             (apply func args)))))))
@@ -2385,7 +2431,7 @@ empty values (all packages will be rebuilt, with no caching)."
       ;; Using `insert-file-contents-literally' avoids
       ;; `find-file-hook', etc.
       (insert-file-contents-literally
-       (straight--file "build-cache.el"))
+       (straight--build-cache-file))
       (let ((version (read (current-buffer)))
             (find-flavor (read (current-buffer)))
             (cache (read (current-buffer)))
@@ -2413,7 +2459,7 @@ empty values (all packages will be rebuilt, with no caching)."
 
 (defun straight--save-build-cache ()
   "Write data from memory into build-cache.el."
-  (with-temp-file (straight--file "build-cache.el")
+  (with-temp-file (straight--build-cache-file)
     ;; Prevent mangling of the form being printed in the case that
     ;; this function was called by an `eval-expression' invocation of
     ;; `straight-use-package'.
@@ -2502,7 +2548,7 @@ modified since their last builds.")
     (setq args (append (list "." "-name" ".git" "-prune")
                        args))
     (with-temp-buffer
-      (let ((default-directory (straight--dir "repos")))
+      (let ((default-directory (straight--repos-dir)))
         (let ((return (apply #'call-process "find" nil '(t t) nil args)))
           ;; find(1) always returns zero unless there was some kind of
           ;; error.
@@ -2574,7 +2620,7 @@ all files in the package's local repository."
                         (_ (error "Unexpected `straight-find-flavor': %S"
                                   straight-find-flavor)))
                       (let* ((default-directory
-                               (straight--dir "repos" local-repo))
+                               (straight--repos-dir local-repo))
                              ;; This find(1) command ignores the .git
                              ;; directory, and prints the names of any
                              ;; files or directories with a newer
@@ -2824,16 +2870,16 @@ the build directory, creating a pristine set of symlinks."
   (straight--with-plist recipe
       (package local-repo files)
     ;; Remove the existing built package, if necessary.
-    (let ((dir (straight--dir "build" package)))
+    (let ((dir (straight--build-dir package)))
       (when (file-exists-p dir)
         (delete-directory dir 'recursive)))
     ;; Make a new directory for the built package.
-    (make-directory (straight--dir "build" package) 'parents)
+    (make-directory (straight--build-dir package) 'parents)
     ;; Do the linking.
     (dolist (spec (straight-expand-files-directive
                    files
-                   (straight--dir "repos" local-repo)
-                   (straight--dir "build" package)))
+                   (straight--repos-dir local-repo)
+                   (straight--build-dir package)))
       (cl-destructuring-bind (repo-file . build-file) spec
         (make-directory (file-name-directory build-file) 'parents)
         (straight--symlink-recursively repo-file build-file)))))
@@ -2922,10 +2968,7 @@ modifies the build folder, not the original repository."
   (straight--with-plist recipe
       (package)
     (let (;; The full path to the autoload file.
-          (generated-autoload-file
-           (straight--file
-            "build" package
-            (straight--autoload-file-name package)))
+          (generated-autoload-file (straight--autoload-file package))
           ;; The following bindings are in
           ;; `package-generate-autoloads'. Presumably this is for a
           ;; good reason, so I just copied them here. It's a shame
@@ -2948,7 +2991,7 @@ modifies the build folder, not the original repository."
               (write-file-functions nil))
           ;; Actually generate the autoload file.
           (update-directory-autoloads
-           (straight--dir "build" package)))
+           (straight--build-dir package)))
         ;; And for some reason Emacs leaves a newly created buffer
         ;; lying around. Let's kill it.
         (when-let ((buf (find-buffer-visiting generated-autoload-file)))
@@ -2989,7 +3032,7 @@ repository."
         ;; Note that there is in fact no `byte-compile-directory'
         ;; function.
         (byte-recompile-directory
-         (straight--dir "build" package)
+         (straight--build-dir package)
          0 'force)))))
 
 (defun straight--compile-package-texinfo (recipe)
@@ -3001,7 +3044,7 @@ repository."
       (package)
     (when (and (executable-find "makeinfo")
                (executable-find "install-info"))
-      (let ((default-directory (straight--dir "build" package)))
+      (let ((default-directory (straight--build-dir package)))
         (when-let ((texinfo
                     (straight--directory-files
                      default-directory "\\.texi\\(nfo\\)?$")))
@@ -3106,7 +3149,7 @@ RECIPE is a straight.el-style plist. It is assumed that the
 package has already been built."
   (straight--with-plist recipe
       (package)
-    (add-to-list 'load-path (straight--dir "build" package))))
+    (add-to-list 'load-path (straight--build-dir package))))
 
 (defun straight--add-package-to-info-path (recipe)
   "Add the package specified by RECIPE to the `Info-directory-list'.
@@ -3125,7 +3168,7 @@ package has already been built. This function calls
     (info-initialize)
     ;; Actually add the path. Only .info files at the top level will
     ;; be seen, which is fine. (It's the way MELPA works.)
-    (add-to-list 'Info-directory-list (straight--dir "build" package))))
+    (add-to-list 'Info-directory-list (straight--build-dir package))))
 
 (defun straight--activate-package-autoloads (recipe)
   "Evaluate the autoloads for the package specified by RECIPE.
@@ -3136,8 +3179,7 @@ package. It is assumed that the package has already been built.
 RECIPE is a straight.el-style plist."
   (straight--with-plist recipe
       (package)
-    (let ((autoloads (straight--file
-                      "build" package (straight--autoload-file-name package))))
+    (let ((autoloads (straight--autoload-file package)))
       ;; If the autoloads file doesn't exist, don't throw an error. It
       ;; seems that in Emacs 26, an autoloads file is not actually
       ;; written if there are no autoloads to generate (although this
@@ -3198,7 +3240,7 @@ interpretations are defined by the relevant VC backend."
   (let ((versions ()))
     (dolist (spec straight-profiles)
       (cl-destructuring-bind (_profile . versions-lockfile) spec
-        (let ((lockfile-path (straight--file "versions" versions-lockfile)))
+        (let ((lockfile-path (straight--versions-file versions-lockfile)))
           (when-let ((versions-alist (ignore-errors
                                        (with-temp-buffer
                                          (insert-file-contents-literally
@@ -3284,7 +3326,7 @@ The default value is \"Processing\"."
                          (setq next-repos (cdr next-repos))
                          (cl-return-from loop))
                         ("e" "Dired and open recursive edit"
-                         (dired (straight--dir "repos" local-repo))
+                         (dired (straight--repos-dir local-repo))
                          (recursive-edit))
                         ("C-g" (concat "Stop immediately and do not process "
                                        "more repositories")
@@ -3639,7 +3681,7 @@ their build directory deleted."
       (unless (gethash package straight--profile-cache)
         (remhash package straight--build-cache)))
     (dolist (package (straight--directory-files
-                      (straight--dir "build")))
+                      (straight--build-dir)))
       ;; So, let me tell you a funny story. Once upon a time I didn't
       ;; have this `string-match-p' condition. But Emacs helpfully
       ;; returns . and .. from the call to `directory-files',
@@ -3650,7 +3692,7 @@ their build directory deleted."
       ;; paranoid with recursive deletes.)
       (unless (or (string-match-p "^\\.\\.?$" package)
                   (gethash package straight--profile-cache))
-        (delete-directory (straight--dir "build" package) 'recursive)))))
+        (delete-directory (straight--build-dir package) 'recursive)))))
 
 ;;;;; Normalization, pushing, pulling
 
@@ -3864,8 +3906,7 @@ according to the value of `straight-profiles'."
     (dolist (spec straight-profiles)
       (cl-destructuring-bind (profile . versions-lockfile) spec
         (let ((versions-alist nil)
-              (lockfile-directory (straight--dir "versions"))
-              (lockfile-path (straight--file "versions" versions-lockfile)))
+              (lockfile-path (straight--versions-file versions-lockfile)))
           (straight--map-repos
            (lambda (recipe)
              (straight--with-plist recipe
@@ -3877,7 +3918,7 @@ according to the value of `straight-profiles'."
                        versions-alist)))))
           (setq versions-alist
                 (cl-sort versions-alist #'string-lessp :key #'car))
-          (make-directory lockfile-directory 'parents)
+          (make-directory (file-name-directory lockfile-path) 'parents)
           (with-temp-file lockfile-path
             (insert
              (format
