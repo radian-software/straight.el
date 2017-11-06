@@ -2007,7 +2007,7 @@ return nil."
 
 (defun straight-recipes-melpa-list ()
   "Return a list of recipes available in MELPA, as a list of strings."
-  (straight--directory-files "recipes"))
+  (straight--directory-files "recipes" "^[^.]"))
 
 ;;;;;; EmacsMirror
 
@@ -3007,7 +3007,8 @@ repository."
                      default-directory "\\.texi\\(nfo\\)?$")))
           (apply #'straight--check-call (cons "makeinfo" texinfo))
           (unless (file-exists-p "dir")
-            (when-let ((info (straight--directory-files)))
+            (when-let ((info (straight--directory-files
+                              default-directory "\\.info$")))
               (apply #'straight--check-call
                      (cons "install-info"
                            (append info '("dir")))))))))))
