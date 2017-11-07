@@ -2457,6 +2457,11 @@ rebuilt at the next init.")
 When the format on disk changes, this value is changed, so that
 straight.el knows to regenerate the whole cache.")
 
+(defvar straight--build-cache-text nil
+  "Literal text of the build cache.
+If this is unchanged between loading and saving the build cache,
+then the saving step is skipped for efficiency.")
+
 (defun straight--load-build-cache ()
   "Load data from build-cache.el into memory.
 This sets the variables `straight--build-cache',
@@ -2468,6 +2473,8 @@ values (all packages will be rebuilt, with no caching)."
   ;; malformed (or outdated), these values will be use.
   (setq straight--build-cache (make-hash-table :test #'equal))
   (setq straight--eagerly-checked-packages nil)
+  (setq straight--live-modified-repos nil)
+  (setq straight--build-cache-text nil)
   (ignore-errors
     (with-temp-buffer
       ;; Using `insert-file-contents-literally' avoids
@@ -2488,6 +2495,11 @@ values (all packages will be rebuilt, with no caching)."
         (ignore-errors
           (while t
             (push (read (current-buffer)) live-repos)))
+        ;; Make sure to get the list in the correct order, so that we
+        ;; can write it back in the same order. (This allows an
+        ;; optimization where we don't actually write the build cache
+        ;; if it's character-for-character identical.)
+        (setq live-repos (nreverse live-repos))
         ;; We might end up in a situation where multiple Emacs
         ;; sessions push the same package to build-cache.el, so we'll
         ;; get rid of those for the sake of cleanliness.
@@ -2514,14 +2526,15 @@ values (all packages will be rebuilt, with no caching)."
         ;; Otherwise, we can load from disk.
         (setq straight--build-cache cache)
         (setq straight--eagerly-checked-packages eager-packages)
-        (setq straight--live-modified-repos live-repos)))))
+        (setq straight--live-modified-repos live-repos)
+        (setq straight--build-cache-text (buffer-string))))))
 
 (defun straight--save-build-cache ()
   "Write data from memory into build-cache.el.
 This uses the values of `straight--build-cache',
 `straight--eagerly-checked-packages', and
 `straight--live-modified-repos'."
-  (with-temp-file (straight--build-cache-file)
+  (with-temp-buffer
     ;; Prevent mangling of the form being printed in the case that
     ;; this function was called by an `eval-expression' invocation of
     ;; `straight-use-package'.
@@ -2543,7 +2556,10 @@ This uses the values of `straight--build-cache',
       ;; the live modification checker, but which haven't been rebuilt
       ;; yet (which would have removed them from the list).
       (dolist (local-repo straight--live-modified-repos)
-        (print local-repo (current-buffer))))))
+        (print local-repo (current-buffer))))
+    (unless (and straight--build-cache-text
+                 (string= (buffer-string) straight--build-cache-text))
+      (write-region nil nil (straight--build-cache-file) nil 0))))
 
 ;;;;; Live modification checking
 
