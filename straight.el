@@ -687,16 +687,24 @@ This means that if the link target is a directory, then a
 corresponding directory is created (called LINK-NAME) and all
 descendants of LINK-TARGET are linked separately into
 LINK-NAME (except for directories, which are created directly)."
-  (make-directory (file-name-directory link-name) 'parents)
   (if (and (file-directory-p link-target)
            (not (file-symlink-p link-target)))
       (progn
-        (make-directory link-name)
+        (make-directory link-name 'parents)
         (dolist (entry (straight--directory-files link-target))
           (straight--symlink-recursively
            (expand-file-name entry link-target)
            (expand-file-name entry link-name))))
-    (make-symbolic-link link-target link-name)))
+    (make-directory (file-name-directory link-name) 'parents)
+    (condition-case err
+        (make-symbolic-link link-target link-name)
+      (file-already-exists
+       ;; We're OK with the recipe specifying to create the symlink
+       ;; twice, as long as it's pointing to the same place both
+       ;; times. Otherwise, raise an error.
+       (unless (string= link-target
+                        (file-symlink-p link-name))
+         (signal (car err) (cdr err)))))))
 
 ;;;;; External processes
 
