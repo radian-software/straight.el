@@ -2547,7 +2547,7 @@ This uses the values of `straight--build-cache',
     ;; this function was called by an `eval-expression' invocation of
     ;; `straight-use-package'.
     (let ((print-level nil)
-          (print-level nil))
+          (print-length nil))
       ;; The version of the build cache.
       (print straight--build-cache-version (current-buffer))
       ;; The format of the timestamps that were saved; if this changes
