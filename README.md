@@ -2259,8 +2259,6 @@ particularly impactful to user experience.
 * *Switching to `straight.el` made my init time slower:*
   See
   [#9](https://github.com/raxod502/straight.el/issues/9),
-  [#41](https://github.com/raxod502/straight.el/issues/41),
-  [#118](https://github.com/raxod502/straight.el/issues/118),
   [#119](https://github.com/raxod502/straight.el/issues/119).
 * *I only want to use stable versions of packages:*
   See [#31](https://github.com/raxod502/straight.el/issues/31).
@@ -2276,9 +2274,6 @@ particularly impactful to user experience.
   See
   [#72](https://github.com/raxod502/straight.el/issues/72),
   [#115](https://github.com/raxod502/straight.el/issues/115).
-* *It doesn't work on my (insert operating system or embedded device
-  here):*
-  See [#78](https://github.com/raxod502/straight.el/issues/78).
 
 [bootstrap]: #getting-started
 [comments-and-docstrings]: #comments-and-docstrings
