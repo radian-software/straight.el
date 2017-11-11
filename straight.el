@@ -614,6 +614,17 @@ PACKAGE should be a string."
   "Get the file containing straight.el's build cache."
   (straight--file "build-cache.el"))
 
+(defun straight--links-dir (&rest segments)
+  "Get a subdirectory of straight/links/.
+SEGMENTS are passed to `straight--dir'. With no SEGMENTS, return
+the straight/links/ directory itself."
+  (apply #'straight--dir "links" segments))
+
+(defun straight--links-file (&rest segments)
+  "Get a file in the straight/links/ directory.
+SEGMENTS are passed to `straight--file'."
+  (apply #'straight--file "links" segments))
+
 (defun straight--mtimes-dir (&rest segments)
   "Get a subdirectory of straight/mtimes/.
 SEGMENTS are passed to `straight--dir'. With no SEGMENTS, return
@@ -670,6 +681,23 @@ Otherwise, return nil."
 
 ;;;;; Filesystem operations
 
+(defun straight--symlinks-are-usable-p ()
+  "Return non-nil if symlinks are well-supported by the OS.
+This means that they are used to build packages rather than
+copying files, which is slower and less space-efficient.
+
+All operating systems support symlinks except Microsoft Windows."
+  (not (memq system-type '(ms-dos windows-nt cygwin))))
+
+(defcustom straight-use-symlinks (straight--symlinks-are-usable-p)
+  "Whether to use symlinks for building packages.
+Using symlinks is always preferable, unless you use Microsoft
+Windows, in which you will have to use copying instead. This is
+slower, less space-efficient, and requiring of additional hacks,
+but such is Windows."
+  :type 'boolean
+  :group 'straight)
+
 (defun straight--directory-files (&optional directory match full sort)
   "Like `directory-files', but with better defaults.
 DIRECTORY, MATCH, and FULL are as in `directory-files', but their
@@ -686,7 +714,12 @@ SORT has been inverted from `directory-files'. Finally, the . and
 This means that if the link target is a directory, then a
 corresponding directory is created (called LINK-NAME) and all
 descendants of LINK-TARGET are linked separately into
-LINK-NAME (except for directories, which are created directly)."
+LINK-NAME (except for directories, which are created directly).
+
+If `straight-use-symlinks' is nil, then instead of creating a
+symlink, the file is copied directly, and a corresponding entry
+is created in the straight/links/ directory so that the file may
+be interpreted later as a symlink."
   (if (and (file-directory-p link-target)
            (not (file-symlink-p link-target)))
       (progn
@@ -697,7 +730,22 @@ LINK-NAME (except for directories, which are created directly)."
            (expand-file-name entry link-name))))
     (make-directory (file-name-directory link-name) 'parents)
     (condition-case err
-        (make-symbolic-link link-target link-name)
+        (if straight-use-symlinks
+            (make-symbolic-link link-target link-name)
+          (copy-file link-target link-name)
+          (let ((build-dir (straight--build-dir)))
+            (when (straight--path-prefix-p build-dir link-name)
+              (let* ((relative-path (substring link-name (length build-dir)))
+                     (link-record (straight--links-file relative-path)))
+                ;; This call may fail in the case that there was
+                ;; previously a directory being symlinked, and now
+                ;; there is a file by the same name being symlinked.
+                ;; That edge case will need to be dealt with
+                ;; eventually, but it's rather nontrivial so I'm not
+                ;; doing it now.
+                (make-directory (file-name-directory link-record) 'parents)
+                (with-temp-file link-record
+                  (insert link-target))))))
       (file-already-exists
        ;; We're OK with the recipe specifying to create the symlink
        ;; twice, as long as it's pointing to the same place both
@@ -2419,7 +2467,16 @@ of one of the packages using the local repository."
 
 ;;;; Checking for package modifications
 
-(defcustom straight-check-for-modifications 'at-startup
+(defun straight--determine-best-modification-checking ()
+  "Determine the best default value of `straight-check-for-modifications'.
+This is `at-startup' on my platforms and `live' on Microsoft
+Windows, where find(1) is not available."
+  (if (memq system-type '(ms-dos windows-nt cygwin))
+      'live
+    'at-startup))
+
+(defcustom straight-check-for-modifications
+  (straight--determine-best-modification-checking)
   "When to check for package modifications.
 Value `at-startup' means do it when straight.el is bootstrapped
 during Emacs init. Value `live' means hook into
@@ -3011,6 +3068,36 @@ the build directory, creating a pristine set of symlinks."
       (cl-destructuring-bind (repo-file . build-file) spec
         (make-directory (file-name-directory build-file) 'parents)
         (straight--symlink-recursively repo-file build-file)))))
+
+(defun straight-maybe-emulate-symlink ()
+  "If visiting an emulated symlink, visit the link target instead.
+See `straight-symlink-emulation-mode'."
+  (let ((build-dir (straight--build-dir)))
+    (when (and buffer-file-name
+               (straight--path-prefix-p build-dir buffer-file-name))
+      ;; Remove the ~/.emacs.d/straight/build/ part, and get the
+      ;; corresponding path under straight/links/.
+      (let* ((relative-path (substring buffer-file-name (length build-dir)))
+             (link-record (straight--links-file relative-path)))
+        (if (file-exists-p link-record)
+            (find-alternate-file
+             (with-temp-buffer
+               (insert-file-contents-literally link-record)
+               (buffer-string)))
+          (message "Broken symlink, you are not editing the real file"))))))
+
+(define-minor-mode straight-symlink-emulation-mode
+  "Minor mode for emulating symlinks in the software layer.
+This means when a file in straight/build/ is visited, an advice
+on `find-file-hook' causes straight.el to check if there is a
+record in straight/links/ identifying it as a symlink. If so,
+then the file referenced there is used instead. This mode is
+automatically enabled or disabled when you load straight.el,
+according to the value of `straight-use-symlinks'."
+  nil nil nil
+  (if straight-symlink-emulation-mode
+      (add-hook 'find-file-hook #'straight-maybe-emulate-symlink)
+    (remove-hook 'find-file-hook #'straight-maybe-emulate-symlink)))
 
 ;;;;; Dependency management
 
@@ -4064,7 +4151,7 @@ according to the value of `straight-profiles'."
               ;;
               ;; The version keyword comes after the versions alist so
               ;; that you can ignore it if you don't need it.
-              "(%s)\n:venus\n"
+              "(%s)\n:mars\n"
               (mapconcat
                (apply-partially #'format "%S")
                versions-alist
@@ -4094,6 +4181,12 @@ according to the value of `straight-profiles'."
 (if (eq straight-check-for-modifications 'live)
     (straight-live-modifications-mode +1)
   (straight-live-modifications-mode -1))
+
+;;;;; Symlink emulation
+
+(if straight-use-symlinks
+    (straight-symlink-emulation-mode -1)
+  (straight-symlink-emulation-mode +1))
 
 ;;;;; package.el "integration"
 

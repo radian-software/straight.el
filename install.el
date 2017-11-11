@@ -83,7 +83,7 @@
 
   (let (;; This needs to have a default value, just in case the user
         ;; doesn't have any lockfiles.
-        (version :venus)
+        (version :mars)
         (straight-profiles (if (boundp 'straight-profiles)
                                straight-profiles
                              '((nil . "default")))))
@@ -187,14 +187,32 @@
             ;; argument just makes it fail silently in the case of an
             ;; existing file. That's why we have to `delete-file'
             ;; above.
-            (make-symbolic-link target linkname)))
+            (if straight-use-symlinks
+                (make-symbolic-link target linkname)
+              (with-temp-file linkname
+                (print
+                 `(load (expand-file-name
+                         ,target (file-name-directory load-file-name))
+                        nil 'nomessage)
+                 (current-buffer))))))
        (current-buffer))
       (let ((temp-file (make-temp-file "straight.el~")))
         (write-region nil nil temp-file nil 'silent)
         (with-temp-buffer
           (unless (= 0
                      (call-process
-                      (expand-file-name invocation-name invocation-directory)
+                      ;; Taken with love from package `restart-emacs'.
+                      (let ((emacs-binary-path
+                             (expand-file-name
+                              invocation-name invocation-directory))
+                            (runemacs-binary-path
+                             (when (memq system-type '(windows-nt ms-dos))
+                               (expand-file-name
+                                "runemacs.exe" invocation-directory))))
+                        (if (and runemacs-binary-path
+                                 (file-exists-p runemacs-binary-path))
+                            runemacs-binary-path
+                          emacs-binary-path))
                       nil '(t t) nil
                       "--batch" "--no-window-system" "--quick"
                       "--load" temp-file))

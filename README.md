@@ -141,7 +141,7 @@ for the [Emacs] hacker.
 ## Getting started
 
 > **Note: `straight.el` supports a minimum version of Emacs 24.4, and
-> does not support Microsoft Windows.**
+> works on macOS, Windows, and most flavors of Linux.**
 
 First, place the following bootstrap code in your init-file:
 
@@ -2279,9 +2279,6 @@ particularly impactful to user experience.
 * *It doesn't work on my (insert operating system or embedded device
   here):*
   See [#78](https://github.com/raxod502/straight.el/issues/78).
-* *It doesn't work on Windows:*
-  See [#124](https://github.com/raxod502/straight.el/issues/124), but
-  be prepared to wait a while.
 
 [bootstrap]: #getting-started
 [comments-and-docstrings]: #comments-and-docstrings

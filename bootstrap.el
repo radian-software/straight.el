@@ -42,7 +42,9 @@
       (byte-recompile-file straight.el nil 0)
       ;; Actually load the package manager. This doesn't do anything
       ;; except initialize some caches.
-      (load (concat straight.el "c") nil 'nomessage 'nosuffix))))
+      (load (expand-file-name (concat straight.el "c")
+                              default-directory)
+            nil 'nomessage 'nosuffix))))
 
 ;; This assures the byte-compiler that we know what we are doing when
 ;; we reference functions and variables from straight.el below. It
