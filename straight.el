@@ -2653,7 +2653,7 @@ This function is placed on `before-save-hook' by
 This mode is automatically enabled or disabled as you bootstrap
 straight.el, according to the value of
 `straight-check-for-modifications'."
-  nil nil nil
+  :global t
   (if straight-live-modifications-mode
       (add-hook 'before-save-hook #'straight-register-file-modification)
     (remove-hook 'before-save-hook #'straight-register-file-modification)))
@@ -3094,7 +3094,7 @@ record in straight/links/ identifying it as a symlink. If so,
 then the file referenced there is used instead. This mode is
 automatically enabled or disabled when you load straight.el,
 according to the value of `straight-use-symlinks'."
-  nil nil nil
+  :global t
   (if straight-symlink-emulation-mode
       (add-hook 'find-file-hook #'straight-maybe-emulate-symlink)
     (remove-hook 'find-file-hook #'straight-maybe-emulate-symlink)))
