@@ -4225,16 +4225,31 @@ This is an `:override' advice for
     ;; `package-install'.
     (eval-and-compile
       (defun straight-use-package-ensure-function
-          (name ensure state context &optional only-if-installed)
+          (name ensure state &rest args)
         "Value for `use-package-ensure-function' that uses straight.el.
-The meanings of args NAME, ENSURE, STATE, CONTEXT are the same as
-in `use-package-ensure-function' (which see). ONLY-IF-INSTALLED
+See (multiple versions of) `use-package' for the potential
+meanings of NAME, ENSURE, STATE, and CONTEXT. ONLY-IF-INSTALLED
 is a nonstandard argument that indicates the package should use
 lazy installation."
         (when ensure
-          (let ((recipe (or (and (not (eq ensure t)) ensure)
-                            (plist-get state :recipe)
-                            name)))
+          ;; Parse out the ARGS. This is necessary because some
+          ;; versions and/or forks of `use-package' support deferred
+          ;; installation, whereas the current official version
+          ;; doesn't. And the two versions call
+          ;; `use-package-ensure-function' with different numbers of
+          ;; arguments.
+          (let* ((context (if args
+                              ;; We are using a version of
+                              ;; `use-package' which supports deferred
+                              ;; installation.
+                              (nth 0 args)
+                            ;; We don't have any clue about what the
+                            ;; context is supposed to be.
+                            :dumb))
+                 (only-if-installed (nth 1 args))
+                 (recipe (or (and (not (eq ensure t)) ensure)
+                             (plist-get state :recipe)
+                             name)))
             (straight-use-package
              recipe
              (lambda (package available)
@@ -4248,7 +4263,7 @@ lazy installation."
                 ;; it.
                 ((memq context '(:byte-compile :ensure
                                  :config :pre-ensure
-                                 :interactive))
+                                 :interactive :dumb))
                  nil)
                 ;; Otherwise, prompt the user.
                 (t
@@ -4269,8 +4284,9 @@ The meanings of args NAME, ENSURE, STATE are the same as in
     ;; Set the package management functions.
     (setq use-package-ensure-function
           #'straight-use-package-ensure-function)
-    (setq use-package-pre-ensure-function
-          #'straight-use-package-pre-ensure-function)
+    (when (boundp 'use-package-pre-ensure-function)
+      (setq use-package-pre-ensure-function
+            #'straight-use-package-pre-ensure-function))
 
     ;; Register aliases for :ensure. Aliases later in the list will
     ;; override those earlier. (But there is no legitimate reason to
