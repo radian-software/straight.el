@@ -2181,6 +2181,10 @@ Return nil if MELPA-STYLE-RECIPE was just a symbol, and no recipe
 could be found for it, and package.el indicates that the package
 is built in to Emacs (e.g. the \"emacs\" package). This is used
 for dependency resolution."
+  ;; Special case for the `emacs' pseudo-package, so that by default
+  ;; we don't try to look up a recipe in recipe repositories.
+  (when (eq melpa-style-recipe 'emacs)
+    (cl-return-from straight--convert-recipe))
   ;; Firstly, if the recipe is only provided as a package name, and
   ;; we've already converted it before, then we should just return the
   ;; previous result. This has nothing to do with efficiency; it's

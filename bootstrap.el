@@ -62,13 +62,9 @@
   (straight-begin-transaction)
   (straight-mark-transaction-as-init))
 
-;; So meta. This updates the various caches, so that straight.el shows
-;; up properly in the lockfile and other things like that.
-(straight-use-package '(straight :type git :host github
-                                 :repo "raxod502/straight.el"
-                                 :files ("straight.el")))
-
-;; Now we need to register the default recipe repositories.
+;; We start by registering the default recipe repositories. This is
+;; done first so that any dependencies of straight.el can be looked up
+;; correctly.
 
 (straight-use-recipes '(melpa :type git :host github
                               :repo "melpa/melpa"
@@ -78,5 +74,10 @@
                                     :repo "emacsmirror/epkgs"
                                     :nonrecursive t
                                     :no-build t))
+
+;; Then we register (and build) straight.el itself.
+(straight-use-package '(straight :type git :host github
+                                 :repo "raxod502/straight.el"
+                                 :files ("straight.el")))
 
 ;;; bootstrap.el ends here
