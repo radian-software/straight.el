@@ -491,6 +491,19 @@ function with the quoted name of the argument, or use t."
        (and (not (memq ,object-sym '(,object t)))
             (functionp ,object-sym)))))
 
+;;;;; Features
+
+(defmacro straight-with-eval-after-any (files &rest body)
+  "After any of FILES are loaded, execute BODY.
+This is equivalent to multiple `with-eval-after-load' forms, one
+for each element of the list FILES."
+  (declare (indent 1))
+  (let ((file-sym (make-symbol "file")))
+    `(mapc (lambda (,file-sym)
+             (with-eval-after-load ,file-sym
+               ,@body))
+           ,files)))
+
 ;;;;; Messaging
 
 (defmacro straight--with-progress (task &rest body)
@@ -4223,7 +4236,7 @@ This is an `:override' advice for
 
 (when straight-enable-use-package-integration
 
-  (with-eval-after-load 'use-package
+  (straight-with-eval-after-any '(use-package use-package-ensure)
 
     ;; Make it so that `:ensure' uses `straight-use-package' instead of
     ;; `package-install'.
