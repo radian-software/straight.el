@@ -2860,7 +2860,7 @@ modified since their last builds.")
     "doc/dir" "doc/*.info" "doc/*.texi" "doc/*.texinfo" "lisp/*.el"
     (:exclude ".dir-locals.el" "test.el" "tests.el" "*-test.el" "*-tests.el"))
   "Default value for the `:files' directive in recipes.
-It is also spliced in at any point where the `:default' keyword
+It is also spliced in at any point where the `:defaults' keyword
 is used in a `:files' directive.")
 
 (defun straight--expand-files-directive-internal (files src-dir prefix)
@@ -3022,9 +3022,9 @@ in this case the inner `:exclude' results in some files being
 excluded from the outer `:exclude', meaning that they will not
 actually be excluded.
 
-If the entry is the symbol `:default', then the value of
+If the entry is the symbol `:defaults', then the value of
 `straight-default-files-directive' is spliced into the enclosing
-list to replace `:default'.
+list to replace `:defaults'.
 
 If FILES is nil, it defaults to
 `straight-default-files-directive'.
@@ -3039,8 +3039,8 @@ the MELPA recipe repository, with some minor differences:
 * MELPA recipes do not support cons cells to rename files or
   specify explicit subdirectories
 
-* MELPA recipes do not support putting `:default' anywhere except
-  as the first element of the top-level list
+* MELPA recipes do not support putting `:defaults' anywhere
+  except as the first element of the top-level list
 
 * When using `:exclude' in a MELPA recipe, the current DEST-DIR
   prefix created by enclosing lists is not respected.
