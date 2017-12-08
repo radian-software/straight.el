@@ -82,6 +82,8 @@ for the [Emacs] hacker.
   * [Comments and docstrings](#comments-and-docstrings)
 - [Contributing](#contributing)
 - [News](#news)
+  * [December 8, 2017](#december-8-2017)
+  * [November 10, 2017](#november-10-2017)
   * [November 6, 2017](#november-6-2017)
   * [October 30, 2017](#october-30-2017)
   * [October 27, 2017](#october-27-2017)
@@ -2241,6 +2243,15 @@ and base your pull requests from it. Please try to follow the style of
 the surrounding code and documentation, but anything is welcome.
 
 ## News
+
+### December 8, 2017
+
+You can now install `org` and `org-plus-contrib` using `straight.el`
+just like you could from Org ELPA, with no extra effort required.
+
+### November 10, 2017
+
+`straight.el` now has out-of-the-box support for Microsoft Windows.
 
 ### November 6, 2017
 
