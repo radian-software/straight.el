@@ -403,6 +403,14 @@ with `eq'."
                       unless (memq prop ,props-sym)
                       collect prop and collect val)))))
 
+(defun straight--plist-get (plist prop default)
+  "Extract a value from a property list, or return a default.
+PLIST is a property list, PROP is the key to search for, and
+DEFAULT is the value to return if PROP is not in PLIST."
+  (if-let ((result (plist-member plist prop)))
+      (cadr result)
+    default))
+
 ;;;;; Hash tables
 
 (defun straight--insert (n key value table)
@@ -3181,11 +3189,20 @@ they were previously registered in the build cache by
 
 ;;;;; Autoload generation
 
-(defun straight--generate-package-autoloads (recipe)
+(defcustom straight-disable-autoloads nil
+  "Non-nil means do not generate or activate autoloads by default.
+This can be overridden by the `:no-autoloads' property of an
+individual package recipe."
+  :type 'boolean
+  :group 'straight)
+
+(cl-defun straight--generate-package-autoloads (recipe)
   "Generate autoloads for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. See
 `straight--autoload-file-name'. Note that this function only
 modifies the build folder, not the original repository."
+  (when (straight--plist-get recipe :no-autoloads straight-disable-autoloads)
+    (cl-return-from straight--generate-package-autoloads))
   ;; The `eval-and-compile' here is extremely important. If you take
   ;; it out, then straight.el will fail with a mysterious error and
   ;; then cause Emacs to segfault if you start it with --debug-init.
@@ -3410,6 +3427,11 @@ package has already been built. This function calls
 This means that the functions with autoload cookies in the
 package are now autoloaded and calling them will `require' the
 package. It is assumed that the package has already been built.
+If no autoload file exists (perhaps due to a non-nil
+`:no-autoloads' attribute on the package recipe or due to the
+global setting of `straight-disable-autoloads' or even because
+Emacs 26 seems to not generate an autoload file when there are no
+autoloads declared), then do nothing.
 
 RECIPE is a straight.el-style plist."
   (straight--with-plist recipe

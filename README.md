@@ -59,6 +59,7 @@ for the [Emacs] hacker.
     + [Installing with a custom recipe](#installing-with-a-custom-recipe)
     + [Additional arguments to `straight-use-package`](#additional-arguments-to-straight-use-package)
     + [Variants of `straight-use-package`](#variants-of-straight-use-package)
+    + [Customizing when packages are built](#customizing-when-packages-are-built)
     + [Customizing how packages are built](#customizing-how-packages-are-built)
   * [The recipe format](#the-recipe-format)
     + [Version-control backends](#version-control-backends)
@@ -79,6 +80,7 @@ for the [Emacs] hacker.
 - [Developer manual](#developer-manual)
 - [Trivia](#trivia)
   * [Comments and docstrings](#comments-and-docstrings)
+- [Contributing](#contributing)
 - [News](#news)
   * [November 6, 2017](#november-6-2017)
   * [October 30, 2017](#october-30-2017)
@@ -1446,7 +1448,7 @@ recipe, and no additional arguments.
   local repository is not already cloned. This is used for
   lazy-loading.
 
-#### Customizing how packages are built
+#### Customizing when packages are built
 
 By default, when `straight.el` is bootstrapped during Emacs init, it
 uses a bulk `find(1)` command to identify files that were changed
@@ -1468,6 +1470,25 @@ modifications made outside Emacs or in some way that bypasses
 `before-save-hook` are not detected. Pull requests extending the
 number of cases in which `straight.el` is able to detect live
 modifications are welcome.
+
+#### Customizing how packages are built
+
+By specifying a non-nil value for the `:no-build` attribute in a
+package's [recipe][recipe-format], you may prevent the package from
+being built at all. This is usually useful for recipe repositories
+which do not bundle executable Lisp code. (Make sure to
+use [`straight-use-recipes`][customizing-recipe-repositories] for
+registering recipe repositories.)
+
+By specifying a non-nil value for the `:no-autoloads` attribute in a
+package's recipe, you may prevent any autoloads provided by the
+package from being generated and loaded into Emacs. This is mostly
+useful if the package provides a large number of autoloads, you know
+you need only a few of them, and you wish to optimize your startup
+time (although this is almost certainly premature optimization unless
+you *really* know what you're doing). You can also customize the
+variable `straight-disable-autoloads` to effect this change on all
+recipes which do not explicitly specify a `:no-autoloads` attribute.
 
 ### The recipe format
 
