@@ -264,6 +264,16 @@ different parts of your init-file."
   :type 'symbol
   :group 'straight)
 
+(defcustom straight-repository-branch "master"
+  "String identifying the branch of straight.el to clone.
+You can set this variable before straight.el is bootstrapped (and
+should)."
+  :type '(choice
+          (const :tag "Stable version (master)" "master")
+          (const :tag "Development version (develop)" "develop")
+          (string :tag "Use a custom branch"))
+  :group 'straight)
+
 (defcustom straight-default-vc 'git
   "VC backend to use by default, if a recipe has no `:type'.
 Functions named like `straight-vc-TYPE-clone', etc. should be
@@ -290,16 +300,7 @@ also be interpreted as alists whose keys are symbols naming
 packages.
 
 If you have no need of the profile system, then using the default
-profile (nil) will suffice without additional setup. For example,
-you can run straight.el from the develop branch instead of the
-default by running the following code before the straight.el
-bootstrap sequence:
-
-\(setq straight-recipe-overrides
-      \\='((nil . ((straight :type git :host github
-                          :repo \"raxod502/straight.el\"
-                          :branch \"develop\"
-                          :files (\"straight.el\"))))))"
+profile (nil) will suffice without additional setup."
   :type '(alist :key-type symbol :value-type
            (alist :key-type symbol :value-type
              (plist :key-type symbol :value-type sexp)))

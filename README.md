@@ -1805,10 +1805,18 @@ override it:
 
     (straight :type git :host github
               :repo "raxod502/straight.el"
-              :files ("straight.el"))
+              :files ("straight.el")
+              :branch ,straight-repository-branch)
 
 Note that even though the bootstrap snippet references the `develop`
 branch of `straight.el`, the default recipe installs from `master`.
+
+If all you want to do is change which branch you are installing
+`straight.el` from, simply customize the variable
+`straight-repository-variable`, which is provided for this purpose.
+(Although using `straight-recipe-overrides` will work just as well, at
+least until the recipe happens to be changed upstream and your
+init-file isn't updated.)
 
 ### Interactive usage
 
@@ -2200,6 +2208,16 @@ highlighting.
 
 Note that you will have to scroll through the entire buffer first,
 since `font-lock-mode` computes syntax highlighting lazily.
+
+## Contributing
+
+Please do! Development takes place on the `develop` branch. You can
+switch to that branch with
+
+    (setq straight-repository-branch "develop")
+
+and base your pull requests from it. Please try to follow the style of
+the surrounding code and documentation, but anything is welcome.
 
 ## News
 

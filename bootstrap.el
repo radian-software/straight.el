@@ -76,8 +76,9 @@
                                     :no-build t))
 
 ;; Then we register (and build) straight.el itself.
-(straight-use-package '(straight :type git :host github
+(straight-use-package `(straight :type git :host github
                                  :repo "raxod502/straight.el"
-                                 :files ("straight.el")))
+                                 :files ("straight.el")
+                                 :branch ,straight-repository-branch))
 
 ;;; bootstrap.el ends here

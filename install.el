@@ -151,6 +151,7 @@
                          straight-default-vc
                          straight-recipe-repositories
                          straight-recipe-overrides
+                         straight-repository-branch
                          straight-vc-git-default-branch
                          straight-vc-git-primary-remote
                          straight-vc-git-upstream-remote
@@ -165,9 +166,10 @@
           ;; `straight-recipe-overrides' if that variable has been
           ;; set. We're just mirroring bootstrap.el.
           (straight-use-package-no-build
-           '(straight :type git :host github
+           `(straight :type git :host github
                       :repo "raxod502/straight.el"
-                      :files ("straight.el")))
+                      :files ("straight.el")
+                      :branch ,straight-repository-branch))
           (let* ((recipe (gethash "straight" straight--recipe-cache))
                  (local-repo (plist-get recipe :local-repo))
                  ;; This is a relative symlink. It won't break if you
