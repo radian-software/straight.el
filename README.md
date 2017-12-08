@@ -1741,7 +1741,7 @@ can control which recipe repositories are searched, and in what order
 of precedence, by customizing `straight-recipe-repositories`. The
 default value is:
 
-    (melpa emacsmirror)
+    (melpa org-elpa emacsmirror)
 
 To define a new recipe repository called `NAME`, you should do the
 following things:

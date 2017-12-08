@@ -1083,17 +1083,24 @@ The meaning of normalization is backend-defined, but typically
 involves validating repository configuration and cleaning the
 working directory.
 
+If the RECIPE does not specify a local repository, then no action
+is taken.
+
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
 `straight-vc-TYPE-normalize' method, where TYPE is the `:type'
 specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--repos-dir local-repo)))
-      (straight-vc 'normalize type recipe))))
+    (when local-repo
+      (let ((straight--default-directory (straight--repos-dir local-repo)))
+        (straight-vc 'normalize type recipe)))))
 
 (defun straight-vc-fetch-from-remote (recipe)
   "Fetch from the primary remote for straight.el-style RECIPE.
+
+If the RECIPE does not specify a local repository, then no action
+is taken.
 
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
@@ -1101,12 +1108,16 @@ repository directory and delegates to the relevant
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--repos-dir local-repo)))
-      (straight-vc 'fetch-from-remote type recipe))))
+    (when local-repo
+      (let ((straight--default-directory (straight--repos-dir local-repo)))
+        (straight-vc 'fetch-from-remote type recipe)))))
 
 (defun straight-vc-fetch-from-upstream (recipe)
   "Fetch from the upstream remote for straight.el-style RECIPE.
 If no upstream configured, do nothing.
+
+If the RECIPE does not specify a local repository, then no action
+is taken.
 
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
@@ -1114,11 +1125,15 @@ repository directory and delegates to the relevant
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--repos-dir local-repo)))
-      (straight-vc 'fetch-from-upstream type recipe))))
+    (when local-repo
+      (let ((straight--default-directory (straight--repos-dir local-repo)))
+        (straight-vc 'fetch-from-upstream type recipe)))))
 
 (defun straight-vc-merge-from-remote (recipe)
   "Merge from the primary remote for straight.el-style RECIPE.
+
+If the RECIPE does not specify a local repository, then no action
+is taken.
 
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
@@ -1126,12 +1141,16 @@ repository directory and delegates to the relevant
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--repos-dir local-repo)))
-      (straight-vc 'merge-from-remote type recipe))))
+    (when local-repo
+      (let ((straight--default-directory (straight--repos-dir local-repo)))
+        (straight-vc 'merge-from-remote type recipe)))))
 
 (defun straight-vc-merge-from-upstream (recipe)
   "Merge from the upstream remote for straight.el-style RECIPE.
 If no upstream configured, do nothing.
+
+If the RECIPE does not specify a local repository, then no action
+is taken.
 
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
@@ -1139,11 +1158,15 @@ repository directory and delegates to the relevant
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--repos-dir local-repo)))
-      (straight-vc 'merge-from-upstream type recipe))))
+    (when local-repo
+      (let ((straight--default-directory (straight--repos-dir local-repo)))
+        (straight-vc 'merge-from-upstream type recipe)))))
 
 (defun straight-vc-pull-from-remote (recipe)
   "Pull from the primary remote for straight.el-style RECIPE.
+
+If the RECIPE does not specify a local repository, then no action
+is taken.
 
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
@@ -1151,12 +1174,16 @@ repository directory and delegates to the relevant
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--repos-dir local-repo)))
-      (straight-vc 'pull-from-remote type recipe))))
+    (when local-repo
+      (let ((straight--default-directory (straight--repos-dir local-repo)))
+        (straight-vc 'pull-from-remote type recipe)))))
 
 (defun straight-vc-pull-from-upstream (recipe)
   "Pull from the upstream remote for straight.el-style RECIPE.
 If there is no upstream configured, this method does nothing.
+
+If the RECIPE does not specify a local repository, then no action
+is taken.
 
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
@@ -1164,11 +1191,15 @@ repository directory and delegates to the relevant
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--repos-dir local-repo)))
-      (straight-vc 'pull-from-upstream type recipe))))
+    (when local-repo
+      (let ((straight--default-directory (straight--repos-dir local-repo)))
+        (straight-vc 'pull-from-upstream type recipe)))))
 
 (defun straight-vc-push-to-remote (recipe)
   "Push to the primary remote for straight.el-style RECIPE, if necessary.
+
+If the RECIPE does not specify a local repository, then no action
+is taken.
 
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
@@ -1176,8 +1207,9 @@ repository directory and delegates to the relevant
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (let ((straight--default-directory (straight--repos-dir local-repo)))
-      (straight-vc 'push-to-remote type recipe))))
+    (when local-repo
+      (let ((straight--default-directory (straight--repos-dir local-repo)))
+        (straight-vc 'push-to-remote type recipe)))))
 
 (defun straight-vc-check-out-commit (type local-repo commit)
   "Using VC backend TYPE, in LOCAL-REPO, check out COMMIT.
@@ -2076,7 +2108,14 @@ For example:
       (let ((recipe (straight--convert-recipe name cause)))
         (straight--with-plist recipe
             (local-repo)
-          (let ((default-directory (straight--repos-dir local-repo))
+          (let ((default-directory
+                  ;; Only change directories if a local repository is
+                  ;; specified. If one is not, then we assume the
+                  ;; recipe repository code does not need to be in any
+                  ;; particular directory.
+                  (if local-repo
+                      (straight--repos-dir local-repo)
+                    default-directory))
                 (func (intern (format "straight-recipes-%S-%S"
                                       name method))))
             (apply func args)))))))
@@ -2153,6 +2192,25 @@ return nil."
   "Return a list of recipes available in MELPA, as a list of strings."
   (straight--directory-files "recipes" "^[^.]"))
 
+;;;;;; Org
+
+(defun straight-recipes-org-elpa-retrieve (package)
+  "Look up a pseudo-PACKAGE recipe in Org ELPA.
+PACKAGE must be either `org' or `org-plus-contrib'. Otherwise
+return nil."
+  (pcase package
+    (`org
+     '(org :type git :host github :repo "emacsmirror/org"))
+    (`org-plus-contrib
+     '(org-plus-contrib
+       :type git :host github :repo "emacsmirror/org" :local-repo "org"
+       :files (:defaults "contrib/lisp/*.el")))
+    (_ nil)))
+
+(defun straight-recipes-org-elpa-list ()
+  "Return a list of Org ELPA pseudo-packages, as a list of strings."
+  '("org" "org-plus-contrib"))
+
 ;;;;;; EmacsMirror
 
 (defun straight-recipes-emacsmirror-retrieve (package)
@@ -2189,7 +2247,6 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
 
 ;;;;; Recipe conversion
 
-;; `cl-defun' creates a block so we can use `cl-return-from'.
 (cl-defun straight--convert-recipe (melpa-style-recipe &optional cause)
   "Convert a MELPA-STYLE-RECIPE to a normalized straight.el recipe.
 Recipe repositories specified in `straight-recipe-repositories'
@@ -2284,7 +2341,7 @@ for dependency resolution."
           ;; override the default value (which is determined according
           ;; to the selected VC backend).
           (straight--with-plist plist
-              (local-repo type)
+              (type)
             ;; The normalized recipe format will have the package name
             ;; as a string, not a symbol.
             (let ((package (symbol-name package)))
@@ -2295,8 +2352,11 @@ for dependency resolution."
               (unless type
                 (straight--put plist :type straight-default-vc))
               ;; This `unless' allows overriding `:local-repo' in a
-              ;; manual recipe specification.
-              (unless local-repo
+              ;; manual recipe specification, and also allows the
+              ;; attribute to be set to nil to enforce that there is
+              ;; no local repository (rather than a local repository
+              ;; name being automatically generated).
+              (unless (plist-member plist :local-repo)
                 (straight--put
                  plist :local-repo
                  (or (straight-vc-local-repo-name plist)
@@ -3696,8 +3756,6 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
                       cause)))
         (straight--with-plist recipe
             (package local-repo)
-          (unless local-repo
-            (cl-return-from straight-use-package nil))
           ;; We need to register the recipe before building the
           ;; package, since the ability of `straight--convert-recipe'
           ;; to deal properly with dependencies versioned in the same
@@ -3709,6 +3767,13 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
           ;; recipes cannot be detected (the transaction block will
           ;; only be run once for any given package in a transaction).
           (straight--register-recipe recipe)
+          ;; And now we abort if a nil local repository was specified
+          ;; (if *no* local repository was specified, which is
+          ;; different, then a default name would have been
+          ;; generated). We return t because the package is available
+          ;; vacuously.
+          (unless local-repo
+            (cl-return-from straight-use-package t))
           (straight--transaction-exec
            (intern (format "use-package-%s" package))
            (lambda ()

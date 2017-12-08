@@ -70,6 +70,8 @@
                               :repo "melpa/melpa"
                               :no-build t))
 
+(straight-use-recipes '(org-elpa :local-repo nil))
+
 (straight-use-recipes '(emacsmirror :type git :host github
                                     :repo "emacsmirror/epkgs"
                                     :nonrecursive t
