@@ -195,10 +195,7 @@ bound and (optionally) used in BODY, and its cadr is a sexp to be
 evalled to set symbol's value.  In the special case you only want
 to bind a single value, BINDINGS can just be a plain tuple."
       (declare (indent 1) (debug if-let))
-      (list 'if-let bindings (macroexp-progn body)))
-
-    ;; Defined by Emacs 25.3 in package.el
-    (defvar package-selected-packages)))
+      (list 'if-let bindings (macroexp-progn body)))))
 
 ;; Definitions needed both at compile time and at runtime.
 (eval-and-compile
@@ -218,12 +215,16 @@ means to remove KEY from ALIST if the new value is `eql' to DEFAULT."
 
 ;;;; Functions from other packages
 
-;; `package'
-(declare-function package--ensure-init-file "package")
-(declare-function package--save-selected-packages "package")
+;; `finder-inf'
+(defvar package--builtins)
 
 ;; `magit'
 (declare-function magit-status-internal "magit-status")
+
+;; `package'
+(defvar package-selected-packages)
+(declare-function package--ensure-init-file "package")
+(declare-function package--save-selected-packages "package")
 
 ;; `use-package'
 (defvar use-package-defaults)
@@ -2247,6 +2248,13 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
 
 ;;;;; Recipe conversion
 
+(defcustom straight-built-in-pseudo-packages '(emacs)
+  "List of built-in packages that aren't real packages.
+If any of these are specified as dependencies, straight.el will
+just skip them instead of looking for a recipe."
+  :type '(repeat symbol)
+  :group 'straight)
+
 (cl-defun straight--convert-recipe (melpa-style-recipe &optional cause)
   "Convert a MELPA-STYLE-RECIPE to a normalized straight.el recipe.
 Recipe repositories specified in `straight-recipe-repositories'
@@ -2320,13 +2328,11 @@ for dependency resolution."
                      ;; to all known sources.
                      melpa-style-recipe nil cause)
                     (progn
-                      ;; We don't want package.el unless this branch
-                      ;; is triggered. Since we're loading it
-                      ;; dynamically, we need to do `eval-and-compile'
-                      ;; to silence the byte-compiler.
-                      (eval-and-compile
-                        (require 'package))
-                      (if (package-built-in-p melpa-style-recipe)
+                      ;; Check if the package is considered as
+                      ;; "built-in". If so, it's not an issue if we
+                      ;; can't find it in any recipe repositories.
+                      (require 'finder-inf)
+                      (if (assq melpa-style-recipe package--builtins)
                           (cl-return-from straight--convert-recipe)
                         (error (concat "Could not find package %S "
                                        "in recipe repositories: %S")
