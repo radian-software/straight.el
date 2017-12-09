@@ -4211,8 +4211,13 @@ according to the value of `straight-profiles'."
               (let ((unpushed-recipes
                      (straight-push-all
                       (lambda (package)
-                        (straight--repository-is-available-p
-                         (gethash package straight--recipe-cache))))))
+                        (let ((recipe
+                               (gethash package straight--recipe-cache)))
+                          (straight--with-plist recipe
+                              (local-repo)
+                            (and local-repo
+                                 (straight--repository-is-available-p
+                                  recipe))))))))
                 (or
                  (null unpushed-recipes)
                  (straight-are-you-sure
@@ -4228,7 +4233,8 @@ according to the value of `straight-profiles'."
        (lambda (recipe)
          (straight--with-plist recipe
              (local-repo package)
-           (unless (or (assoc local-repo versions-alist)
+           (unless (or (null local-repo)
+                       (assoc local-repo versions-alist)
                        (straight--repository-is-available-p recipe))
              (straight-use-package (intern package)))))))
     (dolist (spec straight-profiles)
@@ -4239,7 +4245,9 @@ according to the value of `straight-profiles'."
            (lambda (recipe)
              (straight--with-plist recipe
                  (package local-repo type)
-               (when (memq profile (gethash package straight--profile-cache))
+               (when (and local-repo
+                          (memq profile
+                                (gethash package straight--profile-cache)))
                  (push (cons local-repo
                              (or (cdr (assoc local-repo versions-alist))
                                  (straight-vc-get-commit type local-repo)))
