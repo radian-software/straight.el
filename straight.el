@@ -2609,7 +2609,7 @@ generated at the end of an init from the keys of
 All packages built from these local repositories need to be
 rebuilt at the next init.")
 
-(defvar straight--build-cache-version :jes
+(defvar straight--build-cache-version :nan
   "The current version of the build cache format.
 When the format on disk changes, this value is changed, so that
 straight.el knows to regenerate the whole cache.")
@@ -2642,6 +2642,7 @@ values (all packages will be rebuilt, with no caching)."
             (find-flavor (read (current-buffer)))
             (cache (read (current-buffer)))
             (eager-packages (read (current-buffer)))
+            (use-symlinks (read (current-buffer)))
             (live-repos nil))
         ;; After the main data structures comes a list of other local
         ;; repositories that were detected by live modification
@@ -2677,7 +2678,9 @@ values (all packages will be rebuilt, with no caching)."
                  (listp eager-packages)
                  (cl-every #'stringp eager-packages)
                  ;; Live-modified repos should be strings.
-                 (cl-every #'stringp live-repos))
+                 (cl-every #'stringp live-repos)
+                 ;; Symlink setting should not have changed.
+                 (eq use-symlinks straight-use-symlinks))
           ;; If anything is wrong, abort and use the default values.
           (error "Malformed or outdated build cache"))
         ;; Otherwise, we can load from disk.
@@ -2709,6 +2712,8 @@ This uses the values of `straight--build-cache',
       (print straight--build-cache (current-buffer))
       ;; Which packages should be checked eagerly next init.
       (print (hash-table-keys straight--profile-cache) (current-buffer))
+      ;; Whether packages were built using symlinks or copying.
+      (print straight-use-symlinks (current-buffer))
       ;; Local repositories for which modifications were detected via
       ;; the live modification checker, but which haven't been rebuilt
       ;; yet (which would have removed them from the list).
