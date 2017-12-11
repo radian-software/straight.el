@@ -3681,19 +3681,21 @@ cloned.
 From Lisp code, SOURCES should be a subset of the symbols in
 `straight-recipe-repositories'. Only those recipe repositories
 are cloned and searched. If it is nil or omitted, then the value
-of `straight-recipe-repositories' is used. ACTION may be
-`copy' (copy recipe to the kill ring), `insert' (insert at
-point), or nil (no action, just return it)."
-  (interactive (list
-                (when current-prefix-arg
-                  (list
+of `straight-recipe-repositories' is used. If SOURCES is the
+symbol `interactive', then the user is prompted to select a
+recipe repository, and a list containing that recipe repository
+is used for the value of SOURCES. ACTION may be `copy' (copy
+recipe to the kill ring), `insert' (insert at point), or nil (no
+action, just return it)."
+  (interactive (list (when current-prefix-arg 'interactive) 'copy))
+  (when (eq sources 'interactive)
+    (setq sources (list
                    (intern
                     (completing-read
                      "Which recipe repository? "
                      straight-recipe-repositories
                      nil
-                     'require-match))))
-                'copy))
+                     'require-match)))))
   (let ((sources (or sources straight-recipe-repositories)))
     (let* ((package (intern
                      (completing-read
@@ -3753,7 +3755,9 @@ hint about how to install the package permanently.
 
 Return non-nil if package was actually installed, and nil
 otherwise (this can only happen if NO-CLONE is non-nil)."
-  (interactive (list (straight-get-recipe) nil nil nil 'interactive))
+  (interactive
+   (list (straight-get-recipe (when current-prefix-arg 'interactive))
+         nil nil nil 'interactive))
   (straight-transaction
     ;; If `straight--convert-recipe' returns nil, the package is
     ;; built-in. No need to go any further.
