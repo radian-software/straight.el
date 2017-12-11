@@ -2210,7 +2210,7 @@ return nil."
 
 (defun straight-recipes-org-elpa-list ()
   "Return a list of Org ELPA pseudo-packages, as a list of strings."
-  '("org" "org-plus-contrib"))
+  (list "org" "org-plus-contrib"))
 
 ;;;;;; EmacsMirror
 
