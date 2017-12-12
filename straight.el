@@ -1521,15 +1521,16 @@ but recipe specifies a URL of
      (straight--get-call
       "git" "remote" "add" remote desired-url))))
 
-(defun straight-vc-git--validate-remotes (recipe)
+(cl-defun straight-vc-git--validate-remotes (recipe)
   "Validate that repository for RECIPE has remotes set correctly.
 RECIPE is a straight.el-style plist.
 
-This means the primary remote and (if :upstream is provided)
-upstream remote have their URLs set to the same as what is
-specified in the RECIPE. The URLs do not necessarily need to
-match exactly; they just have to satisfy
-`straight-vc-git--urls-compatible-p'."
+This means the primary and upstream remotes, if configured, have
+their URLs set to the same as what is specified in the RECIPE.
+The URLs do not necessarily need to match exactly; they just have
+to satisfy `straight-vc-git--urls-compatible-p'."
+  (unless (plist-member recipe :repo)
+    (cl-return-from straight-vc-git--validate-remotes t))
   (straight--with-plist recipe
       (local-repo repo host)
     (let ((desired-url (straight-vc-git--encode-url repo host)))
@@ -1743,6 +1744,8 @@ name."
 
 (cl-defun straight-vc-git--validate-head-pushed (recipe)
   "Validate that in RECIPE's local repo, main branch is behind primary remote."
+  (unless (plist-member recipe :repo)
+    (cl-return-from straight-vc-git--validate-head-pushed t))
   (ignore
    (straight--with-plist recipe
        (local-repo branch)
@@ -1858,6 +1861,8 @@ primary :branch is checked out."
 If FROM-UPSTREAM is non-nil, fetch from the upstream remote
 instead, if one is configured. The FROM-UPSTREAM argument is not
 part of the VC API."
+  (unless (plist-member recipe :repo)
+    (cl-return-from straight-vc-git-fetch-from-remote t))
   (straight--with-plist recipe
       (upstream)
     (unless (and from-upstream (null upstream))
@@ -1879,6 +1884,8 @@ If no upstream configured, do nothing."
 If FROM-UPSTREAM is non-nil, merge from the upstream remote
 instead, if one is configured. The FROM-UPSTREAM argument is not
 part of the VC API."
+  (unless (plist-member recipe :repo)
+    (cl-return-from straight-vc-git-merge-from-remote t))
   (straight--with-plist recipe
       (branch upstream)
     (unless (and from-upstream (null upstream))
@@ -1904,6 +1911,8 @@ If no upstream is configured, do nothing."
 If FROM-UPSTREAM is non-nil, pull from the upstream remote,
 unless no :upstream is configured, in which case do nothing. Else
 pull from the primary remote."
+  (unless (plist-member recipe :repo)
+    (cl-return-from straight-vc-git-pull-from-remote t))
   (straight--with-plist recipe
       (branch upstream)
     (unless (and from-upstream (null upstream))
