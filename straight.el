@@ -3680,9 +3680,12 @@ repos that are available."
   (straight--map-repos-interactively
    func
    (lambda (package)
-     (and (straight--repository-is-available-p
-           (gethash package straight--recipe-cache))
-          (funcall predicate package)))
+     (let ((recipe (gethash package straight--recipe-cache)))
+       (straight--with-plist recipe
+           (local-repo)
+         (and local-repo
+              (straight--repository-is-available-p recipe)
+              (funcall predicate package)))))
    action))
 
 ;;;; User-facing functions
