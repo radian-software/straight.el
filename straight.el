@@ -3673,10 +3673,13 @@ The default value is \"Processing\"."
        (t (cl-return-from straight--map-repos-interactively
             canceled-repos))))))
 
-(cl-defun straight--map-existing-repos-interactively
+(defun straight--map-existing-repos-interactively
     (func &optional predicate action)
-  "Like `straight--map-repos-interactively', but only operates on
-repos that are available."
+  "Apply function FUNC for all existing local repositories, interactively.
+PREDICATE and ACTION are as in
+`straight--map-repos-interactively'. The only difference is that
+this function modifies PREDICATE to additionally require that the
+local repository is already on disk."
   (straight--map-repos-interactively
    func
    (lambda (package)
