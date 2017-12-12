@@ -3519,18 +3519,23 @@ RECIPE is a straight.el-style plist."
 ;;;; Interactive helpers
 ;;;;; Package selection
 
-(defun straight--select-package (message &optional for-build)
+(defun straight--select-package (message &optional for-build installed)
   "Use `completing-read' to select a package.
 MESSAGE is displayed as the prompt; it should not end in
 punctuation or whitespace. If FOR-BUILD is non-nil, then only
-packages that have a nil `:no-build' property are considered."
+packages that have a nil `:no-build' property are considered. If
+INSTALLED is non-nil, then only packages that have an available
+repo are considered."
   (completing-read
    (concat message ": ")
    (let ((packages ()))
-     (maphash (lambda (package recipe)
-                (unless (and for-build (plist-get recipe :no-build))
-                  (push package packages)))
-              straight--recipe-cache)
+     (maphash
+      (lambda (package recipe)
+        (unless (or (and for-build (plist-get recipe :no-build))
+                    (and installed
+                         (not (straight--repository-is-available-p recipe))))
+          (push package packages)))
+      straight--recipe-cache)
      packages)
    (lambda (_) t)
    'require-match))
@@ -3665,6 +3670,18 @@ The default value is \"Processing\"."
         (setq skipped-repos ()))
        (t (cl-return-from straight--map-repos-interactively
             canceled-repos))))))
+
+(cl-defun straight--map-existing-repos-interactively
+    (func &optional predicate action)
+  "Like `straight--map-repos-interactively', but only operates on
+repos that are available."
+  (straight--map-repos-interactively
+   func
+   (lambda (package)
+     (and (straight--repository-is-available-p
+           (gethash package straight--recipe-cache))
+          (funcall predicate package)))
+   action))
 
 ;;;; User-facing functions
 ;;;;; Recipe acquiry
@@ -3949,7 +3966,9 @@ PACKAGE is a string naming a package. Interactively, select
 PACKAGE from the known packages in the current Emacs session
 using `completing-read'. See also `straight-rebuild-package' and
 `straight-check-all'."
-  (interactive (list (straight--select-package "Check package" 'for-build)))
+  (interactive (list (straight--select-package "Check package"
+                                               'for-build
+                                               'installed)))
   (straight-use-package (intern package)))
 
 ;;;###autoload
@@ -3972,7 +3991,7 @@ all dependencies as well. See also `straight-check-package' and
 `straight-rebuild-all'."
   (interactive
    (list
-    (straight--select-package "Rebuild package" 'for-build)
+    (straight--select-package "Rebuild package" 'for-build 'installed)
     current-prefix-arg))
   (let ((straight--packages-to-rebuild
          (if recursive
@@ -4039,7 +4058,9 @@ their build directory deleted."
 PACKAGE is a string naming a package. Interactively, select
 PACKAGE from the known packages in the current Emacs session
 using `completing-read'."
-  (interactive (list (straight--select-package "Normalize package")))
+  (interactive (list (straight--select-package "Normalize package"
+                                               nil
+                                               'installed)))
   (let ((recipe (gethash package straight--recipe-cache)))
     (straight-vc-normalize recipe)))
 
@@ -4054,8 +4075,8 @@ PREDICATE, if provided, filters the packages that are normalized.
 It is called with the package name as a string, and should return
 non-nil if the package should actually be normalized."
   (interactive)
-  (straight--map-repos-interactively #'straight-normalize-package
-                                     predicate))
+  (straight--map-existing-repos-interactively #'straight-normalize-package
+                                              predicate))
 
 ;;;###autoload
 (defun straight-fetch-package (package &optional from-upstream)
@@ -4065,7 +4086,7 @@ PACKAGE from the known packages in the current Emacs session
 using `completing-read'. With prefix argument FROM-UPSTREAM,
 fetch not just from primary remote but also from configured
 upstream."
-  (interactive (list (straight--select-package "Fetch package")
+  (interactive (list (straight--select-package "Fetch package" nil 'installed)
                      current-prefix-arg))
   (let ((recipe (gethash package straight--recipe-cache)))
     (and (straight-vc-fetch-from-remote recipe)
@@ -4086,7 +4107,7 @@ PREDICATE, if provided, filters the packages that are fetched. It
 is called with the package name as a string, and should return
 non-nil if the package should actually be fetched."
   (interactive "P")
-  (straight--map-repos-interactively
+  (straight--map-existing-repos-interactively
    (lambda (package)
      (straight-fetch-package package from-upstream))
    predicate))
@@ -4099,7 +4120,7 @@ PACKAGE from the known packages in the current Emacs session
 using `completing-read'. With prefix argument FROM-UPSTREAM,
 merge not just from primary remote but also from configured
 upstream."
-  (interactive (list (straight--select-package "Merge package")
+  (interactive (list (straight--select-package "Merge package" nil 'installed)
                      current-prefix-arg))
   (let ((recipe (gethash package straight--recipe-cache)))
     (and (straight-vc-merge-from-remote recipe)
@@ -4120,7 +4141,7 @@ PREDICATE, if provided, filters the packages that are merged. It
 is called with the package name as a string, and should return
 non-nil if the package should actually be merged."
   (interactive "P")
-  (straight--map-repos-interactively
+  (straight--map-existing-repos-interactively
    (lambda (package)
      (straight-merge-package package from-upstream))
    predicate))
@@ -4132,7 +4153,7 @@ PACKAGE is a string naming a package. Interactively, select
 PACKAGE from the known packages in the current Emacs session
 using `completing-read'. With prefix argument FROM-UPSTREAM, pull
 not just from primary remote but also from configured upstream."
-  (interactive (list (straight--select-package "Pull package")
+  (interactive (list (straight--select-package "Pull package" nil 'installed)
                      current-prefix-arg))
   (let ((recipe (gethash package straight--recipe-cache)))
     (and (straight-vc-pull-from-remote recipe)
@@ -4153,7 +4174,7 @@ PREDICATE, if provided, filters the packages that are pulled. It
 is called with the package name as a string, and should return
 non-nil if the package should actually be pulled."
   (interactive "P")
-  (straight--map-repos-interactively
+  (straight--map-existing-repos-interactively
    (lambda (package)
      (straight-pull-package package from-upstream))
    predicate))
@@ -4164,7 +4185,7 @@ non-nil if the package should actually be pulled."
 PACKAGE is a string naming a package. Interactively, select
 PACKAGE from the known packages in the current Emacs session
 using `completing-read'."
-  (interactive (list (straight--select-package "Push package")))
+  (interactive (list (straight--select-package "Push package" nil 'installed)))
   (let ((recipe (gethash package straight--recipe-cache)))
     (straight-vc-push-to-remote recipe)))
 
@@ -4180,8 +4201,8 @@ PREDICATE, if provided, filters the packages that are normalized.
 It is called with the package name as a string, and should return
 non-nil if the package should actually be normalized."
   (interactive)
-  (straight--map-repos-interactively #'straight-push-package
-                                     predicate))
+  (straight--map-existing-repos-interactively #'straight-push-package
+                                              predicate))
 
 ;;;;; Lockfile management
 
