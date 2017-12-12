@@ -3688,7 +3688,7 @@ local repository is already on disk."
            (local-repo)
          (and local-repo
               (straight--repository-is-available-p recipe)
-              (funcall predicate package)))))
+              (or (null predicate) (funcall predicate package))))))
    action))
 
 ;;;; User-facing functions
