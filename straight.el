@@ -3671,6 +3671,18 @@ The default value is \"Processing\"."
        (t (cl-return-from straight--map-repos-interactively
             canceled-repos))))))
 
+(cl-defun straight--map-existing-repos-interactively
+    (func &optional predicate action)
+  "Like `straight--map-repos-interactively', but only operates on
+repos that are available."
+  (straight--map-repos-interactively
+   func
+   (lambda (package)
+     (and (straight--repository-is-available-p
+           (gethash package straight--recipe-cache))
+          (funcall predicate package)))
+   action))
+
 ;;;; User-facing functions
 ;;;;; Recipe acquiry
 
@@ -4063,8 +4075,8 @@ PREDICATE, if provided, filters the packages that are normalized.
 It is called with the package name as a string, and should return
 non-nil if the package should actually be normalized."
   (interactive)
-  (straight--map-repos-interactively #'straight-normalize-package
-                                     predicate))
+  (straight--map-existing-repos-interactively #'straight-normalize-package
+                                              predicate))
 
 ;;;###autoload
 (defun straight-fetch-package (package &optional from-upstream)
@@ -4095,7 +4107,7 @@ PREDICATE, if provided, filters the packages that are fetched. It
 is called with the package name as a string, and should return
 non-nil if the package should actually be fetched."
   (interactive "P")
-  (straight--map-repos-interactively
+  (straight--map-existing-repos-interactively
    (lambda (package)
      (straight-fetch-package package from-upstream))
    predicate))
@@ -4129,7 +4141,7 @@ PREDICATE, if provided, filters the packages that are merged. It
 is called with the package name as a string, and should return
 non-nil if the package should actually be merged."
   (interactive "P")
-  (straight--map-repos-interactively
+  (straight--map-existing-repos-interactively
    (lambda (package)
      (straight-merge-package package from-upstream))
    predicate))
@@ -4162,7 +4174,7 @@ PREDICATE, if provided, filters the packages that are pulled. It
 is called with the package name as a string, and should return
 non-nil if the package should actually be pulled."
   (interactive "P")
-  (straight--map-repos-interactively
+  (straight--map-existing-repos-interactively
    (lambda (package)
      (straight-pull-package package from-upstream))
    predicate))
@@ -4189,8 +4201,8 @@ PREDICATE, if provided, filters the packages that are normalized.
 It is called with the package name as a string, and should return
 non-nil if the package should actually be normalized."
   (interactive)
-  (straight--map-repos-interactively #'straight-push-package
-                                     predicate))
+  (straight--map-existing-repos-interactively #'straight-push-package
+                                              predicate))
 
 ;;;;; Lockfile management
 
