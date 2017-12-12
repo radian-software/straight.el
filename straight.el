@@ -232,6 +232,8 @@ means to remove KEY from ALIST if the new value is `eql' to DEFAULT."
 (defvar use-package-keywords)
 (defvar use-package-pre-ensure-function)
 (declare-function use-package-as-symbol "use-package")
+(declare-function use-package-error "use-package")
+(declare-function use-package-normalize/:ensure "use-package")
 (declare-function use-package-only-one "use-package")
 (declare-function use-package-process-keywords "use-package")
 
@@ -4365,111 +4367,248 @@ This is an `:override' advice for
               #'straight--advice-neuter-package-save-selected-packages))
 
 ;;;;; use-package integration
+;;;;;; Mode variables
 
-(when straight-enable-use-package-integration
+(defcustom straight-use-package-version 'straight
+  "Symbol identifying the version of `use-package' in use.
 
-  (straight-with-eval-after-any '(use-package use-package-ensure)
+Value `ensure' is for older versions of `use-package' (before
+commit 418e90c3 on Dec. 3, 2017). With this value, specifying a
+non-nil value for `:ensure' in a `use-package' form causes the
+package to be installed using straight.el. The value for
+`:ensure' can be t, meaning use the feature name as the package
+name; a symbol, meaning install that package; a plist, meaning
+use the feature name as the package name and append the plist to
+form a custom recipe; and a list whose cdr is a plist, meaning
+use it as the recipe. If `:ensure' is t and you provide a non-nil
+value for `:recipe', then that value is used instead. You can
+cause `:ensure' to receive a value of t unless otherwise
+specified by setting `use-package-always-ensure' to a non-nil
+value.
 
-    ;; Make it so that `:ensure' uses `straight-use-package' instead of
-    ;; `package-install'.
-    (eval-and-compile
-      (defun straight-use-package-ensure-function
-          (name ensure state &rest args)
-        "Value for `use-package-ensure-function' that uses straight.el.
-See (multiple versions of) `use-package' for the potential
-meanings of NAME, ENSURE, STATE, and CONTEXT. ONLY-IF-INSTALLED
-is a nonstandard argument that indicates the package should use
-lazy installation."
-        (when ensure
-          ;; Parse out the ARGS. This is necessary because some
-          ;; versions and/or forks of `use-package' support deferred
-          ;; installation, whereas the current official version
-          ;; doesn't. And the two versions call
-          ;; `use-package-ensure-function' with different numbers of
-          ;; arguments.
-          (let* ((context (if args
-                              ;; We are using a version of
-                              ;; `use-package' which supports deferred
-                              ;; installation.
-                              (nth 0 args)
-                            ;; We don't have any clue about what the
-                            ;; context is supposed to be.
-                            :dumb))
-                 (only-if-installed (nth 1 args))
-                 (recipe (or (and (not (eq ensure t)) ensure)
-                             (plist-get state :recipe)
-                             name)))
-            (straight-use-package
-             recipe
-             (lambda (package available)
-               (cond
-                ;; If available, go ahead.
-                (available nil)
-                ;; When doing lazy installation, don't clone if not
-                ;; available.
-                (only-if-installed t)
-                ;; In cases where installation should be automatic, do
-                ;; it.
-                ((memq context '(:byte-compile :ensure
-                                 :config :pre-ensure
-                                 :interactive :dumb))
-                 nil)
-                ;; Otherwise, prompt the user.
-                (t
-                 ;; Value of NO-CLONE has a meaning that is the
-                 ;; opposite of ONLY-IF-INSTALLED.
-                 (not
-                  (y-or-n-p
-                   (format "Install package %S? " package))))))))))
+Value `straight' is for the current version of `use-package'.
+With this value, specifying a non-nil value for `:straight' in a
+`use-package' form causes the package to be installed using
+straight.el. The value for `:straight' can be t, which is
+replaced with the feature name; a symbol, which is used as is; a
+plist, which is prepended with the feature name; or a list whose
+cdr is a plist, which is used as is."
+  :type '(choice
+          (const :tag "Classic (uses `:ensure' for all package managers)"
+            ensure)
+          (const :tag "Modern (uses `:package', `:straight', etc.)" straight))
+  :group 'straight)
 
-      (defun straight-use-package-pre-ensure-function
-          (name ensure state)
-        "Value for `use-package-pre-ensure-function' that uses straight.el.
-The meanings of args NAME, ENSURE, STATE are the same as in
-`use-package-pre-ensure-function'."
-        (straight-use-package-ensure-function
-         name ensure state :pre-ensure 'only-if-installed)))
+(defvar straight-use-package--last-version nil
+  "Value of `straight-use-package-version' at last mode toggle.")
 
-    ;; Set the package management functions.
-    (setq use-package-ensure-function
-          #'straight-use-package-ensure-function)
-    (when (boundp 'use-package-pre-ensure-function)
-      (setq use-package-pre-ensure-function
-            #'straight-use-package-pre-ensure-function))
+(defcustom straight-use-package-by-default nil
+  "Non-nil means install packages by default in `use-package' forms.
+This only works when `straight-use-package-version' is
+`straight'. When `straight-use-package-version' is `ensure', use
+`use-package-always-ensure' instead."
+  :type 'boolean
+  :group 'straight)
 
-    ;; Register aliases for :ensure. Aliases later in the list will
-    ;; override those earlier. (But there is no legitimate reason to
-    ;; use more than one in a `use-package' declaration, at least in
-    ;; sane situations.) The reason we also handle `:ensure' is
-    ;; because the default value of `use-package-normalize/:ensure' is
-    ;; not flexible enough to handle recipes like we need it to.
-    (dolist (keyword '(:recipe :ensure))
+;;;;;; Utility functions
 
-      ;; Insert the keyword just before `:ensure'.
-      (unless (member keyword use-package-keywords)
-        (setq use-package-keywords
-              (let* ((pos (cl-position :ensure use-package-keywords))
-                     (head (cl-subseq use-package-keywords 0 pos))
-                     (tail (cl-subseq use-package-keywords pos)))
-                (append head (list keyword) tail))))
+(defun straight-use-package-ensure-function
+    (name ensure state &optional context)
+  "Value for `use-package-ensure-function' to use straight.el.
+This is used for integration with `use-package' when
+`straight-use-package-version' is `ensure'. NAME is a symbol
+naming the feature for the `use-package' form in question; ENSURE
+is the form passed to the `:ensure' keyword (a symbol or list);
+STATE is the internal plist used during `use-package' expansion.
+In older versions of `use-package' (before commit 93bf693b on
+Dec. 1, 2017), an additional argument CONTEXT was passed. This
+argument was used to identify whether package installation should
+happen or not, and whether the user should be prompted before
+doing it. When CONTEXT is not passed, straight.el has no way of
+deciding and instead just install the package unconditionally."
+  (when ensure
+    (straight-use-package
+     (or (and (not (eq ensure t)) ensure)
+         (plist-get state :recipe)
+         name)
+     (lambda (package available)
+       (cond
+        ;; If available, go ahead.
+        (available nil)
+        ;; When doing lazy installation, don't clone if not
+        ;; available.
+        ((eq context :pre-ensure) t)
+        ;; In cases where installation should be automatic, do
+        ;; it.
+        ((memq context '(:byte-compile :ensure
+                         :config :pre-ensure
+                         :interactive nil))
+         nil)
+        ;; Otherwise, prompt the user.
+        (t (not (y-or-n-p (format "Install package %S? " package)))))))))
 
-      ;; Define the normalizer for the keyword.
-      (eval
-       `(defun ,(intern (format "use-package-normalize/%S" keyword))
-            (name-symbol keyword args)
-          (use-package-only-one (symbol-name keyword) args
-            (lambda (label arg)
-              (if (keywordp (car-safe arg))
-                  (cons name-symbol arg)
-                arg)))))
+(defun straight-use-package-pre-ensure-function
+    (name ensure state)
+  "Value for `use-package-pre-ensure-function' to use straight.el.
+The meanings of NAME, ENSURE, and STATE are the same as in
+`straight-use-package-ensure-function'."
+  (straight-use-package-ensure-function
+   name ensure state :pre-ensure))
 
-      ;; Define the handler. We don't need to do this for `:ensure'.
-      (unless (eq keyword :ensure)
-        (eval
-         `(defun ,(intern (format "use-package-handler/%S" keyword))
-              (name keyword recipe rest state)
-            (use-package-process-keywords
-              name rest (plist-put state :recipe recipe))))))))
+(defvar straight-use-package--last-ensure-function nil
+  "Value of `use-package-ensure-function' at last mode toggle.")
+
+(defvar straight-use-package--last-pre-ensure-function nil
+  "Value of `use-package-pre-ensure-function' at last mode toggle.")
+
+(defun straight-use-package--ensure-normalizer
+    (name-symbol keyword args)
+  "Normalizer for `:ensure' and `:recipe' in `use-package' forms.
+NAME-SYMBOL, KEYWORD, and ARGS are explained by the `use-package'
+documentation."
+  (use-package-only-one (symbol-name keyword) args
+    (lambda (_label arg)
+      (if (keywordp (car-safe arg))
+          (cons name-symbol arg)
+        arg))))
+
+(defun straight-use-package--recipe-handler
+    (name _keyword recipe rest state)
+  "Handler for `:recipe' in `use-package' forms.
+NAME, KEYWORD, RECIPE, REST, and STATE are explained by the
+`use-package' documentation."
+  (use-package-process-keywords
+    name rest (plist-put state :recipe recipe)))
+
+(defun straight-use-package--straight-normalizer
+    (name-symbol _keyword args)
+  "Normalizer for `:straight' in `use-package' forms.
+NAME-SYMBOL, KEYWORD, and ARGS are explained by the `use-package'
+documentation."
+  (let ((parsed-args nil))
+    (dolist (arg args)
+      (cond
+       ((null arg) (setq parsed-args nil))
+       ((eq arg t) (push name-symbol parsed-args))
+       ((symbolp arg) (push arg parsed-args))
+       ((not (listp arg))
+        (use-package-error ":straight wants a symbol or list"))
+       ((keywordp (car arg)) (push (cons name-symbol arg) parsed-args))
+       (t (push arg parsed-args))))
+    parsed-args))
+
+(defun straight-use-package--straight-handler
+    (name _keyword args rest state)
+  "Handler for `:straight' in `use-package' forms.
+NAME, KEYWORD, ARGS, REST, and STATE are explained by the
+`use-package' documentation."
+  (let ((body (use-package-process-keywords name rest state)))
+    (mapc (lambda (arg)
+            (push `(straight-use-package
+                    ;; The following is an unfortunate hack because
+                    ;; `use-package-defaults' currently operates on
+                    ;; the post-normalization values, rather than the
+                    ;; pre-normalization ones.
+                    ',(if (eq arg t)
+                          name arg))
+                  body))
+          args)
+    body))
+
+;;;;;; Mode definitions
+
+(define-minor-mode straight-use-package-mode
+  "Minor mode to enable `use-package' support in straight.el.
+The behavior is controlled by variables
+`straight-use-package-version' and
+`straight-use-package-by-default'. If these variables are
+changed, you must toggle the mode function to update the
+integration.
+
+This mode is enabled or disabled automatically when straight.el
+is loaded, according to the value of
+`straight-enable-use-package-integration'."
+  :global t
+  (pcase straight-use-package--last-version
+    (`ensure
+     (with-eval-after-load 'use-package
+       (when (and (boundp 'use-package-ensure-function)
+                  (eq use-package-ensure-function
+                      #'straight-use-package-ensure-function)
+                  straight-use-package--last-ensure-function)
+         (setq use-package-ensure-function
+               straight-use-package--last-ensure-function))
+       (when (and (boundp 'use-package-pre-ensure-function)
+                  (eq use-package-pre-ensure-function
+                      #'straight-use-package-pre-ensure-function)
+                  straight-use-package--last-pre-ensure-function)
+         (setq use-package-pre-ensure-function
+               straight-use-package--last-pre-ensure-function))
+       (when (and (boundp 'use-package-keywords)
+                  (listp use-package-keywords))
+         (setq use-package-keywords (remq :recipe use-package-keywords)))
+       (fmakunbound 'use-package-normalize/:recipe)
+       (fmakunbound 'use-package-handler/:recipe)
+       (advice-remove #'use-package-normalize/:ensure
+                      #'straight-use-package--ensure-normalizer)))
+    (`straight
+     (with-eval-after-load 'use-package-core
+       (when (and (boundp 'use-package-keywords)
+                  (listp use-package-keywords))
+         (setq use-package-keywords (remq :straight use-package-keywords)))
+       (fmakunbound 'use-package-normalize/:straight)
+       (fmakunbound 'use-package-handler/:straight)
+       (when (and (boundp 'use-package-defaults)
+                  (listp use-package-defaults))
+         (setf (alist-get :straight use-package-defaults nil 'remove) nil)))))
+  (setq straight-use-package--last-version nil)
+  (when straight-use-package-mode
+    (setq straight-use-package--last-version straight-use-package-version)
+    (pcase straight-use-package-version
+      (`ensure
+       (with-eval-after-load 'use-package
+         (when (boundp 'use-package-ensure-function)
+           (setq straight-use-package--last-ensure-function
+                 use-package-ensure-function))
+         (setq use-package-ensure-function
+               #'straight-use-package-ensure-function)
+         (when (boundp 'use-package-pre-ensure-function)
+           (setq straight-use-package--last-pre-ensure-function
+                 use-package-pre-ensure-function))
+         (setq use-package-pre-ensure-function
+               #'straight-use-package-pre-ensure-function)
+         (when (and (boundp 'use-package-keywords)
+                    (listp use-package-keywords)
+                    (memq :ensure use-package-keywords))
+           (unless (memq :recipe use-package-keywords)
+             (setq use-package-keywords
+                   (let* ((pos (cl-position :ensure use-package-keywords))
+                          (head (cl-subseq use-package-keywords 0 pos))
+                          (tail (cl-subseq use-package-keywords pos)))
+                     (append head (list :recipe) tail)))))
+         (defalias 'use-package-normalize/:recipe
+           #'straight-use-package--ensure-normalizer)
+         (defalias 'use-package-handler/:recipe
+           #'straight-use-package--recipe-handler)
+         (advice-add #'use-package-normalize/:ensure :override
+                     #'straight-use-package--ensure-normalizer)))
+      (`straight
+       (with-eval-after-load 'use-package-core
+         (when (and (boundp 'use-package-keywords)
+                    (listp use-package-keywords))
+           (push :straight use-package-keywords))
+         (defalias 'use-package-normalize/:straight
+           #'straight-use-package--straight-normalizer)
+         (defalias 'use-package-handler/:straight
+           #'straight-use-package--straight-handler)
+         (when (and (boundp 'use-package-defaults)
+                    (listp use-package-defaults))
+           (setf (alist-get :straight use-package-defaults)
+                 '('(t) straight-use-package-by-default))))))))
+
+(if straight-enable-use-package-integration
+    (straight-use-package-mode +1)
+  (straight-use-package-mode -1))
 
 ;;;; Closing remarks
 

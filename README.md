@@ -82,6 +82,7 @@ for the [Emacs] hacker.
   * [Comments and docstrings](#comments-and-docstrings)
 - [Contributing](#contributing)
 - [News](#news)
+  * [December 12, 2017](#december-12-2017)
   * [December 8, 2017](#december-8-2017)
   * [November 10, 2017](#november-10-2017)
   * [November 6, 2017](#november-6-2017)
@@ -114,8 +115,7 @@ for the [Emacs] hacker.
 * Specify package descriptions using a powerful recipe format that
   supports everything from [MELPA recipes][melpa-recipe-format] and
   more.
-* First-class support for deferred and conditional installation, as
-  well as [`use-package`][use-package] integration.
+* [`use-package`][use-package] integration.
 * Modular: you can install your packages manually and straight.el will
   load them for you. Or you can also have straight.el install your
   packages, while you provide the recipes explicitly. Or straight.el
@@ -230,35 +230,20 @@ To use `use-package`, first install it with `straight.el`:
     (straight-use-package 'use-package)
 
 Now `use-package` will use `straight.el` to automatically install
-missing packages if you provide `:ensure t`:
+missing packages if you provide `:straight t`:
 
     (use-package el-patch
-      :ensure t)
+      :straight t)
 
-You can still provide a custom recipe for the package using the
-`:recipe` keyword:
+You can still provide a custom recipe for the package:
 
     (use-package el-patch
-      :ensure t
-      :recipe (el-patch :type git :host github :repo "your-name/el-patch"
-                        :upstream (:host github
-                                   :repo "raxod502/el-patch")))
+      :straight (el-patch :type git :host github :repo "your-name/el-patch"
+                          :upstream (:host github
+                                     :repo "raxod502/el-patch")))
 
-Specifying `:ensure` is unnecessary if you set
-`use-package-always-ensure` to a non-nil value.
-
-`use-package` has support for deferred package installation, and this
-is also supported by `straight.el`. For example:
-
-    (use-package dockerfile-mode
-      :ensure t
-      :defer-install t
-      :mode "Dockerfile.*\\'")
-
-When you first open a `Dockerfile`, you will be prompted `Install
-package "dockerfile-mode"?`. If you answer yes, the package will be
-installed and you will immediately have syntax highlighting and all
-the other features of `dockerfile-mode`.
+Specifying `:straight t` is unnecessary if you set
+`straight-use-package-by-default` to a non-nil value.
 
 To learn more, see the documentation
 on
@@ -2134,14 +2119,12 @@ those in order to make your bug report.
 
 ### Integration with `use-package`
 
-By default, `straight.el` overrides `use-package` so that `:ensure`
-installs packages using `straight.el` instead of `package.el`. (You
-can override this behavior by customizing
-`straight-enable-use-package-integration`.) The algorithm is extremely
-simple. This:
+By default, `straight.el` installs a new keyword `:straight` for
+`use-package` which may be used to install packages via `straight.el`.
+The algorithm is extremely simple. This:
 
     (use-package el-patch
-      :ensure t)
+      :straight t)
 
 becomes:
 
@@ -2150,9 +2133,8 @@ becomes:
 And this:
 
     (use-package el-patch
-      :ensure t
-      :recipe (:host github :repo "raxod502/el-patch"
-               :branch "develop"))
+      :straight (:host github :repo "raxod502/el-patch"
+                 :branch "develop"))
 
 becomes:
 
@@ -2164,16 +2146,23 @@ If the feature you are requiring with `use-package` is different from
 the package name, you can provide a full recipe:
 
     (use-package tex-site
-      :ensure t
-      :recipe (auctex :host github
-                      :repo "emacsmirror/auctex"
-                      :files (:defaults (:exclude "*.el.in"))))
+      :straight (auctex :host github
+                        :repo "emacsmirror/auctex"
+                        :files (:defaults (:exclude "*.el.in"))))
 
 And you may also provide just the package name:
 
     (use-package tex-site
-      :ensure t
-      :recipe auctex)
+      :straight auctex)
+
+If you don't provide `:straight`, then by default nothing happens. You
+may customize `straight-use-package-by-default` to make it so that
+`:straight t` is assumed unless you explicitly override it with
+`:straight nil`.
+
+Previously, `straight.el` used a different syntax for its
+`use-package` integration. For backwards compatibility, you can use
+this syntax instead by customizing `straight-use-package-version`.
 
 ### "Integration" with `package.el`
 
@@ -2243,6 +2232,15 @@ and base your pull requests from it. Please try to follow the style of
 the surrounding code and documentation, but anything is welcome.
 
 ## News
+
+### December 12, 2017
+
+Due to major updates upstream, the interface for `straight.el`'s
+`use-package` integration has changed significantly. You should now
+use `:straight` instead of `:ensure` and `:recipe`, and use
+`straight-use-package-by-default` instead of
+`use-package-always-ensure`. You can recover the old behavior (for
+now) by customizing the variable `straight-use-package-version`.
 
 ### December 8, 2017
 
