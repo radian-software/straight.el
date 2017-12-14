@@ -3544,7 +3544,9 @@ repo are considered."
       (lambda (package recipe)
         (unless (or (and for-build (plist-get recipe :no-build))
                     (and installed
-                         (not (straight--repository-is-available-p recipe))))
+                         (or (null (plist-get recipe :local-repo))
+                             (not (straight--repository-is-available-p
+                                   recipe)))))
           (push package packages)))
       straight--recipe-cache)
      packages)
