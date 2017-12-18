@@ -170,6 +170,9 @@
                       :repo "raxod502/straight.el"
                       :files ("straight.el")
                       :branch ,straight-repository-branch))
+          ;; Make a bootstrap.el symlink, for backwards compatibility
+          ;; (bootstrap snippets versioned 2 and lower expect this
+          ;; symlink to exist).
           (let* ((recipe (gethash "straight" straight--recipe-cache))
                  (local-repo (plist-get recipe :local-repo))
                  ;; This is a relative symlink. It won't break if you

@@ -12,11 +12,13 @@
 (defvar inhibit-message)
 
 (let* ((bootstrap.el
-        ;; If this file is accessed through a symlink (the normal
-        ;; case), resolve it. We need to be looking at the actual
-        ;; file, since the eventual target of the symlink is the only
-        ;; way we can actually identify the straight.el repository
-        ;; (which might be called something else).
+        ;; If this file is accessed through a symlink (this may happen
+        ;; when an old version of the bootstrap snippet is used to
+        ;; load straight.el), resolve it. We need to be looking at
+        ;; the actual file, since the eventual target of the
+        ;; symlink is the only way we can actually identify the
+        ;; straight.el repository (which might be called something
+        ;; else).
         (file-truename
          (or
           ;; If the file is being loaded from the init-file.

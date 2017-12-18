@@ -151,8 +151,8 @@ First, place the following bootstrap code in your init-file:
 
 <!-- longlines-start -->
 
-    (let ((bootstrap-file (concat user-emacs-directory "straight/bootstrap.el"))
-          (bootstrap-version 2))
+    (let ((bootstrap-file (concat user-emacs-directory "straight/repos/straight.el/bootstrap.el"))
+          (bootstrap-version 3))
       (unless (file-exists-p bootstrap-file)
         (with-current-buffer
             (url-retrieve-synchronously
@@ -1292,8 +1292,8 @@ care of all these details for you:
 
 <!-- longlines-start -->
 
-    (let ((bootstrap-file (concat user-emacs-directory "straight/bootstrap.el"))
-          (bootstrap-version 2))
+    (let ((bootstrap-file (concat user-emacs-directory "straight/repos/straight.el/bootstrap.el"))
+          (bootstrap-version 3))
       (unless (file-exists-p bootstrap-file)
         (with-current-buffer
             (url-retrieve-synchronously
@@ -1804,9 +1804,14 @@ of `straight.el` itself using `straight-recipe-overrides`! How does
 this work? Well, it's basically black magic. If you want the details,
 go read the [developer manual][straight.el-recipe-internals]. All you
 need to know is that you can set `straight-recipe-overrides`, and it
-will magically work. (Obviously you can't use
-`straight-override-recipe`, since that function definition hasn't been
-loaded yet before `straight.el` is installed and bootstrapped.)
+will magically work. The only caveat is that if you change the
+`:local-repo` for `straight.el`, then you will also need to adjust the
+value of `bootstrap-file` in the [bootstrap snippet][bootstrap]
+accordingly, since otherwise your init-file will not know where to
+find `straight.el`. (You must use `straight-recipe-overrides` instead
+of `straight-override-recipe`, since the latter function definition
+hasn't been loaded yet before `straight.el` is installed and
+bootstrapped.)
 
 Here is the default recipe used for `straight.el`, if you don't
 override it:
@@ -1821,7 +1826,7 @@ branch of `straight.el`, the default recipe installs from `master`.
 
 If all you want to do is change which branch you are installing
 `straight.el` from, simply customize the variable
-`straight-repository-variable`, which is provided for this purpose.
+`straight-repository-branch`, which is provided for this purpose.
 (Although using `straight-recipe-overrides` will work just as well, at
 least until the recipe happens to be changed upstream and your
 init-file isn't updated.)
