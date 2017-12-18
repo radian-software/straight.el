@@ -2164,6 +2164,9 @@ Previously, `straight.el` used a different syntax for its
 `use-package` integration. For backwards compatibility, you can use
 this syntax instead by customizing `straight-use-package-version`.
 
+You can disable `use-package` integration entirely by customizing
+`straight-enable-use-package-integration`.
+
 ### "Integration" with `package.el`
 
 By default, `package.el` will automatically insert a call to
