@@ -309,25 +309,6 @@ profile (nil) will suffice without additional setup."
              (plist :key-type symbol :value-type sexp)))
   :group 'straight)
 
-(defcustom straight-enable-package-integration t
-  "Whether to enable \"integration\" with package.el.
-This means that `package-enable-at-startup' is disabled, and
-advices are put on `package--ensure-init-file' and
-`package--save-selected-packages' to prevent package.el from
-modifying the init-file."
-  :type 'boolean
-  :group 'straight)
-
-(defcustom straight-enable-use-package-integration t
-  "Whether to enable integration with `use-package'.
-This means that a new `:recipe' handler is added, the normalizer
-for `:ensure' is overridden, and `use-package-ensure-function'
-and `use-package-pre-ensure-function' are set. The net effect is
-that `:ensure' uses straight.el instead of package.el by
-default."
-  :type 'boolean
-  :group 'straight)
-
 ;;;; Utility functions
 ;;;;; Association lists
 
@@ -4392,32 +4373,74 @@ according to the value of `straight-profiles'."
 
 ;;;;; package.el "integration"
 
-(when straight-enable-package-integration
+(defcustom straight-enable-package-integration t
+  "Whether to enable \"integration\" with package.el.
+This means that `package-enable-at-startup' is disabled, and
+advices are put on `package--ensure-init-file' and
+`package--save-selected-packages' to prevent package.el from
+modifying the init-file."
+  :type 'boolean
+  :group 'straight)
 
-  ;; Don't load package.el after init finishes.
-  (setq package-enable-at-startup nil)
+;;;;;; Mode variables
 
-  ;; Prevent package.el from modifying the init-file.
-  (eval-and-compile
-    (defalias 'straight--advice-neuter-package-ensure-init-file #'ignore
-      "Prevent package.el from modifying the init-file.
+(defvar straight-package--last-enable-at-startup t
+  "Value of `package-enable-at-startup' at last mode toggle.")
+
+;;;;;; Utility functions
+
+(defun straight-package-advice-ensure-init-file ()
+  "Prevent package.el from modifying the init-file.
+
 This is an `:override' advice for `package--ensure-init-file'.")
-    (defun straight--package-save-selected-packages (&optional value)
-      "Set and save `package-selected-packages' to VALUE.
-But don't mess with the init-file."
-      (when value
-        (setq package-selected-packages value)))
-    (defalias 'straight--advice-neuter-package-save-selected-packages
-      #'straight--package-save-selected-packages
-      "Prevent package.el from modifying the init-file.
-This is an `:override' advice for
-`package--save-selected-packages'."))
-  (advice-add #'package--ensure-init-file :override
-              #'straight--advice-neuter-package-ensure-init-file)
-  (advice-add #'package--save-selected-packages :override
-              #'straight--advice-neuter-package-save-selected-packages))
+
+(defun straight-package-advice-save-selected-packages (&optional value)
+  "Set and save `package-selected-packages' to VALUE.
+But don't mess with the init-file.
+
+This is an `:override' advice for `package--save-selected-packages'."
+  (when value
+    (setq package-selected-packages value)))
+
+;;;;;; Mode definition
+
+(define-minor-mode straight-package-neutering-mode
+  "Minor mode to neuter package.el by inhibiting some offensive features.
+
+This mode is enabled or disabled automatically when straight.el
+is loaded, according to the value of
+`straight-enable-package-integration'."
+  :global t
+  (with-eval-after-load 'package
+    (if straight-package-neutering-mode
+        (progn
+          (when (boundp 'package-enable-at-startup)
+            (setq straight-package--last-enable-at-startup
+                  package-enable-at-startup))
+          (setq package-enable-at-startup nil)
+          (advice-add #'package--ensure-init-file :override
+                      #'straight-package-advice-ensure-init-file)
+          (advice-add #'package--save-selected-packages :override
+                      #'straight-package-advice-save-selected-packages))
+      (setq package-enable-at-startup
+            straight-package--last-enable-at-startup)
+      (advice-remove #'package--ensure-init-file
+                     #'straight-package-advice-ensure-init-file)
+      (advice-remove #'package--save-selected-packages
+                     #'straight-package-advice-save-selected-packages))))
+
+(if straight-enable-package-integration
+    (straight-package-neutering-mode +1)
+  (straight-package-neutering-mode -1))
 
 ;;;;; use-package integration
+
+(defcustom straight-enable-use-package-integration t
+  "Whether to enable integration with `use-package'.
+See `straight-use-package-version' for details."
+  :type 'boolean
+  :group 'straight)
+
 ;;;;;; Mode variables
 
 (defcustom straight-use-package-version 'straight
@@ -4566,7 +4589,7 @@ NAME, KEYWORD, ARGS, REST, and STATE are explained by the
           args)
     body))
 
-;;;;;; Mode definitions
+;;;;;; Mode definition
 
 (define-minor-mode straight-use-package-mode
   "Minor mode to enable `use-package' support in straight.el.
