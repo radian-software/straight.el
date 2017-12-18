@@ -457,8 +457,8 @@ that may contain `straight--not-present' as a value."
 Remove any blank lines at the beginning or end. If INDENT is
 non-nil, then add that many spaces to the beginning of each line
 and concatenate them with newlines, returning a string instead of
-a list. If MAX-ENTRIES is non-nil, then it should be a
-nonnegative integer, and any lines past that many are discarded."
+a list. If MAX-LINES is non-nil, then it should be a nonnegative
+integer, and any lines past that many are discarded."
   (let ((parts (split-string string "\n")))
     ;; Remove blank lines from beginning.
     (while (equal (car parts) "")
