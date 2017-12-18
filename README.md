@@ -2106,12 +2106,12 @@ loading `straight.el` by means of the [bootstrap snippet][bootstrap],
 but when you are in `emacs -Q`, here is how you can initialize
 `straight.el`:
 
-    M-x load-file RET ~/.emacs.d/straight/bootstrap.el RET
+    M-x load-file RET ~/.emacs.d/straight/repos/straight.el/bootstrap.el RET
 
 You can also do this from the command line, perhaps by creating an
 alias for it:
 
-    $ emacs -Q -l ~/.emacs.d/straight/bootstrap.el
+    $ emacs -Q -l ~/.emacs.d/straight/repos/straight.el/bootstrap.el
 
 Let's say you are making a bug report for Projectile. To load just
 Projectile and all of its dependencies, run:
