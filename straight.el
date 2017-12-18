@@ -452,12 +452,13 @@ that may contain `straight--not-present' as a value."
 
 ;;;;; Strings
 
-(defun straight--split-and-trim (string &optional indent)
+(defun straight--split-and-trim (string &optional indent max-lines)
   "Split the STRING on newlines, returning a list.
 Remove any blank lines at the beginning or end. If INDENT is
 non-nil, then add that many spaces to the beginning of each line
 and concatenate them with newlines, returning a string instead of
-a list."
+a list. If MAX-ENTRIES is non-nil, then it should be a
+nonnegative integer, and any lines past that many are discarded."
   (let ((parts (split-string string "\n")))
     ;; Remove blank lines from beginning.
     (while (equal (car parts) "")
@@ -467,6 +468,9 @@ a list."
     (while (equal (car parts) "")
       (setq parts (cdr parts)))
     (setq parts (nreverse parts))
+    ;; Remove tail.
+    (when (and max-lines (< max-lines (length parts)))
+      (setf (nthcdr max-lines parts) nil))
     ;; Add indentation.
     (if indent
         (let ((indent (make-string (or indent 0) ? )))
@@ -792,6 +796,18 @@ against the wrong repositories.
 If you set this to something other than nil, you may be eaten by
 a grue.")
 
+(defun straight--call (command &rest args)
+  "Call COMMAND with ARGS, returning success and output.
+Specifically, return a cons cell whose car is a boolean
+indicating whether the command was successful, and whose cdr
+is the stdout and stderr of the command."
+  (with-temp-buffer
+    (let ((default-directory (or straight--default-directory
+                                 default-directory)))
+      (let ((success (= 0 (apply #'call-process command
+                                 nil '(t t) nil args))))
+        (cons success (buffer-string))))))
+
 (defun straight--check-call (command &rest args)
   "Call COMMAND with ARGS, returning non-nil if it succeeds.
 If the COMMAND exits with a non-zero return code, return nil. If
@@ -804,15 +820,12 @@ error."
 (defun straight--get-call-raw (command &rest args)
   "Call COMMAND with ARGS, returning its stdout and stderr as a string.
 If the command fails, throw an error."
-  (with-temp-buffer
-    (let ((default-directory (or straight--default-directory
-                                 default-directory)))
-      (unless (= 0 (apply #'call-process command
-                          nil '(t t) nil args))
-        (error "Command failed: %s %s (output: %S) (default-directory: %S)"
-               command (string-join args " ")
-               (buffer-string) default-directory)))
-    (buffer-string)))
+  (let ((result (apply #'straight--call command args)))
+    (if (car result)
+        (cdr result)
+      (error "Command failed: %s %s (output: %S) (default-directory: %S)"
+             command (string-join args " ")
+             (cdr result) default-directory))))
 
 (defun straight--get-call (command &rest args)
   "Call COMMAND with ARGS, returning its stdout and stderr as a string.
@@ -833,6 +846,14 @@ This function may not work on all operating systems."
     file))
 
 ;;;;; Interactive popup windows
+
+(defmacro straight-catching-quit (&rest body)
+  "Exec BODY. If `quit' signaled, catch and return nil."
+  (declare (indent defun))
+  (let ((err (make-symbol "err")))
+    `(condition-case ,err
+         (progn ,@body)
+       (quit))))
 
 (defun straight-popup-raw (prompt actions)
   "Display PROMPT and allow user to choose between one of several ACTIONS.
@@ -1742,37 +1763,53 @@ name."
               local-repo branch (format "%s/%s" remote remote-branch))
              (cl-return-from straight-vc-git--pull-from-remote-raw t))))))
 
-(cl-defun straight-vc-git--validate-head-pushed (recipe)
-  "Validate that in RECIPE's local repo, main branch is behind primary remote."
+(cl-defun straight-vc-git--ensure-head-pushed
+    (recipe)
+  "Ensure that in RECIPE's local repo, main branch is behind primary remote.
+Return non-nil. If no local repository, do nothing and return non-nil."
   (unless (plist-member recipe :repo)
-    (cl-return-from straight-vc-git--validate-head-pushed t))
-  (ignore
-   (straight--with-plist recipe
-       (local-repo branch)
-     (let* ((branch (or branch straight-vc-git-default-branch))
-            (ref (format "%s/%s" straight-vc-git-primary-remote branch)))
-       (when (straight--check-call
-              "git" "merge-base" "--is-ancestor"
-              branch ref)
-         (cl-return-from straight-vc-git--validate-head-pushed t))
-       (straight-vc-git--popup
-         (format "In repository %S, branch %S has commits unpushed to %S."
-                 local-repo branch ref)
-         ("p" "Pull and then push"
-          (unless (condition-case _
-                      (ignore
-                       (straight-vc-git--pull-from-remote-raw
-                        recipe straight-vc-git-primary-remote branch))
-                    (quit t))
-            (when (straight-are-you-sure
-                   (format "Really push to %S in %S?" ref local-repo))
-              ;; If push fails, fall back to higher-level error handling
-              ;; to allow the user the option to skip, come back later,
-              ;; etc. I think it's foolish to allow force-pushing; the
-              ;; user can do that manually if they *really* want to.
-              (straight--get-call
-               "git" "push" straight-vc-git-primary-remote
-               (format "refs/heads/%s:refs/heads/%s" branch branch))))))))))
+    (cl-return-from straight-vc-git--ensure-head-pushed t))
+  (let ((push-error-message nil))
+    (while t
+      (while (not (straight-vc-git--validate-local recipe)))
+      (straight--with-plist recipe
+          (local-repo branch)
+        (let* ((branch (or branch straight-vc-git-default-branch))
+               (ref (format "%s/%s" straight-vc-git-primary-remote branch)))
+          (when (straight--check-call
+                 "git" "merge-base" "--is-ancestor"
+                 branch ref)
+            (cl-return-from straight-vc-git--ensure-head-pushed t))
+          (let* ((log (straight--get-call
+                       "git" "log" "--format=%h %s"
+                       (concat ref ".." branch)))
+                 (num-commits (length (straight--split-and-trim log))))
+            (straight-vc-git--popup
+              (format
+               (concat "In repository %S, branch %S has %d "
+                       "commit%s unpushed to %S%s:\n\n%s")
+               local-repo branch num-commits (if (= num-commits 1) "" "s") ref
+               (if (> num-commits 5) ", including" "")
+               (concat
+                (straight--split-and-trim log 2 5)
+                (when push-error-message
+                  (concat "\n\nPush failed:\n\n  "
+                          push-error-message))))
+              ("f" (format "Pull %S into branch %S" ref branch)
+               (straight-vc-git--pull-from-remote-raw
+                recipe straight-vc-git-primary-remote branch))
+              ("p" (format "Push branch %S to %S" branch ref)
+               (when (straight-are-you-sure
+                      (format "Really push to %S in %S?" ref local-repo))
+                 (straight-catching-quit
+                   (let ((result
+                          (straight--call
+                           "git" "push" straight-vc-git-primary-remote
+                           (format
+                            "refs/heads/%s:refs/heads/%s" branch branch))))
+                     (unless (car result)
+                       (setq push-error-message
+                             (string-trim (cdr result)))))))))))))))
 
 (defun straight-vc-git--validate-local (recipe)
   "Validate that local repository for RECIPE is as expected.
@@ -1936,10 +1973,7 @@ If no upstream is configured, do nothing."
 
 (cl-defun straight-vc-git-push-to-remote (recipe)
   "Using straight.el-style RECIPE, push to primary remote, if necessary."
-  (while t
-    (and (straight-vc-git--validate-local recipe)
-         (straight-vc-git--validate-head-pushed recipe)
-         (cl-return-from straight-vc-git-push-to-remote t))))
+  (straight-vc-git--ensure-head-pushed recipe))
 
 (cl-defun straight-vc-git-check-out-commit (local-repo commit)
   "In LOCAL-REPO, check out COMMIT.
