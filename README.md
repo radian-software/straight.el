@@ -2234,6 +2234,14 @@ switch to that branch with
 and base your pull requests from it. Please try to follow the style of
 the surrounding code and documentation, but anything is welcome.
 
+You can run the linting locally simply by running
+
+    $ make
+
+(although first you should make sure there is a suitable `emacs`
+binary on your path, and you have
+installed [`markdown-toc`][markdown-toc]).
+
 ## News
 
 ### December 12, 2017
@@ -2370,6 +2378,7 @@ particularly impactful to user experience.
 [gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg
 [issues]: https://github.com/raxod502/straight.el/issues
 [magit]: https://magit.vc/
+[markdown-toc]: https://github.com/jonschlinkert/markdown-toc
 [melpa-recipe-format]: https://github.com/melpa/melpa#recipe-format
 [melpa]: http://melpa.org/#/
 [package.el]: https://www.gnu.org/software/emacs/manual/html_node/emacs/Packages.html
