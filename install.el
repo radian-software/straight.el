@@ -145,7 +145,8 @@
           ,@(cl-mapcan (lambda (variable)
                          (when (boundp variable)
                            `((setq ,variable ',(symbol-value variable)))))
-                       '(straight-arrow
+                       '(bootstrap-version
+                         straight-arrow
                          straight-current-profile
                          straight-default-vc
                          straight-profiles
@@ -170,36 +171,39 @@
                       :repo "raxod502/straight.el"
                       :files ("straight.el")
                       :branch ,straight-repository-branch))
-          ;; Make a bootstrap.el symlink, for backwards compatibility
-          ;; (bootstrap snippets versioned 2 and lower expect this
-          ;; symlink to exist).
-          (let* ((recipe (gethash "straight" straight--recipe-cache))
-                 (local-repo (plist-get recipe :local-repo))
-                 ;; This is a relative symlink. It won't break if you
-                 ;; (for some silly reason) move your
-                 ;; `user-emacs-directory'.
-                 (target (concat "repos/" local-repo "/bootstrap.el"))
-                 (linkname (concat user-emacs-directory
-                                   "straight/bootstrap.el")))
-            (ignore-errors
-              ;; If it's a directory, the linking will fail. Just let
-              ;; the user deal with it in that case, since they are
-              ;; doing something awfully weird.
-              (delete-file linkname))
-            ;; Unfortunately, there appears to be no way to get
-            ;; `make-symbolic-link' to overwrite an existing file,
-            ;; like 'ln -sf'. Providing the OK-IF-ALREADY-EXISTS
-            ;; argument just makes it fail silently in the case of an
-            ;; existing file. That's why we have to `delete-file'
-            ;; above.
-            (if straight-use-symlinks
-                (make-symbolic-link target linkname)
-              (with-temp-file linkname
-                (print
-                 `(load (expand-file-name
-                         ,target (file-name-directory load-file-name))
-                        nil 'nomessage)
-                 (current-buffer))))))
+          (unless (and (boundp 'bootstrap-version)
+                       (integerp bootstrap-version)
+                       (>= bootstrap-version 3))
+            ;; Make a bootstrap.el symlink, for backwards compatibility
+            ;; (bootstrap snippets versioned 2 and lower expect this
+            ;; symlink to exist).
+            (let* ((recipe (gethash "straight" straight--recipe-cache))
+                   (local-repo (plist-get recipe :local-repo))
+                   ;; This is a relative symlink. It won't break if you
+                   ;; (for some silly reason) move your
+                   ;; `user-emacs-directory'.
+                   (target (concat "repos/" local-repo "/bootstrap.el"))
+                   (linkname (concat user-emacs-directory
+                                     "straight/bootstrap.el")))
+              (ignore-errors
+                ;; If it's a directory, the linking will fail. Just let
+                ;; the user deal with it in that case, since they are
+                ;; doing something awfully weird.
+                (delete-file linkname))
+              ;; Unfortunately, there appears to be no way to get
+              ;; `make-symbolic-link' to overwrite an existing file,
+              ;; like 'ln -sf'. Providing the OK-IF-ALREADY-EXISTS
+              ;; argument just makes it fail silently in the case of an
+              ;; existing file. That's why we have to `delete-file'
+              ;; above.
+              (if straight-use-symlinks
+                  (make-symbolic-link target linkname)
+                (with-temp-file linkname
+                  (print
+                   `(load (expand-file-name
+                           ,target (file-name-directory load-file-name))
+                          nil 'nomessage)
+                   (current-buffer)))))))
        (current-buffer))
       (let ((temp-file (make-temp-file "straight.el~")))
         (write-region nil nil temp-file nil 'silent)
