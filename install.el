@@ -146,17 +146,17 @@
                          (when (boundp variable)
                            `((setq ,variable ',(symbol-value variable)))))
                        '(straight-arrow
-                         straight-profiles
                          straight-current-profile
                          straight-default-vc
-                         straight-recipe-repositories
+                         straight-profiles
                          straight-recipe-overrides
+                         straight-recipe-repositories
                          straight-repository-branch
                          straight-vc-git-default-branch
-                         straight-vc-git-primary-remote
-                         straight-vc-git-upstream-remote
                          straight-vc-git-default-protocol
                          straight-vc-git-force-protocol
+                         straight-vc-git-primary-remote
+                         straight-vc-git-upstream-remote
                          user-emacs-directory)))
        (current-buffer))
       (goto-char (point-max))
