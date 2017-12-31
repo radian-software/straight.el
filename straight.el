@@ -2395,6 +2395,10 @@ for dependency resolution."
                      ;; If no sane repository name can be generated,
                      ;; just use the package name.
                      package)))
+              ;; Resolve the local repository to an absolute path.
+              (when-let ((local-repo (plist-get plist :local-repo)))
+                (straight--put
+                 plist :local-repo (straight--repos-dir local-repo)))
               ;; This code is here to deal with complications that can
               ;; arise with manual recipe specifications when multiple
               ;; packages are versioned in the same repository.
@@ -2796,6 +2800,8 @@ modified since their last builds.")
         ;; already. This table maps repo names to booleans.
         (repos (make-hash-table :test #'equal))
         ;; The systematically generated arguments for find(1).
+        (args-paths nil)
+        (args-primaries nil)
         (args nil))
     (dolist (package straight--eagerly-checked-packages)
       (when-let (build-info (gethash package straight--build-cache))
@@ -2811,14 +2817,12 @@ modified since their last builds.")
               (unless (gethash local-repo repos)
                 (if mtime
                     ;; The basic idea of the find(1) command here is
-                    ;; that it is composed of a series of disjunctive
-                    ;; clauses, one for each repository. The first
-                    ;; clause matches anything named ".git" at a depth
-                    ;; of two, so that the Git directories are
-                    ;; ignored. Then each subsequent clause matches
-                    ;; and prints anything in a particular repository
-                    ;; that has an mtime greater than the last build
-                    ;; time for that repository.
+                    ;; that we search all the local repositories, and
+                    ;; then the actual primaries evaluated are a
+                    ;; disjunction that first prevents any .git
+                    ;; directories from being traversed and then
+                    ;; checks for any files that are in a given local
+                    ;; repository *and* have a new enough mtime.
                     (let ((newer-or-newermt nil)
                           (mtime-or-file nil))
                       (pcase straight-find-flavor
@@ -2830,13 +2834,15 @@ modified since their last builds.")
                          (setq mtime-or-file (straight--make-mtime mtime)))
                         (_ (error "Unexpected `straight-find-flavor': %S"
                                   straight-find-flavor)))
-                      (setq args (append (list "-o"
-                                               "-path"
-                                               (format "./%s/*" local-repo)
-                                               newer-or-newermt
-                                               mtime-or-file
-                                               "-print")
-                                         args)))
+                      (push local-repo args-paths)
+                      (setq args-primaries
+                            (append (list "-o"
+                                          "-path"
+                                          (format "%s/*" local-repo)
+                                          newer-or-newermt
+                                          mtime-or-file
+                                          "-print")
+                                    args-primaries)))
                   ;; If no mtime is specified, it means the package
                   ;; definitely needs to be (re)built. Probably there
                   ;; was an error and we couldn't finish building the
@@ -2846,10 +2852,11 @@ modified since their last builds.")
                 ;; Don't create duplicate entries in the find(1)
                 ;; command for this local repository.
                 (puthash local-repo t repos)))))))
-    ;; The preamble to the find(1) command, which comes before the
-    ;; repository-specific subparts (see above).
-    (setq args (append (list "." "-name" ".git" "-prune")
-                       args))
+    ;; Construct the final find(1) command.
+    (setq args (append
+                args-paths
+                (list "-name" ".git" "-prune")
+                args-primaries))
     (with-temp-buffer
       (let ((default-directory (straight--repos-dir)))
         (let ((return (apply #'call-process "find" nil '(t t) nil args)))
@@ -2862,7 +2869,8 @@ modified since their last builds.")
         (maphash (lambda (local-repo _)
                    (goto-char (point-min))
                    (when (re-search-forward
-                          (format "^\\./%s/" (regexp-quote local-repo))
+                          (format "^%s/"
+                                  (regexp-quote local-repo))
                           nil 'noerror)
                      (puthash
                       local-repo t straight--cached-package-modifications)))
