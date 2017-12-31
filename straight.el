@@ -2857,7 +2857,7 @@ modified since their last builds.")
           ;; error.
           (unless (= 0 return)
             (error "Command failed: find %s:\n%s"
-                   (string-join (mapcar #'shell-quote-argument args) " ")
+                   (mapconcat #'shell-quote-argument args " ")
                    (buffer-string))))
         (maphash (lambda (local-repo _)
                    (goto-char (point-min))
