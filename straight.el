@@ -4300,7 +4300,9 @@ according to the value of `straight-profiles'."
                                   "\n\n  %s\n\nReally write lockfiles?")
                           (string-join
                            (mapcar (lambda (recipe)
-                                     (plist-get recipe :local-repo))
+                                     (file-name-nondirectory
+                                      (directory-file-name
+                                       (plist-get recipe :local-repo))))
                                    unpushed-recipes)
                            ", ")))))))
     (let ((versions-alist (straight--get-versions)))
@@ -4323,7 +4325,9 @@ according to the value of `straight-profiles'."
                (when (and local-repo
                           (memq profile
                                 (gethash package straight--profile-cache)))
-                 (push (cons local-repo
+                 (push (cons (file-name-nondirectory
+                              (directory-file-name
+                               local-repo))
                              (or (cdr (assoc local-repo versions-alist))
                                  (straight-vc-get-commit type local-repo)))
                        versions-alist)))))
