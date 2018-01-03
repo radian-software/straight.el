@@ -2011,7 +2011,9 @@ cloned."
     (make-directory (straight--repos-dir) 'parents)
     (straight--with-progress
         (concat cause (when cause straight-arrow)
-                (format "Cloning %s" local-repo)
+                (format "Cloning %s"
+                        (file-name-nondirectory
+                         (directory-file-name local-repo)))
                 ;; If this `member' check fails, then it means the
                 ;; repository has a name that is substantially
                 ;; different than the package name, and the user might
