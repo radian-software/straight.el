@@ -2227,11 +2227,12 @@ PACKAGE must be either `org' or `org-plus-contrib'. Otherwise
 return nil."
   (pcase package
     (`org
-     '(org :type git :host github :repo "emacsmirror/org"))
+     '(org :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
+           :local-repo "org"))
     (`org-plus-contrib
      '(org-plus-contrib
-       :type git :host github :repo "emacsmirror/org" :local-repo "org"
-       :files (:defaults "contrib/lisp/*.el")))
+       :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
+       :local-repo "org" :files (:defaults "contrib/lisp/*.el")))
     (_ nil)))
 
 (defun straight-recipes-org-elpa-list ()
