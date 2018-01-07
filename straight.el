@@ -353,7 +353,7 @@ alist, to ensure correct results."
 PROPS is a list of symbols. Each one is converted to a keyword
 and then its value is looked up in the PLIST and bound to the
 symbol for the duration of BODY."
-  (declare (indent 2))
+  (declare (indent 2) (debug (form sexp body)))
   (let ((plist-sym (make-symbol "plist")))
     `(let* ((,plist-sym ,plist)
             ,@(mapcar (lambda (prop)
@@ -511,7 +511,7 @@ are displayed. TASK can also be a cons, whose car and cdr are
 used as the TASK for the beginning and end messages
 respectively. (Either the car or cdr, or both, can be nil.) See
 also `straight--progress-begin' and `straight--progress-end'."
-  (declare (indent 1))
+  (declare (indent 1) (debug t))
   (let ((task-sym (make-symbol "gensym--task"))
         (task-car-sym (make-symbol "gensym--task-car"))
         (task-cdr-sym (make-symbol "gensym--task-cdr")))
@@ -965,7 +965,7 @@ have been performed, even if there was an error."
 
 (defmacro straight-transaction (&rest body)
   "Eval BODY within transaction. Return value is result of last form in BODY."
-  (declare (indent defun))
+  (declare (indent defun) (debug t))
   `(progn
      (straight-begin-transaction)
      (unwind-protect (progn ,@body)
@@ -3404,8 +3404,12 @@ repository."
                (executable-find "install-info"))
       (let ((default-directory (straight--build-dir package)))
         (when-let ((texinfo
-                    (straight--directory-files
-                     default-directory "\\.texi\\(nfo\\)?$")))
+                    (cl-remove-if
+                     (lambda (f)
+                       (file-exists-p
+                        (concat (file-name-sans-extension f) ".info")))
+                     (straight--directory-files
+                      default-directory "\\.texi\\(nfo\\)?$"))))
           (apply #'straight--check-call (cons "makeinfo" texinfo))
           (unless (file-exists-p "dir")
             (when-let ((info (straight--directory-files
