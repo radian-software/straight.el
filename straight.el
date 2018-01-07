@@ -3684,7 +3684,9 @@ The default value is \"Processing\"."
                                     local-repo (error-message-string err))
                           (format (concat "Processing of repository %S paused "
                                           "at your request.")
-                                  local-repo))
+                                  (file-name-nondirectory
+                                   (directory-file-name
+                                    local-repo))))
                         ("SPC" "Go back to processing this repository")
                         ("s" (concat "Skip this repository for now and "
                                      "come back to it later")
@@ -4296,7 +4298,7 @@ according to the value of `straight-profiles'."
                 (or
                  (null unpushed-recipes)
                  (straight-are-you-sure
-                  (format (concat "The following packages were not pushed:"
+                  (format (concat "The following repositories were not pushed:"
                                   "\n\n  %s\n\nReally write lockfiles?")
                           (string-join
                            (mapcar (lambda (recipe)
