@@ -5,6 +5,11 @@ all:
 .PHONY: travis
 travis:
 	@elint/elint checkdoc compile longlines
+	@mkdir -p ~/.emacs.d/straight/repos/
+	@ln -s $(PWD) ~/.emacs.d/straight/repos/
+	@emacs --batch -l ~/.emacs.d/straight/repos/straight.el/bootstrap.el \
+	--eval "(straight-use-package 'use-package)" \
+	--eval "(use-package el-patch :straight t)"
 
 .PHONY: checkdoc
 checkdoc:
