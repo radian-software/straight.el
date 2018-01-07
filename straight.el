@@ -3404,8 +3404,12 @@ repository."
                (executable-find "install-info"))
       (let ((default-directory (straight--build-dir package)))
         (when-let ((texinfo
-                    (straight--directory-files
-                     default-directory "\\.texi\\(nfo\\)?$")))
+                    (cl-remove-if
+                     (lambda (f)
+                       (file-exists-p
+                        (concat (file-name-sans-extension f) ".info")))
+                     (straight--directory-files
+                      default-directory "\\.texi\\(nfo\\)?$"))))
           (apply #'straight--check-call (cons "makeinfo" texinfo))
           (unless (file-exists-p "dir")
             (when-let ((info (straight--directory-files
