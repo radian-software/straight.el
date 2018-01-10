@@ -2396,10 +2396,6 @@ for dependency resolution."
                      ;; If no sane repository name can be generated,
                      ;; just use the package name.
                      package)))
-              ;; Resolve the local repository to an absolute path.
-              (when-let ((local-repo (plist-get plist :local-repo)))
-                (straight--put
-                 plist :local-repo (straight--repos-dir local-repo)))
               ;; This code is here to deal with complications that can
               ;; arise with manual recipe specifications when multiple
               ;; packages are versioned in the same repository.
@@ -2835,11 +2831,13 @@ modified since their last builds.")
                          (setq mtime-or-file (straight--make-mtime mtime)))
                         (_ (error "Unexpected `straight-find-flavor': %S"
                                   straight-find-flavor)))
-                      (push local-repo args-paths)
+                      (push (straight--repos-dir local-repo) args-paths)
                       (setq args-primaries
                             (append (list "-o"
                                           "-path"
-                                          (format "%s/*" local-repo)
+                                          (format
+                                           "%s/*" (straight--repos-dir
+                                                   local-repo))
                                           newer-or-newermt
                                           mtime-or-file
                                           "-print")
@@ -2871,7 +2869,8 @@ modified since their last builds.")
                    (goto-char (point-min))
                    (when (re-search-forward
                           (format "^%s/"
-                                  (regexp-quote local-repo))
+                                  (regexp-quote
+                                   (straight--repos-dir local-repo)))
                           nil 'noerror)
                      (puthash
                       local-repo t straight--cached-package-modifications)))
