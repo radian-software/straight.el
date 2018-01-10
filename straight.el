@@ -2011,9 +2011,7 @@ cloned."
     (make-directory (straight--repos-dir) 'parents)
     (straight--with-progress
         (concat cause (when cause straight-arrow)
-                (format "Cloning %s"
-                        (file-name-nondirectory
-                         (directory-file-name local-repo)))
+                (format "Cloning %s" local-repo)
                 ;; If this `member' check fails, then it means the
                 ;; repository has a name that is substantially
                 ;; different than the package name, and the user might
@@ -3688,9 +3686,7 @@ The default value is \"Processing\"."
                                     local-repo (error-message-string err))
                           (format (concat "Processing of repository %S paused "
                                           "at your request.")
-                                  (file-name-nondirectory
-                                   (directory-file-name
-                                    local-repo))))
+                                  local-repo))
                         ("SPC" "Go back to processing this repository")
                         ("s" (concat "Skip this repository for now and "
                                      "come back to it later")
@@ -4302,13 +4298,11 @@ according to the value of `straight-profiles'."
                 (or
                  (null unpushed-recipes)
                  (straight-are-you-sure
-                  (format (concat "The following repositories were not pushed:"
+                  (format (concat "The following packages were not pushed:"
                                   "\n\n  %s\n\nReally write lockfiles?")
                           (string-join
                            (mapcar (lambda (recipe)
-                                     (file-name-nondirectory
-                                      (directory-file-name
-                                       (plist-get recipe :local-repo))))
+                                     (plist-get recipe :local-repo))
                                    unpushed-recipes)
                            ", ")))))))
     (let ((versions-alist (straight--get-versions)))
@@ -4331,9 +4325,7 @@ according to the value of `straight-profiles'."
                (when (and local-repo
                           (memq profile
                                 (gethash package straight--profile-cache)))
-                 (push (cons (file-name-nondirectory
-                              (directory-file-name
-                               local-repo))
+                 (push (cons local-repo
                              (or (cdr (assoc local-repo versions-alist))
                                  (straight-vc-get-commit type local-repo)))
                        versions-alist)))))
