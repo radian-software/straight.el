@@ -789,6 +789,15 @@ is the stdout and stderr of the command."
                                  nil '(t t) nil args))))
         (cons success (buffer-string))))))
 
+(defun straight--warn-call (command &rest args)
+  "Call COMMAND with ARGS, warning user if it fails."
+  (let ((result (apply #'straight--call command args)))
+    (unless (car result)
+      (straight--warn
+       "Command failed: %s %s (default-directory: %S):\n%s"
+       command (string-join args " ")
+       default-directory (cdr result)))))
+
 (defun straight--check-call (command &rest args)
   "Call COMMAND with ARGS, returning non-nil if it succeeds.
 If the COMMAND exits with a non-zero return code, return nil. If
@@ -3407,13 +3416,12 @@ repository."
                         (concat (file-name-sans-extension f) ".info")))
                      (straight--directory-files
                       default-directory "\\.texi\\(nfo\\)?$"))))
-          (apply #'straight--check-call (cons "makeinfo" texinfo))
+          (apply #'straight--warn-call "makeinfo" texinfo)
           (unless (file-exists-p "dir")
             (when-let ((info (straight--directory-files
                               default-directory "\\.info$")))
-              (apply #'straight--check-call
-                     (cons "install-info"
-                           (append info '("dir")))))))))))
+              (apply #'straight--warn-call
+                     "install-info" (append info '("dir"))))))))))
 
 ;;;;; Cache handling
 
