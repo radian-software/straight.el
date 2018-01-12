@@ -1,11 +1,15 @@
 dist: trusty
-sudo: false
+sudo: required
 env:
   - EVM_VERSION=24.4
   - EVM_VERSION=24.5
   - EVM_VERSION=25.1
   - EVM_VERSION=25.2
   - EVM_VERSION=25.3
+
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y texinfo
 
 install:
   - curl -fsSkL https://raw.github.com/rejeep/evm/master/go | bash
