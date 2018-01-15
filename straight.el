@@ -3413,7 +3413,7 @@ repository."
                       files
                       (straight--repos-dir local-repo)
                       (straight--build-dir package)))
-        (when (string-match ".texi\\(nfo\\)?$" repo-file)
+        (when (string-match-p ".texi\\(nfo\\)?$" repo-file)
           (let ((texi repo-file)
                 (info (concat (file-name-sans-extension build-file) ".info")))
             (unless (file-exists-p info)
