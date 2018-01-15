@@ -3416,7 +3416,8 @@ repository."
                         (straight--build-dir package)))
           (when (string-match-p ".texi\\(nfo\\)?$" repo-file)
             (let ((texi repo-file)
-                  (info (concat (file-name-sans-extension build-file) ".info")))
+                  (info
+                   (concat (file-name-sans-extension build-file) ".info")))
               (push info infos)
               (unless (file-exists-p info)
                 (let ((default-directory (file-name-directory texi)))
