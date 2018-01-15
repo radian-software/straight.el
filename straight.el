@@ -3425,7 +3425,7 @@ repository."
           (when-let ((infos (straight--directory-files
                              default-directory "\\.info$")))
             (dolist (info infos)
-              (straight--check-call "install-info" info "dir"))))))))
+              (straight--warn-call "install-info" info "dir"))))))))
 
 ;;;;; Cache handling
 
