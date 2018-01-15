@@ -3404,24 +3404,30 @@ repository."
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build directory, not the original
 repository."
-  (straight--with-plist recipe
-      (package)
-    (when (and (executable-find "makeinfo")
-               (executable-find "install-info"))
-      (let ((default-directory (straight--build-dir package)))
-        (when-let ((texinfo
-                    (cl-remove-if
-                     (lambda (f)
-                       (file-exists-p
-                        (concat (file-name-sans-extension f) ".info")))
-                     (straight--directory-files
-                      default-directory "\\.texi\\(nfo\\)?$"))))
-          (apply #'straight--warn-call "makeinfo" texinfo)
-          (unless (file-exists-p "dir")
-            (when-let ((info (straight--directory-files
-                              default-directory "\\.info$")))
-              (apply #'straight--warn-call
-                     "install-info" (append info '("dir"))))))))))
+  (when (and (executable-find "makeinfo")
+             (executable-find "install-info"))
+    (straight--with-plist recipe
+        (package local-repo files)
+      (let (infos)
+        (pcase-dolist (`(,repo-file . ,build-file)
+                       (straight-expand-files-directive
+                        files
+                        (straight--repos-dir local-repo)
+                        (straight--build-dir package)))
+          (when (string-match-p ".texi\\(nfo\\)?$" repo-file)
+            (let ((texi repo-file)
+                  (info
+                   (concat (file-name-sans-extension build-file) ".info")))
+              (push info infos)
+              (unless (file-exists-p info)
+                (let ((default-directory (file-name-directory texi)))
+                  (apply #'straight--warn-call
+                         "makeinfo" texi "-o" info '()))))))
+        (let ((dir (straight--build-file package "dir")))
+          (unless (file-exists-p dir)
+            (dolist (info infos)
+              (when (file-exists-p info)
+                (straight--warn-call "install-info" info dir)))))))))
 
 ;;;;; Cache handling
 

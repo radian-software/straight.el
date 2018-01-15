@@ -1,5 +1,9 @@
 dist: trusty
 sudo: false
+addons:
+  apt:
+    packages:
+      - texinfo
 env:
   - EVM_VERSION=24.4
   - EVM_VERSION=24.5
