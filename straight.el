@@ -3425,7 +3425,8 @@ repository."
         (let ((dir (straight--build-file package "dir")))
           (unless (file-exists-p dir)
             (dolist (info infos)
-              (straight--warn-call "install-info" info dir))))))))
+              (when (file-exists-p info)
+                (straight--warn-call "install-info" info dir)))))))))
 
 ;;;;; Cache handling
 
