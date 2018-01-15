@@ -3408,24 +3408,24 @@ repository."
              (executable-find "install-info"))
     (straight--with-plist recipe
         (package local-repo files)
-      (pcase-dolist (`(,repo-file . ,build-file)
-                     (straight-expand-files-directive
-                      files
-                      (straight--repos-dir local-repo)
-                      (straight--build-dir package)))
-        (when (string-match-p ".texi\\(nfo\\)?$" repo-file)
-          (let ((texi repo-file)
-                (info (concat (file-name-sans-extension build-file) ".info")))
-            (unless (file-exists-p info)
-              (let ((default-directory (file-name-directory texi)))
-                (apply #'straight--warn-call
-                       "makeinfo" texi "-o" info '()))))))
-      (let ((default-directory (straight--build-dir package)))
-        (unless (file-exists-p "dir")
-          (when-let ((infos (straight--directory-files
-                             default-directory "\\.info$")))
+      (let (infos)
+        (pcase-dolist (`(,repo-file . ,build-file)
+                       (straight-expand-files-directive
+                        files
+                        (straight--repos-dir local-repo)
+                        (straight--build-dir package)))
+          (when (string-match-p ".texi\\(nfo\\)?$" repo-file)
+            (let ((texi repo-file)
+                  (info (concat (file-name-sans-extension build-file) ".info")))
+              (push info infos)
+              (unless (file-exists-p info)
+                (let ((default-directory (file-name-directory texi)))
+                  (apply #'straight--warn-call
+                         "makeinfo" texi "-o" info '()))))))
+        (let ((dir (straight--build-file package "dir")))
+          (unless (file-exists-p dir)
             (dolist (info infos)
-              (straight--warn-call "install-info" info "dir"))))))))
+              (straight--warn-call "install-info" info dir))))))))
 
 ;;;;; Cache handling
 
