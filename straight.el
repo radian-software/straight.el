@@ -3954,9 +3954,9 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
                   package "'" (intern package)))
                ;; The package was installed successfully.
                (puthash package t straight--success-cache)
-               t)))
-          ;; Return non-nil for built-in packages.
-          t))))
+               t))))
+      ;; Return non-nil for built-in packages.
+      t)))
 
 ;;;###autoload
 (defun straight-register-package (melpa-style-recipe)
