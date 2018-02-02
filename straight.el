@@ -311,8 +311,8 @@ packages.
 If you have no need of the profile system, then using the default
 profile (nil) will suffice without additional setup."
   :type '(alist :key-type symbol :value-type
-           (alist :key-type symbol :value-type
-             (plist :key-type symbol :value-type sexp)))
+                (alist :key-type symbol :value-type
+                       (plist :key-type symbol :value-type sexp)))
   :group 'straight)
 
 ;;;; Utility functions
@@ -4501,7 +4501,7 @@ plist, which is prepended with the feature name; or a list whose
 cdr is a plist, which is used as is."
   :type '(choice
           (const :tag "Classic (uses `:ensure' for all package managers)"
-            ensure)
+                 ensure)
           (const :tag "Modern (uses `:package', `:straight', etc.)" straight))
   :group 'straight)
 
@@ -4547,8 +4547,8 @@ deciding and instead just install the package unconditionally."
         ;; In cases where installation should be automatic, do
         ;; it.
         ((memq context '(:byte-compile :ensure
-                         :config :pre-ensure
-                         :interactive nil))
+                                       :config :pre-ensure
+                                       :interactive nil))
          nil)
         ;; Otherwise, prompt the user.
         (t (not (y-or-n-p (format "Install package %S? " package)))))))))
