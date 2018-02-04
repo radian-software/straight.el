@@ -2307,7 +2307,7 @@ is built in to Emacs (e.g. the \"emacs\" package). This is used
 for dependency resolution."
   ;; Special case for the `emacs' pseudo-package, so that by default
   ;; we don't try to look up a recipe in recipe repositories.
-  (when (eq melpa-style-recipe 'emacs)
+  (when (memq melpa-style-recipe straight-built-in-pseudo-packages)
     (cl-return-from straight--convert-recipe))
   ;; Firstly, if the recipe is only provided as a package name, and
   ;; we've already converted it before, then we should just return the
