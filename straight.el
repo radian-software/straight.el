@@ -4586,10 +4586,11 @@ documentation."
        ((null arg) (setq parsed-args nil))
        ((eq arg t) (push name-symbol parsed-args))
        ((symbolp arg) (push arg parsed-args))
-       ((not (listp arg))
-        (use-package-error ":straight wants a symbol or list"))
-       ((keywordp (car arg)) (push (cons name-symbol arg) parsed-args))
-       (t (push arg parsed-args))))
+       ((and (listp arg) (keywordp (car arg)))
+        (push (cons name-symbol arg) parsed-args))
+       ((listp arg) (setq parsed-args (append arg parsed-args)))
+       (t
+        (use-package-error ":straight wants a symbol or list"))))
     parsed-args))
 
 (defun straight-use-package--straight-handler
