@@ -91,6 +91,7 @@ for the [Emacs] hacker.
   * [October 22, 2017](#october-22-2017)
   * [July 27, 2017](#july-27-2017)
 - [Known issue FAQ](#known-issue-faq)
+  * [Installing Org with `straight.el`](#installing-org-with-straightel)
 
 <!-- tocstop -->
 
@@ -308,6 +309,11 @@ straight-thaw-versions`.
 
 To learn more, see the documentation
 on [version lockfiles][lockfiles].
+
+### Installing Org
+
+There are [some complications][org] with installing Org at the moment.
+However, they are not hard to work around.
 
 ## Conceptual overview
 
@@ -2339,6 +2345,57 @@ particularly impactful to user experience.
   [#72](https://github.com/raxod502/straight.el/issues/72),
   [#115](https://github.com/raxod502/straight.el/issues/115).
 
+### Installing Org with `straight.el`
+
+Because Org is not designed to be run without running `make` first,
+and `straight.el` does not yet support custom build steps for
+packages, it is possible to get spurious warnings from an Org
+installed via `straight.el`, as
+per [#211](https://github.com/raxod502/straight.el/issues/211). The
+situation is actually even more confusing, since Emacs also provides
+an outdated version of Org and there is no way to disable this. As a
+result, this section outlines a simple way to install Org via
+`straight.el` without getting any warnings and without risking the
+outdated Org provided by Emacs from being loaded.
+
+This hack basically provides the three things that Emacs' outdated
+version of Org provides, and that a correctly built version of Org
+*would* provide, but that the unbuilt version of Org installed by
+`straight.el` does not actually provide.
+
+    (require 'subr-x)
+    (straight-use-package 'git)
+
+    (defun org-git-version ()
+      "The Git version of org-mode.
+    Inserted by installing org-mode or when a release is made."
+      (require 'git)
+      (let ((git-repo (expand-file-name
+                       "straight/repos/org/" user-emacs-directory)))
+        (string-trim
+         (git-run "describe"
+                  "--match=release\*"
+                  "--abbrev=6"
+                  "HEAD"))))
+
+    (defun org-release ()
+      "The release version of org-mode.
+    Inserted by installing org-mode or when a release is made."
+      (require 'git)
+      (let ((git-repo (expand-file-name
+                       "straight/repos/org/" user-emacs-directory)))
+        (string-trim
+         (string-remove-prefix
+          "release_"
+          (git-run "describe"
+                   "--match=release\*"
+                   "--abbrev=0"
+                   "HEAD")))))
+
+    (provide 'org-version)
+
+    (straight-use-package 'org) ;; or org-plus-contrib if desired
+
 [bootstrap]: #getting-started
 [comments-and-docstrings]: #comments-and-docstrings
 [conceptual-overview]: #conceptual-overview
@@ -2350,6 +2407,7 @@ particularly impactful to user experience.
 [interactive-usage]: #interactive-usage
 [lockfiles]: #lockfile-management
 [news]: #news
+[org]: #installing-org-with-straightel
 [overriding-recipes]: #overriding-recipes
 <!-- FIXME needs a separate section? -->
 [package-lifecycle]: #installing-packages-programmatically
