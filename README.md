@@ -1,7 +1,8 @@
 **straight.el**: next-generation, purely functional package manager
 for the [Emacs] hacker.
 
-(If you've been here before, check out the [news]!)
+(If you've been here before, check out the [news]! Note that
+development takes place on the [`develop` branch][develop].)
 
 [![Build status][travis-badge]][travis-build]
 [![Gitter chat][gitter-badge]][gitter]
@@ -2374,6 +2375,7 @@ particularly impactful to user experience.
 [borg-improvements]: https://github.com/raxod502/straight.el/issues/95#issuecomment-316379495https://github.com/raxod502/straight.el/issues/95#issuecomment-316379495
 [build-command-issue]: https://github.com/raxod502/straight.el/issues/72
 [cask]: https://github.com/cask/cask
+[develop]: https://github.com/raxod502/straight.el/tree/develop
 [el-get]: https://github.com/dimitri/el-get
 [emacs]: https://www.gnu.org/software/emacs/
 [emacsmirror]: https://emacsmirror.net/
