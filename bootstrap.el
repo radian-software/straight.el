@@ -68,11 +68,11 @@
 ;; done first so that any dependencies of straight.el can be looked up
 ;; correctly.
 
+(straight-use-recipes '(org-elpa :local-repo nil))
+
 (straight-use-recipes '(melpa :type git :host github
                               :repo "melpa/melpa"
                               :no-build t))
-
-(straight-use-recipes '(org-elpa :local-repo nil))
 
 (straight-use-recipes '(emacsmirror :type git :host github
                                     :repo "emacsmirror/epkgs"
