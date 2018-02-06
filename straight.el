@@ -426,10 +426,11 @@ API didn't actually know how to write hash table APIs.")
   "Return non-nil if KEY is present in hash TABLE.
 If PARANOID is non-nil, ensure correctness even for hash tables
 that may contain `straight--not-present' as a value."
-  (and (eq (gethash key table straight--not-present) straight--not-present)
-       (or paranoid
-           (eq (gethash key table straight--not-present-paranoid)
-               straight--not-present-paranoid))))
+  (not
+   (and (eq (gethash key table straight--not-present) straight--not-present)
+        (or paranoid
+            (eq (gethash key table straight--not-present-paranoid)
+                straight--not-present-paranoid)))))
 
 ;;;;; Strings
 
