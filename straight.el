@@ -1224,7 +1224,7 @@ is taken.
 
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
-`straight-vc-TYPE-pull-from-remote' method, where TYPE is the
+`straight-vc-TYPE-push-to-remote' method, where TYPE is the
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
