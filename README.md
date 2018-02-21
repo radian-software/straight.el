@@ -1577,10 +1577,6 @@ a backend API method. The relevant methods are:
   fetched from the configured remote, if any, to the local copy.
 * `merge-from-upstream`: given a recipe, merge the latest version
   fetched from the configured upstream, if any, to the local copy.
-* `pull-from-remote`: given a recipe, pull the latest version of the
-  repository from its configured remote, if one is specified.
-* `pull-from-upstream`: given a recipe, pull the latest version of the
-  repository from its configured upstream, if one is specified.
 * `push-to-remote`: given a recipe, push the current version of the
   repository to its configured remote, if one is specified.
 * `check-out-commit`: given a local repository name and a commit
@@ -1619,7 +1615,7 @@ These are the keywords meaningful for the `git` backend:
   particularly important for the EmacsMirror recipe repository, which
   contains every known Emacs package in existence as submodules.
 * `:upstream`: a plist which specifies settings for an upstream, if
-  desired. This is meaningful for the `pull-from-upstream` method. The
+  desired. This is meaningful for the `fetch-from-upstream` method. The
   allowed keywords are `:repo`, `:host`, and `:branch`.
 
 This section tells you how the `git` backend, specifically, implements
@@ -1640,11 +1636,6 @@ the version-control backend API:
   primary remote into the primary local `:branch`.
 * `merge-from-upstream`: performs normalization, then merges from the
   upstream remote into the primary local `:branch`.
-* `pull-from-remote`: performs normalization, then pulls from the
-  primary remote and merges with the primary `:branch`.
-* `pull-from-upstream`: performs normalization, then pulls from the
-  configured `:upstream`, if there is one. Merges with the primary
-  `:branch`.
 * `push-to-remote`: performs normalization, pulls from the primary
   remote if necessary, and then pushes if necessary.
 * `check-out-commit`: verifies that no merge is in progress and that
