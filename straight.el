@@ -1183,39 +1183,6 @@ repository directory and delegates to the relevant
       (let ((straight--default-directory (straight--repos-dir local-repo)))
         (straight-vc 'merge-from-upstream type recipe)))))
 
-(defun straight-vc-pull-from-remote (recipe)
-  "Pull from the primary remote for straight.el-style RECIPE.
-
-If the RECIPE does not specify a local repository, then no action
-is taken.
-
-This method sets `straight--default-directory' to the local
-repository directory and delegates to the relevant
-`straight-vc-TYPE-pull-from-remote' method, where TYPE is the
-`:type' specified in RECIPE."
-  (straight--with-plist recipe
-      (local-repo type)
-    (when local-repo
-      (let ((straight--default-directory (straight--repos-dir local-repo)))
-        (straight-vc 'pull-from-remote type recipe)))))
-
-(defun straight-vc-pull-from-upstream (recipe)
-  "Pull from the upstream remote for straight.el-style RECIPE.
-If there is no upstream configured, this method does nothing.
-
-If the RECIPE does not specify a local repository, then no action
-is taken.
-
-This method sets `straight--default-directory' to the local
-repository directory and delegates to the relevant
-`straight-vc-TYPE-pull-from-upstream' method, where TYPE is the
-`:type' specified in RECIPE."
-  (straight--with-plist recipe
-      (local-repo type)
-    (when local-repo
-      (let ((straight--default-directory (straight--repos-dir local-repo)))
-        (straight-vc 'pull-from-upstream type recipe)))))
-
 (defun straight-vc-push-to-remote (recipe)
   "Push to the primary remote for straight.el-style RECIPE, if necessary.
 
@@ -1224,7 +1191,7 @@ is taken.
 
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
-`straight-vc-TYPE-pull-from-remote' method, where TYPE is the
+`straight-vc-TYPE-push-to-remote' method, where TYPE is the
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
@@ -1745,20 +1712,9 @@ name."
 REMOTE is a string. REMOTE-BRANCH is the branch in REMOTE that is
 used; it should be a string that is not prefixed with a remote
 name."
-  (straight--with-plist recipe
-      (local-repo branch)
-    (let ((branch (or branch straight-vc-git-default-branch))
-          (already-fetched nil))
-      (while t
-        (and (straight-vc-git--validate-local recipe)
-             (or already-fetched
-                 (progn
-                   (straight--get-call
-                    "git" "fetch" remote)
-                   (setq already-fetched t)))
-             (straight-vc-git--validate-head
-              local-repo branch (format "%s/%s" remote remote-branch))
-             (cl-return-from straight-vc-git--pull-from-remote-raw t))))))
+  (straight-vc-git-fetch-from-remote recipe)
+  (straight-vc-git--merge-from-remote-raw
+   recipe remote remote-branch))
 
 (cl-defun straight-vc-git--ensure-head-pushed
     (recipe)
@@ -1939,34 +1895,6 @@ part of the VC API."
   "Using straight.el-style RECIPE, merge from upstream.
 If no upstream is configured, do nothing."
   (straight-vc-git-merge-from-remote recipe 'from-upstream))
-
-(cl-defun straight-vc-git-pull-from-remote (recipe &optional from-upstream)
-  "Using straight.el-style RECIPE, pull from a remote.
-If FROM-UPSTREAM is non-nil, pull from the upstream remote,
-unless no :upstream is configured, in which case do nothing. Else
-pull from the primary remote."
-  (unless (plist-member recipe :repo)
-    (cl-return-from straight-vc-git-pull-from-remote t))
-  (straight--with-plist recipe
-      (branch upstream)
-    (unless (and from-upstream (null upstream))
-      (let* ((remote (if from-upstream
-                         straight-vc-git-upstream-remote
-                       straight-vc-git-primary-remote))
-             (branch (or branch straight-vc-git-default-branch))
-             (remote-branch
-              (if from-upstream
-                  (or (plist-get upstream :branch)
-                      straight-vc-git-default-branch)
-                branch)))
-        (straight-vc-git--pull-from-remote-raw
-         recipe remote remote-branch)))))
-
-(defun straight-vc-git-pull-from-upstream (recipe)
-  "Using straight.el-style RECIPE, pull from upstream.
-If no upstream is configured, do nothing."
-  (straight-vc-git-pull-from-remote
-   recipe straight-vc-git-upstream-remote))
 
 (cl-defun straight-vc-git-push-to-remote (recipe)
   "Using straight.el-style RECIPE, push to primary remote, if necessary."
@@ -4223,9 +4151,11 @@ not just from primary remote but also from configured upstream."
   (interactive (list (straight--select-package "Pull package" nil 'installed)
                      current-prefix-arg))
   (let ((recipe (gethash package straight--recipe-cache)))
-    (and (straight-vc-pull-from-remote recipe)
+    (and (straight-vc-fetch-from-remote recipe)
+         (straight-vc-merge-from-remote recipe)
          (when from-upstream
-           (straight-vc-pull-from-upstream recipe)))))
+           (and (straight-vc-fetch-from-upstream recipe)
+                (straight-vc-merge-from-upstream recipe))))))
 
 ;;;###autoload
 (defun straight-pull-all (&optional from-upstream predicate)
@@ -4241,10 +4171,8 @@ PREDICATE, if provided, filters the packages that are pulled. It
 is called with the package name as a string, and should return
 non-nil if the package should actually be pulled."
   (interactive "P")
-  (straight--map-existing-repos-interactively
-   (lambda (package)
-     (straight-pull-package package from-upstream))
-   predicate))
+  (straight-fetch-all from-upstream predicate)
+  (straight-merge-all from-upstream predicate))
 
 ;;;###autoload
 (defun straight-push-package (package)
