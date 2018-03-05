@@ -1284,6 +1284,14 @@ one specified in `straight-vc-git-default-protocol'."
   :type 'boolean
   :group 'straight)
 
+(defcustom straight-vc-git-auto-fast-forward t
+  "Whether to quietly fast-forward when pulling packages.
+This suppresses popups for trivial remote changes (i.e. the
+current HEAD is an ancestor to the remote HEAD).
+A nil value allows for inspection of all remote changes."
+  :type 'boolean
+  :group 'straight)
+
 ;;;;;; Utility functions
 
 ;; We don't define `straight--profile-cache' until later. (Should some
@@ -1598,11 +1606,8 @@ confirmation, so this function should only be run after
       ((and (null ref) (string= branch cur-branch))
        (cl-return-from straight-vc-git--validate-head t))
       ((and (null ref) head-detached-p)
-       (straight-vc-git--popup
-         (format "In repository %S, HEAD is even with branch %S, but detached."
-                 local-repo branch)
-         ("a" (format "Attach HEAD to branch %S" branch)
-          (straight--get-call "git" "checkout" branch))))
+       ;; Detached HEAD, attach to configured branch.
+       (straight--get-call "git" "checkout" branch))
       (t
        (let ((ref-ahead-p (straight--check-call
                            "git" "merge-base" "--is-ancestor"
@@ -1611,6 +1616,10 @@ confirmation, so this function should only be run after
                             "git" "merge-base" "--is-ancestor"
                             ref-name branch)))
          (when (and ref ref-behind-p)
+           (cl-return-from straight-vc-git--validate-head t))
+         (when (and ref ref-ahead-p straight-vc-git-auto-fast-forward)
+           ;; Local is behind, catch up.
+           (straight--get-call "git" "reset" "--hard" ref-name)
            (cl-return-from straight-vc-git--validate-head t))
          (straight-vc-git--popup-raw
           (concat

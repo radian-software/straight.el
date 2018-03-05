@@ -1666,6 +1666,10 @@ You can customize the following user options:
   operations will offer to re-set your remote URLs from HTTPS to SSH
   or vice versa, depending on the value of
   `straight-vc-git-default-protocol`. This is nil by default.
+* `straight-vc-git-auto-fast-forward`: if this is non-nil, pulling will
+  quietly do fast-forward, to suppress asking for instructions on each
+  package with updates, unless they're not trivial. Set to nil if
+  you'd prefer to inspect all changes.
 
 ### Recipe lookup
 
