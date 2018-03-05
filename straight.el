@@ -1441,7 +1441,7 @@ Do not suppress unexpected errors."
 
 ;;;;;; Validation functions
 
-(cl-defun straight-vc-git--validate-remote (local-repo remote desired-url)
+(cl-defun straight-vc-git--ensure-remote (local-repo remote desired-url)
   "Validate that LOCAL-REPO has REMOTE set to DESIRED-URL or equivalent.
 All three arguments are strings. The URL of the REMOTE does not
 necessarily need to match DESIRED-URL; it just has to satisfy
@@ -1455,7 +1455,7 @@ necessarily need to match DESIRED-URL; it just has to satisfy
        (if (straight-vc-git--urls-compatible-p
             actual-url desired-url)
            ;; This is the only case where we return non-nil.
-           (cl-return-from straight-vc-git--validate-remote t)
+           (cl-return-from straight-vc-git--ensure-remote t)
          (let ((new-remote (straight--uniquify
                             remote
                             (straight-vc-git--list-remotes))))
@@ -1514,7 +1514,7 @@ but recipe specifies a URL of
      (straight--get-call
       "git" "remote" "add" remote desired-url))))
 
-(cl-defun straight-vc-git--validate-remotes (recipe)
+(cl-defun straight-vc-git--ensure-remotes (recipe)
   "Validate that repository for RECIPE has remotes set correctly.
 RECIPE is a straight.el-style plist.
 
@@ -1523,11 +1523,11 @@ their URLs set to the same as what is specified in the RECIPE.
 The URLs do not necessarily need to match exactly; they just have
 to satisfy `straight-vc-git--urls-compatible-p'."
   (unless (plist-member recipe :repo)
-    (cl-return-from straight-vc-git--validate-remotes t))
+    (cl-return-from straight-vc-git--ensure-remotes t))
   (straight--with-plist recipe
       (local-repo repo host)
     (let ((desired-url (straight-vc-git--encode-url repo host)))
-      (and (straight-vc-git--validate-remote
+      (and (straight-vc-git--ensure-remote
             local-repo straight-vc-git-primary-remote desired-url)
            (or (not (plist-member recipe :upstream))
                (straight--with-plist (plist-get recipe :upstream)
@@ -1535,7 +1535,7 @@ to satisfy `straight-vc-git--urls-compatible-p'."
                  (let (;; NB: this is a different computation than
                        ;; above.
                        (desired-url (straight-vc-git--encode-url repo host)))
-                   (straight-vc-git--validate-remote
+                   (straight-vc-git--ensure-remote
                     local-repo straight-vc-git-upstream-remote
                     desired-url))))))))
 
@@ -1783,7 +1783,7 @@ with the remotes."
   (straight--with-plist recipe
       (local-repo branch)
     (let ((branch (or branch straight-vc-git-default-branch)))
-      (and (straight-vc-git--validate-remotes recipe)
+      (and (straight-vc-git--ensure-remotes recipe)
            (straight-vc-git--validate-nothing-in-progress local-repo)
            (straight-vc-git--validate-worktree local-repo)
            (straight-vc-git--ensure-head local-repo branch)))))
@@ -1869,7 +1869,7 @@ part of the VC API."
                         straight-vc-git-upstream-remote
                       straight-vc-git-primary-remote)))
         (while t
-          (and (straight-vc-git--validate-remotes recipe)
+          (and (straight-vc-git--ensure-remotes recipe)
                (straight--get-call "git" "fetch" remote)
                (cl-return-from straight-vc-git-fetch-from-remote t)))))))
 
