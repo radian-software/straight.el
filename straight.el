@@ -1586,7 +1586,7 @@ LOCAL-REPO is a string."
            (and (straight--get-call "git" "reset" "--hard")
                 (straight--get-call "git" "clean" "-ffd"))))))))
 
-(cl-defun straight-vc-git--validate-head (local-repo branch &optional ref)
+(cl-defun straight-vc-git--ensure-head (local-repo branch &optional ref)
   "Validate that LOCAL-REPO has BRANCH checked out.
 If REF is non-nil, instead validate that BRANCH is ahead of REF.
 Any untracked files created by checkout will be deleted without
@@ -1604,7 +1604,7 @@ confirmation, so this function should only be run after
                   "git" "rev-parse" ref)))
        (error "Branch %S does not exist" ref))
       ((and (null ref) (string= branch cur-branch))
-       (cl-return-from straight-vc-git--validate-head t))
+       (cl-return-from straight-vc-git--ensure-head t))
       ((and (null ref) head-detached-p)
        ;; Detached HEAD, attach to configured branch.
        (straight--get-call "git" "checkout" branch))
@@ -1616,18 +1616,18 @@ confirmation, so this function should only be run after
                             "git" "merge-base" "--is-ancestor"
                             ref-name branch)))
          (when (and ref ref-behind-p)
-           (cl-return-from straight-vc-git--validate-head t))
+           (cl-return-from straight-vc-git--ensure-head t))
          (when (and ref ref-ahead-p straight-vc-git-auto-fast-forward)
            ;; Local is behind, catch up.
            (straight--get-call "git" "reset" "--hard" ref-name)
-           (cl-return-from straight-vc-git--validate-head t))
+           (cl-return-from straight-vc-git--ensure-head t))
          (straight-vc-git--popup-raw
           (concat
            (format "In repository %S, " local-repo)
            (if ref
                (cond
                 (ref-behind-p
-                 (cl-return-from straight-vc-git--validate-head t))
+                 (cl-return-from straight-vc-git--ensure-head t))
                 (ref-ahead-p
                  (format "branch %S is behind %S" branch ref))
                 (t (format "branch %S has diverged from %S" branch ref)))
@@ -1712,7 +1712,7 @@ name."
     (let ((branch (or branch straight-vc-git-default-branch)))
       (while t
         (and (straight-vc-git--validate-local recipe)
-             (straight-vc-git--validate-head
+             (straight-vc-git--ensure-head
               local-repo branch (format "%s/%s" remote remote-branch))
              (cl-return-from straight-vc-git--merge-from-remote-raw t))))))
 
@@ -1786,7 +1786,7 @@ with the remotes."
       (and (straight-vc-git--validate-remotes recipe)
            (straight-vc-git--validate-nothing-in-progress local-repo)
            (straight-vc-git--validate-worktree local-repo)
-           (straight-vc-git--validate-head local-repo branch)))))
+           (straight-vc-git--ensure-head local-repo branch)))))
 
 ;;;;;; API
 
