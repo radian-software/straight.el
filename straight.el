@@ -1560,14 +1560,14 @@ LOCAL-REPO is a string."
            ("a" "Abort merge"
             (straight--get-call "git" "merge" "--abort")))))))
 
-(cl-defun straight-vc-git--validate-worktree (local-repo)
+(cl-defun straight-vc-git--ensure-worktree (local-repo)
   "Validate that LOCAL-REPO has a clean worktree.
 LOCAL-REPO is a string."
   (let ((status (straight--get-call-raw
                  "git" "-c" "status.branch=false"
                  "status" "--short")))
     (if (string-empty-p status)
-        (cl-return-from straight-vc-git--validate-worktree t)
+        (cl-return-from straight-vc-git--ensure-worktree t)
       (straight-vc-git--popup
         (format "Repository %S has a dirty worktree:\n\n%s"
                 local-repo
@@ -1591,7 +1591,7 @@ LOCAL-REPO is a string."
 If REF is non-nil, instead validate that BRANCH is ahead of REF.
 Any untracked files created by checkout will be deleted without
 confirmation, so this function should only be run after
-`straight-vc-git--validate-worktree' has passed."
+`straight-vc-git--ensure-worktree' has passed."
   (ignore
    (let* ((cur-branch (straight--get-call
                        "git" "rev-parse" "--abbrev-ref" "HEAD"))
@@ -1785,7 +1785,7 @@ with the remotes."
     (let ((branch (or branch straight-vc-git-default-branch)))
       (and (straight-vc-git--ensure-remotes recipe)
            (straight-vc-git--ensure-nothing-in-progress local-repo)
-           (straight-vc-git--validate-worktree local-repo)
+           (straight-vc-git--ensure-worktree local-repo)
            (straight-vc-git--ensure-head local-repo branch)))))
 
 ;;;;;; API
@@ -1915,7 +1915,7 @@ LOCAL-REPO is a string naming a local package repository. COMMIT
 is a 40-character string identifying a Git commit."
   (while t
     (and (straight-vc-git--ensure-nothing-in-progress local-repo)
-         (straight-vc-git--validate-worktree local-repo)
+         (straight-vc-git--ensure-worktree local-repo)
          (straight--get-call "git" "checkout" commit)
          (cl-return-from straight-vc-git-check-out-commit))))
 
