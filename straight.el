@@ -1539,7 +1539,7 @@ to satisfy `straight-vc-git--urls-compatible-p'."
                     local-repo straight-vc-git-upstream-remote
                     desired-url))))))))
 
-(defun straight-vc-git--validate-nothing-in-progress (local-repo)
+(defun straight-vc-git--ensure-nothing-in-progress (local-repo)
   "Validate that no merge conflict is active in LOCAL-REPO.
 LOCAL-REPO is a string."
   (let ((conflicted-files
@@ -1784,7 +1784,7 @@ with the remotes."
       (local-repo branch)
     (let ((branch (or branch straight-vc-git-default-branch)))
       (and (straight-vc-git--ensure-remotes recipe)
-           (straight-vc-git--validate-nothing-in-progress local-repo)
+           (straight-vc-git--ensure-nothing-in-progress local-repo)
            (straight-vc-git--validate-worktree local-repo)
            (straight-vc-git--ensure-head local-repo branch)))))
 
@@ -1914,7 +1914,7 @@ If no upstream is configured, do nothing."
 LOCAL-REPO is a string naming a local package repository. COMMIT
 is a 40-character string identifying a Git commit."
   (while t
-    (and (straight-vc-git--validate-nothing-in-progress local-repo)
+    (and (straight-vc-git--ensure-nothing-in-progress local-repo)
          (straight-vc-git--validate-worktree local-repo)
          (straight--get-call "git" "checkout" commit)
          (cl-return-from straight-vc-git-check-out-commit))))
