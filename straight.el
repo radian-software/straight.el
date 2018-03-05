@@ -1711,7 +1711,7 @@ name."
       (local-repo branch)
     (let ((branch (or branch straight-vc-git-default-branch)))
       (while t
-        (and (straight-vc-git--validate-local recipe)
+        (and (straight-vc-git--ensure-local recipe)
              (straight-vc-git--ensure-head
               local-repo branch (format "%s/%s" remote remote-branch))
              (cl-return-from straight-vc-git--merge-from-remote-raw t))))))
@@ -1733,7 +1733,7 @@ Return non-nil. If no local repository, do nothing and return non-nil."
     (cl-return-from straight-vc-git--ensure-head-pushed t))
   (let ((push-error-message nil))
     (while t
-      (while (not (straight-vc-git--validate-local recipe)))
+      (while (not (straight-vc-git--ensure-local recipe)))
       (straight--with-plist recipe
           (local-repo branch)
         (let* ((branch (or branch straight-vc-git-default-branch))
@@ -1773,7 +1773,7 @@ Return non-nil. If no local repository, do nothing and return non-nil."
                        (setq push-error-message
                              (string-trim (cdr result)))))))))))))))
 
-(defun straight-vc-git--validate-local (recipe)
+(defun straight-vc-git--ensure-local (recipe)
   "Validate that local repository for RECIPE is as expected.
 This means that the remote URLs are set correctly; there is no
 merge currently in progress; the worktree is pristine; and the
@@ -1852,7 +1852,7 @@ This means that its remote URLs are set correctly; there is no
 merge currently in progress; its worktree is pristine; and the
 primary :branch is checked out."
   (while t
-    (and (straight-vc-git--validate-local recipe)
+    (and (straight-vc-git--ensure-local recipe)
          (cl-return-from straight-vc-git-normalize t))))
 
 (cl-defun straight-vc-git-fetch-from-remote (recipe &optional from-upstream)
