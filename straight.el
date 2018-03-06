@@ -1288,6 +1288,7 @@ one specified in `straight-vc-git-default-protocol'."
   "Whether to quietly fast-forward when pulling packages.
 This suppresses popups for trivial remote changes (i.e. the
 current HEAD is an ancestor to the remote HEAD).
+Also re-attaches detached heads quietly when non-nil.
 A nil value allows for inspection of all remote changes."
   :type 'boolean
   :group 'straight)
@@ -1606,8 +1607,16 @@ confirmation, so this function should only be run after
       ((and (null ref) (string= branch cur-branch))
        (cl-return-from straight-vc-git--ensure-head t))
       ((and (null ref) head-detached-p)
-       ;; Detached HEAD, attach to configured branch.
-       (straight--get-call "git" "checkout" branch))
+       ;; Detached HEAD, either attach to configured branch
+       ;; automatically, ask user.
+       (if straight-vc-git-auto-fast-forward
+           (straight--get-call "git" "checkout" branch)
+         (straight-vc-git--popup
+           (format
+            "In repository %S, HEAD is even with branch %S, but detached."
+            local-repo branch)
+           ("a" (format "Attach HEAD to branch %S" branch)
+            (straight--get-call "git" "checkout" branch)))))
       (t
        (let ((ref-ahead-p (straight--check-call
                            "git" "merge-base" "--is-ancestor"
