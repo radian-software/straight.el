@@ -1442,7 +1442,7 @@ Do not suppress unexpected errors."
 ;;;;;; Validation functions
 
 (cl-defun straight-vc-git--ensure-remote (local-repo remote desired-url)
-  "Validate that LOCAL-REPO has REMOTE set to DESIRED-URL or equivalent.
+  "Ensure that LOCAL-REPO has REMOTE set to DESIRED-URL or equivalent.
 All three arguments are strings. The URL of the REMOTE does not
 necessarily need to match DESIRED-URL; it just has to satisfy
 `straight-vc-git--urls-compatible-p'."
@@ -1515,7 +1515,7 @@ but recipe specifies a URL of
       "git" "remote" "add" remote desired-url))))
 
 (cl-defun straight-vc-git--ensure-remotes (recipe)
-  "Validate that repository for RECIPE has remotes set correctly.
+  "Ensure that repository for RECIPE has remotes set correctly.
 RECIPE is a straight.el-style plist.
 
 This means the primary and upstream remotes, if configured, have
@@ -1540,7 +1540,7 @@ to satisfy `straight-vc-git--urls-compatible-p'."
                     desired-url))))))))
 
 (defun straight-vc-git--ensure-nothing-in-progress (local-repo)
-  "Validate that no merge conflict is active in LOCAL-REPO.
+  "Ensure that no merge conflict is active in LOCAL-REPO.
 LOCAL-REPO is a string."
   (let ((conflicted-files
          (string-remove-suffix
@@ -1561,7 +1561,7 @@ LOCAL-REPO is a string."
             (straight--get-call "git" "merge" "--abort")))))))
 
 (cl-defun straight-vc-git--ensure-worktree (local-repo)
-  "Validate that LOCAL-REPO has a clean worktree.
+  "Ensure that LOCAL-REPO has a clean worktree.
 LOCAL-REPO is a string."
   (let ((status (straight--get-call-raw
                  "git" "-c" "status.branch=false"
@@ -1587,8 +1587,8 @@ LOCAL-REPO is a string."
                 (straight--get-call "git" "clean" "-ffd"))))))))
 
 (cl-defun straight-vc-git--ensure-head (local-repo branch &optional ref)
-  "Validate that LOCAL-REPO has BRANCH checked out.
-If REF is non-nil, instead validate that BRANCH is ahead of REF.
+  "Ensure that LOCAL-REPO has BRANCH checked out.
+If REF is non-nil, instead ensure that BRANCH is ahead of REF.
 Any untracked files created by checkout will be deleted without
 confirmation, so this function should only be run after
 `straight-vc-git--ensure-worktree' has passed."
@@ -1776,7 +1776,7 @@ Return non-nil. If no local repository, do nothing and return non-nil."
                              (string-trim (cdr result)))))))))))))))
 
 (defun straight-vc-git--ensure-local (recipe)
-  "Validate that local repository for RECIPE is as expected.
+  "Ensure that local repository for RECIPE is as expected.
 This means that the remote URLs are set correctly; there is no
 merge currently in progress; the worktree is pristine; and the
 primary :branch is checked out. The reason for \"local\" in the
