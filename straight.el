@@ -1620,7 +1620,9 @@ confirmation, so this function should only be run after
          (when (and ref ref-ahead-p straight-vc-git-auto-fast-forward)
            ;; Local is behind, catch up.
            (straight--get-call "git" "reset" "--hard" ref-name)
-           (cl-return-from straight-vc-git--ensure-head t))
+           ;; Return nil to signal that we're not quite done. In some
+           ;; cases a reset might leave untracked files.
+           (cl-return-from straight-vc-git--ensure-head nil))
          (straight-vc-git--popup-raw
           (concat
            (format "In repository %S, " local-repo)
