@@ -1608,7 +1608,7 @@ confirmation, so this function should only be run after
        (cl-return-from straight-vc-git--ensure-head t))
       ((and (null ref) head-detached-p)
        ;; Detached HEAD, either attach to configured branch
-       ;; automatically, ask user.
+       ;; automatically or ask the user.
        (if straight-vc-git-auto-fast-forward
            (straight--get-call "git" "checkout" branch)
          (straight-vc-git--popup
