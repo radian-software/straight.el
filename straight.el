@@ -1284,6 +1284,15 @@ one specified in `straight-vc-git-default-protocol'."
   :type 'boolean
   :group 'straight)
 
+(defcustom straight-vc-git-auto-fast-forward t
+  "Whether to quietly fast-forward when pulling packages.
+This suppresses popups for trivial remote changes (i.e. the
+current HEAD is an ancestor to the remote HEAD).
+Also re-attaches detached heads quietly when non-nil.
+A nil value allows for inspection of all remote changes."
+  :type 'boolean
+  :group 'straight)
+
 ;;;;;; Utility functions
 
 ;; We don't define `straight--profile-cache' until later. (Should some
@@ -1433,8 +1442,8 @@ Do not suppress unexpected errors."
 
 ;;;;;; Validation functions
 
-(cl-defun straight-vc-git--validate-remote (local-repo remote desired-url)
-  "Validate that LOCAL-REPO has REMOTE set to DESIRED-URL or equivalent.
+(cl-defun straight-vc-git--ensure-remote (local-repo remote desired-url)
+  "Ensure that LOCAL-REPO has REMOTE set to DESIRED-URL or equivalent.
 All three arguments are strings. The URL of the REMOTE does not
 necessarily need to match DESIRED-URL; it just has to satisfy
 `straight-vc-git--urls-compatible-p'."
@@ -1447,7 +1456,7 @@ necessarily need to match DESIRED-URL; it just has to satisfy
        (if (straight-vc-git--urls-compatible-p
             actual-url desired-url)
            ;; This is the only case where we return non-nil.
-           (cl-return-from straight-vc-git--validate-remote t)
+           (cl-return-from straight-vc-git--ensure-remote t)
          (let ((new-remote (straight--uniquify
                             remote
                             (straight-vc-git--list-remotes))))
@@ -1506,8 +1515,8 @@ but recipe specifies a URL of
      (straight--get-call
       "git" "remote" "add" remote desired-url))))
 
-(cl-defun straight-vc-git--validate-remotes (recipe)
-  "Validate that repository for RECIPE has remotes set correctly.
+(cl-defun straight-vc-git--ensure-remotes (recipe)
+  "Ensure that repository for RECIPE has remotes set correctly.
 RECIPE is a straight.el-style plist.
 
 This means the primary and upstream remotes, if configured, have
@@ -1515,11 +1524,11 @@ their URLs set to the same as what is specified in the RECIPE.
 The URLs do not necessarily need to match exactly; they just have
 to satisfy `straight-vc-git--urls-compatible-p'."
   (unless (plist-member recipe :repo)
-    (cl-return-from straight-vc-git--validate-remotes t))
+    (cl-return-from straight-vc-git--ensure-remotes t))
   (straight--with-plist recipe
       (local-repo repo host)
     (let ((desired-url (straight-vc-git--encode-url repo host)))
-      (and (straight-vc-git--validate-remote
+      (and (straight-vc-git--ensure-remote
             local-repo straight-vc-git-primary-remote desired-url)
            (or (not (plist-member recipe :upstream))
                (straight--with-plist (plist-get recipe :upstream)
@@ -1527,12 +1536,12 @@ to satisfy `straight-vc-git--urls-compatible-p'."
                  (let (;; NB: this is a different computation than
                        ;; above.
                        (desired-url (straight-vc-git--encode-url repo host)))
-                   (straight-vc-git--validate-remote
+                   (straight-vc-git--ensure-remote
                     local-repo straight-vc-git-upstream-remote
                     desired-url))))))))
 
-(defun straight-vc-git--validate-nothing-in-progress (local-repo)
-  "Validate that no merge conflict is active in LOCAL-REPO.
+(defun straight-vc-git--ensure-nothing-in-progress (local-repo)
+  "Ensure that no merge conflict is active in LOCAL-REPO.
 LOCAL-REPO is a string."
   (let ((conflicted-files
          (string-remove-suffix
@@ -1552,14 +1561,14 @@ LOCAL-REPO is a string."
            ("a" "Abort merge"
             (straight--get-call "git" "merge" "--abort")))))))
 
-(cl-defun straight-vc-git--validate-worktree (local-repo)
-  "Validate that LOCAL-REPO has a clean worktree.
+(cl-defun straight-vc-git--ensure-worktree (local-repo)
+  "Ensure that LOCAL-REPO has a clean worktree.
 LOCAL-REPO is a string."
   (let ((status (straight--get-call-raw
                  "git" "-c" "status.branch=false"
                  "status" "--short")))
     (if (string-empty-p status)
-        (cl-return-from straight-vc-git--validate-worktree t)
+        (cl-return-from straight-vc-git--ensure-worktree t)
       (straight-vc-git--popup
         (format "Repository %S has a dirty worktree:\n\n%s"
                 local-repo
@@ -1578,12 +1587,12 @@ LOCAL-REPO is a string."
            (and (straight--get-call "git" "reset" "--hard")
                 (straight--get-call "git" "clean" "-ffd"))))))))
 
-(cl-defun straight-vc-git--validate-head (local-repo branch &optional ref)
-  "Validate that LOCAL-REPO has BRANCH checked out.
-If REF is non-nil, instead validate that BRANCH is ahead of REF.
+(cl-defun straight-vc-git--ensure-head (local-repo branch &optional ref)
+  "Ensure that LOCAL-REPO has BRANCH checked out.
+If REF is non-nil, instead ensure that BRANCH is ahead of REF.
 Any untracked files created by checkout will be deleted without
 confirmation, so this function should only be run after
-`straight-vc-git--validate-worktree' has passed."
+`straight-vc-git--ensure-worktree' has passed."
   (ignore
    (let* ((cur-branch (straight--get-call
                        "git" "rev-parse" "--abbrev-ref" "HEAD"))
@@ -1596,13 +1605,18 @@ confirmation, so this function should only be run after
                   "git" "rev-parse" ref)))
        (error "Branch %S does not exist" ref))
       ((and (null ref) (string= branch cur-branch))
-       (cl-return-from straight-vc-git--validate-head t))
+       (cl-return-from straight-vc-git--ensure-head t))
       ((and (null ref) head-detached-p)
-       (straight-vc-git--popup
-         (format "In repository %S, HEAD is even with branch %S, but detached."
-                 local-repo branch)
-         ("a" (format "Attach HEAD to branch %S" branch)
-          (straight--get-call "git" "checkout" branch))))
+       ;; Detached HEAD, either attach to configured branch
+       ;; automatically, ask user.
+       (if straight-vc-git-auto-fast-forward
+           (straight--get-call "git" "checkout" branch)
+         (straight-vc-git--popup
+           (format
+            "In repository %S, HEAD is even with branch %S, but detached."
+            local-repo branch)
+           ("a" (format "Attach HEAD to branch %S" branch)
+            (straight--get-call "git" "checkout" branch)))))
       (t
        (let ((ref-ahead-p (straight--check-call
                            "git" "merge-base" "--is-ancestor"
@@ -1611,14 +1625,20 @@ confirmation, so this function should only be run after
                             "git" "merge-base" "--is-ancestor"
                             ref-name branch)))
          (when (and ref ref-behind-p)
-           (cl-return-from straight-vc-git--validate-head t))
+           (cl-return-from straight-vc-git--ensure-head t))
+         (when (and ref ref-ahead-p straight-vc-git-auto-fast-forward)
+           ;; Local is behind, catch up.
+           (straight--get-call "git" "reset" "--hard" ref-name)
+           ;; Return nil to signal that we're not quite done. In some
+           ;; cases a reset might leave untracked files.
+           (cl-return-from straight-vc-git--ensure-head nil))
          (straight-vc-git--popup-raw
           (concat
            (format "In repository %S, " local-repo)
            (if ref
                (cond
                 (ref-behind-p
-                 (cl-return-from straight-vc-git--validate-head t))
+                 (cl-return-from straight-vc-git--ensure-head t))
                 (ref-ahead-p
                  (format "branch %S is behind %S" branch ref))
                 (t (format "branch %S has diverged from %S" branch ref)))
@@ -1702,8 +1722,8 @@ name."
       (local-repo branch)
     (let ((branch (or branch straight-vc-git-default-branch)))
       (while t
-        (and (straight-vc-git--validate-local recipe)
-             (straight-vc-git--validate-head
+        (and (straight-vc-git--ensure-local recipe)
+             (straight-vc-git--ensure-head
               local-repo branch (format "%s/%s" remote remote-branch))
              (cl-return-from straight-vc-git--merge-from-remote-raw t))))))
 
@@ -1724,7 +1744,7 @@ Return non-nil. If no local repository, do nothing and return non-nil."
     (cl-return-from straight-vc-git--ensure-head-pushed t))
   (let ((push-error-message nil))
     (while t
-      (while (not (straight-vc-git--validate-local recipe)))
+      (while (not (straight-vc-git--ensure-local recipe)))
       (straight--with-plist recipe
           (local-repo branch)
         (let* ((branch (or branch straight-vc-git-default-branch))
@@ -1764,8 +1784,8 @@ Return non-nil. If no local repository, do nothing and return non-nil."
                        (setq push-error-message
                              (string-trim (cdr result)))))))))))))))
 
-(defun straight-vc-git--validate-local (recipe)
-  "Validate that local repository for RECIPE is as expected.
+(defun straight-vc-git--ensure-local (recipe)
+  "Ensure that local repository for RECIPE is as expected.
 This means that the remote URLs are set correctly; there is no
 merge currently in progress; the worktree is pristine; and the
 primary :branch is checked out. The reason for \"local\" in the
@@ -1774,10 +1794,10 @@ with the remotes."
   (straight--with-plist recipe
       (local-repo branch)
     (let ((branch (or branch straight-vc-git-default-branch)))
-      (and (straight-vc-git--validate-remotes recipe)
-           (straight-vc-git--validate-nothing-in-progress local-repo)
-           (straight-vc-git--validate-worktree local-repo)
-           (straight-vc-git--validate-head local-repo branch)))))
+      (and (straight-vc-git--ensure-remotes recipe)
+           (straight-vc-git--ensure-nothing-in-progress local-repo)
+           (straight-vc-git--ensure-worktree local-repo)
+           (straight-vc-git--ensure-head local-repo branch)))))
 
 ;;;;;; API
 
@@ -1843,7 +1863,7 @@ This means that its remote URLs are set correctly; there is no
 merge currently in progress; its worktree is pristine; and the
 primary :branch is checked out."
   (while t
-    (and (straight-vc-git--validate-local recipe)
+    (and (straight-vc-git--ensure-local recipe)
          (cl-return-from straight-vc-git-normalize t))))
 
 (cl-defun straight-vc-git-fetch-from-remote (recipe &optional from-upstream)
@@ -1860,7 +1880,7 @@ part of the VC API."
                         straight-vc-git-upstream-remote
                       straight-vc-git-primary-remote)))
         (while t
-          (and (straight-vc-git--validate-remotes recipe)
+          (and (straight-vc-git--ensure-remotes recipe)
                (straight--get-call "git" "fetch" remote)
                (cl-return-from straight-vc-git-fetch-from-remote t)))))))
 
@@ -1905,8 +1925,8 @@ If no upstream is configured, do nothing."
 LOCAL-REPO is a string naming a local package repository. COMMIT
 is a 40-character string identifying a Git commit."
   (while t
-    (and (straight-vc-git--validate-nothing-in-progress local-repo)
-         (straight-vc-git--validate-worktree local-repo)
+    (and (straight-vc-git--ensure-nothing-in-progress local-repo)
+         (straight-vc-git--ensure-worktree local-repo)
          (straight--get-call "git" "checkout" commit)
          (cl-return-from straight-vc-git-check-out-commit))))
 
