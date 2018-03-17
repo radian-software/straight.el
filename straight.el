@@ -803,7 +803,9 @@ is the stdout and stderr of the command."
       (straight--warn
        "Command failed: %s %s (default-directory: %S):\n%s"
        command (string-join args " ")
-       default-directory (cdr result)))))
+       (or straight--default-directory
+           default-directory)
+       (cdr result)))))
 
 (defun straight--check-call (command &rest args)
   "Call COMMAND with ARGS, returning non-nil if it succeeds.
@@ -822,7 +824,8 @@ If the command fails, throw an error."
         (cdr result)
       (error "Command failed: %s %s (output: %S) (default-directory: %S)"
              command (string-join args " ")
-             (cdr result) default-directory))))
+             (cdr result) (or straight--default-directory
+                              default-directory)))))
 
 (defun straight--get-call (command &rest args)
   "Call COMMAND with ARGS, returning its stdout and stderr as a string.
