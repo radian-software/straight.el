@@ -1,6 +1,6 @@
 ;;; straight.el --- Next-generation package manager. -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017 Radon Rosborough
+;; Copyright (C) 2018 Radon Rosborough and contributors
 
 ;; Author: Radon Rosborough <radon.neon@gmail.com>
 ;; Created: 1 Jan 2017
