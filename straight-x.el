@@ -1,6 +1,6 @@
 ;;; straight-x.el --- Experimental extensions. -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2018 Radon Rosborough and contributors
+;; Copyright (C) 2017-2018 Radon Rosborough and contributors
 
 ;; Author: Radon Rosborough <radon.neon@gmail.com>
 ;; Created: 1 Jan 2017
