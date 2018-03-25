@@ -56,37 +56,6 @@
 
 (eval-when-compile
   (when (version< emacs-version "25.1")
-
-    ;; Definition from Emacs 25.3, subr-x.el
-    (defmacro internal--thread-argument (first? &rest forms)
-      "Internal implementation for `thread-first' and `thread-last'.
-When Argument FIRST? is non-nil argument is threaded first, else
-last.  FORMS are the expressions to be threaded."
-      (pcase forms
-        (`(,x (,f . ,args) . ,rest)
-         `(internal--thread-argument
-           ,first? ,(if first? `(,f ,x ,@args) `(,f ,@args ,x)) ,@rest))
-        (`(,x ,f . ,rest) `(internal--thread-argument ,first? (,f ,x) ,@rest))
-        (_ (car forms))))
-
-    ;; Definition from Emacs 25.3, subr-x.el
-    (defmacro thread-first (&rest forms)
-      "Thread FORMS elements as the first argument of their successor.
-Example:
-    (thread-first
-      5
-      (+ 20)
-      (/ 25)
-      -
-      (+ 40))
-Is equivalent to:
-    (+ (- (/ (+ 5 20) 25)) 40)
-Note how the single `-' got converted into a list before
-threading."
-      (declare (indent 1)
-               (debug (form &rest [&or symbolp (sexp &rest form)])))
-      `(internal--thread-argument t ,@forms))
-
     ;; Definition from Emacs 25.3, subr-x.el
     (defsubst internal--listify (elt)
       "Wrap ELT in a list if it is not one."
@@ -114,11 +83,10 @@ threading."
     ;; Definition from Emacs 25.3, subr-x.el
     (defun internal--build-binding (binding prev-var)
       "Check and build a single BINDING with PREV-VAR."
-      (thread-first
-          binding
-        internal--listify
-        internal--check-binding
-        (internal--build-binding-value-form prev-var)))))
+      (internal--build-binding-value-form
+       (internal--check-binding
+        (internal--listify binding))
+       prev-var))))
 
 (eval-when-compile
   (when (version< emacs-version "25.1")
