@@ -102,36 +102,7 @@
                 bindings)))))
 
 (eval-when-compile
-  (when (version< emacs-version "25.1")
-
-    ;; Definition from Emacs 25.3, subr.el
-    (gv-define-expander alist-get
-      (lambda (do key alist &optional default remove)
-        (macroexp-let2 macroexp-copyable-p k key
-          (gv-letplace (getter setter) alist
-            (macroexp-let2 nil p `(assq ,k ,getter)
-              (funcall do (if (null default) `(cdr ,p)
-                            `(if ,p (cdr ,p) ,default))
-                       (lambda (v)
-                         (macroexp-let2 nil v v
-                           (let ((set-exp
-                                  `(if ,p (setcdr ,p ,v)
-                                     ,(funcall setter
-                                               `(cons (setq ,p (cons ,k ,v))
-                                                      ,getter)))))
-                             (cond
-                              ((null remove) set-exp)
-                              ((or (eql v default)
-                                   (and (eq (car-safe v) 'quote)
-                                        (eq (car-safe default) 'quote)
-                                        (eql (cadr v) (cadr default))))
-                               `(if ,p ,(funcall setter `(delq ,p ,getter))))
-                              (t
-                               `(cond
-                                 ((not (eql ,default ,v)) ,set-exp)
-                                 (,p ,(funcall setter
-                                               `(delq ,p ,getter)))))))))))))))
-
+  (when (version< emacs-version "25.3")
     ;; Defined by Emacs 25.3 in C source code
     (defvar inhibit-message)))
 
@@ -3938,10 +3909,16 @@ This function also adds the recipe repository to
   "Register MELPA-STYLE-RECIPE as a recipe override.
 This puts it in `straight-recipe-overrides', depending on the
 value of `straight-current-profile'."
-  (setf (alist-get
-         (car melpa-style-recipe)
-         (alist-get straight-current-profile straight-recipe-overrides))
-        (cdr melpa-style-recipe)))
+  (setq straight-recipe-overrides
+        (straight--alist-set
+         straight-current-profile
+         (straight--alist-set
+          (car melpa-style-recipe)
+          (cdr melpa-style-recipe)
+          (alist-get straight-current-profile straight-recipe-overrides)
+          'symbol)
+         straight-recipe-overrides
+         'symbol)))
 
 ;;;;; Rebuilding packages
 
@@ -4595,7 +4572,8 @@ is loaded, according to the value of
        (fmakunbound 'use-package-handler/:straight)
        (when (and (boundp 'use-package-defaults)
                   (listp use-package-defaults))
-         (setf (alist-get :straight use-package-defaults nil 'remove) nil)))))
+         (setq use-package-defaults
+               (assq-delete-all :straight use-package-defaults))))))
   (setq straight-use-package--last-version nil)
   (when straight-use-package-mode
     (setq straight-use-package--last-version straight-use-package-version)
@@ -4638,8 +4616,11 @@ is loaded, according to the value of
            #'straight-use-package--straight-handler)
          (when (and (boundp 'use-package-defaults)
                     (listp use-package-defaults))
-           (setf (alist-get :straight use-package-defaults)
-                 '('(t) straight-use-package-by-default))))))))
+           (setq use-package-defaults (straight--alist-set
+                                       :straight
+                                       '('(t) straight-use-package-by-default)
+                                       use-package-defaults
+                                       'symbol))))))))
 
 (if straight-enable-use-package-integration
     (straight-use-package-mode +1)
