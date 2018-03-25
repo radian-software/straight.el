@@ -147,14 +147,9 @@ VARLIST is the same as in `if-let*'."
   (when (version< emacs-version "25.1")
 
     ;; Definition from Emacs 25.3, subr.el
-    (defun alist-get (key alist &optional default remove)
+    (defun alist-get (key alist &optional default)
       "Return the value associated with KEY in ALIST, using `assq'.
-If KEY is not found in ALIST, return DEFAULT.
-
-This is a generalized variable suitable for use with `setf'.
-When using it to set a value, optional argument REMOVE non-nil
-means to remove KEY from ALIST if the new value is `eql' to DEFAULT."
-      (ignore remove) ;;Silence byte-compiler.
+If KEY is not found in ALIST, return DEFAULT."
       (let ((x (assq key alist)))
         (if x (cdr x) default)))))
 
