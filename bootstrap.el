@@ -28,7 +28,10 @@
           buffer-file-name)))
        (straight.el
         (expand-file-name
-         "straight.el" (file-name-directory bootstrap.el))))
+         "straight.el" (file-name-directory bootstrap.el)))
+       (straight-compat.el
+        (expand-file-name
+         "straight-compat.el" (file-name-directory bootstrap.el))))
   ;; This logic replicates that in `straight--byte-compile-package',
   ;; and is used to silence byte-compile warnings and other cruft.
   (cl-letf (((symbol-function #'save-some-buffers) #'ignore)
@@ -44,6 +47,9 @@
       (byte-recompile-file straight.el nil 0)
       ;; Actually load the package manager. This doesn't do anything
       ;; except initialize some caches.
+      (load (expand-file-name (concat straight-compat.el "c")
+                              default-directory)
+            nil 'nomessage 'nosuffix)
       (load (expand-file-name (concat straight.el "c")
                               default-directory)
             nil 'nomessage 'nosuffix))))
@@ -82,7 +88,7 @@
 ;; Then we register (and build) straight.el itself.
 (straight-use-package `(straight :type git :host github
                                  :repo "raxod502/straight.el"
-                                 :files ("straight.el" "straight-x.el")
+                                 :files ("straight*.el")
                                  :branch ,straight-repository-branch))
 
 ;;; bootstrap.el ends here

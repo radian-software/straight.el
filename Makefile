@@ -1,8 +1,9 @@
 EMACS ?= emacs
 
 # The order is important for compilation.
-for_compile := straight.el bootstrap.el install.el straight-x.el
-for_checkdoc := straight.el
+for_compile := straight-compat.el straight.el \
+	bootstrap.el install.el straight-x.el
+for_checkdoc := straight-compat.el straight.el
 for_longlines := $(wildcard *.el *.md *.yml) Makefile
 
 .PHONY: all

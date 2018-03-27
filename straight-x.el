@@ -19,10 +19,11 @@
 
 ;;; Code:
 
-(require 'straight)
-
 (require 'cl-lib)
 (require 'subr-x)
+(require 'straight-compat)
+
+(require 'straight)
 
 (defun straight-x-existing-repos ()
   (let (recipes)
