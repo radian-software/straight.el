@@ -90,19 +90,20 @@
              (straight-x-strip output)))))
 
 (defun straight-x-start-process ()
-  (when-let* ((recipe (pop straight-x-waiting)))
-    (push recipe straight-x-running)
-    (straight--with-plist recipe
-        (local-repo package)
-      (let ((proc (let* ((default-directory (straight--repos-dir local-repo))
-                         (process-connection-type nil)
-                         (name (format " *straight %s*" package))
-                         (buf (generate-new-buffer name)))
-                    (start-process name buf "git" "fetch"))))
-        (process-put proc :recipe recipe)
-        (process-put proc :up-to-date t)
-        (set-process-filter proc #'straight-x-filter)
-        (set-process-sentinel proc #'straight-x-when-done)))))
+  (let ((recipe (pop straight-x-waiting)))
+    (when recipe
+      (push recipe straight-x-running)
+      (straight--with-plist recipe
+          (local-repo package)
+        (let ((proc (let* ((default-directory (straight--repos-dir local-repo))
+                           (process-connection-type nil)
+                           (name (format " *straight %s*" package))
+                           (buf (generate-new-buffer name)))
+                      (start-process name buf "git" "fetch"))))
+          (process-put proc :recipe recipe)
+          (process-put proc :up-to-date t)
+          (set-process-filter proc #'straight-x-filter)
+          (set-process-sentinel proc #'straight-x-when-done))))))
 
 (defvar straight-x-process-limit 10)
 
