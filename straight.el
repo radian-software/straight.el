@@ -56,37 +56,6 @@
 
 (eval-when-compile
   (when (version< emacs-version "25.1")
-
-    ;; Definition from Emacs 25.3, subr-x.el
-    (defmacro internal--thread-argument (first? &rest forms)
-      "Internal implementation for `thread-first' and `thread-last'.
-When Argument FIRST? is non-nil argument is threaded first, else
-last.  FORMS are the expressions to be threaded."
-      (pcase forms
-        (`(,x (,f . ,args) . ,rest)
-         `(internal--thread-argument
-           ,first? ,(if first? `(,f ,x ,@args) `(,f ,@args ,x)) ,@rest))
-        (`(,x ,f . ,rest) `(internal--thread-argument ,first? (,f ,x) ,@rest))
-        (_ (car forms))))
-
-    ;; Definition from Emacs 25.3, subr-x.el
-    (defmacro thread-first (&rest forms)
-      "Thread FORMS elements as the first argument of their successor.
-Example:
-    (thread-first
-      5
-      (+ 20)
-      (/ 25)
-      -
-      (+ 40))
-Is equivalent to:
-    (+ (- (/ (+ 5 20) 25)) 40)
-Note how the single `-' got converted into a list before
-threading."
-      (declare (indent 1)
-               (debug (form &rest [&or symbolp (sexp &rest form)])))
-      `(internal--thread-argument t ,@forms))
-
     ;; Definition from Emacs 25.3, subr-x.el
     (defsubst internal--listify (elt)
       "Wrap ELT in a list if it is not one."
@@ -114,11 +83,10 @@ threading."
     ;; Definition from Emacs 25.3, subr-x.el
     (defun internal--build-binding (binding prev-var)
       "Check and build a single BINDING with PREV-VAR."
-      (thread-first
-          binding
-        internal--listify
-        internal--check-binding
-        (internal--build-binding-value-form prev-var)))))
+      (internal--build-binding-value-form
+       (internal--check-binding
+        (internal--listify binding))
+       prev-var))))
 
 (eval-when-compile
   (when (version< emacs-version "25.1")
@@ -134,36 +102,7 @@ threading."
                 bindings)))))
 
 (eval-when-compile
-  (when (version< emacs-version "25.1")
-
-    ;; Definition from Emacs 25.3, subr.el
-    (gv-define-expander alist-get
-      (lambda (do key alist &optional default remove)
-        (macroexp-let2 macroexp-copyable-p k key
-          (gv-letplace (getter setter) alist
-            (macroexp-let2 nil p `(assq ,k ,getter)
-              (funcall do (if (null default) `(cdr ,p)
-                            `(if ,p (cdr ,p) ,default))
-                       (lambda (v)
-                         (macroexp-let2 nil v v
-                           (let ((set-exp
-                                  `(if ,p (setcdr ,p ,v)
-                                     ,(funcall setter
-                                               `(cons (setq ,p (cons ,k ,v))
-                                                      ,getter)))))
-                             (cond
-                              ((null remove) set-exp)
-                              ((or (eql v default)
-                                   (and (eq (car-safe v) 'quote)
-                                        (eq (car-safe default) 'quote)
-                                        (eql (cadr v) (cadr default))))
-                               `(if ,p ,(funcall setter `(delq ,p ,getter))))
-                              (t
-                               `(cond
-                                 ((not (eql ,default ,v)) ,set-exp)
-                                 (,p ,(funcall setter
-                                               `(delq ,p ,getter)))))))))))))))
-
+  (when (version< emacs-version "25.3")
     ;; Defined by Emacs 25.3 in C source code
     (defvar inhibit-message)))
 
@@ -208,14 +147,9 @@ VARLIST is the same as in `if-let*'."
   (when (version< emacs-version "25.1")
 
     ;; Definition from Emacs 25.3, subr.el
-    (defun alist-get (key alist &optional default remove)
+    (defun alist-get (key alist &optional default)
       "Return the value associated with KEY in ALIST, using `assq'.
-If KEY is not found in ALIST, return DEFAULT.
-
-This is a generalized variable suitable for use with `setf'.
-When using it to set a value, optional argument REMOVE non-nil
-means to remove KEY from ALIST if the new value is `eql' to DEFAULT."
-      (ignore remove) ;;Silence byte-compiler.
+If KEY is not found in ALIST, return DEFAULT."
       (let ((x (assq key alist)))
         (if x (cdr x) default)))))
 
@@ -3970,10 +3904,16 @@ This function also adds the recipe repository to
   "Register MELPA-STYLE-RECIPE as a recipe override.
 This puts it in `straight-recipe-overrides', depending on the
 value of `straight-current-profile'."
-  (setf (alist-get
-         (car melpa-style-recipe)
-         (alist-get straight-current-profile straight-recipe-overrides))
-        (cdr melpa-style-recipe)))
+  (setq straight-recipe-overrides
+        (straight--alist-set
+         straight-current-profile
+         (straight--alist-set
+          (car melpa-style-recipe)
+          (cdr melpa-style-recipe)
+          (alist-get straight-current-profile straight-recipe-overrides)
+          'symbol)
+         straight-recipe-overrides
+         'symbol)))
 
 ;;;;; Rebuilding packages
 
@@ -4627,7 +4567,8 @@ is loaded, according to the value of
        (fmakunbound 'use-package-handler/:straight)
        (when (and (boundp 'use-package-defaults)
                   (listp use-package-defaults))
-         (setf (alist-get :straight use-package-defaults nil 'remove) nil)))))
+         (setq use-package-defaults
+               (assq-delete-all :straight use-package-defaults))))))
   (setq straight-use-package--last-version nil)
   (when straight-use-package-mode
     (setq straight-use-package--last-version straight-use-package-version)
@@ -4670,8 +4611,11 @@ is loaded, according to the value of
            #'straight-use-package--straight-handler)
          (when (and (boundp 'use-package-defaults)
                     (listp use-package-defaults))
-           (setf (alist-get :straight use-package-defaults)
-                 '('(t) straight-use-package-by-default))))))))
+           (setq use-package-defaults (straight--alist-set
+                                       :straight
+                                       '('(t) straight-use-package-by-default)
+                                       use-package-defaults
+                                       'symbol))))))))
 
 (if straight-enable-use-package-integration
     (straight-use-package-mode +1)
