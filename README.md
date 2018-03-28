@@ -1821,7 +1821,7 @@ override it:
 
     (straight :type git :host github
               :repo "raxod502/straight.el"
-              :files ("straight.el")
+              :files ("straight*.el")
               :branch ,straight-repository-branch)
 
 Note that even though the bootstrap snippet references the `develop`

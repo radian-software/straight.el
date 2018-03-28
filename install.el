@@ -49,12 +49,14 @@
 ;; up the environment, so we have to do this in a child Emacs
 ;; instance.
 ;;
-;; Once we've parsed the recipe for straight.el, we can make a symlink
-;; for bootstrap.el. This is very important! If it is removed, we have
-;; to make a network call and do this whole thing over again. That
-;; might seem silly, but consider: how else would we know what the
-;; local repository for straight.el is called? That requires parsing
-;; the recipe, which means we need to have loaded straight.el...
+;; Previous versions of straight.el expected a symlink for
+;; bootstrap.el, in order for the bootstrap snippet to be able to
+;; identify the name of the local repository for straight.el. I
+;; decided later that this was more trouble than it was worth, and
+;; that users wishing to rename the repository can reasonably be
+;; expected to update their bootstrap snippet. We still create the
+;; symlink, though, for backwards compatibility (this script should
+;; work for all versions of straight.el, present and past).
 
 ;; We have to wrap everything in a single form so that this file can
 ;; be evaluated with `eval-print-last-sexp', rather than
@@ -165,11 +167,12 @@
        `(progn
           ;; Don't worry, this recipe will be overridden by
           ;; `straight-recipe-overrides' if that variable has been
-          ;; set. We're just mirroring bootstrap.el.
+          ;; set. We're just mirroring bootstrap.el. (But note that
+          ;; `:files' doesn't have to be specified, since we're
+          ;; skipping the build phase.)
           (straight-use-package-no-build
            `(straight :type git :host github
                       :repo "raxod502/straight.el"
-                      :files ("straight.el")
                       :branch ,straight-repository-branch))
           (unless (and (boundp 'bootstrap-version)
                        (integerp bootstrap-version)
