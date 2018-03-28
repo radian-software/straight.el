@@ -42,14 +42,18 @@
           (byte-compile-verbose nil)
           (message-log-max nil)
           (inhibit-message t))
+      ;; Compile and load files necessary for straight.el in reverse
+      ;; dependency order.
+      ;;
       ;; Argument 0 means (for some reason) to byte-compile even if
       ;; the .elc file does not already exist.
-      (byte-recompile-file straight.el nil 0)
-      ;; Actually load the package manager. This doesn't do anything
-      ;; except initialize some caches.
+      (byte-recompile-file straight-compat.el nil 0)
       (load (expand-file-name (concat straight-compat.el "c")
                               default-directory)
             nil 'nomessage 'nosuffix)
+      ;; Actually load the package manager. This doesn't do anything
+      ;; except initialize some caches.
+      (byte-recompile-file straight.el nil 0)
       (load (expand-file-name (concat straight.el "c")
                               default-directory)
             nil 'nomessage 'nosuffix))))
