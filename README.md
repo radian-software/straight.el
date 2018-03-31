@@ -2134,7 +2134,7 @@ The algorithm is extremely simple. This:
     (use-package el-patch
       :straight t)
 
-becomes:
+macroexpands (essentially) to:
 
     (straight-use-package 'el-patch)
 
