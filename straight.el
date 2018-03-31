@@ -2324,12 +2324,13 @@ RECIPE should be a straight.el-style recipe plist."
         (unless (equal (plist-get recipe keyword)
                        (plist-get existing-recipe keyword))
           ;; Same reasoning as with the previous warning.
-          (straight--warn (concat "Package %S has two incompatible "
-                                  "recipes (%S cannot be both %S and %S)")
-                          package
-                          keyword
-                          (plist-get existing-recipe keyword)
-                          (plist-get recipe keyword))
+          (straight--warn
+           (concat "Recipe for %S has been overridden "
+                   "(%S changed from %S to %S)")
+           package
+           keyword
+           (plist-get existing-recipe keyword)
+           (plist-get recipe keyword))
           (cl-return))))
     ;; Step 3, now that we've signaled any necessary warnings, is to
     ;; actually update the caches. Just FYI, `straight--build-cache'
