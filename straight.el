@@ -1987,7 +1987,7 @@ return nil."
     (condition-case nil
         (progn
           (insert-file-contents-literally
-           (concat "recipes/" (symbol-name package)))
+           (expand-file-name (symbol-name package) "recipes/"))
           (let ((melpa-recipe (read (current-buffer)))
                 (plist ()))
             (cl-destructuring-bind (name . melpa-plist) melpa-recipe
@@ -2962,8 +2962,8 @@ the MELPA recipe repository, with some minor differences:
      (mapcar (lambda (mapping)
                (cl-destructuring-bind (src . dest) mapping
                  ;; Make the paths absolute.
-                 (cons (concat src-dir src)
-                       (concat dest-dir dest))))
+                 (cons (expand-file-name src src-dir)
+                       (expand-file-name dest dest-dir))))
              mappings)
      ;; Keys are strings.
      #'equal)))
