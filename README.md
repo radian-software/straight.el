@@ -103,8 +103,8 @@ development takes place on the [`develop` branch][develop].)
 
 * Install Emacs packages listed on [MELPA] or [EmacsMirror], or
   provide your own recipes.
-* Clone and manage packages as Git (or other) repositories, not as
-  opaque tarballs.
+* Packages are cloned as Git (or other) repositories, not as opaque
+  tarballs.
 * Make changes to a package simply by editing its source code, no
   additional steps required. Contribute upstream just by pushing your
   changes.
@@ -175,11 +175,13 @@ on [configuring the installation of straight.el][straight.el-recipe].
 ### Install packages
 
 Out of the box, you can install any package listed on [MELPA] or
-[EmacsMirror], which is to say any package in existence. To install a
-package temporarily (until you restart Emacs), run `M-x
-straight-use-package` and select the package you want. To install a
-package permanently, place a call to `straight-use-package` in your
-init-file, like:
+[EmacsMirror], which is to say any package in existence. (Although
+MELPA is used as a package listing, packages are installed by cloning
+their Git repositories rather than by downloading tarballs like
+`package.el` does.) To install a package temporarily (until you
+restart Emacs), run `M-x straight-use-package` and select the package
+you want. To install a package permanently, place a call to
+`straight-use-package` in your init-file, like:
 
     (straight-use-package 'el-patch)
 
@@ -1731,7 +1733,7 @@ can control which recipe repositories are searched, and in what order
 of precedence, by customizing `straight-recipe-repositories`. The
 default value is:
 
-    (melpa org-elpa emacsmirror)
+    (org-elpa melpa emacsmirror)
 
 To define a new recipe repository called `NAME`, you should do the
 following things:
