@@ -101,8 +101,8 @@ development takes place on the [`develop` branch][develop].)
 
 ## Features
 
-* Install Emacs packages from [MELPA], [EmacsMirror], or manually
-  specified sources.
+* Install Emacs packages listed on [MELPA] or [EmacsMirror], or
+  provide your own recipes.
 * Clone and manage packages as Git (or other) repositories, not as
   opaque tarballs.
 * Make changes to a package simply by editing its source code, no
@@ -174,7 +174,7 @@ on [configuring the installation of straight.el][straight.el-recipe].
 
 ### Install packages
 
-Out of the box, you can install any package from [MELPA] or
+Out of the box, you can install any package listed on [MELPA] or
 [EmacsMirror], which is to say any package in existence. To install a
 package temporarily (until you restart Emacs), run `M-x
 straight-use-package` and select the package you want. To install a
