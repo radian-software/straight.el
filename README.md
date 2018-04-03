@@ -2428,7 +2428,7 @@ version of Org provides, and that a correctly built version of Org
 
 [auto-compile]: https://github.com/tarsius/auto-compile
 [borg]: https://github.com/emacscollective/borg
-[borg-improvements]: https://github.com/raxod502/straight.el/issues/95#issuecomment-316379495https://github.com/raxod502/straight.el/issues/95#issuecomment-316379495
+[borg-improvements]: https://github.com/raxod502/straight.el/issues/95#issuecomment-316379495
 [build-command-issue]: https://github.com/raxod502/straight.el/issues/72
 [cask]: https://github.com/cask/cask
 [develop]: https://github.com/raxod502/straight.el/tree/develop
