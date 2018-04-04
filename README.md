@@ -14,6 +14,7 @@ development takes place on the [`develop` branch][develop].)
 - [Features](#features)
 - [Guiding principles](#guiding-principles)
 - [Getting started](#getting-started)
+    + [Debugging](#debugging)
   * [Install packages](#install-packages)
   * [But what about my fork of (obscure .el package)?](#but-what-about-my-fork-of-obscure-el-package)
   * [Integration with `use-package`](#integration-with-use-package)
@@ -63,6 +64,7 @@ development takes place on the [`develop` branch][develop].)
     + [Variants of `straight-use-package`](#variants-of-straight-use-package)
     + [Customizing when packages are built](#customizing-when-packages-are-built)
     + [Customizing how packages are built](#customizing-how-packages-are-built)
+    + [Customizing how packages are made available](#customizing-how-packages-are-made-available)
   * [The recipe format](#the-recipe-format)
     + [Version-control backends](#version-control-backends)
     + [Git backend](#git-backend)
@@ -84,6 +86,7 @@ development takes place on the [`develop` branch][develop].)
   * [Comments and docstrings](#comments-and-docstrings)
 - [Contributing](#contributing)
 - [News](#news)
+  * [April 21, 2018](#april-21-2018)
   * [December 12, 2017](#december-12-2017)
   * [December 8, 2017](#december-8-2017)
   * [November 10, 2017](#november-10-2017)
@@ -1501,6 +1504,18 @@ you *really* know what you're doing). You can also customize the
 variable `straight-disable-autoloads` to effect this change on all
 recipes which do not explicitly specify a `:no-autoloads` attribute.
 
+#### Customizing how packages are made available
+
+By setting the variable `straight-cache-autoloads` to a non-nil value,
+you can cause `straight.el` to cache the autoloads of all used
+packages in a single file on disk, and load them from there instead of
+from the individual package files if they are still up to date. This
+reduces the number of disk IO operations during startup from O(number
+of packages) to O(1), so it should improve performance. No other
+configuration should be necessary to make this work; however, you may
+wish to call [`straight-prune-build`][interactive-usage] occasionally,
+since otherwise this cache file may grow quite large over time.
+
 ### The recipe format
 
 The general format for a `straight.el` recipe is:
@@ -1902,6 +1917,10 @@ be sure to only call it on a fully successful init; otherwise, an
 error during init will result in some packages' build information
 being discarded, and they will need to be rebuilt next time.
 
+If you have enabled [autoloads caching][customizing-package-loading],
+it is advisable to call `straight-prune-build` occasionally, since
+otherwise the build cache may grow quite large over time.
+
 ### Version control operations
 
 `straight.el` provides a number of highly interactive workflows for
@@ -2268,6 +2287,12 @@ installed [`markdown-toc`][markdown-toc]).
 
 ## News
 
+### April 21, 2018
+
+There is now experimental support for caching autoloads in a single
+file, which should improve performance at startup. See the new user
+option `straight-cache-autoloads`.
+
 ### December 12, 2017
 
 Due to major updates upstream, the interface for `straight.el`'s
@@ -2412,6 +2437,7 @@ version of Org provides, and that a correctly built version of Org
 [bootstrap]: #getting-started
 [comments-and-docstrings]: #comments-and-docstrings
 [conceptual-overview]: #conceptual-overview
+[customizing-package-loading]: #customizing-how-packages-are-made-available
 [customizing-recipe-repositories]: #customizing-recipe-repositories
 [defining-vc-backends]: #FIXME
 [developer-manual]: #developer-manual

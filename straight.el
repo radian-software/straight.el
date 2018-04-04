@@ -445,8 +445,8 @@ the straight/build/ directory itself."
 SEGMENTS are passed to `straight--file'."
   (apply #'straight--file "build" segments))
 
-(defun straight--autoload-file (package)
-  "Get the filename of the autoload file for PACKAGE.
+(defun straight--autoloads-file (package)
+  "Get the filename of the autoloads file for PACKAGE.
 PACKAGE should be a string."
   (straight--build-file package (format "%s-autoloads.el" package)))
 
@@ -2401,6 +2401,13 @@ modify a package, before restarting Emacs."
           (const :tag "Never" never))
   :group 'straight)
 
+(defcustom straight-cache-autoloads nil
+  "Non-nil means read autoloads in bulk to speed up startup.
+The operation of this variable should be transparent to the user;
+no changes in configuration are necessary."
+  :group 'straight
+  :type 'boolean)
+
 ;;;;; Build cache
 
 (defvar straight--build-cache nil
@@ -2416,6 +2423,13 @@ package needs to be rebuilt.
 The value of this variable is persisted in the file
 build-cache.el.")
 
+(defvar straight--autoloads-cache nil
+  "Hash table keeping track of autoloads extracted from packages, or nil.
+The keys are strings naming packages, and the values are cons
+cells. The car of each is a list of features that seem to be
+provided by the package, and the cdr is the autoloads provided by
+the package, as a list of forms to evaluate.")
+
 (defvar straight--eagerly-checked-packages nil
   "List of packages that will be checked eagerly for modifications.
 This list is read from the build cache, and is originally
@@ -2427,7 +2441,7 @@ generated at the end of an init from the keys of
 All packages built from these local repositories need to be
 rebuilt at the next init.")
 
-(defvar straight--build-cache-version :nan
+(defvar straight--build-cache-version :chach
   "The current version of the build cache format.
 When the format on disk changes, this value is changed, so that
 straight.el knows to regenerate the whole cache.")
@@ -2445,8 +2459,9 @@ This sets the variables `straight--build-cache',
 don't signal an error, but set these variables to empty
 values (all packages will be rebuilt, with no caching)."
   ;; Start by clearing the build cache. If the one on disk is
-  ;; malformed (or outdated), these values will be use.
+  ;; malformed (or outdated), these values will be used.
   (setq straight--build-cache (make-hash-table :test #'equal))
+  (setq straight--autoloads-cache (make-hash-table :test #'equal))
   (setq straight--eagerly-checked-packages nil)
   (setq straight--live-modified-repos nil)
   (setq straight--build-cache-text nil)
@@ -2458,7 +2473,8 @@ values (all packages will be rebuilt, with no caching)."
        (straight--build-cache-file))
       (let ((version (read (current-buffer)))
             (find-flavor (read (current-buffer)))
-            (cache (read (current-buffer)))
+            (build-cache (read (current-buffer)))
+            (autoloads-cache (read (current-buffer)))
             (eager-packages (read (current-buffer)))
             (use-symlinks (read (current-buffer)))
             (live-repos nil))
@@ -2484,13 +2500,21 @@ values (all packages will be rebuilt, with no caching)."
                  ;; Format version should be the symbol currently in
                  ;; use.
                  (symbolp version)
-                 (eq version straight--build-cache-version)
+                 (or (eq version straight--build-cache-version)
+                     (ignore
+                      (message
+                       (concat
+                        "Rebuilding all packages due to "
+                        "build cache schema change"))))
                  ;; Find flavor should be the symbol currently in use.
                  (symbolp find-flavor)
                  (eq find-flavor straight-find-flavor)
                  ;; Build cache should be a hash table.
-                 (hash-table-p cache)
-                 (eq (hash-table-test cache) #'equal)
+                 (hash-table-p build-cache)
+                 (eq (hash-table-test build-cache) #'equal)
+                 ;; Autoloads cache should also be a hash table.
+                 (hash-table-p autoloads-cache)
+                 (eq (hash-table-test autoloads-cache) #'equal)
                  ;; Eagerly checked packages should be a list of
                  ;; strings.
                  (listp eager-packages)
@@ -2500,9 +2524,11 @@ values (all packages will be rebuilt, with no caching)."
                  ;; Symlink setting should not have changed.
                  (eq use-symlinks straight-use-symlinks))
           ;; If anything is wrong, abort and use the default values.
+          (message "Rebuilding all packages due to malformed build cache")
           (error "Malformed or outdated build cache"))
         ;; Otherwise, we can load from disk.
-        (setq straight--build-cache cache)
+        (setq straight--build-cache build-cache)
+        (setq straight--autoloads-cache autoloads-cache)
         (setq straight--eagerly-checked-packages eager-packages)
         (setq straight--live-modified-repos live-repos)
         (setq straight--build-cache-text (buffer-string))))))
@@ -2528,6 +2554,8 @@ This uses the values of `straight--build-cache',
       (print straight-find-flavor (current-buffer))
       ;; The actual build cache.
       (print straight--build-cache (current-buffer))
+      ;; The autoloads cache.
+      (print straight--autoloads-cache (current-buffer))
       ;; Which packages should be checked eagerly next init.
       (print (hash-table-keys straight--profile-cache) (current-buffer))
       ;; Whether packages were built using symlinks or copying.
@@ -3100,7 +3128,7 @@ individual package recipe."
 (cl-defun straight--generate-package-autoloads (recipe)
   "Generate autoloads for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. See
-`straight--autoload-file-name'. Note that this function only
+`straight--autoloads-file-name'. Note that this function only
 modifies the build folder, not the original repository."
   (when (straight--plist-get recipe :no-autoloads straight-disable-autoloads)
     (cl-return-from straight--generate-package-autoloads))
@@ -3119,7 +3147,7 @@ modifies the build folder, not the original repository."
   (straight--with-plist recipe
       (package)
     (let (;; The full path to the autoload file.
-          (generated-autoload-file (straight--autoload-file package))
+          (generated-autoload-file (straight--autoloads-file package))
           ;; The following bindings are in
           ;; `package-generate-autoloads'. Presumably this is for a
           ;; good reason, so I just copied them here. It's a shame
@@ -3232,6 +3260,8 @@ RECIPE should be a straight.el-style plist. The build mtime and
 recipe in `straight--build-cache' for the package are updated."
   (straight--with-plist recipe
       (package local-repo)
+    ;; We've rebuilt the package, so its autoloads might have changed.
+    (remhash package straight--autoloads-cache)
     (let (;; This time format is compatible with:
           ;;
           ;; * BSD find shipped with macOS >=10.11
@@ -3333,6 +3363,42 @@ package has already been built. This function calls
     ;; be seen, which is fine. (It's the way MELPA works.)
     (add-to-list 'Info-directory-list (straight--build-dir package))))
 
+(defun straight--load-package-autoloads (package)
+  "Load autoloads provided by PACKAGE, a string, from disk."
+  (let ((autoloads-file (straight--autoloads-file package)))
+    ;; NB: autoloads file may not exist if no autoloads were provided,
+    ;; in Emacs 26.
+    (when (file-exists-p autoloads-file)
+      (load autoloads-file nil 'nomessage))))
+
+(defun straight--determine-package-features (package)
+  "Determine what features are provided by PACKAGE, a string.
+Inspect the build directory to find Emacs Lisp files that might
+be loadable via `require'."
+  (let ((files (straight--directory-files
+                (straight--build-dir package)
+                "^.+\\.el$")))
+    (mapcar
+     (lambda (fname)
+       (intern (substring fname 0 -3)))
+     files)))
+
+(defun straight--read-package-autoloads (package)
+  "Read and return autoloads provided by PACKAGE, a string, from disk.
+The format is a list of Lisp forms to be evaluated."
+  (let ((autoloads-file (straight--autoloads-file package)))
+    ;; NB: autoloads file may not exist if no autoloads were provided,
+    ;; in Emacs 26.
+    (when (file-exists-p autoloads-file)
+      (with-temp-buffer
+        (insert-file-contents-literally autoloads-file)
+        (let ((autoloads nil))
+          (condition-case _
+              (while t
+                (push (read (current-buffer)) autoloads))
+            (end-of-file))
+          (nreverse autoloads))))))
+
 (defun straight--activate-package-autoloads (recipe)
   "Evaluate the autoloads for the package specified by RECIPE.
 This means that the functions with autoload cookies in the
@@ -3344,17 +3410,26 @@ global setting of `straight-disable-autoloads' or even because
 Emacs 26 seems to not generate an autoload file when there are no
 autoloads declared), then do nothing.
 
+If `straight-cache-autoloads' is non-nil, read and write from the
+global autoloads cache in order to speed up this process.
+
 RECIPE is a straight.el-style plist."
   (straight--with-plist recipe
       (package)
-    (let ((autoloads (straight--autoload-file package)))
-      ;; If the autoloads file doesn't exist, don't throw an error. It
-      ;; seems that in Emacs 26, an autoloads file is not actually
-      ;; written if there are no autoloads to generate (although this
-      ;; is unconfirmed), so this is especially important in that
-      ;; case.
-      (when (file-exists-p autoloads)
-        (load autoloads nil 'nomessage)))))
+    (if straight-cache-autoloads
+        (progn
+          (unless (straight--checkhash package straight--autoloads-cache)
+            (let ((features (straight--determine-package-features package))
+                  (autoloads (straight--read-package-autoloads package)))
+              (puthash package (cons features autoloads)
+                       straight--autoloads-cache)))
+          ;; Some autoloads files expect to be loaded normally, rather
+          ;; than read and evaluated separately. Fool them.
+          (let ((load-file-name (straight--autoloads-file package)))
+            ;; car is the feature list, cdr is the autoloads.
+            (dolist (form (cdr (gethash package straight--autoloads-cache)))
+              (eval form))))
+      (straight--load-package-autoloads package))))
 
 ;;;; Interactive helpers
 ;;;;; Package selection
@@ -3875,13 +3950,12 @@ See also `straight-check-all' and `straight-rebuild-package'."
 ;;;;; Cleanup
 
 ;;;###autoload
-(defun straight-prune-build ()
-  "Prune the build cache and build directory.
+(defun straight-prune-build-cache ()
+  "Prune the build cache.
 This means that only packages that were built in the last init
 run and subsequent interactive session will remain; other
-packages will have their build mtime information discarded and
-their build directory deleted."
-  (interactive)
+packages will have their build mtime information and any cached
+autoloads discarded."
   (straight-transaction
     (straight--transaction-exec
      'build-cache
@@ -3889,7 +3963,20 @@ their build directory deleted."
      #'straight--save-build-cache)
     (dolist (package (hash-table-keys straight--build-cache))
       (unless (gethash package straight--profile-cache)
-        (remhash package straight--build-cache)))
+        (remhash package straight--build-cache)
+        (remhash package straight--autoloads-cache)))))
+
+;;;###autoload
+(defun straight-prune-build-directory ()
+  "Prune the build directory.
+This means that only packages that were built in the last init
+run and subsequent interactive session will remain; other
+packages will have their build directories deleted."
+  (straight-transaction
+    (straight--transaction-exec
+     'build-cache
+     #'straight--load-build-cache
+     #'straight--save-build-cache)
     (dolist (package (straight--directory-files
                       (straight--build-dir)))
       ;; So, let me tell you a funny story. Once upon a time I didn't
@@ -3903,6 +3990,18 @@ their build directory deleted."
       (unless (or (string-match-p "^\\.\\.?$" package)
                   (gethash package straight--profile-cache))
         (delete-directory (straight--build-dir package) 'recursive)))))
+
+;;;###autoload
+(defun straight-prune-build ()
+  "Prune the build cache and build directory.
+This means that only packages that were built in the last init
+run and subsequent interactive session will remain; other
+packages will have their build mtime information discarded and
+their build directories deleted."
+  (interactive)
+  (straight-transaction
+    (straight-prune-build-cache)
+    (straight-prune-build-directory)))
 
 ;;;;; Normalization, pushing, pulling
 
