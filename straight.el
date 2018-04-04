@@ -1976,6 +1976,26 @@ Return a list of package names as strings."
         (setq recipes (nconc recipes (straight-recipes
                                       'list source cause)))))))
 
+;;;;;; Org
+
+(defun straight-recipes-org-elpa-retrieve (package)
+  "Look up a pseudo-PACKAGE recipe in Org ELPA.
+PACKAGE must be either `org' or `org-plus-contrib'. Otherwise
+return nil."
+  (pcase package
+    (`org
+     '(org :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
+           :local-repo "org"))
+    (`org-plus-contrib
+     '(org-plus-contrib
+       :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
+       :local-repo "org" :files (:defaults "contrib/lisp/*.el")))
+    (_ nil)))
+
+(defun straight-recipes-org-elpa-list ()
+  "Return a list of Org ELPA pseudo-packages, as a list of strings."
+  (list "org" "org-plus-contrib"))
+
 ;;;;;; MELPA
 
 (defun straight-recipes-melpa-retrieve (package)
@@ -2008,26 +2028,6 @@ return nil."
 (defun straight-recipes-melpa-list ()
   "Return a list of recipes available in MELPA, as a list of strings."
   (straight--directory-files "recipes" "^[^.]"))
-
-;;;;;; Org
-
-(defun straight-recipes-org-elpa-retrieve (package)
-  "Look up a pseudo-PACKAGE recipe in Org ELPA.
-PACKAGE must be either `org' or `org-plus-contrib'. Otherwise
-return nil."
-  (pcase package
-    (`org
-     '(org :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
-           :local-repo "org"))
-    (`org-plus-contrib
-     '(org-plus-contrib
-       :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
-       :local-repo "org" :files (:defaults "contrib/lisp/*.el")))
-    (_ nil)))
-
-(defun straight-recipes-org-elpa-list ()
-  "Return a list of Org ELPA pseudo-packages, as a list of strings."
-  (list "org" "org-plus-contrib"))
 
 ;;;;;; EmacsMirror
 
