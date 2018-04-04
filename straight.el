@@ -513,7 +513,7 @@ Otherwise, return nil."
   (let ((repos-dir (straight--repos-dir)))
     (when (straight--path-prefix-p repos-dir path)
       ;; Remove the ~/.emacs.d/straight/repos/ part.
-      (let* ((relative-path (substring path (length repos-dir))))
+      (let ((relative-path (substring path (length repos-dir))))
         ;; Trim off any more path components after hte local
         ;; repository.
         (replace-regexp-in-string
