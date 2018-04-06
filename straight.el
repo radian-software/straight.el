@@ -3306,7 +3306,8 @@ RECIPE is a straight.el-style plist. It is assumed that the
 package has already been built."
   (straight--with-plist recipe
       (package)
-    (add-to-list 'load-path (straight--build-dir package))))
+    (add-to-list 'load-path (directory-file-name
+                             (straight--build-dir package)))))
 
 (defun straight--add-package-to-info-path (recipe)
   "Add the package specified by RECIPE to the `Info-directory-list'.
