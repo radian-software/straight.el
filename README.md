@@ -172,6 +172,20 @@ Even if you want to use a particular version or branch of
 modified. To learn more, see the documentation
 on [configuring the installation of straight.el][straight.el-recipe].
 
+#### Debugging
+
+On macOS, you may receive an error:
+
+    Could not create connection to raw.githubusercontent.com:443
+
+This is due to a shortcoming in Emacs which prevents it from
+recognizing the system SSL certificates. To fix it, install the
+`libressl` package from [Homebrew] and add the following code to your
+init-file before the bootstrap snippet:
+
+    (with-eval-after-load 'gnutls
+      (add-to-list 'gnutls-trustfiles "/usr/local/etc/libressl/cert.pem"))
+
 ### Install packages
 
 Out of the box, you can install any package listed on [MELPA] or
@@ -2439,6 +2453,7 @@ version of Org provides, and that a correctly built version of Org
 [epkg]: https://github.com/emacscollective/epkg
 [gitter]: https://gitter.im/raxod502/straight.el
 [gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg
+[homebrew]: https://brew.sh/
 [issues]: https://github.com/raxod502/straight.el/issues
 [magit]: https://magit.vc/
 [markdown-toc]: https://github.com/jonschlinkert/markdown-toc
