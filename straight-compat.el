@@ -19,20 +19,8 @@
 ;;; Code:
 
 ;; Not defined before Emacs 25.1
-(unless (fboundp 'alist-get)
-  (defun alist-get (key alist)
-    "Return the value associated with KEY in ALIST, using `assq'."
-    (cdr (assq key alist))))
-
-;; Not defined before Emacs 25.3
-(unless (boundp 'inhibit-message)
-  (defvar inhibit-message nil
-    "Non-nil means calls to ‘message’ are not displayed.
-They are still logged to the *Messages* buffer."))
-
-;; Not defined before Emacs 26.1
-(unless (fboundp 'if-let*)
-  (defmacro if-let* (varlist then &optional else)
+(unless (fboundp 'if-let)
+  (defmacro if-let (varlist then &optional else)
     "Bind variables according to VARLIST and eval THEN or ELSE.
 VARLIST must be of the form ((SYMBOL VALUEFORM)). Evaluate
 VALUEFORM and bind it to SYMBOL. If the result of evaluation is
@@ -45,15 +33,27 @@ ELSE (or nil)."
              ,then
            ,else)))))
 
-;; Not defined before Emacs 26.1
-(unless (fboundp 'when-let*)
-  (defmacro when-let* (varlist &rest body)
+;; Not defined before Emacs 25.1
+(unless (fboundp 'when-let)
+  (defmacro when-let (varlist &rest body)
     "Bind variables according to VARLIST and conditionally eval BODY.
 VARLIST must be of the form ((SYMBOL VALUEFORM)). Evaluate
 VALUEFORM and bind it to SYMBOL. If the result of evaluation is
 non-nil, evaluate and return BODY. Otherwise return nil."
-    `(if-let* ,varlist
+    `(if-let ,varlist
          (progn ,@body))))
+
+;; Not defined before Emacs 25.1
+(unless (fboundp 'alist-get)
+  (defun alist-get (key alist)
+    "Return the value associated with KEY in ALIST, using `assq'."
+    (cdr (assq key alist))))
+
+;; Not defined before Emacs 25.3
+(unless (boundp 'inhibit-message)
+  (defvar inhibit-message nil
+    "Non-nil means calls to ‘message’ are not displayed.
+They are still logged to the *Messages* buffer."))
 
 (provide 'straight-compat)
 

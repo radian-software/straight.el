@@ -91,7 +91,7 @@
              (straight-x-strip output)))))
 
 (defun straight-x-start-process ()
-  (when-let* ((recipe (pop straight-x-waiting)))
+  (when-let ((recipe (pop straight-x-waiting)))
     (push recipe straight-x-running)
     (straight--with-plist recipe
         (local-repo package)
