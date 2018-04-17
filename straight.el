@@ -589,10 +589,11 @@ be interpreted later as a symlink."
       (file-already-exists
        ;; We're OK with the recipe specifying to create the symlink
        ;; twice, as long as it's pointing to the same place both
-       ;; times. Otherwise, raise an error.
+       ;; times. Otherwise, signal a warning.
        (unless (string= link-target
                         (file-symlink-p link-name))
-         (signal (car err) (cdr err)))))))
+         (straight--warn "Attempted to link %S to both %S and %S"
+                         link-name (file-symlink-p link-name) link-target))))))
 
 ;;;;; External processes
 
