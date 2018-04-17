@@ -569,7 +569,7 @@ be interpreted later as a symlink."
            (expand-file-name entry link-target)
            (expand-file-name entry link-name))))
     (make-directory (file-name-directory link-name) 'parents)
-    (condition-case err
+    (condition-case _
         (if straight-use-symlinks
             (make-symbolic-link link-target link-name)
           (copy-file link-target link-name)
