@@ -1366,6 +1366,8 @@ to satisfy `straight-vc-git--urls-compatible-p'."
                     local-repo straight-vc-git-upstream-remote
                     desired-url))))))))
 
+;; The following handles only merges, not rebases. See
+;; https://github.com/raxod502/straight.el/issues/271.
 (defun straight-vc-git--ensure-nothing-in-progress (local-repo)
   "Ensure that no merge conflict is active in LOCAL-REPO.
 LOCAL-REPO is a string."
@@ -1377,9 +1379,6 @@ LOCAL-REPO is a string."
     (or (string-empty-p conflicted-files)
         (ignore
          (straight-vc-git--popup
-           ;; FIXME: handle rebases, maybe [1] is helpful?
-           ;;
-           ;; [1]: https://stackoverflow.com/q/3921409/3538165
            (format "Repository %S has a merge conflict:\n%S"
                    local-repo
                    (straight--split-and-trim
