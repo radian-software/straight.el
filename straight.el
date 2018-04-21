@@ -2590,7 +2590,11 @@ modified since their last builds.")
         ;; The systematically generated arguments for find(1).
         (args-paths nil)
         (args-primaries nil)
-        (args nil))
+        (args nil)
+        ;; This list is used to make sure we don't try to search a
+        ;; directory that doesn't exist, which would cause the find(1)
+        ;; command to fail.
+        (existing-repos (straight--directory-files (straight--repos-dir))))
     (dolist (package straight--eagerly-checked-packages)
       (when-let ((build-info (gethash package straight--build-cache)))
         ;; Don't use `cl-destructuring-bind', as that will
@@ -2601,47 +2605,48 @@ modified since their last builds.")
               (recipe (nth 2 build-info)))
           (straight--with-plist recipe
               (local-repo)
-            (when local-repo
-              (unless (gethash local-repo repos)
-                (if mtime
-                    ;; The basic idea of the find(1) command here is
-                    ;; that we search all the local repositories, and
-                    ;; then the actual primaries evaluated are a
-                    ;; disjunction that first prevents any .git
-                    ;; directories from being traversed and then
-                    ;; checks for any files that are in a given local
-                    ;; repository *and* have a new enough mtime.
-                    (let ((newer-or-newermt nil)
-                          (mtime-or-file nil))
-                      (pcase straight-find-flavor
-                        (`gnu/bsd
-                         (setq newer-or-newermt "-newermt")
-                         (setq mtime-or-file mtime))
-                        (`busybox
-                         (setq newer-or-newermt "-newer")
-                         (setq mtime-or-file (straight--make-mtime mtime)))
-                        (_ (error "Unexpected `straight-find-flavor': %S"
-                                  straight-find-flavor)))
-                      (push (straight--repos-dir local-repo) args-paths)
-                      (setq args-primaries
-                            (append (list "-o"
-                                          "-path"
-                                          (format
-                                           "%s/*" (straight--repos-dir
-                                                   local-repo))
-                                          newer-or-newermt
-                                          mtime-or-file
-                                          "-print")
-                                    args-primaries)))
-                  ;; If no mtime is specified, it means the package
-                  ;; definitely needs to be (re)built. Probably there
-                  ;; was an error and we couldn't finish building the
-                  ;; package, but we wrote the build cache anyway.
-                  (puthash
-                   local-repo t straight--cached-package-modifications))
-                ;; Don't create duplicate entries in the find(1)
-                ;; command for this local repository.
-                (puthash local-repo t repos)))))))
+            (when (and local-repo
+                       (not (gethash local-repo repos))
+                       (member local-repo existing-repos))
+              (if mtime
+                  ;; The basic idea of the find(1) command here is
+                  ;; that we search all the local repositories, and
+                  ;; then the actual primaries evaluated are a
+                  ;; disjunction that first prevents any .git
+                  ;; directories from being traversed and then checks
+                  ;; for any files that are in a given local
+                  ;; repository *and* have a new enough mtime.
+                  (let ((newer-or-newermt nil)
+                        (mtime-or-file nil))
+                    (pcase straight-find-flavor
+                      (`gnu/bsd
+                       (setq newer-or-newermt "-newermt")
+                       (setq mtime-or-file mtime))
+                      (`busybox
+                       (setq newer-or-newermt "-newer")
+                       (setq mtime-or-file (straight--make-mtime mtime)))
+                      (_ (error "Unexpected `straight-find-flavor': %S"
+                                straight-find-flavor)))
+                    (push (straight--repos-dir local-repo) args-paths)
+                    (setq args-primaries
+                          (append (list "-o"
+                                        "-path"
+                                        (format
+                                         "%s/*" (straight--repos-dir
+                                                 local-repo))
+                                        newer-or-newermt
+                                        mtime-or-file
+                                        "-print")
+                                  args-primaries)))
+                ;; If no mtime is specified, it means the package
+                ;; definitely needs to be (re)built. Probably there
+                ;; was an error and we couldn't finish building the
+                ;; package, but we wrote the build cache anyway.
+                (puthash
+                 local-repo t straight--cached-package-modifications))
+              ;; Don't create duplicate entries in the find(1) command
+              ;; for this local repository.
+              (puthash local-repo t repos))))))
     ;; Construct the final find(1) command.
     (setq args (append
                 args-paths
