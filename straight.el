@@ -2473,11 +2473,17 @@ values (all packages will be rebuilt, with no caching)."
        (straight--build-cache-file))
       (let ((version (read (current-buffer)))
             (find-flavor (read (current-buffer)))
+            (last-emacs-version (read (current-buffer)))
             (build-cache (read (current-buffer)))
             (autoloads-cache (read (current-buffer)))
             (eager-packages (read (current-buffer)))
             (use-symlinks (read (current-buffer)))
-            (live-repos nil))
+            (live-repos nil)
+            ;; This gets set to nil if we detect a specific problem
+            ;; with the build cache other than it being malformed, so
+            ;; that we don't subsequently emit a second message
+            ;; claiming that the cache is malformed.
+            (malformed t))
         ;; After the main data structures comes a list of other local
         ;; repositories that were detected by live modification
         ;; checking. Why aren't these a list? Well, the live
@@ -2501,14 +2507,28 @@ values (all packages will be rebuilt, with no caching)."
                  ;; use.
                  (symbolp version)
                  (or (eq version straight--build-cache-version)
-                     (ignore
-                      (message
-                       (concat
-                        "Rebuilding all packages due to "
-                        "build cache schema change"))))
+                     (prog1 (setq malformed nil)
+                       (message
+                        (concat
+                         "Rebuilding all packages due to "
+                         "build cache schema change"))))
                  ;; Find flavor should be the symbol currently in use.
                  (symbolp find-flavor)
-                 (eq find-flavor straight-find-flavor)
+                 (or (eq find-flavor straight-find-flavor)
+                     (prog1 (setq malformed nil)
+                       (message
+                        (concat
+                         "Rebuilding all packages due to "
+                         "change in system find(1) utility"))))
+                 ;; Emacs version should be the same as our current
+                 ;; one.
+                 (stringp last-emacs-version)
+                 (or (string= last-emacs-version (emacs-version))
+                     (prog1 (setq malformed nil)
+                       (message
+                        (concat
+                         "Rebuilding all packages due to "
+                         "change in Emacs version"))))
                  ;; Build cache should be a hash table.
                  (hash-table-p build-cache)
                  (eq (hash-table-test build-cache) #'equal)
@@ -2524,7 +2544,8 @@ values (all packages will be rebuilt, with no caching)."
                  ;; Symlink setting should not have changed.
                  (eq use-symlinks straight-use-symlinks))
           ;; If anything is wrong, abort and use the default values.
-          (message "Rebuilding all packages due to malformed build cache")
+          (when malformed
+            (message "Rebuilding all packages due to malformed build cache"))
           (error "Malformed or outdated build cache"))
         ;; Otherwise, we can load from disk.
         (setq straight--build-cache build-cache)
@@ -2552,6 +2573,10 @@ This uses the values of `straight--build-cache',
       ;; save the timestamps in an OS-independent way, but this
       ;; approach is simpler.
       (print straight-find-flavor (current-buffer))
+      ;; Record the current Emacs version. If a different version of
+      ;; Emacs is used, we have to rebuild all the packages (because
+      ;; byte-compiled files cannot necessarily still be loaded).
+      (print (emacs-version) (current-buffer))
       ;; The actual build cache.
       (print straight--build-cache (current-buffer))
       ;; The autoloads cache.
