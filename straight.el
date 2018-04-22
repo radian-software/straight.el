@@ -2441,7 +2441,9 @@ generated at the end of an init from the keys of
 All packages built from these local repositories need to be
 rebuilt at the next init.")
 
-(defvar straight--build-cache-version :chach
+;; See http://stormlightarchive.wikia.com/wiki/Calendar for the
+;; schema.
+(defvar straight--build-cache-version :vev
   "The current version of the build cache format.
 When the format on disk changes, this value is changed, so that
 straight.el knows to regenerate the whole cache.")
