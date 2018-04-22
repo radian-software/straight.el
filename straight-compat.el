@@ -14,9 +14,20 @@
 ;; This file contains definitions of functions and macros that do not
 ;; appear in older versions of Emacs supported by straight.el.
 
+;; It also has a fun hack that allows the bootstrap process to detect
+;; whether the Emacs version has changed since straight.el was last
+;; byte-compiled.
+
 ;; See straight.el for more information.
 
 ;;; Code:
+
+;; Hack!
+(eval
+ `(unless (equal
+           (emacs-version)
+           ,(eval-when-compile (emacs-version)))
+    (throw 'emacs-version-changed nil)))
 
 ;; Not defined before Emacs 25.1
 (unless (fboundp 'if-let)
