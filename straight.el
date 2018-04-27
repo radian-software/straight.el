@@ -2829,7 +2829,7 @@ target paths.
 
 The return value is a cons cell of a list of mappings and a list
 of exclusions. The mappings are of the same form that is returned
-by `straight--expand-files-directive', while the exclusions are
+by `straight-expand-files-directive', while the exclusions are
 analogous except that they are only cars, and do not include
 destinations."
   (unless (listp files)
@@ -2877,7 +2877,7 @@ destinations."
             ;; exclusions.
             (setq mappings (cl-remove-if
                             (lambda (mapping)
-                              (member (car mapping) rec-mappings))
+                              (assoc (car mapping) rec-mappings))
                             mappings))
             ;; Same as above. Mappings become exclusions. We drop the
             ;; actual exclusions of the `:exclude' sub-list, since
