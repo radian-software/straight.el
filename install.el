@@ -154,6 +154,7 @@
                          straight-profiles
                          straight-recipe-overrides
                          straight-recipe-repositories
+                         straight-recipes-gnu-elpa-url
                          straight-repository-branch
                          straight-vc-git-default-branch
                          straight-vc-git-default-protocol

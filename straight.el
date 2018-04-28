@@ -15,8 +15,8 @@
 ;; clones packages into your ~/.emacs.d and handles byte-compilation,
 ;; autoload generation, and load path management. Dependency
 ;; management, powerful tools for managing your packages in bulk, and
-;; out-of-the-box compatibility with MELPA and EmacsMirror are also
-;; included.
+;; out-of-the-box compatibility with MELPA, GNU ELPA, and EmacsMirror
+;; are also included.
 
 ;; straight.el improves on other package managers in several ways.
 ;; Most importantly, it offers first-class support for easily
@@ -2029,6 +2029,31 @@ return nil."
   "Return a list of recipes available in MELPA, as a list of strings."
   (straight--directory-files "recipes" "^[^.]"))
 
+;;;;;; GNU ELPA
+
+(defcustom straight-recipes-gnu-elpa-url
+  "https://git.savannah.gnu.org/git/emacs/elpa.git"
+  "URL of the Git repository for the GNU ELPA package repository."
+  :type 'string
+  :group 'straight)
+
+(defun straight-recipes-gnu-elpa-retrieve (package)
+  "Look up a PACKAGE recipe in GNU ELPA.
+PACKAGE should be a symbol. If the package is maintained in GNU
+ELPA, return a MELPA-style recipe. Otherwise, return nil."
+  (when (file-exists-p (expand-file-name (symbol-name package) "packages/"))
+    ;; All the packages in GNU ELPA are just subdirectories of the
+    ;; same repository.
+    `(,package :type git
+               :repo ,straight-recipes-gnu-elpa-url
+               :files (,(format "packages/%s/*.el"
+                                (symbol-name package)))
+               :local-repo "elpa")))
+
+(defun straight-recipes-gnu-elpa-list ()
+  "Return a list of recipe names available in GNU ELPA, as a list of strings."
+  (straight--directory-files "packages/"))
+
 ;;;;;; EmacsMirror
 
 (defun straight-recipes-emacsmirror-retrieve (package)
@@ -2208,11 +2233,11 @@ for dependency resolution."
               ;;
               ;; Instead, this code makes it so that if a recipe has
               ;; been automatically retrieved from a recipe repository
-              ;; (for example, MELPA or Emacsmirror), and the
-              ;; `:local-repo' specified in that recipe has already
-              ;; been used for another package, then the configuration
-              ;; for that repository will silently be copied over, and
-              ;; everything should "just work".
+              ;; (for example, MELPA, GNU ELPA, or Emacsmirror), and
+              ;; the `:local-repo' specified in that recipe has
+              ;; already been used for another package, then the
+              ;; configuration for that repository will silently be
+              ;; copied over, and everything should "just work".
               ;;
               ;; Note that this weird edge case is totally unrelated
               ;; to the weird edge cases discussed earlier (in the

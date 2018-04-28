@@ -104,8 +104,8 @@ development takes place on the [`develop` branch][develop].)
 
 ## Features
 
-* Install Emacs packages listed on [MELPA] or [EmacsMirror], or
-  provide your own recipes.
+* Install Emacs packages listed on [MELPA], [GNU ELPA][gnu-elpa], or
+  [EmacsMirror], or provide your own recipes.
 * Packages are cloned as Git (or other) repositories, not as opaque
   tarballs.
 * Make changes to a package simply by editing its source code, no
@@ -143,7 +143,7 @@ development takes place on the [`develop` branch][develop].)
 * No support whatsoever for `package.el`.
 * Edit packages by editing their code, no extra steps required. Allow
   for manual version control operations.
-* Compatibility with MELPA and EmacsMirror.
+* Compatibility with MELPA, GNU ELPA, and EmacsMirror.
 * Trivial to quickly try out a package without permanently installing
   it.
 * Good for reproducing an issue with `emacs -Q`.
@@ -191,14 +191,14 @@ init-file before the bootstrap snippet:
 
 ### Install packages
 
-Out of the box, you can install any package listed on [MELPA] or
-[EmacsMirror], which is to say any package in existence. (Although
-MELPA is used as a package listing, packages are installed by cloning
-their Git repositories rather than by downloading tarballs like
-`package.el` does.) To install a package temporarily (until you
-restart Emacs), run `M-x straight-use-package` and select the package
-you want. To install a package permanently, place a call to
-`straight-use-package` in your init-file, like:
+Out of the box, you can install any package listed on [MELPA], [GNU
+ELPA][gnu-elpa], or [EmacsMirror], which is to say any package in
+existence. (Although MELPA is used as a package listing, packages are
+installed by cloning their Git repositories rather than by downloading
+tarballs like `package.el` does.) To install a package temporarily
+(until you restart Emacs), run `M-x straight-use-package` and select
+the package you want. To install a package permanently, place a call
+to `straight-use-package` in your init-file, like:
 
     (straight-use-package 'el-patch)
 
@@ -927,13 +927,14 @@ And here is a brief list of the main reasons you might not want to use
 
 #### Advantages of `straight.el`
 
-* `straight.el` has out-of-the-box compatibility with MELPA and
-  EmacsMirror, while Quelpa only has support for MELPA. [EmacsMirror]
-  is not supported by default, although it is easy to specify an
-  EmacsMirror repository in a recipe. While Quelpa allows you to
-  specify custom recipe folders, it does not have support for cloning
-  these folders automatically from version control, nor for generating
-  the recipes in any way other than copying them literally from files.
+* `straight.el` has out-of-the-box compatibility with MELPA, GNU ELPA,
+  and EmacsMirror, while Quelpa only has support for MELPA. To use GNU
+  ELPA, you must drop down to `package.el`. [EmacsMirror] is not
+  supported by default, although it is easy to specify an EmacsMirror
+  repository in a recipe. While Quelpa allows you to specify custom
+  recipe folders, it does not have support for cloning these folders
+  automatically from version control, nor for generating the recipes
+  in any way other than copying them literally from files.
   `straight.el` allows you full flexibility in this regard.
 * `straight.el` has integrated support for selecting particular Git
   revisions of packages. This process is more manual in Quelpa, as it
@@ -1042,8 +1043,8 @@ offer corrections for this section.
   while Cask only supports `package.el`-compliant repositories.
   However, it is easy to specify an EmacsMirror repository in a
   recipe. Cask does not support custom package sources. `straight.el`
-  supports MELPA and EmacsMirror, and allows you to add any other
-  sources you would like.
+  supports MELPA, GNU ELPA, and EmacsMirror, and allows you to add any
+  other sources you would like.
 * `straight.el` has integrated support for selecting particular Git
   revisions of packages. This process is more manual in Cask, as it
   requires placing the commit hash into the recipe, which disables
@@ -1203,12 +1204,13 @@ offer corrections for this section.
 
 #### Advantages of `straight.el`
 
-* `straight.el` supports MELPA, EmacsMirror, and custom recipe
-  sources. Borg only supports EmacsMirror and custom recipe sources.
-  However, as the EmacsMirror is a complete superset of MELPA, this
-  does not mean you have access to more packages: it just means you
-  benefit from the recipe maintenance efforts of the MELPA team and
-  the EmacsMirror team, rather than only the latter.
+* `straight.el` supports MELPA, GNU ELPA, EmacsMirror, and custom
+  recipe sources. Borg only supports EmacsMirror and custom recipe
+  sources. However, as the EmacsMirror is a near-complete superset of
+  both GNU ELPA and MELPA, this does not necessarily mean you have
+  access to more packages: it just means you benefit from the recipe
+  maintenance efforts of the MELPA team and the EmacsMirror team,
+  rather than only the latter.
 * Borg, even when combined with related tools, do not allow for the
   kind of massive interactive repository management provided by
   `straight.el`.
@@ -1706,12 +1708,12 @@ You can customize the following user options:
 ### Recipe lookup
 
 If you only provide a symbol (package name) to `straight-use-package`,
-then the recipe is looked up automatically. By default, [MELPA] and
-[EmacsMirror] are searched for recipes, in that order. This means that
-one or more of them may need to be cloned. Recipe repositories are
-actually just the same as ordinary packages, except that their recipes
-specify `:no-build`, so they are not symlinked or added to the
-`load-path` or anything.
+then the recipe is looked up automatically. By default, [MELPA], [GNU
+ELPA][gnu-elpa], and [EmacsMirror] are searched for recipes, in that
+order. This means that one or more of them may need to be cloned.
+Recipe repositories are actually just the same as ordinary packages,
+except that their recipes specify `:no-build`, so they are not
+symlinked or added to the `load-path` or anything.
 
 Note that dependencies always use the default recipes, since the only
 information `straight.el` gets about a package's dependencies are
@@ -1762,7 +1764,7 @@ can control which recipe repositories are searched, and in what order
 of precedence, by customizing `straight-recipe-repositories`. The
 default value is:
 
-    (org-elpa melpa emacsmirror)
+    (org-elpa melpa gnu-elpa emacsmirror)
 
 To define a new recipe repository called `NAME`, you should do the
 following things:
@@ -2479,6 +2481,7 @@ version of Org provides, and that a correctly built version of Org
 [epkg]: https://github.com/emacscollective/epkg
 [gitter]: https://gitter.im/raxod502/straight.el
 [gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg
+[gnu-elpa]: https://elpa.gnu.org/
 [homebrew]: https://brew.sh/
 [issues]: https://github.com/raxod502/straight.el/issues
 [magit]: https://magit.vc/

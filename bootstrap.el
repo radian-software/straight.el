@@ -100,6 +100,11 @@
                               :repo "melpa/melpa"
                               :no-build t))
 
+(straight-use-recipes `(gnu-elpa :type git
+                                 :repo ,straight-recipes-gnu-elpa-url
+                                 :local-repo "elpa"
+                                 :no-build t))
+
 (straight-use-recipes '(emacsmirror :type git :host github
                                     :repo "emacsmirror/epkgs"
                                     :nonrecursive t
