@@ -3419,7 +3419,10 @@ The format is a list of Lisp forms to be evaluated."
     (when (file-exists-p autoloads-file)
       (with-temp-buffer
         (insert-file-contents-literally autoloads-file)
-        (let ((autoloads nil))
+        (let (;; Make the $# reader macro expand to the correct
+              ;; filename.
+              (load-file-name autoloads-file)
+              (autoloads nil))
           (condition-case _
               (while t
                 (push (read (current-buffer)) autoloads))
