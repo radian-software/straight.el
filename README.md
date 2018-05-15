@@ -176,6 +176,14 @@ Even if you want to use a particular version or branch of
 modified. To learn more, see the documentation
 on [configuring the installation of straight.el][straight.el-recipe].
 
+You should remove any code that relates to `package.el`; for example,
+references to `package-initialize`, `package-archives`, and (if you're
+using [`use-package`][use-package]) `:ensure` or
+`use-package-always-ensure`. While it is technically possible to use
+both `package.el` and `straight.el` at the same time, there is no real
+reason to, and it might result in oddities like packages getting
+loaded more than once.
+
 #### Debugging
 
 On macOS, you may receive an error:
@@ -266,7 +274,9 @@ You can still provide a custom recipe for the package:
                                      :repo "raxod502/el-patch")))
 
 Specifying `:straight t` is unnecessary if you set
-`straight-use-package-by-default` to a non-nil value.
+`straight-use-package-by-default` to a non-nil value. (Note that the
+variable `use-package-always-ensure` is associated with `package.el`,
+and you should not use it with `straight.el`.)
 
 To learn more, see the documentation
 on
