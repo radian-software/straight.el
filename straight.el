@@ -2453,6 +2453,11 @@ straight.el knows to regenerate the whole cache.")
 If this is unchanged between loading and saving the build cache,
 then the saving step is skipped for efficiency.")
 
+(defun straight--strip-newlines (str)
+  "Strips CR, LF, CRLF newlines from strings, useful for
+normalizing strings before comparison."
+  (replace-regexp-in-string "[?\n|?\r]" "" str t t))
+
 (defun straight--load-build-cache ()
   "Load data from build-cache.el into memory.
 This sets the variables `straight--build-cache',
@@ -2525,7 +2530,8 @@ values (all packages will be rebuilt, with no caching)."
                  ;; Emacs version should be the same as our current
                  ;; one.
                  (stringp last-emacs-version)
-                 (or (string= last-emacs-version (emacs-version))
+                 (or (string= (straight--strip-newlines last-emacs-version)
+                              (straight--strip-newlines (emacs-version)))
                      (prog1 (setq malformed nil)
                        (message
                         (concat
