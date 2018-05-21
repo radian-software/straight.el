@@ -263,6 +263,11 @@ that may contain `straight--not-present' as a value."
 
 ;;;;; Strings
 
+(defun straight--strip-newlines (string)
+  "Strips CR, LF, CRLF newlines from STRING.
+It is useful for normalizing strings before comparison."
+  (replace-regexp-in-string "[\n\r]" "" string 'fixedcase 'literal))
+
 (defun straight--split-and-trim (string &optional indent max-lines)
   "Split the STRING on newlines, returning a list.
 Remove any blank lines at the beginning or end. If INDENT is
@@ -2452,11 +2457,6 @@ straight.el knows to regenerate the whole cache.")
   "Literal text of the build cache.
 If this is unchanged between loading and saving the build cache,
 then the saving step is skipped for efficiency.")
-
-(defun straight--strip-newlines (str)
-  "Strips CR, LF, CRLF newlines from strings, useful for
-normalizing strings before comparison."
-  (replace-regexp-in-string "[?\n|?\r]" "" str t t))
 
 (defun straight--load-build-cache ()
   "Load data from build-cache.el into memory.
