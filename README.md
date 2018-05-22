@@ -190,10 +190,20 @@ On macOS, you may receive an error:
 
     Could not create connection to raw.githubusercontent.com:443
 
-This is due to a shortcoming in Emacs which prevents it from
-recognizing the system SSL certificates. To fix it, install the
-`libressl` package from [Homebrew] and add the following code to your
-init-file before the bootstrap snippet:
+There are two ways to solve this problem. One way is to install a
+version of Emacs that is linked with GnuTLS. With [Homebrew], that
+looks like this:
+
+    $ brew install gnutls
+    $ brew install emacs --devel --with-cocoa --with-gnutls
+
+The other way is to let Emacs use certificates provided by LibreSSL,
+which you can do by running these commands:
+
+    $ brew install gnutls
+    $ brew install libressl
+
+And adding this to your init-file, *before* the bootstrap snippet:
 
     (with-eval-after-load 'gnutls
       (add-to-list 'gnutls-trustfiles "/usr/local/etc/libressl/cert.pem"))
