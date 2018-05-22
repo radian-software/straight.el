@@ -263,6 +263,11 @@ that may contain `straight--not-present' as a value."
 
 ;;;;; Strings
 
+(defun straight--strip-newlines (string)
+  "Strips CR, LF, CRLF newlines from STRING.
+It is useful for normalizing strings before comparison."
+  (replace-regexp-in-string "[\n\r]" "" string 'fixedcase 'literal))
+
 (defun straight--split-and-trim (string &optional indent max-lines)
   "Split the STRING on newlines, returning a list.
 Remove any blank lines at the beginning or end. If INDENT is
@@ -2550,7 +2555,8 @@ values (all packages will be rebuilt, with no caching)."
                  ;; Emacs version should be the same as our current
                  ;; one.
                  (stringp last-emacs-version)
-                 (or (string= last-emacs-version (emacs-version))
+                 (or (string= (straight--strip-newlines last-emacs-version)
+                              (straight--strip-newlines (emacs-version)))
                      (prog1 (setq malformed nil)
                        (message
                         (concat
