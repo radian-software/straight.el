@@ -76,16 +76,14 @@
 (defcustom straight-arrow
   (if (char-displayable-p ?→) " → " " -> ")
   "The string to use for an arrow in messages."
-  :type 'string
-  :group 'straight)
+  :type 'string)
 
 (defcustom straight-profiles
   '((nil . "default.el"))
   "Alist mapping package profile names to version lockfile names.
 The profile names should be symbols, and the filenames may be
 relative (to straight/versions/) or absolute."
-  :type '(alist :key-type symbol :value-type string)
-  :group 'straight)
+  :type '(alist :key-type symbol :value-type string))
 
 (defcustom straight-current-profile nil
   "Symbol identifying the current package profile.
@@ -93,8 +91,7 @@ This symbol should have an entry in `straight-profiles'. If you
 wish to take advantage of the multiple-profile system, you should
 bind this variable to different symbols using `let' over
 different parts of your init-file."
-  :type 'symbol
-  :group 'straight)
+  :type 'symbol)
 
 (defcustom straight-repository-branch "master"
   "String identifying the branch of straight.el to clone.
@@ -103,15 +100,13 @@ should)."
   :type '(choice
           (const :tag "Stable version (master)" "master")
           (const :tag "Development version (develop)" "develop")
-          (string :tag "Use a custom branch"))
-  :group 'straight)
+          (string :tag "Use a custom branch")))
 
 (defcustom straight-default-vc 'git
   "VC backend to use by default, if a recipe has no `:type'.
 Functions named like `straight-vc-TYPE-clone', etc. should be
 defined, where TYPE is the value of this variable."
-  :type 'symbol
-  :group 'straight)
+  :type 'symbol)
 
 (defcustom straight-recipe-repositories nil
   "List of recipe repositories to find recipes in.
@@ -120,8 +115,7 @@ a full recipe, to `straight-use-package' or
 `straight-use-recipes'. The order in this list determines the
 precedence. Functions named like `straight-recipes-NAME-list',
 etc. should be defined, where NAME is any element of this list."
-  :type '(list symbol)
-  :group 'straight)
+  :type '(list symbol))
 
 (defcustom straight-recipe-overrides nil
   "Alist specifying recipes to override those provided explicitly.
@@ -135,8 +129,7 @@ If you have no need of the profile system, then using the default
 profile (nil) will suffice without additional setup."
   :type '(alist :key-type symbol :value-type
                 (alist :key-type symbol :value-type
-                       (plist :key-type symbol :value-type sexp)))
-  :group 'straight)
+                       (plist :key-type symbol :value-type sexp))))
 
 ;;;; Utility functions
 ;;;;; Association lists
@@ -540,8 +533,7 @@ Using symlinks is always preferable, unless you use Microsoft
 Windows, in which you will have to use copying instead. This is
 slower, less space-efficient, and requiring of additional hacks,
 but such is Windows."
-  :type 'boolean
-  :group 'straight)
+  :type 'boolean)
 
 (defun straight--directory-files (&optional directory match full sort)
   "Like `directory-files', but with better defaults.
@@ -879,8 +871,7 @@ The `busybox' value is compatible with:
 
 * BusyBox >=1.16.2"
   :type '(choice (const :tag "GNU/BSD" gnu/bsd)
-                 (const :tag "BusyBox" busybox))
-  :group 'straight)
+                 (const :tag "BusyBox" busybox)))
 
 ;;;; Version control
 
@@ -1083,18 +1074,15 @@ This method simply delegates to the relevant
 
 (defcustom straight-vc-git-default-branch "master"
   "The default value for `:branch' when `:type' is symbol `git'."
-  :type 'string
-  :group 'straight)
+  :type 'string)
 
 (defcustom straight-vc-git-primary-remote "origin"
   "The remote name to use for the primary remote."
-  :type 'string
-  :group 'straight)
+  :type 'string)
 
 (defcustom straight-vc-git-upstream-remote "upstream"
   "The remote name to use for the upstream remote."
-  :type 'string
-  :group 'straight)
+  :type 'string)
 
 (defcustom straight-vc-git-default-protocol 'https
   "The default protocol to use for auto-generated URLs.
@@ -1104,8 +1092,7 @@ translated.
 
 This may be either `https' or `ssh'."
   :type '(choice (const :tag "HTTPS" https)
-                 (const :tag "SSH" ssh))
-  :group 'straight)
+                 (const :tag "SSH" ssh)))
 
 (defcustom straight-vc-git-force-protocol nil
   "If non-nil, treat HTTPS and SSH URLs as incompatible.
@@ -1113,8 +1100,7 @@ This means that operations like `straight-normalize-package' will
 re-set the remote URLs for packages whose recipes have non-nil
 `:host' values, if they are using a different protocol than the
 one specified in `straight-vc-git-default-protocol'."
-  :type 'boolean
-  :group 'straight)
+  :type 'boolean)
 
 (defcustom straight-vc-git-auto-fast-forward t
   "Whether to quietly fast-forward when pulling packages.
@@ -1122,8 +1108,7 @@ This suppresses popups for trivial remote changes (i.e. the
 current HEAD is an ancestor to the remote HEAD).
 Also re-attaches detached heads quietly when non-nil.
 A nil value allows for inspection of all remote changes."
-  :type 'boolean
-  :group 'straight)
+  :type 'boolean)
 
 ;;;;;; Utility functions
 
@@ -2039,8 +2024,7 @@ return nil."
 (defcustom straight-recipes-gnu-elpa-url
   "https://git.savannah.gnu.org/git/emacs/elpa.git"
   "URL of the Git repository for the GNU ELPA package repository."
-  :type 'string
-  :group 'straight)
+  :type 'string)
 
 (defun straight-recipes-gnu-elpa-retrieve (package)
   "Look up a PACKAGE recipe in GNU ELPA.
@@ -2099,8 +2083,7 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
   "List of built-in packages that aren't real packages.
 If any of these are specified as dependencies, straight.el will
 just skip them instead of looking for a recipe."
-  :type '(repeat symbol)
-  :group 'straight)
+  :type '(repeat symbol))
 
 (cl-defun straight--convert-recipe (melpa-style-recipe &optional cause)
   "Convert a MELPA-STYLE-RECIPE to a normalized straight.el recipe.
@@ -2428,14 +2411,12 @@ modify a package, before restarting Emacs."
   :type '(choice
           (const :tag "At Emacs startup" at-startup)
           (const :tag "As you make them" live)
-          (const :tag "Never" never))
-  :group 'straight)
+          (const :tag "Never" never)))
 
 (defcustom straight-cache-autoloads nil
   "Non-nil means read autoloads in bulk to speed up startup.
 The operation of this variable should be transparent to the user;
 no changes in configuration are necessary."
-  :group 'straight
   :type 'boolean)
 
 ;;;;; Build cache
@@ -3180,8 +3161,7 @@ they were previously registered in the build cache by
   "Non-nil means do not generate or activate autoloads by default.
 This can be overridden by the `:no-autoloads' property of an
 individual package recipe."
-  :type 'boolean
-  :group 'straight)
+  :type 'boolean)
 
 (cl-defun straight--generate-package-autoloads (recipe)
   "Generate autoloads for the symlinked package specified by RECIPE.
@@ -4359,8 +4339,7 @@ This means that `package-enable-at-startup' is disabled, and
 advices are put on `package--ensure-init-file' and
 `package--save-selected-packages' to prevent package.el from
 modifying the init-file."
-  :type 'boolean
-  :group 'straight)
+  :type 'boolean)
 
 ;;;;;; Mode variables
 
@@ -4418,8 +4397,7 @@ is loaded, according to the value of
 (defcustom straight-enable-use-package-integration t
   "Whether to enable integration with `use-package'.
 See `straight-use-package-version' for details."
-  :type 'boolean
-  :group 'straight)
+  :type 'boolean)
 
 ;;;;;; Mode variables
 
@@ -4450,8 +4428,7 @@ cdr is a plist, which is used as is."
   :type '(choice
           (const :tag "Classic (uses `:ensure' for all package managers)"
                  ensure)
-          (const :tag "Modern (uses `:package', `:straight', etc.)" straight))
-  :group 'straight)
+          (const :tag "Modern (uses `:package', `:straight', etc.)" straight)))
 
 (defvar straight-use-package--last-version nil
   "Value of `straight-use-package-version' at last mode toggle.")
@@ -4461,8 +4438,7 @@ cdr is a plist, which is used as is."
 This only works when `straight-use-package-version' is
 `straight'. When `straight-use-package-version' is `ensure', use
 `use-package-always-ensure' instead."
-  :type 'boolean
-  :group 'straight)
+  :type 'boolean)
 
 ;;;;;; Utility functions
 
