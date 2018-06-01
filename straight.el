@@ -2413,7 +2413,7 @@ modify a package, before restarting Emacs."
           (const :tag "As you make them" live)
           (const :tag "Never" never)))
 
-(defcustom straight-cache-autoloads nil
+(defcustom straight-cache-autoloads t
   "Non-nil means read autoloads in bulk to speed up startup.
 The operation of this variable should be transparent to the user;
 no changes in configuration are necessary."

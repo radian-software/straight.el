@@ -2308,6 +2308,10 @@ binary on your path, and you have installed
 
 ## News
 
+### May 31, 2018
+
+Autoloads caching is now enabled by default.
+
 ### April 21, 2018
 
 There is now experimental support for caching autoloads in a single
