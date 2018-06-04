@@ -256,11 +256,6 @@ that may contain `straight--not-present' as a value."
 
 ;;;;; Strings
 
-(defun straight--strip-newlines (string)
-  "Strips CR, LF, CRLF newlines from STRING.
-It is useful for normalizing strings before comparison."
-  (replace-regexp-in-string "[\n\r]" "" string 'fixedcase 'literal))
-
 (defun straight--split-and-trim (string &optional indent max-lines)
   "Split the STRING on newlines, returning a list.
 Remove any blank lines at the beginning or end. If INDENT is
@@ -2456,7 +2451,7 @@ rebuilt at the next init.")
 
 ;; See http://stormlightarchive.wikia.com/wiki/Calendar for the
 ;; schema.
-(defvar straight--build-cache-version :vev
+(defvar straight--build-cache-version :palah
   "The current version of the build cache format.
 When the format on disk changes, this value is changed, so that
 straight.el knows to regenerate the whole cache.")
@@ -2538,8 +2533,7 @@ values (all packages will be rebuilt, with no caching)."
                  ;; Emacs version should be the same as our current
                  ;; one.
                  (stringp last-emacs-version)
-                 (or (string= (straight--strip-newlines last-emacs-version)
-                              (straight--strip-newlines (emacs-version)))
+                 (or (string= last-emacs-version emacs-version)
                      (prog1 (setq malformed nil)
                        (message
                         (concat
@@ -2592,7 +2586,7 @@ This uses the values of `straight--build-cache',
       ;; Record the current Emacs version. If a different version of
       ;; Emacs is used, we have to rebuild all the packages (because
       ;; byte-compiled files cannot necessarily still be loaded).
-      (print (emacs-version) (current-buffer))
+      (print emacs-version (current-buffer))
       ;; The actual build cache.
       (print straight--build-cache (current-buffer))
       ;; The autoloads cache.
