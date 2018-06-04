@@ -2003,10 +2003,11 @@ machine, do this *before* launching Emacs: that way, `straight.el` can
 make sure to check out the specified revisions of each package when
 cloning them for the first time.
 
-To restore your packages to the revisions specified in your version
-lockfiles, run `M-x straight-thaw-versions`. This will interactively
-check for local changes before checking out the relevant revisions, so
-don't worry about things getting overwritten.
+To install the versions of the packages specified in your version
+lockfiles, run `M-x straight-thaw-versions`. You may need to run `M-x
+straight-pull-all` first to ensure that you have those versions available.
+Thawing will interactively check for local changes before checking out the
+relevant revisions, so don't worry about things getting overwritten.
 
 #### The profile system
 
