@@ -2351,7 +2351,9 @@ RECIPE should be a straight.el-style recipe plist."
     ;; while later, or never, depending on the values of NO-CLONE and
     ;; NO-BUILD that were passed to `straight-use-package'.
     (puthash package recipe straight--recipe-cache)
-    (puthash local-repo recipe straight--repo-cache)
+    ;; Don't record recipes which have no local repositories.
+    (when local-repo
+      (puthash local-repo recipe straight--repo-cache))
     (cl-pushnew straight-current-profile
                 (gethash package straight--profile-cache)
                 ;; Profiles are symbols and can be compared more
