@@ -86,6 +86,7 @@ development takes place on the [`develop` branch][develop].)
   * [Comments and docstrings](#comments-and-docstrings)
 - [Contributing](#contributing)
 - [News](#news)
+  * [June 5, 2018](#june-5-2018)
   * [May 31, 2018](#may-31-2018)
   * [April 21, 2018](#april-21-2018)
   * [December 12, 2017](#december-12-2017)
@@ -2340,6 +2341,15 @@ binary on your path, and you have installed
 [`markdown-toc`][markdown-toc]).
 
 ## News
+
+### June 5, 2018
+
+Live modification checking is significantly improved. It no longer
+misses modifications if you have multiple Emacs sessions or use the
+repository management commands. Also, manually invoking
+`straight-check-package` or `straight-check-all` can still use
+`find(1)` to catch missed modifications, if you customize
+`straight-check-for-modifications` to `live-with-find`.
 
 ### May 31, 2018
 
