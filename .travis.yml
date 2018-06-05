@@ -10,6 +10,12 @@ env:
   - EVM_VERSION=25.1
   - EVM_VERSION=25.2
   - EVM_VERSION=25.3
+  - EVM_VERSION=26.1
+  - EVM_VERSION=git-snapshot
+
+matrix:
+  allow_failures:
+    - env: EMACS_VERSION=git-snapshot
 
 install:
   - curl -fsSkL https://raw.github.com/rejeep/evm/master/go | bash
