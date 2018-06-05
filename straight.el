@@ -423,10 +423,6 @@ return the straight/ directory itself."
 SEGMENTS are passed to `straight--emacs-file'."
   (apply #'straight--emacs-file "straight" segments))
 
-(defun straight--bootstrap-file ()
-  "Get the symlink to bootstrap.el."
-  (straight--file "bootstrap.el"))
-
 (defun straight--build-dir (&rest segments)
   "Get a subdirectory of the straight/build/ directory.
 SEGMENTS are passed to `straight--dir'. With no SEGMENTS, return
