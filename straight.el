@@ -3283,7 +3283,9 @@ recipe in `straight--build-cache' for the package are updated."
     (setq straight--live-modified-repos
           (delete local-repo straight--live-modified-repos))
     (unless (string-match-p "/" local-repo)
-      (delete-file (straight--modified-file local-repo)))))
+      (condition-case _
+          (delete-file (straight--modified-file local-repo))
+        (file-error)))))
 
 ;;;;; Main entry point
 
