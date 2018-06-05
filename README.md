@@ -1498,9 +1498,13 @@ By default, when `straight.el` is bootstrapped during Emacs init, it
 uses a bulk `find(1)` command to identify files that were changed
 since the last time a package depending on them was built. These
 packages are then rebuilt when they are requested via
-`straight-use-package`. For about 100 packages on an SSD, this takes
-about 500ms. You can save this time by customizing
-`straight-check-for-modifications`.
+`straight-use-package`. Normally, `straight.el` will try to detect
+what sort of `find(1)` program is installed, and issue the appropriate
+command. If it makes a mistake, then you can manually customize
+`straight-find-flavor`.
+
+For about 100 packages on an SSD, this takes about 500ms. You can save
+this time by customizing `straight-check-for-modifications`.
 
 The default value is `at-startup`. If you change this to `never`, then
 `straight.el` will not check for package modifications, and you will
@@ -1513,13 +1517,14 @@ them. This saves init time, but has a caveat: namely, that
 modifications made outside Emacs or in some way that bypasses
 `before-save-hook` are not detected. Pull requests extending the
 number of cases in which `straight.el` is able to detect live
-modifications are welcome. On Microsoft Windows, live modification
-checking is enabled by default, since `find(1)` is generally not
-available.
+modifications are welcome. Also, for the sake of efficiency, live
+modification checking is restricted to subdirectories of
+`~/.emacs.d/straight/repos`, so you must put your local repositories
+into that directory for live modification detection to work. (Pull
+requests to change this would be welcome.)
 
-Normally, `straight.el` will try to detect what sort of `find(1)`
-program is installed, and issue the appropriate command. If it makes a
-mistake, then you can manually customize `straight-find-flavor`.
+On Microsoft Windows, live modification checking is enabled by
+default, since `find(1)` is generally not available.
 
 #### Customizing how packages are built
 

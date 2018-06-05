@@ -454,6 +454,17 @@ the straight/links/ directory itself."
 SEGMENTS are passed to `straight--file'."
   (apply #'straight--file "links" segments))
 
+(defun straight--modified-dir (&rest segments)
+  "Get a subdirectory of straight/modified/.
+SEGMENTS are passed to `straight--dir'. With no SEGMENTS, return
+the straight/modified/ directory itself."
+  (apply #'straight--dir "modified" segments))
+
+(defun straight--modified-file (&rest segments)
+  "Get a file in the straight/modified/ directory.
+SEGMENTS are passed to `straight--file'."
+  (apply #'straight--file "modified" segments))
+
 (defun straight--mtimes-dir (&rest segments)
   "Get a subdirectory of straight/mtimes/.
 SEGMENTS are passed to `straight--dir'. With no SEGMENTS, return
@@ -2447,7 +2458,7 @@ rebuilt at the next init.")
 
 ;; See http://stormlightarchive.wikia.com/wiki/Calendar for the
 ;; schema.
-(defvar straight--build-cache-version :palah
+(defvar straight--build-cache-version :shash
   "The current version of the build cache format.
 When the format on disk changes, this value is changed, so that
 straight.el knows to regenerate the whole cache.")
@@ -2458,12 +2469,15 @@ If this is unchanged between loading and saving the build cache,
 then the saving step is skipped for efficiency.")
 
 (defun straight--load-build-cache ()
-  "Load data from build-cache.el into memory.
+  "Load data from the build cache into memory.
 This sets the variables `straight--build-cache',
 `straight--eagerly-checked-packages', and
 `straight--live-modified-repos'. If the build cache is malformed,
 don't signal an error, but set these variables to empty
-values (all packages will be rebuilt, with no caching)."
+values (all packages will be rebuilt, with no caching).
+
+If live modification checking is enabled, then this also gets the
+list of modified packages by inspecting `straight--modified-dir'."
   ;; Start by clearing the build cache. If the one on disk is
   ;; malformed (or outdated), these values will be used.
   (setq straight--build-cache (make-hash-table :test #'equal))
@@ -2471,6 +2485,11 @@ values (all packages will be rebuilt, with no caching)."
   (setq straight--eagerly-checked-packages nil)
   (setq straight--live-modified-repos nil)
   (setq straight--build-cache-text nil)
+  (when (eq straight-check-for-modifications 'live)
+    (setq straight--live-modified-repos
+          (condition-case _ (straight--directory-files
+                             (straight--modified-dir))
+            (file-missing))))
   (ignore-errors
     (with-temp-buffer
       ;; Using `insert-file-contents-literally' avoids
@@ -2484,30 +2503,11 @@ values (all packages will be rebuilt, with no caching)."
             (autoloads-cache (read (current-buffer)))
             (eager-packages (read (current-buffer)))
             (use-symlinks (read (current-buffer)))
-            (live-repos nil)
             ;; This gets set to nil if we detect a specific problem
             ;; with the build cache other than it being malformed, so
             ;; that we don't subsequently emit a second message
             ;; claiming that the cache is malformed.
             (malformed t))
-        ;; After the main data structures comes a list of other local
-        ;; repositories that were detected by live modification
-        ;; checking. Why aren't these a list? Well, the live
-        ;; modification checker needs to be very fast, so this allows
-        ;; it to operate by just appending to the file rather than
-        ;; regenerating it.
-        (ignore-errors
-          (while t
-            (push (read (current-buffer)) live-repos)))
-        ;; Make sure to get the list in the correct order, so that we
-        ;; can write it back in the same order. (This allows an
-        ;; optimization where we don't actually write the build cache
-        ;; if it's character-for-character identical.)
-        (setq live-repos (nreverse live-repos))
-        ;; We might end up in a situation where multiple Emacs
-        ;; sessions push the same package to build-cache.el, so we'll
-        ;; get rid of those for the sake of cleanliness.
-        (setq live-repos (delete-dups live-repos))
         (unless (and
                  ;; Format version should be the symbol currently in
                  ;; use.
@@ -2545,8 +2545,6 @@ values (all packages will be rebuilt, with no caching)."
                  ;; strings.
                  (listp eager-packages)
                  (cl-every #'stringp eager-packages)
-                 ;; Live-modified repos should be strings.
-                 (cl-every #'stringp live-repos)
                  ;; Symlink setting should not have changed.
                  (eq use-symlinks straight-use-symlinks))
           ;; If anything is wrong, abort and use the default values.
@@ -2557,14 +2555,12 @@ values (all packages will be rebuilt, with no caching)."
         (setq straight--build-cache build-cache)
         (setq straight--autoloads-cache autoloads-cache)
         (setq straight--eagerly-checked-packages eager-packages)
-        (setq straight--live-modified-repos live-repos)
         (setq straight--build-cache-text (buffer-string))))))
 
 (defun straight--save-build-cache ()
   "Write data from memory into build-cache.el.
-This uses the values of `straight--build-cache',
-`straight--eagerly-checked-packages', and
-`straight--live-modified-repos'."
+This uses the values of `straight--build-cache' and
+`straight--eagerly-checked-packages'."
   (with-temp-buffer
     ;; Prevent mangling of the form being printed in the case that
     ;; this function was called by an `eval-expression' invocation of
@@ -2590,29 +2586,12 @@ This uses the values of `straight--build-cache',
       ;; Which packages should be checked eagerly next init.
       (print (hash-table-keys straight--profile-cache) (current-buffer))
       ;; Whether packages were built using symlinks or copying.
-      (print straight-use-symlinks (current-buffer))
-      ;; Local repositories for which modifications were detected via
-      ;; the live modification checker, but which haven't been rebuilt
-      ;; yet (which would have removed them from the list).
-      (dolist (local-repo straight--live-modified-repos)
-        (print local-repo (current-buffer))))
+      (print straight-use-symlinks (current-buffer)))
     (unless (and straight--build-cache-text
                  (string= (buffer-string) straight--build-cache-text))
       (write-region nil nil (straight--build-cache-file) nil 0))))
 
 ;;;;; Live modification checking
-
-(defun straight--register-modification-in-build-cache (local-repo)
-  "Push the name of a LOCAL-REPO to the end of the build cache.
-Once there, it will be picked up into
-`straight--live-modified-repos' by any Emacs sessions that read
-the build cache."
-  (unless (member local-repo straight--live-modified-repos)
-    (with-temp-buffer
-      (print local-repo (current-buffer))
-      (write-region (point-min) (point-max) (straight--build-cache-file)
-                    'append 0))
-    (push local-repo straight--live-modified-repos)))
 
 (defun straight-register-file-modification ()
   "Register a modification of the current file.
@@ -2620,7 +2599,9 @@ This function is placed on `before-save-hook' by
 `straight-live-modifications-mode'."
   (when buffer-file-name
     (when-let ((local-repo (straight--determine-repo buffer-file-name)))
-      (straight--register-modification-in-build-cache local-repo))))
+      (unless (string-match-p "/" local-repo)
+        (make-directory (straight--modified-dir) 'parents)
+        (with-temp-file (straight--modified-file local-repo))))))
 
 (define-minor-mode straight-live-modifications-mode
   "Mode that causes straight.el to check for modifications as you make them.
@@ -3300,7 +3281,9 @@ recipe in `straight--build-cache' for the package are updated."
       (straight--insert 0 package mtime straight--build-cache))
     (straight--insert 2 package recipe straight--build-cache)
     (setq straight--live-modified-repos
-          (delete local-repo straight--live-modified-repos))))
+          (delete local-repo straight--live-modified-repos))
+    (unless (string-match-p "/" local-repo)
+      (delete-file (straight--modified-file local-repo)))))
 
 ;;;;; Main entry point
 
