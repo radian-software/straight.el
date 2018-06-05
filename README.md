@@ -1401,6 +1401,13 @@ shortcomings][package.el-disadvantages] of `package.el`, it has done a
 good job of creating a standardized format for dependency
 declarations.
 
+There is one exception to the above statement: not all entries
+specified in the `Package-Requires` header necessarily correspond to
+packages. For example, specifying a minimum Emacs version for a
+package is done by depending on the `emacs` pseudo-package. Such
+packages are simply ignored by `straight.el`, using the variable
+`straight-built-in-pseudo-packages`.
+
 Note that loading a package does not entail invoking `require` on any
 of its features. If you wish to actually load the files of the
 package, you need to do this separately. This is because most packages
@@ -1505,7 +1512,13 @@ them. This saves init time, but has a caveat: namely, that
 modifications made outside Emacs or in some way that bypasses
 `before-save-hook` are not detected. Pull requests extending the
 number of cases in which `straight.el` is able to detect live
-modifications are welcome.
+modifications are welcome. On Microsoft Windows, live modification
+checking is enabled by default, since `find(1)` is generally not
+available.
+
+Normally, `straight.el` will try to detect what sort of `find(1)`
+program is installed, and issue the appropriate command. If it makes a
+mistake, then you can manually customize `straight-find-flavor`.
 
 #### Customizing how packages are built
 
@@ -1525,6 +1538,14 @@ time (although this is almost certainly premature optimization unless
 you *really* know what you're doing). You can also customize the
 variable `straight-disable-autoloads` to effect this change on all
 recipes which do not explicitly specify a `:no-autoloads` attribute.
+
+Usually, `straight.el` uses symbolic links ("symlinks") to make
+package files available from the build directory. This happens when
+`straight-use-symlinks` is non-nil, the default. On Microsoft Windows,
+however, there is no support for symlinks, so the default value of
+`straight-use-symlinks` is nil on that platform. That causes copying
+to be used instead, and an advice is placed on `find-file` to cause
+the copied files to act as symlinks if you try to edit them.
 
 #### Customizing how packages are made available
 
@@ -1785,6 +1806,11 @@ of precedence, by customizing `straight-recipe-repositories`. The
 default value is:
 
     (org-elpa melpa gnu-elpa emacsmirror)
+
+You can customize the following user option:
+
+* `straight-recipes-gnu-elpa-url`: The Git URL to use for the
+  `gnu-elpa` recipe repository.
 
 To define a new recipe repository called `NAME`, you should do the
 following things:
