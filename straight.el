@@ -2402,7 +2402,7 @@ of one of the packages using the local repository."
 
 (defun straight--determine-best-modification-checking ()
   "Determine the best default value of `straight-check-for-modifications'.
-This is `at-startup' on my platforms and `live' on Microsoft
+This is `at-startup' on most platforms and `live' on Microsoft
 Windows, where find(1) is not available."
   (if (memq system-type '(ms-dos windows-nt cygwin))
       'live
@@ -2411,16 +2411,21 @@ Windows, where find(1) is not available."
 (defcustom straight-check-for-modifications
   (straight--determine-best-modification-checking)
   "When to check for package modifications.
-Value `at-startup' means do it when straight.el is bootstrapped
-during Emacs init. Value `live' means hook into
+Value `at-startup' means do it using find(1) when straight.el is
+bootstrapped during Emacs init. Value `live' means hook into
 `before-save-hook' to detect modifications as you make them (this
 means modifications made outside Emacs are not detected, but
-speeds up init). Value `never' means don't check automatically.
+speeds up init). Value `live-with-find' is the same as `live',
+but \\[straight-check-package] and \\[straight-check-all] will
+still use find(1). Value `never' means don't check automatically.
 In this case you must use `straight-rebuild-package' whenever you
 modify a package, before restarting Emacs."
   :type '(choice
-          (const :tag "At Emacs startup" at-startup)
-          (const :tag "As you make them" live)
+          (const :tag "At Emacs startup using find(1)" at-startup)
+          (const :tag "As you make them in Emacs" live)
+          (const
+           :tag "As you make them by default, but using find(1) if requested"
+           live-with-find)
           (const :tag "Never" never)))
 
 (defcustom straight-cache-autoloads t
@@ -2491,7 +2496,7 @@ list of modified packages by inspecting `straight--modified-dir'."
   (setq straight--eagerly-checked-packages nil)
   (setq straight--live-modified-repos nil)
   (setq straight--build-cache-text nil)
-  (when (eq straight-check-for-modifications 'live)
+  (when (memq straight-check-for-modifications '(live live-with-find))
     (setq straight--live-modified-repos
           (condition-case _ (straight--directory-files
                              (straight--modified-dir))
@@ -2731,6 +2736,11 @@ modified since their last builds.")
 
 ;;;;; Individual checking
 
+(defvar straight--allow-find nil
+  "Bound to non-nil if find(1) can be used.
+The value of this variable is only relevant when
+`straight-check-for-modifications' is `live-with-find'.")
+
 (cl-defun straight--package-might-be-modified-p (recipe)
   "Check whether the package for the given RECIPE might be modified."
   (straight--with-plist recipe
@@ -2753,7 +2763,10 @@ modified since their last builds.")
           (progn
             ;; Don't look at mtimes unless we're told to. Otherwise,
             ;; rely on live modification checking/user attention.
-            (unless (eq straight-check-for-modifications 'at-startup)
+            (unless (or (eq straight-check-for-modifications 'at-startup)
+                        (and (eq straight-check-for-modifications
+                                 'live-with-find)
+                             straight--allow-find))
               (cl-return-from straight--package-might-be-modified-p))
             ;; This method should always be called from a transaction.
             ;; We'll get an error from `straight--transaction-exec' if
@@ -3928,7 +3941,8 @@ using `completing-read'. See also `straight-rebuild-package' and
   (interactive (list (straight--select-package "Check package"
                                                'for-build
                                                'installed)))
-  (straight-use-package (intern package)))
+  (let ((straight--allow-find t))
+    (straight-use-package (intern package))))
 
 ;;;###autoload
 (defun straight-check-all ()
@@ -3936,9 +3950,10 @@ using `completing-read'. See also `straight-rebuild-package' and
 See also `straight-rebuild-all' and `straight-check-package'.
 This function should not be called during init."
   (interactive)
-  (straight-transaction
-    (dolist (package (hash-table-keys straight--recipe-cache))
-      (straight-use-package (intern package)))))
+  (let ((straight--allow-find t))
+    (straight-transaction
+      (dolist (package (hash-table-keys straight--recipe-cache))
+        (straight-use-package (intern package))))))
 
 ;;;###autoload
 (defun straight-rebuild-package (package &optional recursive)
@@ -4310,7 +4325,7 @@ according to the value of `straight-profiles'."
 ;;;; Stateful actions
 ;;;;; Live modification checking
 
-(if (eq straight-check-for-modifications 'live)
+(if (memq straight-check-for-modifications '(live live-with-find))
     (straight-live-modifications-mode +1)
   (straight-live-modifications-mode -1))
 
