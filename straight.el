@@ -1541,8 +1541,9 @@ name."
     (let ((branch (or branch straight-vc-git-default-branch)))
       (while t
         (and (straight-vc-git--ensure-local recipe)
-             (straight-vc-git--ensure-head
-              local-repo branch (format "%s/%s" remote remote-branch))
+             (or (straight-vc-git--ensure-head
+                  local-repo branch (format "%s/%s" remote remote-branch))
+                 (straight-register-repo-modification local-repo))
              (cl-return-from straight-vc-git--merge-from-remote-raw t))))))
 
 (cl-defun straight-vc-git--pull-from-remote-raw (recipe remote remote-branch)
@@ -1613,9 +1614,10 @@ with the remotes."
       (local-repo branch)
     (let ((branch (or branch straight-vc-git-default-branch)))
       (and (straight-vc-git--ensure-remotes recipe)
-           (straight-vc-git--ensure-nothing-in-progress local-repo)
-           (straight-vc-git--ensure-worktree local-repo)
-           (straight-vc-git--ensure-head local-repo branch)))))
+           (or (and (straight-vc-git--ensure-nothing-in-progress local-repo)
+                    (straight-vc-git--ensure-worktree local-repo)
+                    (straight-vc-git--ensure-head local-repo branch))
+               (straight-register-repo-modification local-repo))))))
 
 ;;;;;; API
 
@@ -1680,9 +1682,12 @@ specified in RECIPE instead. If that fails, signal a warning."
 This means that its remote URLs are set correctly; there is no
 merge currently in progress; its worktree is pristine; and the
 primary :branch is checked out."
-  (while t
-    (and (straight-vc-git--ensure-local recipe)
-         (cl-return-from straight-vc-git-normalize t))))
+  (straight--with-plist recipe
+      (local-repo)
+    (while t
+      (and (or (straight-vc-git--ensure-local recipe)
+               (straight-register-repo-modification local-repo))
+           (cl-return-from straight-vc-git-normalize t)))))
 
 (cl-defun straight-vc-git-fetch-from-remote (recipe &optional from-upstream)
   "Using straight.el-style RECIPE, fetch from the primary remote.
@@ -1742,6 +1747,7 @@ If no upstream is configured, do nothing."
   "In LOCAL-REPO, check out COMMIT.
 LOCAL-REPO is a string naming a local package repository. COMMIT
 is a 40-character string identifying a Git commit."
+  (straight-register-repo-modification local-repo)
   (while t
     (and (straight-vc-git--ensure-nothing-in-progress local-repo)
          (straight-vc-git--ensure-worktree local-repo)
@@ -2593,15 +2599,21 @@ This uses the values of `straight--build-cache' and
 
 ;;;;; Live modification checking
 
+(defun straight-register-repo-modification (local-repo)
+  "Register a modification of the given LOCAL-REPO, a string.
+Always return nil, for convenience of usage."
+  (ignore
+   (unless (string-match-p "/" local-repo)
+     (make-directory (straight--modified-dir) 'parents)
+     (with-temp-file (straight--modified-file local-repo)))))
+
 (defun straight-register-file-modification ()
   "Register a modification of the current file.
 This function is placed on `before-save-hook' by
 `straight-live-modifications-mode'."
   (when buffer-file-name
     (when-let ((local-repo (straight--determine-repo buffer-file-name)))
-      (unless (string-match-p "/" local-repo)
-        (make-directory (straight--modified-dir) 'parents)
-        (with-temp-file (straight--modified-file local-repo))))))
+      (straight-register-repo-modification local-repo))))
 
 (define-minor-mode straight-live-modifications-mode
   "Mode that causes straight.el to check for modifications as you make them.
