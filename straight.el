@@ -3303,7 +3303,7 @@ See `format-time-string' for the format of TIMESTAMP."
 RECIPE should be a straight.el-style plist. The build mtime and
 recipe in `straight--build-cache' for the package are updated."
   (straight--with-plist recipe
-      (package local-repo)
+      (package)
     ;; We've rebuilt the package, so its autoloads might have changed.
     (remhash package straight--autoloads-cache)
     (let (;; This time format is compatible with:
