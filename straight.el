@@ -2462,11 +2462,6 @@ This list is read from the build cache, and is originally
 generated at the end of an init from the keys of
 `straight--profile-cache'.")
 
-(defvar straight--live-modified-repos nil
-  "List of local repos that were identified by live modification checking.
-All packages built from these local repositories need to be
-rebuilt at the next init.")
-
 ;; See http://stormlightarchive.wikia.com/wiki/Calendar for the
 ;; schema.
 (defvar straight--build-cache-version :shash
@@ -2481,26 +2476,16 @@ then the saving step is skipped for efficiency.")
 
 (defun straight--load-build-cache ()
   "Load data from the build cache into memory.
-This sets the variables `straight--build-cache',
-`straight--eagerly-checked-packages', and
-`straight--live-modified-repos'. If the build cache is malformed,
-don't signal an error, but set these variables to empty
-values (all packages will be rebuilt, with no caching).
-
-If live modification checking is enabled, then this also gets the
-list of modified packages by inspecting `straight--modified-dir'."
+This sets the variables `straight--build-cache' and
+`straight--eagerly-checked-packages'. If the build cache is
+malformed, don't signal an error, but set these variables to
+empty values (all packages will be rebuilt, with no caching)."
   ;; Start by clearing the build cache. If the one on disk is
   ;; malformed (or outdated), these values will be used.
   (setq straight--build-cache (make-hash-table :test #'equal))
   (setq straight--autoloads-cache (make-hash-table :test #'equal))
   (setq straight--eagerly-checked-packages nil)
-  (setq straight--live-modified-repos nil)
   (setq straight--build-cache-text nil)
-  (when (memq straight-check-for-modifications '(live live-with-find))
-    (setq straight--live-modified-repos
-          (condition-case _ (straight--directory-files
-                             (straight--modified-dir))
-            (file-missing))))
   (ignore-errors
     (with-temp-buffer
       ;; Using `insert-file-contents-literally' avoids
@@ -2566,7 +2551,24 @@ list of modified packages by inspecting `straight--modified-dir'."
         (setq straight--build-cache build-cache)
         (setq straight--autoloads-cache autoloads-cache)
         (setq straight--eagerly-checked-packages eager-packages)
-        (setq straight--build-cache-text (buffer-string))))))
+        (setq straight--build-cache-text (buffer-string))
+        (when (memq straight-check-for-modifications '(live live-with-find))
+          (when-let ((repos (condition-case _ (straight--directory-files
+                                               (straight--modified-dir))
+                              (file-missing))))
+            ;; Cause live-modified repos to have their packages
+            ;; rebuilt when appropriate. Just in case init is
+            ;; interrupted, however, we won't clear out the
+            ;; `straight--modified-dir' until we write the build cache
+            ;; back to disk.
+            (dolist (package (hash-table-keys straight--build-cache))
+              (ignore-errors
+                (when (member
+                       (plist-get (nth 2 (gethash
+                                          package straight--build-cache))
+                                  :local-repo)
+                       repos)
+                  (remhash package straight--build-cache))))))))))
 
 (defun straight--save-build-cache ()
   "Write data from memory into build-cache.el.
@@ -2600,7 +2602,14 @@ This uses the values of `straight--build-cache' and
       (print straight-use-symlinks (current-buffer)))
     (unless (and straight--build-cache-text
                  (string= (buffer-string) straight--build-cache-text))
-      (write-region nil nil (straight--build-cache-file) nil 0))))
+      (write-region nil nil (straight--build-cache-file) nil 0))
+    (when (memq straight-check-for-modifications '(live live-with-find))
+      ;; We've imported data from `straight--modified-dir' into the
+      ;; build cache when loading it. Now that we've written the build
+      ;; cache back to disk, there's no more need for that data (and
+      ;; indeed, it would produce spurious package rebuilds on
+      ;; subsequent inits).
+      (delete-directory (straight--modified-dir) 'recursive))))
 
 ;;;;; Live modification checking
 
@@ -2752,7 +2761,6 @@ The value of this variable is only relevant when
            (last-mtime (nth 0 build-info))
            (last-recipe (nth 2 build-info)))
       (or (null build-info)
-          (member local-repo straight--live-modified-repos)
           ;; Rebuild if relevant parts of the recipe have changed.
           (cl-dolist (keyword straight--build-keywords nil)
             (unless (equal (plist-get recipe keyword)
@@ -3304,13 +3312,7 @@ recipe in `straight--build-cache' for the package are updated."
           ;; * GNU find >=4.4.2
           (mtime (straight--format-timestamp)))
       (straight--insert 0 package mtime straight--build-cache))
-    (straight--insert 2 package recipe straight--build-cache)
-    (setq straight--live-modified-repos
-          (delete local-repo straight--live-modified-repos))
-    (unless (string-match-p "/" local-repo)
-      (condition-case _
-          (delete-file (straight--modified-file local-repo))
-        (file-error)))))
+    (straight--insert 2 package recipe straight--build-cache)))
 
 ;;;;; Main entry point
 
