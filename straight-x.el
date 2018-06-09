@@ -1,4 +1,4 @@
-;;; straight-x.el --- Experimental extensions. -*- lexical-binding: t; -*-
+;;; straight-x.el --- Experimental extensions. -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2017-2018 Radon Rosborough and contributors
 
