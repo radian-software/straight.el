@@ -1,4 +1,4 @@
-;;; straight-compat.el --- Function backports. -*- lexical-binding: t; -*-
+;;; straight-compat.el --- Function backports. -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2017-2018 Radon Rosborough and contributors
 
