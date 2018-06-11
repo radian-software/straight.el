@@ -99,7 +99,7 @@
                          (process-connection-type nil)
                          (name (format " *straight %s*" package))
                          (buf (generate-new-buffer name)))
-                    (start-process name buf "git" "fetch"))))
+                    (start-process name buf "git" "fetch" "--all"))))
         (process-put proc :recipe recipe)
         (process-put proc :up-to-date t)
         (set-process-filter proc #'straight-x-filter)
