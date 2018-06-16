@@ -4667,5 +4667,6 @@ is loaded, according to the value of
 
 ;; Local Variables:
 ;; checkdoc-symbol-words: ("top-level")
+;; indent-tabs-mode: nil
 ;; outline-regexp: ";;;;* "
 ;; End:
