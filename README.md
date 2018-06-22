@@ -1504,28 +1504,38 @@ what sort of `find(1)` program is installed, and issue the appropriate
 command. If it makes a mistake, then you can manually customize
 `straight-find-flavor`.
 
-For about 100 packages on an SSD, this takes about 500ms. You can save
-this time by customizing `straight-check-for-modifications`.
-
-The default value is `at-startup`. If you change this to `never`, then
-`straight.el` will not check for package modifications, and you will
-have to manually (or programmatically) call `straight-rebuild-package`
-when you modify a file and need a package rebuilt.
-
-You can also change it to `live`, which means that `straight.el` will
-use `before-save-hook` in order to detect modifications as you make
-them. This saves init time, but has a caveat: namely, that
-modifications made outside Emacs or in some way that bypasses
-`before-save-hook` are not detected. Pull requests extending the
+For about 100 packages on an SSD, calling `find(1)` to detect
+modifications takes about 500ms. You can save this time by customizing
+`straight-check-for-modifications`. This is a list of symbols which
+determines how `straight.el` detects package modifications. The
+default value is `(find-at-startup find-when-checking)`, which means
+that `find(1)` is used to detect modifications at startup, and also
+when you invoke `M-x straight-check-package` or `M-x
+straight-check-all`. If you prefer to avoid this performance hit, or
+do not have `find(1)` installed, then you can remove these symbols
+from the list. In that case, you will probably want to add
+`check-on-save` to the list. This causes `straight.el` to use
+`before-save-hook` to detect package modifications as you make them
+(modifications made by the `straight.el` repository management
+commands are also detected). This reduces init time, but modifications
+made outside of Emacs (or modifications that bypass
+`before-save-hook`) are not detected. Pull requests extending the
 number of cases in which `straight.el` is able to detect live
-modifications are welcome. Also, for the sake of efficiency, live
-modification checking is restricted to subdirectories of
+modifications are welcome. Also, for the sake of efficiency, this form
+of modification checking is restricted to subdirectories of
 `~/.emacs.d/straight/repos`, so you must put your local repositories
-into that directory for live modification detection to work. (Pull
-requests to change this would be welcome.)
+into that directory for it to work. (Pull requests to change this
+would be welcome.)
 
-On Microsoft Windows, live modification checking is enabled by
-default, since `find(1)` is generally not available.
+If you prefer to eschew automatic package rebuilding entirely, you can
+just set `straight-check-for-modifications` to `nil`. In that case,
+packages will only be rebuilt when metadata (e.g. the recipe or the
+Emacs version) changes, or when you manually invoke `M-x
+straight-rebuild-package` or `M-x straight-rebuild-all`.
+
+On Microsoft Windows, `find(1)` is generally not available, so the
+default value of `straight-check-for-modifications` is instead
+`(check-on-save)`.
 
 #### Customizing how packages are built
 
