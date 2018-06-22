@@ -2402,31 +2402,54 @@ of one of the packages using the local repository."
 
 (defun straight--determine-best-modification-checking ()
   "Determine the best default value of `straight-check-for-modifications'.
-This is `at-startup' on most platforms and `live' on Microsoft
-Windows, where find(1) is not available."
+This uses find(1) for all checking on most platforms, and
+`before-save-hook' on Microsoft Windows."
   (if (memq system-type '(ms-dos windows-nt cygwin))
-      'live
-    'at-startup))
+      (list 'check-on-save)
+    (list 'find-at-startup 'find-when-checking)))
 
 (defcustom straight-check-for-modifications
   (straight--determine-best-modification-checking)
   "When to check for package modifications.
-Value `at-startup' means do it using find(1) when straight.el is
-bootstrapped during Emacs init. Value `live' means hook into
-`before-save-hook' to detect modifications as you make them (this
-means modifications made outside Emacs are not detected, but
-speeds up init). Value `live-with-find' is the same as `live',
-but \\[straight-check-package] and \\[straight-check-all] will
-still use find(1). Value `never' means don't check automatically.
-In this case you must use `straight-rebuild-package' whenever you
-modify a package, before restarting Emacs."
-  :type '(choice
-          (const :tag "At Emacs startup using find(1)" at-startup)
-          (const :tag "As you make them in Emacs" live)
-          (const
-           :tag "As you make them by default, but using find(1) if requested"
-           live-with-find)
-          (const :tag "Never" never)))
+This is a list of symbols. If `find-at-startup' is in the list,
+then find(1) is used to detect modifications of all packages
+before they are made available. If `find-when-checking' is in the
+list, then find(1) is used to detect modifications in
+\\[straight-check-package] and \\[straight-check-all]. If
+`check-on-save' is in the list, then `before-save-hook' is used
+to detect modifications of packages that you perform within
+Emacs.
+
+For backwards compatibility, the value of this variable may also
+be a symbol, which is translated into a corresponding list as
+follows:
+
+`at-startup' => `(find-at-startup find-when-checking)'
+`live' => `(check-on-save)'
+`live-with-find' => `(check-on-save find-when-checking)'
+`never' => nil
+
+This usage is deprecated and will be removed."
+  :type
+  '(list
+    (choice
+     (const :tag "Use find(1) at startup" find-at-startup)
+     (const :tag "Use find(1) in \\[straight-check-package]"
+            find-when-checking)
+     (const :tag "Use `before-save-hook' to detect changes" check-on-save))))
+
+(defun straight--modifications (symbol)
+  "Check if `straight-check-for-modifications' contains SYMBOL.
+However, if `straight-check-for-modifications' is itself one of
+the symbols supported for backwards compatibility, account for
+that appropriately."
+  (memq symbol
+        (pcase straight-check-for-modifications
+          (`at-startup '(find-at-startup find-when-checking))
+          (`live '(check-on-save))
+          (`live-with-find '(check-on-save find-when-checking))
+          (`never nil)
+          (lst lst))))
 
 (defcustom straight-cache-autoloads t
   "Non-nil means read autoloads in bulk to speed up startup.
@@ -2552,7 +2575,7 @@ empty values (all packages will be rebuilt, with no caching)."
         (setq straight--autoloads-cache autoloads-cache)
         (setq straight--eagerly-checked-packages eager-packages)
         (setq straight--build-cache-text (buffer-string))
-        (when (memq straight-check-for-modifications '(live live-with-find))
+        (unless (straight--modifications 'find-at-startup)
           (when-let ((repos (condition-case _ (straight--directory-files
                                                (straight--modified-dir))
                               (file-missing))))
@@ -2603,7 +2626,7 @@ This uses the values of `straight--build-cache' and
     (unless (and straight--build-cache-text
                  (string= (buffer-string) straight--build-cache-text))
       (write-region nil nil (straight--build-cache-file) nil 0))
-    (when (memq straight-check-for-modifications '(live live-with-find))
+    (unless (straight--modifications 'find-at-startup)
       ;; We've imported data from `straight--modified-dir' into the
       ;; build cache when loading it. Now that we've written the build
       ;; cache back to disk, there's no more need for that data (and
@@ -2748,7 +2771,7 @@ modified since their last builds.")
 (defvar straight--allow-find nil
   "Bound to non-nil if find(1) can be used.
 The value of this variable is only relevant when
-`straight-check-for-modifications' is `live-with-find'.")
+`straight-check-for-modifications' contains `find-when-checking'.")
 
 (cl-defun straight--package-might-be-modified-p (recipe)
   "Check whether the package for the given RECIPE might be modified."
@@ -2771,9 +2794,8 @@ The value of this variable is only relevant when
           (progn
             ;; Don't look at mtimes unless we're told to. Otherwise,
             ;; rely on live modification checking/user attention.
-            (unless (or (eq straight-check-for-modifications 'at-startup)
-                        (and (eq straight-check-for-modifications
-                                 'live-with-find)
+            (unless (or (straight--modifications 'find-at-startup)
+                        (and (straight--modifications 'find-when-checking)
                              straight--allow-find))
               (cl-return-from straight--package-might-be-modified-p))
             ;; This method should always be called from a transaction.
@@ -4327,7 +4349,7 @@ according to the value of `straight-profiles'."
 ;;;; Stateful actions
 ;;;;; Live modification checking
 
-(if (memq straight-check-for-modifications '(live live-with-find))
+(if (straight--modifications 'check-on-save)
     (straight-live-modifications-mode +1)
   (straight-live-modifications-mode -1))
 
@@ -4667,6 +4689,7 @@ is loaded, according to the value of
 
 ;; Local Variables:
 ;; checkdoc-symbol-words: ("top-level")
+;; checkdoc-verb-check-experimental-flag: nil
 ;; indent-tabs-mode: nil
 ;; outline-regexp: ";;;;* "
 ;; End:

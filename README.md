@@ -2342,6 +2342,12 @@ binary on your path, and you have installed
 
 ## News
 
+### June 21, 2018
+
+There is an improved API for `straight-check-for-modifications`. You
+may now specify a list of symbols instead of just a single symbol. See
+the docstring for more information.
+
 ### June 5, 2018
 
 Live modification checking is significantly improved. It no longer
