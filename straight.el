@@ -397,6 +397,10 @@ The warning message is obtained by passing MESSAGE and ARGS to
 
 ;;;;; Paths
 
+(defvar straight--this-file
+  (file-truename (or load-file-name buffer-file-name))
+  "Absolute real path to this file, straight.el.")
+
 (defun straight--path-prefix-p (prefix-path full-path)
   "Return non-nil if PREFIX-PATH is a prefix of FULL-PATH.
 This takes into account case insensitivity on macOS."
@@ -512,6 +516,17 @@ the straight/versions/ directory itself."
   "Get a file in the straight/versions/ directory.
 SEGMENTS are passed to `straight--file'."
   (apply #'straight--file "versions" segments))
+
+(defun straight--watcher-dir (&rest segments)
+  "Get a subdirectory of the straight/watcher/ directory.
+SEGMENTS are passed to `straight--dir'. With no SEGMENTS, return
+the straight/watcher/ directory itself."
+  (apply #'straight--dir "watcher" segments))
+
+(defun straight--watcher-file (&rest segments)
+  "Get a file in the straight/watcher/ directory.
+SEGMENTS are passed to `straight--file'."
+  (apply #'straight--file "watcher" segments))
 
 (defun straight--versions-lockfile (profile)
   "Get the version lockfile for given PROFILE, a symbol."
@@ -668,7 +683,10 @@ The return value of this function is undefined."
             (goto-char (point-max))
             (unless straight--process-inhibit-output
               (straight--ensure-blank-lines 2)
-              (insert "$ cd " (shell-quote-argument directory) "\n")
+              (insert
+               "$ cd "
+               (shell-quote-argument (expand-file-name directory))
+               "\n")
               (insert
                "$ "
                (mapconcat #'shell-quote-argument (cons program args) " ")
@@ -2525,7 +2543,13 @@ list, then find(1) is used to detect modifications in
 \\[straight-check-package] and \\[straight-check-all]. If
 `check-on-save' is in the list, then `before-save-hook' is used
 to detect modifications of packages that you perform within
-Emacs.
+Emacs. If `watch-files' is in the list, then a filesystem watcher
+is automatically started by straight.el to detect modifications.
+
+Note that the functionality of `check-on-save' and `watch-files'
+only covers modifications made within ~/.emacs.d/straight/repos,
+so if you wish to use these features you should move all of your
+local repositories into that directory.
 
 For backwards compatibility, the value of this variable may also
 be a symbol, which is translated into a corresponding list as
@@ -2543,7 +2567,8 @@ This usage is deprecated and will be removed."
      (const :tag "Use find(1) at startup" find-at-startup)
      (const :tag "Use find(1) in \\[straight-check-package]"
             find-when-checking)
-     (const :tag "Use `before-save-hook' to detect changes" check-on-save))))
+     (const :tag "Use `before-save-hook' to detect changes" check-on-save)
+     (const :tag "Use a filesystem watcher to detect changes" watch-files))))
 
 (defun straight--modifications (symbol)
   "Check if `straight-check-for-modifications' contains SYMBOL.
@@ -2682,7 +2707,8 @@ empty values (all packages will be rebuilt, with no caching)."
         (setq straight--autoloads-cache autoloads-cache)
         (setq straight--eagerly-checked-packages eager-packages)
         (setq straight--build-cache-text (buffer-string))
-        (when (straight--modifications 'check-on-save)
+        (when (or (straight--modifications 'check-on-save)
+                  (straight--modifications 'watch-files))
           (when-let ((repos (condition-case _ (straight--directory-files
                                                (straight--modified-dir))
                               (file-missing))))
@@ -2733,7 +2759,8 @@ This uses the values of `straight--build-cache' and
     (unless (and straight--build-cache-text
                  (string= (buffer-string) straight--build-cache-text))
       (write-region nil nil (straight--build-cache-file) nil 0))
-    (when (straight--modifications 'check-on-save)
+    (when (or (straight--modifications 'check-on-save)
+              (straight--modifications 'watch-files))
       ;; We've imported data from `straight--modified-dir' into the
       ;; build cache when loading it. Now that we've written the build
       ;; cache back to disk, there's no more need for that data (and
@@ -2768,6 +2795,104 @@ straight.el, according to the value of
   (if straight-live-modifications-mode
       (add-hook 'before-save-hook #'straight-register-file-modification)
     (remove-hook 'before-save-hook #'straight-register-file-modification)))
+
+;;;;; Filesystem watcher
+
+(defcustom straight-watcher-process-buffer " *straight-watcher*"
+  "Name of buffer to use for the filesystem watcher."
+  :type 'string)
+
+(defun straight-watcher--make-process-buffer ()
+  "Kill and recreate `straight-watcher-process-buffer'. Return it."
+  (ignore-errors
+    (kill-buffer straight-watcher-process-buffer))
+  (let ((buf (get-buffer-create straight-watcher-process-buffer)))
+    (prog1 buf
+      (with-current-buffer buf
+        (special-mode)))))
+
+(cl-defun straight-watcher--virtualenv-setup ()
+  "Set up the virtualenv for the filesystem watcher.
+If it fails, signal a warning and return nil."
+  (let* ((virtualenv (straight--watcher-dir "virtualenv"))
+         (python (straight--watcher-file
+                  "virtualenv" "bin" "python"))
+         (straight-dir (file-name-directory straight--this-file))
+         (watcher-dir (expand-file-name "watcher" straight-dir))
+         (version-from (expand-file-name "version" watcher-dir))
+         (version-to (straight--watcher-file "version")))
+    (condition-case _
+        (delete-directory virtualenv 'recursive)
+      (file-missing))
+    (make-directory
+     (file-name-directory
+      (directory-file-name virtualenv))
+     'parents)
+    (and (straight--warn-call "python3" "-m" "venv" virtualenv)
+         (straight--warn-call
+          python "-m" "pip" "install" "-e" watcher-dir)
+         (prog1 t (copy-file version-from version-to)))))
+
+(defun straight-watcher--virtualenv-outdated ()
+  "Return non-nil if the watcher virtualenv needs to be set up again.
+This includes the case hwere it doesn't yet exist."
+  (let* ((straight-dir (file-name-directory straight--this-file))
+         (watcher-dir (expand-file-name "watcher" straight-dir))
+         (version-from (expand-file-name "version" watcher-dir))
+         (version-to (straight--watcher-file "version")))
+    (not (straight--check-call "diff" "-q" version-from version-to))))
+
+(cl-defun straight-watcher-start ()
+  "Start the filesystem watcher, killing any previous instance.
+If it fails, signal a warning and return nil."
+  (interactive)
+  (unless (executable-find "python3")
+    (straight--warn
+     "Cannot start filesystem watcher without 'python3' installed")
+    (cl-return-from straight-watcher-start))
+  (unless (executable-find "watchexec")
+    (straight--warn
+     "Cannot start filesystem watcher without 'watchexec' installed")
+    (cl-return-from straight-watcher-start))
+  (when (straight-watcher--virtualenv-outdated)
+    (message "Setting up filesystem watcher...")
+    (unless (straight-watcher--virtualenv-setup)
+      (message "Setting up filesystem watcher...failed")
+      (cl-return-from straight-watcher-start))
+    (message "Setting up filesystem watcher...done"))
+  (with-current-buffer (straight-watcher--make-process-buffer)
+    (let* ((python (straight--watcher-file "virtualenv" "bin" "python"))
+           (cmd (list
+                 python "-m" "straight_watch" "start"
+                 (straight--watcher-file "process")
+                 (straight--repos-dir)
+                 (straight--modified-dir)))
+           (sh (concat
+                "exec nohup "
+                (mapconcat #'shell-quote-argument cmd " "))))
+      ;; Put the 'nohup.out' file in the ~/.emacs.d/straight/watcher/
+      ;; directory.
+      (setq default-directory (straight--watcher-dir))
+      ;; Clear it out, since nohup(1) doesn't overwrite it.
+      (condition-case _
+          (delete-file (straight--watcher-file "nohup.out"))
+        (file-missing))
+      (let ((inhibit-read-only t))
+        (insert "$ " sh "\n\n"))
+      (start-file-process-shell-command
+       "straight-watcher" straight-watcher-process-buffer sh)
+      (set-process-query-on-exit-flag
+       (get-buffer-process (current-buffer)) nil))))
+
+(defun straight-watcher-stop ()
+  "Kill the filesystem watcher, if it is running.
+If there is an unexpected error, signal a warning and return nil."
+  (interactive)
+  (let ((python (straight--watcher-file "virtualenv" "bin" "python")))
+    (when (file-executable-p python)
+      (straight--warn-call
+       python "-m" "straight_watch" "stop"
+       (straight--watcher-file "process")))))
 
 ;;;;; Bulk checking
 
@@ -4459,6 +4584,11 @@ according to the value of `straight-profiles'."
 (if (straight--modifications 'check-on-save)
     (straight-live-modifications-mode +1)
   (straight-live-modifications-mode -1))
+
+;;;;; Filesystem watcher
+
+(when (straight--modifications 'watch-files)
+  (straight-watcher-start))
 
 ;;;;; Symlink emulation
 
