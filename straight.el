@@ -2575,7 +2575,7 @@ empty values (all packages will be rebuilt, with no caching)."
         (setq straight--autoloads-cache autoloads-cache)
         (setq straight--eagerly-checked-packages eager-packages)
         (setq straight--build-cache-text (buffer-string))
-        (unless (straight--modifications 'find-at-startup)
+        (when (straight--modifications 'check-on-save)
           (when-let ((repos (condition-case _ (straight--directory-files
                                                (straight--modified-dir))
                               (file-missing))))
@@ -2626,7 +2626,7 @@ This uses the values of `straight--build-cache' and
     (unless (and straight--build-cache-text
                  (string= (buffer-string) straight--build-cache-text))
       (write-region nil nil (straight--build-cache-file) nil 0))
-    (unless (straight--modifications 'find-at-startup)
+    (when (straight--modifications 'check-on-save)
       ;; We've imported data from `straight--modified-dir' into the
       ;; build cache when loading it. Now that we've written the build
       ;; cache back to disk, there's no more need for that data (and
