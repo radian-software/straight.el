@@ -2289,13 +2289,17 @@ customizing `straight-enable-package-integration`, however.
 
 ### Miscellaneous
 
-By default, straight.el explains what it is doing in the echo area,
-like this:
+* By default, `straight.el` explains what it is doing in the echo
+  area, like this:
 
-    Looking for cider recipe → Cloning melpa...
+      Looking for cider recipe → Cloning melpa...
 
-If your terminal does not support Unicode characters nicely, you can
-customize `straight-arrow` to display something else for the arrow.
+  If your terminal does not support Unicode characters nicely, you can
+  customize `straight-arrow` to display something else for the arrow.
+
+* By default, `straight.el` reports process output the
+  `*straight-process*` buffer. You can customize the name of this
+  buffer via the `straight-process-buffer` user option.
 
 ## Developer manual
 

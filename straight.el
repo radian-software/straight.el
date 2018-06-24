@@ -380,6 +380,21 @@ The warning message is obtained by passing MESSAGE and ARGS to
   (ignore
    (display-warning 'straight (apply #'format message args))))
 
+;;;;; Buffers
+
+(defun straight--ensure-blank-lines (n)
+  "Ensure N newline characters preceding point, unless at beginning of buffer."
+  (unless (= 1 (point))
+    (let ((num-existing 0))
+      (save-excursion
+        (cl-dotimes (_ n)
+          (when (or (= 1 (point))
+                    (not (= ?\n (char-before))))
+            (cl-return))
+          (cl-incf num-existing)
+          (backward-char)))
+      (insert (make-string (- n num-existing) ?\n)))))
+
 ;;;;; Paths
 
 (defun straight--path-prefix-p (prefix-path full-path)
@@ -596,6 +611,33 @@ be interpreted later as a symlink."
 
 ;;;;; External processes
 
+(defcustom straight-process-buffer "*straight-process*"
+  "Name of buffer used for process output."
+  :type 'string)
+
+(defun straight--process-get-buffer ()
+  "Return a buffer named `straight-process-buffer'."
+  (or (get-buffer straight-process-buffer)
+      (let ((buf (get-buffer-create straight-process-buffer)))
+        (prog1 buf
+          (with-current-buffer buf
+            (special-mode))))))
+
+(defvar-local straight--process-output-beginning nil
+  "Marker at beginning of process output, or nil.
+This is used in `straight-process-buffer'.")
+
+(defvar-local straight--process-output-end nil
+  "Marker at end of process output, or nil.
+This is used in `straight-process-buffer'.")
+
+(defvar-local straight--process-return-code nil
+  "Return code of last process run, or nil.
+This is used in `straight-process-buffer'.")
+
+(defvar straight--process-inhibit-output nil
+  "Non-nil means do not insert process output into `straight-process-buffer'.")
+
 (defvar straight--default-directory nil
   "Overrides value of `default-directory'.
 This is used because `default-directory' is buffer-local, which
@@ -604,57 +646,122 @@ side-effects like random buffers permanently forgetting which
 directory they're in, and straight.el executing Git commands
 against the wrong repositories.
 
-If you set this to something other than nil, you may be eaten by
-a grue.")
+If you set this globally to something other than nil, you may be
+eaten by a grue.")
 
-(defun straight--call (command &rest args)
-  "Call COMMAND with ARGS, returning success and output.
-Specifically, return a cons cell whose car is a boolean
-indicating whether the command was successful, and whose cdr
-is the stdout and stderr of the command."
-  (with-temp-buffer
-    (let ((default-directory (or straight--default-directory
-                                 default-directory)))
-      (let ((success (= 0 (apply #'call-process command
-                                 nil '(t t) nil args))))
-        (cons success (buffer-string))))))
+(defun straight--process-run (program &rest args)
+  "Run executable PROGRAM with given ARGS.
+Output is logged to `straight-process-buffer' unless
+`straight--process-inhibit-output' is non-nil. See also
+`straight--process-get-return-code' and
+`straight--process-get-output'.
 
-(defun straight--warn-call (command &rest args)
-  "Call COMMAND with ARGS, warning user if it fails."
-  (let ((result (apply #'straight--call command args)))
-    (unless (car result)
-      (straight--warn
-       "Command failed: %s %s (default-directory: %S):\n%s"
-       command (string-join args " ")
-       (or straight--default-directory
-           default-directory)
-       (cdr result)))))
+The return value of this function is undefined."
+  (let ((directory (or straight--default-directory default-directory)))
+    (prog1 nil
+      (with-current-buffer (straight--process-get-buffer)
+        (let ((inhibit-read-only t))
+          (save-excursion
+            (setq straight--process-output-beginning nil)
+            (setq straight--process-output-end nil)
+            (setq straight--process-return-code nil)
+            (goto-char (point-max))
+            (unless straight--process-inhibit-output
+              (straight--ensure-blank-lines 2)
+              (insert "$ cd " (shell-quote-argument directory) "\n")
+              (insert
+               "$ "
+               (mapconcat #'shell-quote-argument (cons program args) " ")
+               "\n\n")
+              (setq straight--process-output-beginning
+                    (point-marker)))
+            (condition-case _
+                (let* ((default-directory directory)
+                       (return (apply
+                                #'call-process
+                                program nil
+                                (unless straight--process-inhibit-output t)
+                                (get-buffer-window)
+                                args)))
+                  (unless straight--process-inhibit-output
+                    (setq straight--process-output-end
+                          (point-marker)))
+                  (setq straight--process-return-code return)
+                  (unless straight--process-inhibit-output
+                    (straight--ensure-blank-lines 2)
+                    (insert (format "[Return code: %S]\n" return))))
+              (file-missing
+               (setq straight--process-output-beginning nil)
+               (straight--ensure-blank-lines 2)
+               (insert (format "[Program not found]\n"))))))))))
 
-(defun straight--check-call (command &rest args)
-  "Call COMMAND with ARGS, returning non-nil if it succeeds.
-If the COMMAND exits with a non-zero return code, return nil. If
-the COMMAND does not exist, or if another error occurs, throw an
-error."
-  (let ((default-directory (or straight--default-directory
-                               default-directory)))
-    (= 0 (apply #'call-process command nil nil nil args))))
+(defun straight--process-run-p ()
+  "Return non-nil if the last process was run successfully.
+This just means the executable was invoked, not that its return
+code was zero."
+  (with-current-buffer (straight--process-get-buffer)
+    (when straight--process-return-code t)))
 
-(defun straight--get-call-raw (command &rest args)
-  "Call COMMAND with ARGS, returning its stdout and stderr as a string.
-If the command fails, throw an error."
-  (let ((result (apply #'straight--call command args)))
+(defun straight--process-get-return-code ()
+  "Get return code of last process run by `straight--process-run'.
+This is nil if the process could not be run."
+  (with-current-buffer (straight--process-get-buffer)
+    straight--process-return-code))
+
+(defun straight--process-get-output ()
+  "Get output of last process run by `straight--process-run'.
+This is nil if the process could not be run, or if
+`straight--process-inhibit-output' was non-nil when it was run."
+  (with-current-buffer (straight--process-get-buffer)
+    (when (and straight--process-output-beginning
+               straight--process-output-end)
+      (buffer-substring straight--process-output-beginning
+                        straight--process-output-end))))
+
+(defun straight--call (program &rest args)
+  "Run executable PROGRAM with given ARGS.
+Return a cons cell whose car is a boolean indicating whether the
+command was run successfully with a return code of zero, and
+whose cdr is its output."
+  (apply #'straight--process-run program args)
+  (cons
+   (let ((return-code (straight--process-get-return-code)))
+     (and return-code
+          (zerop return-code)))
+   (straight--process-get-output)))
+
+(defun straight--warn-call (program &rest args)
+  "Run executable PROGRAM with given ARGS, producing a warning if it fails.
+Return non-nil if the command was run successfully with a return
+code of zero, and nil otherwise."
+  (let* ((result (apply #'straight--call program args)))
+    (if (car result)
+        t
+      (prog1 nil
+        (straight--warn "Failed to run %S; see buffer %s"
+                        program straight-process-buffer)))))
+
+(defun straight--check-call (program &rest args)
+  "Run executable PROGRAM with given ARGS, returning non-nil if it succeeds."
+  (when (car (apply #'straight--call program args))
+    t))
+
+(defun straight--get-call-raw (program &rest args)
+  "Run executable PROGRAM with given ARGS, returning its output as a string.
+If the command cannot be run or its return code is nonzero, throw
+an error."
+  (let ((result (apply #'straight--call program args)))
     (if (car result)
         (cdr result)
-      (error "Command failed: %s %s (output: %S) (default-directory: %S)"
-             command (string-join args " ")
-             (cdr result) (or straight--default-directory
-                              default-directory)))))
+      (error "Failed to run %S; see buffer %s"
+             program straight-process-buffer))))
 
-(defun straight--get-call (command &rest args)
-  "Call COMMAND with ARGS, returning its stdout and stderr as a string.
+(defun straight--get-call (program &rest args)
+  "Run executable PROGRAM with given ARGS, returning its output.
 Return a string with whitespace trimmed from both ends. If the
-command fails, throw an error."
-  (string-trim (apply #'straight--get-call-raw command args)))
+command cannot be run or its return code is nonzero, throw an
+error."
+  (string-trim (apply #'straight--get-call-raw program args)))
 
 (defun straight--make-mtime (mtime)
   "Ensure that the `straight--mtimes-file' for MTIME (a string) exists.
