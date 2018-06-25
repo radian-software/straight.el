@@ -2609,7 +2609,9 @@ This uses the values of `straight--build-cache' and
       ;; cache back to disk, there's no more need for that data (and
       ;; indeed, it would produce spurious package rebuilds on
       ;; subsequent inits).
-      (delete-directory (straight--modified-dir) 'recursive))))
+      (condition-case _
+          (delete-directory (straight--modified-dir) 'recursive)
+        (file-error)))))
 
 ;;;;; Live modification checking
 
