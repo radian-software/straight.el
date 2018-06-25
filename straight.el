@@ -4578,24 +4578,7 @@ according to the value of `straight-profiles'."
                (straight-vc-check-out-commit
                 type local-repo commit)))))))))
 
-;;;; Stateful actions
-;;;;; Live modification checking
-
-(if (straight--modifications 'check-on-save)
-    (straight-live-modifications-mode +1)
-  (straight-live-modifications-mode -1))
-
-;;;;; Filesystem watcher
-
-(when (straight--modifications 'watch-files)
-  (straight-watcher-start))
-
-;;;;; Symlink emulation
-
-(if straight-use-symlinks
-    (straight-symlink-emulation-mode -1)
-  (straight-symlink-emulation-mode +1))
-
+;;;; Integration with other packages
 ;;;;; package.el "integration"
 
 (defcustom straight-enable-package-integration t
@@ -4652,10 +4635,6 @@ is loaded, according to the value of
                      #'straight-package-advice-ensure-init-file)
       (advice-remove #'package--save-selected-packages
                      #'straight-package-advice-save-selected-packages))))
-
-(if straight-enable-package-integration
-    (straight-package-neutering-mode +1)
-  (straight-package-neutering-mode -1))
 
 ;;;;; use-package integration
 
@@ -4913,10 +4892,6 @@ is loaded, according to the value of
                                        '('(t) straight-use-package-by-default)
                                        use-package-defaults
                                        'symbol))))))))
-
-(if straight-enable-use-package-integration
-    (straight-use-package-mode +1)
-  (straight-use-package-mode -1))
 
 ;;;; Closing remarks
 
