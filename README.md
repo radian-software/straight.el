@@ -1344,17 +1344,30 @@ care of all these details for you:
 
 <!-- longlines-start -->
 
-    (let ((bootstrap-file
-           (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
-          (bootstrap-version 4))
-      (unless (file-exists-p bootstrap-file)
-        (with-current-buffer
-            (url-retrieve-synchronously
-             "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
-             'silent 'inhibit-cookies)
-          (goto-char (point-max))
-          (eval-print-last-sexp)))
-      (load bootstrap-file nil 'nomessage))
+    ;; optional customization
+    ;(defvar straight--project-base-url "https://raw.githubusercontent.com/<example>/straight.el/")
+    ;(defvar straight--base-dir (concat user-emacs-directory "some/alternative/path"))
+
+    ;; bootstrap
+    (let*
+      ((straight--project-base-url (if (bound-and-true-p straight--project-base-url)
+                                         straight--project-base-url
+                                       "https://raw.githubusercontent.com/raxod502/straight.el/"))
+       (straight--base-dir (if (bound-and-true-p straight--base-dir)
+                               straight--base-dir
+                             (concat user-emacs-directory "straight/")))
+       (bootstrap-file (concat straight--base-dir "repos/straight.el/bootstrap.el"))
+       (bootstrap-version 4))
+    (unless (file-exists-p bootstrap-file)
+      (progn
+        (require 'load-mode__straight-install)
+      (with-current-buffer
+          (url-retrieve-synchronously
+           (concat straight--project-base-url "develop/install.el")
+           'silent 'inhibit-cookies)
+        (goto-char (point-max))
+        (eval-print-last-sexp)))
+    (load bootstrap-file nil 'nomessage))
 
 <!-- longlines-stop -->
 

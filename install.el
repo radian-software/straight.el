@@ -65,6 +65,19 @@
 (progn
   (message "Bootstrapping straight.el...")
 
+  (defcustom straight--project-base-url
+    (if (bound-and-true-p straight--project-base-url)
+        straight--project-base-url
+      "https://raw.githubusercontent.com/raxod502/straight.el/")
+    "docstring"
+    :group 'straight)
+  (defcustom straight--base-dir
+    (if (bound-and-true-p straight--base-dir)
+        straight--base-dir
+      (concat user-emacs-directory "straight/"))
+    "docstring"
+    :group 'straight)
+
   ;; Any errors in this Emacs go directly to the user's init-file and
   ;; abort init. Errors in the child Emacs spawned below create a
   ;; non-zero exit code, and are re-thrown.
@@ -85,7 +98,7 @@
 
   (let (;; This needs to have a default value, just in case the user
         ;; doesn't have any lockfiles.
-        (version :jupiter)
+	(version :jupiter)
         (straight-profiles (if (boundp 'straight-profiles)
                                straight-profiles
                              '((nil . "default")))))
@@ -96,8 +109,8 @@
     ;; the recipe specification, and forgot to update which repository
     ;; their init-file downloaded install.el from).
     (dolist (lockfile-name (mapcar #'cdr straight-profiles))
-      (let ((lockfile-path (concat user-emacs-directory
-                                   "straight/versions/"
+      (let ((lockfile-path (concat straight--base-dir
+                                   "versions/"
                                    lockfile-name)))
         (when (file-exists-p lockfile-path)
           (condition-case nil
@@ -123,9 +136,8 @@
              (error "Malformed version lockfile: %S" lockfile-name))))))
     (with-current-buffer
         (url-retrieve-synchronously
-         (format
-          (concat "https://raw.githubusercontent.com/"
-                  "raxod502/straight.el/install/%s/straight.el")
+         (format (concat straight--project-base-url
+			 "install/%s/straight.el")
           (substring (symbol-name version) 1))
          'silent 'inhibit-cookies)
       ;; In case of 404, that means the version identifier is unknown.
@@ -148,6 +160,8 @@
                          (when (boundp variable)
                            `((setq ,variable ',(symbol-value variable)))))
                        '(bootstrap-version
+                         straight--base-dir
+                         straight--project-base-url
                          straight-arrow
                          straight-current-profile
                          straight-default-vc
@@ -173,7 +187,7 @@
           ;; skipping the build phase.)
           (straight-use-package-no-build
            `(straight :type git :host github
-                      :repo "raxod502/straight.el"
+                      :repo "nickgarber/straight.el"
                       :branch ,straight-repository-branch))
           (unless (and (boundp 'bootstrap-version)
                        (integerp bootstrap-version)
@@ -187,8 +201,8 @@
                    ;; (for some silly reason) move your
                    ;; `user-emacs-directory'.
                    (target (concat "repos/" local-repo "/bootstrap.el"))
-                   (linkname (concat user-emacs-directory
-                                     "straight/bootstrap.el")))
+                   (linkname (concat straight--base-dir
+                                     "bootstrap.el")))
               (ignore-errors
                 ;; If it's a directory, the linking will fail. Just let
                 ;; the user deal with it in that case, since they are

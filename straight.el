@@ -40,7 +40,7 @@
 
 (require 'cl-lib)
 (require 'subr-x)
-(require 'straight-compat)
+;disabled-to-avoid-error-during-bootstrap;(require 'straight-compat)
 
 ;;;; Functions from other packages
 
@@ -435,12 +435,12 @@ and postpended to the straight directory.
   "Get a subdirectory of the straight/ directory.
 SEGMENTS are passed to `straight--emacs-dir'. With no SEGMENTS,
 return the straight/ directory itself."
-  (apply #'straight--emacs-dir "straight" segments))
+  (apply #'straight--emacs-dir "var/cache/straight" segments))
 
 (defun straight--file (&rest segments)
   "Get a file in the straight/ directory.
 SEGMENTS are passed to `straight--emacs-file'."
-  (apply #'straight--emacs-file "straight" segments))
+  (apply #'straight--emacs-file "var/cache/straight" segments))
 
 (defun straight--build-dir (&rest segments)
   "Get a subdirectory of the straight/build/ directory.
