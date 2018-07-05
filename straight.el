@@ -2833,7 +2833,8 @@ If it fails, signal a warning and return nil."
     (and (straight--warn-call "python3" "-m" "venv" virtualenv)
          (straight--warn-call
           python "-m" "pip" "install" "-e" watcher-dir)
-         (prog1 t (copy-file version-from version-to)))))
+         (prog1 t (copy-file version-from version-to
+                             'ok-if-already-exists)))))
 
 (defun straight-watcher--virtualenv-outdated ()
   "Return non-nil if the watcher virtualenv needs to be set up again.
