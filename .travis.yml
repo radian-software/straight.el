@@ -1,16 +1,16 @@
 dist: trusty
-sudo: false
+sudo: required
 addons:
   apt:
     packages:
       - texinfo
 env:
-  - EMACS_VERSION=24.4
-  - EMACS_VERSION=24.5
-  - EMACS_VERSION=25.1
-  - EMACS_VERSION=25.2
-  - EMACS_VERSION=25.3
-  - EMACS_VERSION=26.1
+  - EMACS_VERSION=24.4-travis
+  - EMACS_VERSION=24.5-travis
+  - EMACS_VERSION=25.1-travis
+  - EMACS_VERSION=25.2-travis
+  - EMACS_VERSION=25.3-travis
+  - EMACS_VERSION=26.1-travis
   - EMACS_VERSION=git-snapshot
 
 matrix:
@@ -21,8 +21,8 @@ install:
   - curl -fsSkL https://raw.github.com/rejeep/evm/master/go | bash
   - export PATH="$HOME/.evm/bin:$PATH"
   - evm config path /tmp
-  - evm install emacs-$EMACS_VERSION-travis
-  - export PATH="/tmp/emacs-$EMACS_VERSION-travis/bin:$PATH"
+  - evm install emacs-$EMACS_VERSION
+  - export PATH="/tmp/emacs-$EMACS_VERSION/bin:$PATH"
 
 script:
   - make travis

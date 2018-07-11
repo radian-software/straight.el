@@ -116,4 +116,23 @@
                                  :files ("straight*.el")
                                  :branch ,straight-repository-branch))
 
+(if (straight--modifications 'check-on-save)
+    (straight-live-modifications-mode +1)
+  (straight-live-modifications-mode -1))
+
+(when (straight--modifications 'watch-files)
+  (straight-watcher-start))
+
+(if straight-use-symlinks
+    (straight-symlink-emulation-mode -1)
+  (straight-symlink-emulation-mode +1))
+
+(if straight-enable-package-integration
+    (straight-package-neutering-mode +1)
+  (straight-package-neutering-mode -1))
+
+(if straight-enable-use-package-integration
+    (straight-use-package-mode +1)
+  (straight-use-package-mode -1))
+
 ;;; bootstrap.el ends here

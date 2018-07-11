@@ -7,7 +7,7 @@
 ;; Homepage: https://github.com/raxod502/straight.el
 ;; Keywords: extensions
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 1.0
+;; Version: prerelease
 
 ;;; Commentary:
 
@@ -380,7 +380,26 @@ The warning message is obtained by passing MESSAGE and ARGS to
   (ignore
    (display-warning 'straight (apply #'format message args))))
 
+;;;;; Buffers
+
+(defun straight--ensure-blank-lines (n)
+  "Ensure N newline characters preceding point, unless at beginning of buffer."
+  (unless (= 1 (point))
+    (let ((num-existing 0))
+      (save-excursion
+        (cl-dotimes (_ n)
+          (when (or (= 1 (point))
+                    (not (= ?\n (char-before))))
+            (cl-return))
+          (cl-incf num-existing)
+          (backward-char)))
+      (insert (make-string (- n num-existing) ?\n)))))
+
 ;;;;; Paths
+
+(defvar straight--this-file
+  (file-truename (or load-file-name buffer-file-name))
+  "Absolute real path to this file, straight.el.")
 
 (defun straight--path-prefix-p (prefix-path full-path)
   "Return non-nil if PREFIX-PATH is a prefix of FULL-PATH.
@@ -498,6 +517,17 @@ the straight/versions/ directory itself."
 SEGMENTS are passed to `straight--file'."
   (apply #'straight--file "versions" segments))
 
+(defun straight--watcher-dir (&rest segments)
+  "Get a subdirectory of the straight/watcher/ directory.
+SEGMENTS are passed to `straight--dir'. With no SEGMENTS, return
+the straight/watcher/ directory itself."
+  (apply #'straight--dir "watcher" segments))
+
+(defun straight--watcher-file (&rest segments)
+  "Get a file in the straight/watcher/ directory.
+SEGMENTS are passed to `straight--file'."
+  (apply #'straight--file "watcher" segments))
+
 (defun straight--versions-lockfile (profile)
   "Get the version lockfile for given PROFILE, a symbol."
   (if-let ((filename (alist-get profile straight-profiles)))
@@ -596,6 +626,33 @@ be interpreted later as a symlink."
 
 ;;;;; External processes
 
+(defcustom straight-process-buffer "*straight-process*"
+  "Name of buffer used for process output."
+  :type 'string)
+
+(defun straight--process-get-buffer ()
+  "Return a buffer named `straight-process-buffer'."
+  (or (get-buffer straight-process-buffer)
+      (let ((buf (get-buffer-create straight-process-buffer)))
+        (prog1 buf
+          (with-current-buffer buf
+            (special-mode))))))
+
+(defvar-local straight--process-output-beginning nil
+  "Marker at beginning of process output, or nil.
+This is used in `straight-process-buffer'.")
+
+(defvar-local straight--process-output-end nil
+  "Marker at end of process output, or nil.
+This is used in `straight-process-buffer'.")
+
+(defvar-local straight--process-return-code nil
+  "Return code of last process run, or nil.
+This is used in `straight-process-buffer'.")
+
+(defvar straight--process-inhibit-output nil
+  "Non-nil means do not insert process output into `straight-process-buffer'.")
+
 (defvar straight--default-directory nil
   "Overrides value of `default-directory'.
 This is used because `default-directory' is buffer-local, which
@@ -604,57 +661,125 @@ side-effects like random buffers permanently forgetting which
 directory they're in, and straight.el executing Git commands
 against the wrong repositories.
 
-If you set this to something other than nil, you may be eaten by
-a grue.")
+If you set this globally to something other than nil, you may be
+eaten by a grue.")
 
-(defun straight--call (command &rest args)
-  "Call COMMAND with ARGS, returning success and output.
-Specifically, return a cons cell whose car is a boolean
-indicating whether the command was successful, and whose cdr
-is the stdout and stderr of the command."
-  (with-temp-buffer
-    (let ((default-directory (or straight--default-directory
-                                 default-directory)))
-      (let ((success (= 0 (apply #'call-process command
-                                 nil '(t t) nil args))))
-        (cons success (buffer-string))))))
+(defun straight--process-run (program &rest args)
+  "Run executable PROGRAM with given ARGS.
+Output is logged to `straight-process-buffer' unless
+`straight--process-inhibit-output' is non-nil. See also
+`straight--process-get-return-code' and
+`straight--process-get-output'.
 
-(defun straight--warn-call (command &rest args)
-  "Call COMMAND with ARGS, warning user if it fails."
-  (let ((result (apply #'straight--call command args)))
-    (unless (car result)
-      (straight--warn
-       "Command failed: %s %s (default-directory: %S):\n%s"
-       command (string-join args " ")
-       (or straight--default-directory
-           default-directory)
-       (cdr result)))))
+The return value of this function is undefined."
+  (let ((directory (or straight--default-directory default-directory)))
+    (prog1 nil
+      (with-current-buffer (straight--process-get-buffer)
+        (let ((inhibit-read-only t))
+          (save-excursion
+            (setq straight--process-output-beginning nil)
+            (setq straight--process-output-end nil)
+            (setq straight--process-return-code nil)
+            (goto-char (point-max))
+            (unless straight--process-inhibit-output
+              (straight--ensure-blank-lines 2)
+              (insert
+               "$ cd "
+               (shell-quote-argument (expand-file-name directory))
+               "\n")
+              (insert
+               "$ "
+               (mapconcat #'shell-quote-argument (cons program args) " ")
+               "\n\n")
+              (setq straight--process-output-beginning
+                    (point-marker)))
+            (condition-case _
+                (let* ((default-directory directory)
+                       (return (apply
+                                #'call-process
+                                program nil
+                                (unless straight--process-inhibit-output t)
+                                (get-buffer-window)
+                                args)))
+                  (unless straight--process-inhibit-output
+                    (setq straight--process-output-end
+                          (point-marker)))
+                  (setq straight--process-return-code return)
+                  (unless straight--process-inhibit-output
+                    (straight--ensure-blank-lines 2)
+                    (insert (format "[Return code: %S]\n" return))))
+              (file-missing
+               (setq straight--process-output-beginning nil)
+               (straight--ensure-blank-lines 2)
+               (insert (format "[Program not found]\n"))))))))))
 
-(defun straight--check-call (command &rest args)
-  "Call COMMAND with ARGS, returning non-nil if it succeeds.
-If the COMMAND exits with a non-zero return code, return nil. If
-the COMMAND does not exist, or if another error occurs, throw an
-error."
-  (let ((default-directory (or straight--default-directory
-                               default-directory)))
-    (= 0 (apply #'call-process command nil nil nil args))))
+(defun straight--process-run-p ()
+  "Return non-nil if the last process was run successfully.
+This just means the executable was invoked, not that its return
+code was zero."
+  (with-current-buffer (straight--process-get-buffer)
+    (when straight--process-return-code t)))
 
-(defun straight--get-call-raw (command &rest args)
-  "Call COMMAND with ARGS, returning its stdout and stderr as a string.
-If the command fails, throw an error."
-  (let ((result (apply #'straight--call command args)))
+(defun straight--process-get-return-code ()
+  "Get return code of last process run by `straight--process-run'.
+This is nil if the process could not be run."
+  (with-current-buffer (straight--process-get-buffer)
+    straight--process-return-code))
+
+(defun straight--process-get-output ()
+  "Get output of last process run by `straight--process-run'.
+This is nil if the process could not be run, or if
+`straight--process-inhibit-output' was non-nil when it was run."
+  (with-current-buffer (straight--process-get-buffer)
+    (when (and straight--process-output-beginning
+               straight--process-output-end)
+      (buffer-substring straight--process-output-beginning
+                        straight--process-output-end))))
+
+(defun straight--call (program &rest args)
+  "Run executable PROGRAM with given ARGS.
+Return a cons cell whose car is a boolean indicating whether the
+command was run successfully with a return code of zero, and
+whose cdr is its output."
+  (apply #'straight--process-run program args)
+  (cons
+   (let ((return-code (straight--process-get-return-code)))
+     (and return-code
+          (zerop return-code)))
+   (straight--process-get-output)))
+
+(defun straight--warn-call (program &rest args)
+  "Run executable PROGRAM with given ARGS, producing a warning if it fails.
+Return non-nil if the command was run successfully with a return
+code of zero, and nil otherwise."
+  (let* ((result (apply #'straight--call program args)))
+    (if (car result)
+        t
+      (prog1 nil
+        (straight--warn "Failed to run %S; see buffer %s"
+                        program straight-process-buffer)))))
+
+(defun straight--check-call (program &rest args)
+  "Run executable PROGRAM with given ARGS, returning non-nil if it succeeds."
+  (when (car (apply #'straight--call program args))
+    t))
+
+(defun straight--get-call-raw (program &rest args)
+  "Run executable PROGRAM with given ARGS, returning its output as a string.
+If the command cannot be run or its return code is nonzero, throw
+an error."
+  (let ((result (apply #'straight--call program args)))
     (if (car result)
         (cdr result)
-      (error "Command failed: %s %s (output: %S) (default-directory: %S)"
-             command (string-join args " ")
-             (cdr result) (or straight--default-directory
-                              default-directory)))))
+      (error "Failed to run %S; see buffer %s"
+             program straight-process-buffer))))
 
-(defun straight--get-call (command &rest args)
-  "Call COMMAND with ARGS, returning its stdout and stderr as a string.
+(defun straight--get-call (program &rest args)
+  "Run executable PROGRAM with given ARGS, returning its output.
 Return a string with whitespace trimmed from both ends. If the
-command fails, throw an error."
-  (string-trim (apply #'straight--get-call-raw command args)))
+command cannot be run or its return code is nonzero, throw an
+error."
+  (string-trim (apply #'straight--get-call-raw program args)))
 
 (defun straight--make-mtime (mtime)
   "Ensure that the `straight--mtimes-file' for MTIME (a string) exists.
@@ -2402,31 +2527,61 @@ of one of the packages using the local repository."
 
 (defun straight--determine-best-modification-checking ()
   "Determine the best default value of `straight-check-for-modifications'.
-This is `at-startup' on most platforms and `live' on Microsoft
-Windows, where find(1) is not available."
+This uses find(1) for all checking on most platforms, and
+`before-save-hook' on Microsoft Windows."
   (if (memq system-type '(ms-dos windows-nt cygwin))
-      'live
-    'at-startup))
+      (list 'check-on-save)
+    (list 'find-at-startup 'find-when-checking)))
 
 (defcustom straight-check-for-modifications
   (straight--determine-best-modification-checking)
   "When to check for package modifications.
-Value `at-startup' means do it using find(1) when straight.el is
-bootstrapped during Emacs init. Value `live' means hook into
-`before-save-hook' to detect modifications as you make them (this
-means modifications made outside Emacs are not detected, but
-speeds up init). Value `live-with-find' is the same as `live',
-but \\[straight-check-package] and \\[straight-check-all] will
-still use find(1). Value `never' means don't check automatically.
-In this case you must use `straight-rebuild-package' whenever you
-modify a package, before restarting Emacs."
-  :type '(choice
-          (const :tag "At Emacs startup using find(1)" at-startup)
-          (const :tag "As you make them in Emacs" live)
-          (const
-           :tag "As you make them by default, but using find(1) if requested"
-           live-with-find)
-          (const :tag "Never" never)))
+This is a list of symbols. If `find-at-startup' is in the list,
+then find(1) is used to detect modifications of all packages
+before they are made available. If `find-when-checking' is in the
+list, then find(1) is used to detect modifications in
+\\[straight-check-package] and \\[straight-check-all]. If
+`check-on-save' is in the list, then `before-save-hook' is used
+to detect modifications of packages that you perform within
+Emacs. If `watch-files' is in the list, then a filesystem watcher
+is automatically started by straight.el to detect modifications.
+
+Note that the functionality of `check-on-save' and `watch-files'
+only covers modifications made within ~/.emacs.d/straight/repos,
+so if you wish to use these features you should move all of your
+local repositories into that directory.
+
+For backwards compatibility, the value of this variable may also
+be a symbol, which is translated into a corresponding list as
+follows:
+
+`at-startup' => `(find-at-startup find-when-checking)'
+`live' => `(check-on-save)'
+`live-with-find' => `(check-on-save find-when-checking)'
+`never' => nil
+
+This usage is deprecated and will be removed."
+  :type
+  '(list
+    (choice
+     (const :tag "Use find(1) at startup" find-at-startup)
+     (const :tag "Use find(1) in \\[straight-check-package]"
+            find-when-checking)
+     (const :tag "Use `before-save-hook' to detect changes" check-on-save)
+     (const :tag "Use a filesystem watcher to detect changes" watch-files))))
+
+(defun straight--modifications (symbol)
+  "Check if `straight-check-for-modifications' contains SYMBOL.
+However, if `straight-check-for-modifications' is itself one of
+the symbols supported for backwards compatibility, account for
+that appropriately."
+  (memq symbol
+        (pcase straight-check-for-modifications
+          (`at-startup '(find-at-startup find-when-checking))
+          (`live '(check-on-save))
+          (`live-with-find '(check-on-save find-when-checking))
+          (`never nil)
+          (lst lst))))
 
 (defcustom straight-cache-autoloads t
   "Non-nil means read autoloads in bulk to speed up startup.
@@ -2552,7 +2707,8 @@ empty values (all packages will be rebuilt, with no caching)."
         (setq straight--autoloads-cache autoloads-cache)
         (setq straight--eagerly-checked-packages eager-packages)
         (setq straight--build-cache-text (buffer-string))
-        (when (memq straight-check-for-modifications '(live live-with-find))
+        (when (or (straight--modifications 'check-on-save)
+                  (straight--modifications 'watch-files))
           (when-let ((repos (condition-case _ (straight--directory-files
                                                (straight--modified-dir))
                               (file-missing))))
@@ -2603,7 +2759,8 @@ This uses the values of `straight--build-cache' and
     (unless (and straight--build-cache-text
                  (string= (buffer-string) straight--build-cache-text))
       (write-region nil nil (straight--build-cache-file) nil 0))
-    (when (memq straight-check-for-modifications '(live live-with-find))
+    (when (or (straight--modifications 'check-on-save)
+              (straight--modifications 'watch-files))
       ;; We've imported data from `straight--modified-dir' into the
       ;; build cache when loading it. Now that we've written the build
       ;; cache back to disk, there's no more need for that data (and
@@ -2640,6 +2797,105 @@ straight.el, according to the value of
   (if straight-live-modifications-mode
       (add-hook 'before-save-hook #'straight-register-file-modification)
     (remove-hook 'before-save-hook #'straight-register-file-modification)))
+
+;;;;; Filesystem watcher
+
+(defcustom straight-watcher-process-buffer " *straight-watcher*"
+  "Name of buffer to use for the filesystem watcher."
+  :type 'string)
+
+(defun straight-watcher--make-process-buffer ()
+  "Kill and recreate `straight-watcher-process-buffer'. Return it."
+  (ignore-errors
+    (kill-buffer straight-watcher-process-buffer))
+  (let ((buf (get-buffer-create straight-watcher-process-buffer)))
+    (prog1 buf
+      (with-current-buffer buf
+        (special-mode)))))
+
+(cl-defun straight-watcher--virtualenv-setup ()
+  "Set up the virtualenv for the filesystem watcher.
+If it fails, signal a warning and return nil."
+  (let* ((virtualenv (straight--watcher-dir "virtualenv"))
+         (python (straight--watcher-file
+                  "virtualenv" "bin" "python"))
+         (straight-dir (file-name-directory straight--this-file))
+         (watcher-dir (expand-file-name "watcher" straight-dir))
+         (version-from (expand-file-name "version" watcher-dir))
+         (version-to (straight--watcher-file "version")))
+    (condition-case _
+        (delete-directory virtualenv 'recursive)
+      (file-missing))
+    (make-directory
+     (file-name-directory
+      (directory-file-name virtualenv))
+     'parents)
+    (and (straight--warn-call "python3" "-m" "venv" virtualenv)
+         (straight--warn-call
+          python "-m" "pip" "install" "-e" watcher-dir)
+         (prog1 t (copy-file version-from version-to
+                             'ok-if-already-exists)))))
+
+(defun straight-watcher--virtualenv-outdated ()
+  "Return non-nil if the watcher virtualenv needs to be set up again.
+This includes the case hwere it doesn't yet exist."
+  (let* ((straight-dir (file-name-directory straight--this-file))
+         (watcher-dir (expand-file-name "watcher" straight-dir))
+         (version-from (expand-file-name "version" watcher-dir))
+         (version-to (straight--watcher-file "version")))
+    (not (straight--check-call "diff" "-q" version-from version-to))))
+
+(cl-defun straight-watcher-start ()
+  "Start the filesystem watcher, killing any previous instance.
+If it fails, signal a warning and return nil."
+  (interactive)
+  (unless (executable-find "python3")
+    (straight--warn
+     "Cannot start filesystem watcher without 'python3' installed")
+    (cl-return-from straight-watcher-start))
+  (unless (executable-find "watchexec")
+    (straight--warn
+     "Cannot start filesystem watcher without 'watchexec' installed")
+    (cl-return-from straight-watcher-start))
+  (when (straight-watcher--virtualenv-outdated)
+    (message "Setting up filesystem watcher...")
+    (unless (straight-watcher--virtualenv-setup)
+      (message "Setting up filesystem watcher...failed")
+      (cl-return-from straight-watcher-start))
+    (message "Setting up filesystem watcher...done"))
+  (with-current-buffer (straight-watcher--make-process-buffer)
+    (let* ((python (straight--watcher-file "virtualenv" "bin" "python"))
+           (cmd (list
+                 python "-m" "straight_watch" "start"
+                 (straight--watcher-file "process")
+                 (straight--repos-dir)
+                 (straight--modified-dir)))
+           (sh (concat
+                "exec nohup "
+                (mapconcat #'shell-quote-argument cmd " "))))
+      ;; Put the 'nohup.out' file in the ~/.emacs.d/straight/watcher/
+      ;; directory.
+      (setq default-directory (straight--watcher-dir))
+      ;; Clear it out, since nohup(1) doesn't overwrite it.
+      (condition-case _
+          (delete-file (straight--watcher-file "nohup.out"))
+        (file-missing))
+      (let ((inhibit-read-only t))
+        (insert "$ " sh "\n\n"))
+      (start-file-process-shell-command
+       "straight-watcher" straight-watcher-process-buffer sh)
+      (set-process-query-on-exit-flag
+       (get-buffer-process (current-buffer)) nil))))
+
+(defun straight-watcher-stop ()
+  "Kill the filesystem watcher, if it is running.
+If there is an unexpected error, signal a warning and return nil."
+  (interactive)
+  (let ((python (straight--watcher-file "virtualenv" "bin" "python")))
+    (when (file-executable-p python)
+      (straight--warn-call
+       python "-m" "straight_watch" "stop"
+       (straight--watcher-file "process")))))
 
 ;;;;; Bulk checking
 
@@ -2750,7 +3006,7 @@ modified since their last builds.")
 (defvar straight--allow-find nil
   "Bound to non-nil if find(1) can be used.
 The value of this variable is only relevant when
-`straight-check-for-modifications' is `live-with-find'.")
+`straight-check-for-modifications' contains `find-when-checking'.")
 
 (cl-defun straight--package-might-be-modified-p (recipe)
   "Check whether the package for the given RECIPE might be modified."
@@ -2773,9 +3029,8 @@ The value of this variable is only relevant when
           (progn
             ;; Don't look at mtimes unless we're told to. Otherwise,
             ;; rely on live modification checking/user attention.
-            (unless (or (eq straight-check-for-modifications 'at-startup)
-                        (and (eq straight-check-for-modifications
-                                 'live-with-find)
+            (unless (or (straight--modifications 'find-at-startup)
+                        (and (straight--modifications 'find-when-checking)
                              straight--allow-find))
               (cl-return-from straight--package-might-be-modified-p))
             ;; This method should always be called from a transaction.
@@ -4326,19 +4581,7 @@ according to the value of `straight-profiles'."
                (straight-vc-check-out-commit
                 type local-repo commit)))))))))
 
-;;;; Stateful actions
-;;;;; Live modification checking
-
-(if (memq straight-check-for-modifications '(live live-with-find))
-    (straight-live-modifications-mode +1)
-  (straight-live-modifications-mode -1))
-
-;;;;; Symlink emulation
-
-(if straight-use-symlinks
-    (straight-symlink-emulation-mode -1)
-  (straight-symlink-emulation-mode +1))
-
+;;;; Integration with other packages
 ;;;;; package.el "integration"
 
 (defcustom straight-enable-package-integration t
@@ -4395,10 +4638,6 @@ is loaded, according to the value of
                      #'straight-package-advice-ensure-init-file)
       (advice-remove #'package--save-selected-packages
                      #'straight-package-advice-save-selected-packages))))
-
-(if straight-enable-package-integration
-    (straight-package-neutering-mode +1)
-  (straight-package-neutering-mode -1))
 
 ;;;;; use-package integration
 
@@ -4657,10 +4896,6 @@ is loaded, according to the value of
                                        use-package-defaults
                                        'symbol))))))))
 
-(if straight-enable-use-package-integration
-    (straight-use-package-mode +1)
-  (straight-use-package-mode -1))
-
 ;;;; Closing remarks
 
 (provide 'straight)
@@ -4669,6 +4904,7 @@ is loaded, according to the value of
 
 ;; Local Variables:
 ;; checkdoc-symbol-words: ("top-level")
+;; checkdoc-verb-check-experimental-flag: nil
 ;; indent-tabs-mode: nil
 ;; outline-regexp: ";;;;* "
 ;; End:

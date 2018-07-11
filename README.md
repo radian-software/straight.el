@@ -86,6 +86,8 @@ development takes place on the [`develop` branch][develop].)
   * [Comments and docstrings](#comments-and-docstrings)
 - [Contributing](#contributing)
 - [News](#news)
+  * [June 24, 2018](#june-24-2018)
+  * [June 21, 2018](#june-21-2018)
   * [June 5, 2018](#june-5-2018)
   * [May 31, 2018](#may-31-2018)
   * [April 21, 2018](#april-21-2018)
@@ -1504,28 +1506,62 @@ what sort of `find(1)` program is installed, and issue the appropriate
 command. If it makes a mistake, then you can manually customize
 `straight-find-flavor`.
 
-For about 100 packages on an SSD, this takes about 500ms. You can save
-this time by customizing `straight-check-for-modifications`.
+For about 100 packages on an SSD, calling `find(1)` to detect
+modifications takes about 500ms. You can save this time by customizing
+`straight-check-for-modifications`. This is a list of symbols which
+determines how `straight.el` detects package modifications. The
+default value is `(find-at-startup find-when-checking)`, which means
+that `find(1)` is used to detect modifications at startup, and also
+when you invoke `M-x straight-check-package` or `M-x
+straight-check-all`. If you prefer to avoid this performance hit, or
+do not have `find(1)` installed, then you can remove these symbols
+from the list. In that case, you will probably want to add either
+`check-on-save` or `watch-files` to the list.
 
-The default value is `at-startup`. If you change this to `never`, then
-`straight.el` will not check for package modifications, and you will
-have to manually (or programmatically) call `straight-rebuild-package`
-when you modify a file and need a package rebuilt.
+`check-on-save` causes `straight.el` to use `before-save-hook` to
+detect package modifications as you make them (modifications made by
+the `straight.el` repository management commands are also detected).
+This reduces init time, but modifications made outside of Emacs (or
+modifications that bypass `before-save-hook`) are not detected. Pull
+requests extending the number of cases in which `straight.el` is able
+to detect live modifications are welcome. Also, for the sake of
+efficiency, this form of modification checking is restricted to
+subdirectories of `~/.emacs.d/straight/repos`, so you must put your
+local repositories into that directory for it to work. (Pull requests
+to change this would be welcome.)
 
-You can also change it to `live`, which means that `straight.el` will
-use `before-save-hook` in order to detect modifications as you make
-them. This saves init time, but has a caveat: namely, that
-modifications made outside Emacs or in some way that bypasses
-`before-save-hook` are not detected. Pull requests extending the
-number of cases in which `straight.el` is able to detect live
-modifications are welcome. Also, for the sake of efficiency, live
-modification checking is restricted to subdirectories of
-`~/.emacs.d/straight/repos`, so you must put your local repositories
-into that directory for live modification detection to work. (Pull
-requests to change this would be welcome.)
+`watch-files` causes `straight.el` to automatically invoke a
+filesystem watcher to detect modifications as they are made, inside or
+outside of Emacs. For this setting to work, you must have `python3`
+and [`watchexec`][watchexec] installed on your `PATH`. By default, the
+watcher persists after Emacs is closed. You can stop it manually by
+running `M-x straight-watcher-stop`, and start it again by running
+`M-x straight-watcher-start`. The watcher script is designed so that
+when one instance is started, all the others gracefully shut down, so
+you don't have to worry about accidentally ending up with more than
+one. There is nothing exciting in the process buffer for the watcher,
+but if you are interested in it then its name is given by
+`straight-watcher-process-buffer`.
 
-On Microsoft Windows, live modification checking is enabled by
-default, since `find(1)` is generally not available.
+There is probably no good reason to use both `check-on-save` and
+`watch-files` at the same time. Your configuration can dynamically
+switch between which one is used depending on `(executable-find
+"watchexec")` or similar.
+
+If you prefer to eschew automatic package rebuilding entirely, you can
+just set `straight-check-for-modifications` to `nil`. In that case,
+packages will only be rebuilt when metadata (e.g. the recipe or the
+Emacs version) changes, or when you manually invoke `M-x
+straight-rebuild-package` or `M-x straight-rebuild-all`.
+
+Regardless of your preferred setting for
+`straight-check-for-modifications`, you should set it before the
+`straight.el` bootstrap snippet is run, since hooks relating to this
+variable are set during bootstrap.
+
+On Microsoft Windows, `find(1)` is generally not available, so the
+default value of `straight-check-for-modifications` is instead
+`(check-on-save)`.
 
 #### Customizing how packages are built
 
@@ -2278,13 +2314,17 @@ customizing `straight-enable-package-integration`, however.
 
 ### Miscellaneous
 
-By default, straight.el explains what it is doing in the echo area,
-like this:
+* By default, `straight.el` explains what it is doing in the echo
+  area, like this:
 
-    Looking for cider recipe → Cloning melpa...
+      Looking for cider recipe → Cloning melpa...
 
-If your terminal does not support Unicode characters nicely, you can
-customize `straight-arrow` to display something else for the arrow.
+  If your terminal does not support Unicode characters nicely, you can
+  customize `straight-arrow` to display something else for the arrow.
+
+* By default, `straight.el` reports process output the
+  `*straight-process*` buffer. You can customize the name of this
+  buffer via the `straight-process-buffer` user option.
 
 ## Developer manual
 
@@ -2341,6 +2381,19 @@ binary on your path, and you have installed
 [`markdown-toc`][markdown-toc]).
 
 ## News
+### June 24, 2018
+
+You can now use the [`watchexec`][watchexec] utility to detect
+modifications to package files and trigger rebuilds when appropriate.
+This produces a faster startup time than using `find(1)`, yet is more
+robust than live modification detection via `before-save-hook`.
+Customize `straight-check-for-modifications` to try it out.
+
+### June 21, 2018
+
+There is an improved API for `straight-check-for-modifications`. You
+may now specify a list of symbols instead of just a single symbol. See
+the docstring for more information.
 
 ### June 5, 2018
 
@@ -2565,3 +2618,4 @@ version of Org provides, and that a correctly built version of Org
 [travis-badge]: https://travis-ci.org/raxod502/straight.el.svg?branch=develop
 [travis-build]: https://travis-ci.org/raxod502/straight.el
 [use-package]: https://github.com/jwiegley/use-package
+[watchexec]: https://github.com/mattgreen/watchexec
