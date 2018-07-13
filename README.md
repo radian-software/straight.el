@@ -70,6 +70,8 @@ development takes place on the [`develop` branch][develop].)
     + [Git backend](#git-backend)
   * [Recipe lookup](#recipe-lookup)
     + [Customizing recipe repositories](#customizing-recipe-repositories)
+      - [GNU ELPA](#gnu-elpa)
+      - [Defining new recipe repositories](#defining-new-recipe-repositories)
   * [Overriding recipes](#overriding-recipes)
     + [Overriding the recipe for `straight.el`](#overriding-the-recipe-for-straightel)
   * [Interactive usage](#interactive-usage)
@@ -86,6 +88,7 @@ development takes place on the [`develop` branch][develop].)
   * [Comments and docstrings](#comments-and-docstrings)
 - [Contributing](#contributing)
 - [News](#news)
+  * [July 12, 2018](#july-12-2018)
   * [June 24, 2018](#june-24-2018)
   * [June 21, 2018](#june-21-2018)
   * [June 5, 2018](#june-5-2018)
@@ -1850,10 +1853,31 @@ default value is:
 
     (org-elpa melpa gnu-elpa emacsmirror)
 
-You can customize the following user option:
+##### GNU ELPA
+
+You can customize the following user options:
 
 * `straight-recipes-gnu-elpa-url`: The Git URL to use for the
   `gnu-elpa` recipe repository.
+* `straight-recipes-gnu-elpa-use-mirror`: GNU ELPA uses a stupidly
+  complex build system for no good reason, and it's unlikely to change
+  any time soon. What this means for you is that you have to run the
+  Elisp-powered Makefile of the GNU ELPA repository (which has a fatal
+  bug last I checked, so you'd have to patch it locally) *and* have a
+  full checkout of the Emacs source repository (more than 1GB) if you
+  want all the packages to work correctly. To work around this
+  problem, I maintain a [full mirror of GNU ELPA on
+  GitHub][gnu-elpa-mirror]. You can tell `straight.el` to retrieve
+  packages from this mirror instead of the source repository by
+  customizing the value of `straight-recipes-gnu-elpa-use-mirror` to
+  non-nil. At some point in the future, the default value of this user
+  option will likely change to non-nil. Note that changing the value
+  of this user option causes the default value of
+  `straight-recipe-repositories` to shift to:
+
+      (org-elpa melpa gnu-elpa-mirror emacsmirror)
+
+##### Defining new recipe repositories
 
 To define a new recipe repository called `NAME`, you should do the
 following things:
@@ -2381,6 +2405,13 @@ binary on your path, and you have installed
 [`markdown-toc`][markdown-toc]).
 
 ## News
+### July 12, 2018
+
+I now maintain a [full mirror of GNU ELPA on GitHub][gnu-elpa-mirror].
+You can tell `straight.el` to use it by customizing the user option
+`straight-recipes-gnu-elpa-use-mirror`, and this will allow you to use
+packages such as AUCTeX correctly, which was previously impossible.
+
 ### June 24, 2018
 
 You can now use the [`watchexec`][watchexec] utility to detect
@@ -2601,6 +2632,7 @@ version of Org provides, and that a correctly built version of Org
 [gitter]: https://gitter.im/raxod502/straight.el
 [gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg
 [gnu-elpa]: https://elpa.gnu.org/
+[gnu-elpa-mirror]: https://github.com/emacs-straight
 [homebrew]: https://brew.sh/
 [issues]: https://github.com/raxod502/straight.el/issues
 [magit]: https://magit.vc/
