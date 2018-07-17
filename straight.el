@@ -2668,90 +2668,107 @@ empty values (all packages will be rebuilt, with no caching)."
   (setq straight--autoloads-cache (make-hash-table :test #'equal))
   (setq straight--eagerly-checked-packages nil)
   (setq straight--build-cache-text nil)
-  (ignore-errors
-    (with-temp-buffer
-      ;; Using `insert-file-contents-literally' avoids
-      ;; `find-file-hook', etc.
-      (insert-file-contents-literally
-       (straight--build-cache-file))
-      (let ((version (read (current-buffer)))
-            (find-flavor (read (current-buffer)))
-            (last-emacs-version (read (current-buffer)))
-            (build-cache (read (current-buffer)))
-            (autoloads-cache (read (current-buffer)))
-            (eager-packages (read (current-buffer)))
-            (use-symlinks (read (current-buffer)))
-            ;; This gets set to nil if we detect a specific problem
-            ;; with the build cache other than it being malformed, so
-            ;; that we don't subsequently emit a second message
-            ;; claiming that the cache is malformed.
-            (malformed t))
-        (unless (and
-                 ;; Format version should be the symbol currently in
-                 ;; use.
-                 (symbolp version)
-                 (or (eq version straight--build-cache-version)
-                     (prog1 (setq malformed nil)
-                       (message
-                        (concat
-                         "Rebuilding all packages due to "
-                         "build cache schema change"))))
-                 ;; Find flavor should be the symbol currently in use.
-                 (symbolp find-flavor)
-                 (or (eq find-flavor straight-find-flavor)
-                     (prog1 (setq malformed nil)
-                       (message
-                        (concat
-                         "Rebuilding all packages due to "
-                         "change in system find(1) utility"))))
-                 ;; Emacs version should be the same as our current
-                 ;; one.
-                 (stringp last-emacs-version)
-                 (or (string= last-emacs-version emacs-version)
-                     (prog1 (setq malformed nil)
-                       (message
-                        (concat
-                         "Rebuilding all packages due to "
-                         "change in Emacs version"))))
-                 ;; Build cache should be a hash table.
-                 (hash-table-p build-cache)
-                 (eq (hash-table-test build-cache) #'equal)
-                 ;; Autoloads cache should also be a hash table.
-                 (hash-table-p autoloads-cache)
-                 (eq (hash-table-test autoloads-cache) #'equal)
-                 ;; Eagerly checked packages should be a list of
-                 ;; strings.
-                 (listp eager-packages)
-                 (cl-every #'stringp eager-packages)
-                 ;; Symlink setting should not have changed.
-                 (eq use-symlinks straight-use-symlinks))
-          ;; If anything is wrong, abort and use the default values.
-          (when malformed
-            (message "Rebuilding all packages due to malformed build cache"))
-          (error "Malformed or outdated build cache"))
-        ;; Otherwise, we can load from disk.
-        (setq straight--build-cache build-cache)
-        (setq straight--autoloads-cache autoloads-cache)
-        (setq straight--eagerly-checked-packages eager-packages)
-        (setq straight--build-cache-text (buffer-string))
-        (when (or (straight--modifications 'check-on-save)
-                  (straight--modifications 'watch-files))
-          (when-let ((repos (condition-case _ (straight--directory-files
-                                               (straight--modified-dir))
-                              (file-missing))))
-            ;; Cause live-modified repos to have their packages
-            ;; rebuilt when appropriate. Just in case init is
-            ;; interrupted, however, we won't clear out the
-            ;; `straight--modified-dir' until we write the build cache
-            ;; back to disk.
-            (dolist (package (hash-table-keys straight--build-cache))
-              (ignore-errors
-                (when (member
-                       (plist-get (nth 2 (gethash
-                                          package straight--build-cache))
-                                  :local-repo)
-                       repos)
-                  (remhash package straight--build-cache))))))))))
+  (let ((needs-immediate-save nil))
+    (ignore-errors
+      (with-temp-buffer
+        ;; Using `insert-file-contents-literally' avoids
+        ;; `find-file-hook', etc.
+        (insert-file-contents-literally
+         (straight--build-cache-file))
+        (let ((version (read (current-buffer)))
+              (find-flavor (read (current-buffer)))
+              (last-emacs-version (read (current-buffer)))
+              (build-cache (read (current-buffer)))
+              (autoloads-cache (read (current-buffer)))
+              (eager-packages (read (current-buffer)))
+              (use-symlinks (read (current-buffer)))
+              ;; This gets set to nil if we detect a specific problem
+              ;; with the build cache other than it being malformed,
+              ;; so that we don't subsequently emit a second message
+              ;; claiming that the cache is malformed.
+              (malformed t))
+          (unless (and
+                   ;; Format version should be the symbol currently in
+                   ;; use.
+                   (symbolp version)
+                   (or (eq version straight--build-cache-version)
+                       (prog1 (setq malformed nil)
+                         (message
+                          (concat
+                           "Rebuilding all packages due to "
+                           "build cache schema change"))))
+                   ;; Find flavor should be the symbol currently in
+                   ;; use.
+                   (symbolp find-flavor)
+                   (or (eq find-flavor straight-find-flavor)
+                       (prog1 (setq malformed nil)
+                         (message
+                          (concat
+                           "Rebuilding all packages due to "
+                           "change in system find(1) utility"))))
+                   ;; Emacs version should be the same as our current
+                   ;; one.
+                   (stringp last-emacs-version)
+                   (or (string= last-emacs-version emacs-version)
+                       (prog1 (setq malformed nil)
+                         (message
+                          (concat
+                           "Rebuilding all packages due to "
+                           "change in Emacs version"))))
+                   ;; Build cache should be a hash table.
+                   (hash-table-p build-cache)
+                   (eq (hash-table-test build-cache) #'equal)
+                   ;; Autoloads cache should also be a hash table.
+                   (hash-table-p autoloads-cache)
+                   (eq (hash-table-test autoloads-cache) #'equal)
+                   ;; Eagerly checked packages should be a list of
+                   ;; strings.
+                   (listp eager-packages)
+                   (cl-every #'stringp eager-packages)
+                   ;; Symlink setting should not have changed.
+                   (eq use-symlinks straight-use-symlinks))
+            ;; If anything is wrong, abort and use the default values.
+            (when malformed
+              (message "Rebuilding all packages due to malformed build cache"))
+            (setq needs-immediate-save t)
+            (error "Malformed or outdated build cache"))
+          ;; Otherwise, we can load from disk.
+          (setq straight--build-cache build-cache)
+          (setq straight--autoloads-cache autoloads-cache)
+          (setq straight--eagerly-checked-packages eager-packages)
+          (setq straight--build-cache-text (buffer-string))
+          (when (or (straight--modifications 'check-on-save)
+                    (straight--modifications 'watch-files))
+            (when-let ((repos (condition-case _ (straight--directory-files
+                                                 (straight--modified-dir))
+                                (file-missing))))
+              ;; Cause live-modified repos to have their packages
+              ;; rebuilt when appropriate. Just in case init is
+              ;; interrupted, however, we won't clear out the
+              ;; `straight--modified-dir' until we write the build cache
+              ;; back to disk.
+              (dolist (package (hash-table-keys straight--build-cache))
+                (ignore-errors
+                  (when (member
+                         (plist-get (nth 2 (gethash
+                                            package straight--build-cache))
+                                    :local-repo)
+                         repos)
+                    (remhash package straight--build-cache)))))))))
+    ;; If we cleared out the build cache entirely due to a change in
+    ;; Emacs version or similar, then we will be rebuilding all
+    ;; packages during this init. However, the build cache will not be
+    ;; written to disk until the end of init, so we can't rely on that
+    ;; happening. If we rebuild a couple of packages and then init is
+    ;; aborted before we can save the build cache, then it's possible
+    ;; that the Emacs version (or similar) will have changed back to
+    ;; its previous value. In this case, we should rebuild the
+    ;; packages that we rebuilt during this init. However, since we
+    ;; didn't write the build cache, the need for this can't be
+    ;; detected. To solve the problem, we write the build cache
+    ;; immediately in the case of needing to rebuild all packages.
+    (when needs-immediate-save
+      (straight--save-build-cache))))
 
 (defun straight--save-build-cache ()
   "Write data from memory into build-cache.el.
