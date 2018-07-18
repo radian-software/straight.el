@@ -902,13 +902,11 @@ calls."
   (unless (straight--transaction-p)
     (error "Can't `straight--transaction-exec' when not in transaction"))
   (unless (assq id straight--transaction-alist)
-    ;; Make sure to return the actual function value, and not the
-    ;; current contents of the transaction alist, using `prog1'.
-    (prog1 (when begin-func
-             (funcall begin-func))
-      ;; Push to start of list. At the end, we'll read forward, thus
-      ;; in reverse order.
-      (push (cons id end-func) straight--transaction-alist))))
+    ;; Push to start of list. At the end, we'll read forward, thus in
+    ;; reverse order.
+    (push (cons id end-func) straight--transaction-alist)
+    (when begin-func
+      (funcall begin-func))))
 
 (defun straight-begin-transaction ()
   "Begin a transaction. See `straight--transaction-p'.
@@ -4076,7 +4074,13 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
           (unless local-repo
             (cl-return-from straight-use-package t))
           (straight--transaction-exec
-           (intern (format "use-package-%s" package))
+           ;; Ignore when the same package is requested twice (this
+           ;; will happen many times during dependency resolution).
+           ;; However, allow the user to request a package twice with
+           ;; different recipes or build settings, and in that case
+           ;; re-check everything.
+           (intern (format "use-package-%S-%S-%S"
+                           recipe no-clone no-build))
            (lambda ()
              (let (;; Check if the package has been successfully
                    ;; built. If not, and this is an interactive call,
