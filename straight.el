@@ -2442,8 +2442,8 @@ nil."
 ;;;;; Recipe registration
 
 (defvar straight--build-keywords
-  '(:local-repo :files)
-  "Keywords that affect how a file is built locally.
+  '(:local-repo :files :no-autoloads)
+  "Keywords that affect how a package is built locally.
 If the values for any of these keywords change, then package
 needs to be rebuilt. See also `straight-vc-keywords'.")
 
