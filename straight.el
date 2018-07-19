@@ -141,7 +141,7 @@ Duplicates are tested with TEST, which must be accepted by the
 `make-hash-table' function and which defaults to `eq'. The order
 of the entries that are kept will be the same as in ALIST."
   (let ((hash (make-hash-table :test (or test #'eq)))
-        (new-alist nil)
+        (new-alist nil))
     (dolist (entry (reverse alist))
       (unless (gethash (car entry) hash)
         (push entry new-alist)
@@ -2130,7 +2130,7 @@ return nil."
           (insert-file-contents-literally
            (expand-file-name (symbol-name package) "recipes/"))
           (let ((melpa-recipe (read (current-buffer)))
-                (plist nil)
+                (plist nil))
             (cl-destructuring-bind (name . melpa-plist) melpa-recipe
               (straight--put plist :type 'git)
               (when-let ((files (plist-get melpa-plist :files)))
@@ -3151,7 +3151,7 @@ analogous except that they are only cars, and do not include
 destinations."
   (unless (listp files)
     (error "Invalid :files directive: %S" files))
-  (let ((mappings nil
+  (let ((mappings nil)
         (exclusions nil))
     ;; We have to do some funny business to get `:defaults' splicing
     ;; and wildcard expansion to work, hence `while' instead of
@@ -3786,7 +3786,7 @@ INSTALLED is non-nil, then only packages that have an available
 repo are considered."
   (completing-read
    (concat message ": ")
-   (let ((packages nil)
+   (let ((packages nil))
      (maphash
       (lambda (package recipe)
         (unless (or (and for-build (plist-get recipe :no-build))
@@ -3830,7 +3830,7 @@ invoked.")
   "Read version lockfiles and return merged alist of saved versions.
 The alist maps repository names as strings to versions, whose
 interpretations are defined by the relevant VC backend."
-  (let ((versions nil)
+  (let ((versions nil))
     (dolist (spec straight-profiles)
       (cl-destructuring-bind (_profile . versions-lockfile) spec
         (let ((lockfile-path (straight--versions-file versions-lockfile)))
@@ -3865,7 +3865,7 @@ should actually be processed.
 ACTION is an optional string that describes the action being
 performed on each repository, to be used for progress messages.
 The default value is \"Processing\"."
-  (let ((next-repos nil
+  (let ((next-repos nil)
         (skipped-repos nil)
         (canceled-repos nil))
     (straight--map-repos
