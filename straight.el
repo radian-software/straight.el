@@ -3579,8 +3579,7 @@ repository."
               (push info infos)
               (unless (file-exists-p info)
                 (let ((default-directory (file-name-directory texi)))
-                  (apply #'straight--call
-                         "makeinfo" texi "-o" info '()))))))
+                  (straight--call "makeinfo" texi "-o" info))))))
         (let ((dir (straight--build-file package "dir")))
           (unless (file-exists-p dir)
             (dolist (info infos)
