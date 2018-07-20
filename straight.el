@@ -1964,8 +1964,17 @@ symbols identifying package profiles. These symbols are the
 values that you bind `straight-current-profile' to, and they
 should each have an entry in `straight-profiles'.")
 
+(defvar straight--recipe-lookup-cache nil
+  "Hash table keeping track of cached recipe lookups, or nil.
+The keys are strings naming recipe repositories (i.e. specific
+package names), and the values are hash tables recording cached
+data for those recipe repositories. The value hash tables have
+keys which are strings naming packages and values which are
+MELPA-style recipes, or nil (meaning that the recipe repository
+did not have a recipe for the package).")
+
 (defun straight--reset-caches ()
-  "Reset caches other than the build cache and success cache.
+  "Reset caches tied to the init process.
 This means `straight--recipe-cache', `straight--repo-cache', and
 `straight--profile-cache'. (We don't ever want to reset the build
 cache since it is a totally separate system from the caches
@@ -1973,7 +1982,8 @@ employed by `straight--convert-recipe', and we don't ever want to
 reset the success cache since that would mean the user would
 receive a duplicate message if they called `straight-use-package'
 interactively, reloaded their init-file, and then called
-`straight-use-package' on the same package again.)"
+`straight-use-package' on the same package again. The recipe
+lookup cache is also part of the build cache.)"
   (setq straight--recipe-cache (make-hash-table :test #'equal))
   (setq straight--repo-cache (make-hash-table :test #'equal))
   (setq straight--profile-cache (make-hash-table :test #'equal)))
@@ -2017,7 +2027,7 @@ This is used to detect and prevent an infinite recursion when
 searching for recipe repository recipes in other recipe
 repositories.
 
-If you set this to something other than nil, beware of
+If you set this globally to something other than nil, beware of
 velociraptors.")
 
 (defun straight-recipes (method name cause &rest args)
@@ -2042,6 +2052,12 @@ For example:
   (unless (memq name straight--recipe-repository-stack)
     (let ((straight--recipe-repository-stack
            (cons name straight--recipe-repository-stack)))
+      ;; This is purely for cloning the recipe repository. It's
+      ;; explicitly *not* designed to support the use case of looking
+      ;; up the recipe for one recipe repository inside another recipe
+      ;; repository without first running `straight-register-package'
+      ;; for the first recipe repository ahead of time (doing so
+      ;; produces undefined behavior).
       (straight-use-package name nil nil cause)
       (let ((recipe (straight--convert-recipe name cause)))
         (straight--with-plist recipe
@@ -2067,6 +2083,9 @@ defaults to allowing all sources in
 any of the provided sources, return nil. CAUSE is a string
 indicating the reason recipe repositories might need to be
 cloned."
+  ;; Oh god, I lost so much time debugging this because package names
+  ;; are usually strings at this level of the code.
+  (setq package (symbol-name package))
   (let* (;; If `sources' is omitted, allow all sources.
          (sources (or sources straight-recipe-repositories))
          ;; Update the `cause' to explain why repositories might be
@@ -2074,8 +2093,38 @@ cloned."
          (cause (concat cause (when cause straight-arrow)
                         (format "Looking for %s recipe" package))))
     (cl-dolist (source sources)
-      (when-let ((recipe (straight-recipes 'retrieve source cause package)))
-        (cl-return recipe)))))
+      (if-let* ((table (gethash source straight--recipe-lookup-cache))
+                ;; Can't use _ as a variable name because `if-let*'
+                ;; actually does use the variable, and then I get a
+                ;; byte-compile warning.
+                (unused (straight--checkhash package table)))
+          ;; Don't `cl-return' nil anywhere in this method. That will
+          ;; prevent us from checking the other recipe repositories.
+          (when-let ((recipe (gethash package table)))
+            (cl-return recipe))
+        (when-let ((recipe
+                    ;; NB: we use strings for the package names. This
+                    ;; is not just for convenience; it also allows us
+                    ;; to support having a package called `version'
+                    ;; while simultaneously using a symbol key called
+                    ;; `version' to keep track of the recipe
+                    ;; repository lookup logic version number.
+                    (puthash package
+                             (straight-recipes 'retrieve source cause
+                                               (intern package))
+                             (or (gethash source straight--recipe-lookup-cache)
+                                 (let ((table (make-hash-table :test #'equal))
+                                       (func (intern
+                                              (format
+                                               "straight-recipes-%S-version"
+                                               source))))
+                                   (when-let ((version (and (fboundp func)
+                                                            (funcall func))))
+                                     (puthash 'version version table))
+                                   (puthash source table
+                                            straight--recipe-lookup-cache)
+                                   table)))))
+          (cl-return recipe))))))
 
 (defun straight-recipes-list (&optional sources cause)
   "List recipes available in one or more SOURCES.
@@ -2117,6 +2166,10 @@ return nil."
   "Return a list of Org ELPA pseudo-packages, as a list of strings."
   (list "org" "org-plus-contrib"))
 
+(defun straight-recipes-org-elpa-version ()
+  "Return the current version of the Org ELPA retriever."
+  1)
+
 ;;;;;; MELPA
 
 (defun straight-recipes-melpa-retrieve (package)
@@ -2150,6 +2203,10 @@ return nil."
   "Return a list of recipes available in MELPA, as a list of strings."
   (straight--directory-files "recipes" "^[^.]"))
 
+(defun straight-recipes-melpa-version ()
+  "Return the current version of the MELPA retriever."
+  1)
+
 ;;;;;; GNU ELPA
 
 (defcustom straight-recipes-gnu-elpa-use-mirror nil
@@ -2177,6 +2234,10 @@ ELPA, return a MELPA-style recipe. Otherwise, return nil."
 This is a list of strings."
   (straight--directory-files))
 
+(defun straight-recipes-gnu-elpa-mirror-version ()
+  "Return the current version of the GNU ELPA mirror retriever."
+  1)
+
 ;;;;;;; GNU ELPA source
 
 (defcustom straight-recipes-gnu-elpa-url
@@ -2200,6 +2261,10 @@ ELPA, return a MELPA-style recipe. Otherwise, return nil."
 (defun straight-recipes-gnu-elpa-list ()
   "Return a list of recipe names available in GNU ELPA, as a list of strings."
   (straight--directory-files "packages/"))
+
+(defun straight-recipes-gnu-elpa-version ()
+  "Return the current version of the GNU ELPA retriever."
+  1)
 
 ;;;;;; EmacsMirror
 
@@ -2235,12 +2300,21 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
    (straight--directory-files "mirror")
    (straight--directory-files "attic")))
 
+(defun straight-recipes-emacsmirror-version ()
+  "Return the current version of the Emacsmirror retriever."
+  1)
+
 ;;;;; Recipe conversion
 
 (defcustom straight-built-in-pseudo-packages '(emacs)
   "List of built-in packages that aren't real packages.
 If any of these are specified as dependencies, straight.el will
-just skip them instead of looking for a recipe."
+just skip them instead of looking for a recipe.
+
+Note that straight.el can deal with built-in packages even if
+this variable is set to nil. This just allows you to tell
+straight.el to not even bother cloning recipe repositories to
+look for recipes for these packages."
   :type '(repeat symbol))
 
 (cl-defun straight--convert-recipe (melpa-style-recipe &optional cause)
@@ -2256,10 +2330,12 @@ Return nil if MELPA-STYLE-RECIPE was just a symbol, and no recipe
 could be found for it, and package.el indicates that the package
 is built in to Emacs (e.g. the \"emacs\" package). This is used
 for dependency resolution."
-  ;; Special case for the `emacs' pseudo-package, so that by default
-  ;; we don't try to look up a recipe in recipe repositories.
+  ;; Special case for the `emacs' pseudo-package and similar, so that
+  ;; by default we don't try to look up a recipe in recipe
+  ;; repositories.
   (when (memq melpa-style-recipe straight-built-in-pseudo-packages)
-    (cl-return-from straight--convert-recipe))
+    (cl-return-from straight--convert-recipe
+      `(:type built-in :package ,(symbol-name melpa-style-recipe))))
   ;; Firstly, if the recipe is only provided as a package name, and
   ;; we've already converted it before, then we should just return the
   ;; previous result. This has nothing to do with efficiency; it's
@@ -2321,7 +2397,9 @@ for dependency resolution."
                       ;; can't find it in any recipe repositories.
                       (require 'finder-inf)
                       (if (assq melpa-style-recipe package--builtins)
-                          (cl-return-from straight--convert-recipe)
+                          (cl-return-from straight--convert-recipe
+                            `(:type built-in :package
+                                    ,(symbol-name melpa-style-recipe)))
                         (error (concat "Could not find package %S "
                                        "in recipe repositories: %S")
                                melpa-style-recipe
@@ -2450,59 +2528,62 @@ needs to be rebuilt. See also `straight-vc-keywords'.")
 RECIPE should be a straight.el-style recipe plist."
   (straight--with-plist recipe
       (package local-repo type)
-    ;; Step 1 is to check if the given recipe conflicts with an
-    ;; existing recipe for a *different* package with the *same*
-    ;; repository.
-    (when-let ((existing-recipe (gethash local-repo straight--repo-cache)))
-      ;; Avoid signalling two warnings when you change the recipe for
-      ;; a single package. We already get a warning down below in Step
-      ;; 2, no need to show another one here. Only signal a warning
-      ;; here when the packages are actually *different* packages that
-      ;; share the same repository.
-      (unless (equal (plist-get recipe :package)
-                     (plist-get existing-recipe :package))
-        ;; Only the VC-specific keywords are relevant for this.
-        (cl-dolist (keyword (cons :type (straight-vc-keywords type)))
-          ;; Note that it doesn't matter which recipe we get `:type'
-          ;; from. If the two are different, then the first iteration
-          ;; of this loop will terminate with a warning, as desired.
+    ;; Skip conflict detection for built-in packages.
+    (unless (eq type 'built-in)
+      ;; Step 1 is to check if the given recipe conflicts with an
+      ;; existing recipe for a *different* package with the *same*
+      ;; repository.
+      (when-let ((existing-recipe (gethash local-repo straight--repo-cache)))
+        ;; Avoid signalling two warnings when you change the recipe
+        ;; for a single package. We already get a warning down below
+        ;; in Step 2, no need to show another one here. Only signal a
+        ;; warning here when the packages are actually *different*
+        ;; packages that share the same repository.
+        (unless (equal (plist-get recipe :package)
+                       (plist-get existing-recipe :package))
+          ;; Only the VC-specific keywords are relevant for this.
+          (cl-dolist (keyword (cons :type (straight-vc-keywords type)))
+            ;; Note that it doesn't matter which recipe we get `:type'
+            ;; from. If the two are different, then the first
+            ;; iteration of this loop will terminate with a warning,
+            ;; as desired.
+            (unless (equal (plist-get recipe keyword)
+                           (plist-get existing-recipe keyword))
+              ;; We're using a warning rather than an error here,
+              ;; because it's very frustrating if your package manager
+              ;; simply refuses to install a package for no good
+              ;; reason. Note that since we update
+              ;; `straight--repo-cache' and `straight--recipe-cache'
+              ;; at the end of this method, this warning will only be
+              ;; displayed once per recipe modification.
+              (straight--warn (concat "Packages %S and %S have incompatible "
+                                      "recipes (%S cannot be both %S and %S)")
+                              (plist-get existing-recipe :package)
+                              package
+                              keyword
+                              (plist-get existing-recipe keyword)
+                              (plist-get recipe keyword))
+              (cl-return)))))
+      ;; Step 2 is to check if the given recipe conflicts with an
+      ;; existing recipe for the *same* package.
+      (when-let ((existing-recipe (gethash package straight--recipe-cache)))
+        (cl-dolist (keyword
+                    (cons :type
+                          (append straight--build-keywords
+                                  ;; As in Step 1, it doesn't matter which
+                                  ;; recipe we get `:type' from.
+                                  (straight-vc-keywords type))))
           (unless (equal (plist-get recipe keyword)
                          (plist-get existing-recipe keyword))
-            ;; We're using a warning rather than an error here, because
-            ;; it's very frustrating if your package manager simply
-            ;; refuses to install a package for no good reason. Note
-            ;; that since we update `straight--repo-cache' and
-            ;; `straight--recipe-cache' at the end of this method, this
-            ;; warning will only be displayed once per recipe
-            ;; modification.
-            (straight--warn (concat "Packages %S and %S have incompatible "
-                                    "recipes (%S cannot be both %S and %S)")
-                            (plist-get existing-recipe :package)
-                            package
-                            keyword
-                            (plist-get existing-recipe keyword)
-                            (plist-get recipe keyword))
+            ;; Same reasoning as with the previous warning.
+            (straight--warn
+             (concat "Recipe for %S has been overridden "
+                     "(%S changed from %S to %S)")
+             package
+             keyword
+             (plist-get existing-recipe keyword)
+             (plist-get recipe keyword))
             (cl-return)))))
-    ;; Step 2 is to check if the given recipe conflicts with an
-    ;; existing recipe for the *same* package.
-    (when-let ((existing-recipe (gethash package straight--recipe-cache)))
-      (cl-dolist (keyword
-                  (cons :type
-                        (append straight--build-keywords
-                                ;; As in Step 1, it doesn't matter which
-                                ;; recipe we get `:type' from.
-                                (straight-vc-keywords type))))
-        (unless (equal (plist-get recipe keyword)
-                       (plist-get existing-recipe keyword))
-          ;; Same reasoning as with the previous warning.
-          (straight--warn
-           (concat "Recipe for %S has been overridden "
-                   "(%S changed from %S to %S)")
-           package
-           keyword
-           (plist-get existing-recipe keyword)
-           (plist-get recipe keyword))
-          (cl-return))))
     ;; Step 3, now that we've signaled any necessary warnings, is to
     ;; actually update the caches. Just FYI, `straight--build-cache'
     ;; is updated later (namely, at build time -- which may be quite a
@@ -2644,7 +2725,7 @@ generated at the end of an init from the keys of
 
 ;; See http://stormlightarchive.wikia.com/wiki/Calendar for the
 ;; schema.
-(defvar straight--build-cache-version :shash
+(defvar straight--build-cache-version :betab
   "The current version of the build cache format.
 When the format on disk changes, this value is changed, so that
 straight.el knows to regenerate the whole cache.")
@@ -2664,6 +2745,7 @@ empty values (all packages will be rebuilt, with no caching)."
   ;; malformed (or outdated), these values will be used.
   (setq straight--build-cache (make-hash-table :test #'equal))
   (setq straight--autoloads-cache (make-hash-table :test #'equal))
+  (setq straight--recipe-lookup-cache (make-hash-table :test #'eq))
   (setq straight--eagerly-checked-packages nil)
   (setq straight--build-cache-text nil)
   (let ((needs-immediate-save nil))
@@ -2678,6 +2760,7 @@ empty values (all packages will be rebuilt, with no caching)."
               (last-emacs-version (read (current-buffer)))
               (build-cache (read (current-buffer)))
               (autoloads-cache (read (current-buffer)))
+              (recipe-lookup-cache (read (current-buffer)))
               (eager-packages (read (current-buffer)))
               (use-symlinks (read (current-buffer)))
               ;; This gets set to nil if we detect a specific problem
@@ -2733,6 +2816,7 @@ empty values (all packages will be rebuilt, with no caching)."
           ;; Otherwise, we can load from disk.
           (setq straight--build-cache build-cache)
           (setq straight--autoloads-cache autoloads-cache)
+          (setq straight--recipe-lookup-cache recipe-lookup-cache)
           (setq straight--eagerly-checked-packages eager-packages)
           (setq straight--build-cache-text (buffer-string))
           (when (or (straight--modifications 'check-on-save)
@@ -2794,6 +2878,8 @@ This uses the values of `straight--build-cache' and
       (print straight--build-cache (current-buffer))
       ;; The autoloads cache.
       (print straight--autoloads-cache (current-buffer))
+      ;; The recipe lookup cache.
+      (print straight--recipe-lookup-cache (current-buffer))
       ;; Which packages should be checked eagerly next init.
       (print (hash-table-keys straight--profile-cache) (current-buffer))
       ;; Whether packages were built using symlinks or copying.
@@ -2948,7 +3034,7 @@ table whose keys are local repository names as strings and whose
 values are booleans indicating whether the repositories have been
 modified since their last builds.")
 
-(defun straight--cache-package-modifications ()
+(cl-defun straight--cache-package-modifications ()
   "Compute `straight--cached-package-modifications'."
   (let (;; Keep track of which local repositories we've processed
         ;; already. This table maps repo names to booleans.
@@ -3013,6 +3099,10 @@ modified since their last builds.")
               ;; Don't create duplicate entries in the find(1) command
               ;; for this local repository.
               (puthash local-repo t repos))))))
+    ;; If no packages, abort. This shouldn't happen, but might in the
+    ;; face of other errors/undefined behavior.
+    (unless args-paths
+      (cl-return-from straight--cache-package-modifications))
     ;; Construct the final find(1) command.
     (setq args (append
                 args-paths
@@ -3050,8 +3140,11 @@ modified since their last builds.")
 The value of this variable is only relevant when
 `straight-check-for-modifications' contains `find-when-checking'.")
 
-(cl-defun straight--package-might-be-modified-p (recipe)
-  "Check whether the package for the given RECIPE might be modified."
+(cl-defun straight--package-might-be-modified-p (recipe no-build)
+  "Check whether the package for the given RECIPE should be rebuilt.
+If NO-BUILD is non-nil, then don't assume that the package should
+have a build directory; only check for modifications since the
+last time."
   (straight--with-plist recipe
       (package local-repo)
     (let* (;; `build-info' is a list of length three containing the
@@ -3067,8 +3160,14 @@ The value of this variable is only relevant when
                            (plist-get last-recipe keyword))
               (cl-return t)))
           ;; Somebody deleted the build directory...
-          (not (file-exists-p (straight--build-dir package)))
+          (and (not no-build)
+               (not (file-exists-p (straight--build-dir package))))
           (progn
+            ;; No local repository means we certainly can't have
+            ;; changes to the package on disk. Since there's nothing
+            ;; on disk, you know.
+            (unless local-repo
+              (cl-return-from straight--package-might-be-modified-p))
             ;; Don't look at mtimes unless we're told to. Otherwise,
             ;; rely on live modification checking/user attention.
             (unless (or (straight--modifications 'find-at-startup)
@@ -3596,7 +3695,7 @@ See `format-time-string' for the format of TIMESTAMP."
     (`busybox (format-time-string "%F %T" timestamp))
     (_ (error "Unexpected `straight-find-flavor': %S" straight-find-flavor))))
 
-(defun straight--finalize-build (recipe)
+(defun straight--declare-successful-build (recipe)
   "Update `straight--build-cache' to reflect a successful build of RECIPE.
 RECIPE should be a straight.el-style plist. The build mtime and
 recipe in `straight--build-cache' for the package are updated."
@@ -3667,9 +3766,7 @@ the reason this package is being built."
             (straight--progress-begin task)))
         (straight--generate-package-autoloads recipe)
         (straight--byte-compile-package recipe)
-        (straight--compile-package-texinfo recipe)
-        ;; This won't get called if there is an error.
-        (straight--finalize-build recipe))
+        (straight--compile-package-texinfo recipe))
       ;; We messed up the echo area.
       (setq straight--echo-area-dirty t))))
 
@@ -4042,82 +4139,96 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
    (list (straight-get-recipe (when current-prefix-arg 'interactive))
          nil nil nil 'interactive))
   (straight-transaction
-    ;; If `straight--convert-recipe' returns nil, the package is
-    ;; built-in. No need to go any further.
-    (if-let ((recipe (straight--convert-recipe
-                      (or
-                       (straight--get-overridden-recipe
-                        (if (listp melpa-style-recipe)
-                            (car melpa-style-recipe)
-                          melpa-style-recipe))
-                       melpa-style-recipe)
-                      cause)))
-        (straight--with-plist recipe
-            (package local-repo)
-          ;; We need to register the recipe before building the
-          ;; package, since the ability of `straight--convert-recipe'
-          ;; to deal properly with dependencies versioned in the same
-          ;; repository of their parent package will break unless the
-          ;; caches are updated before we recur to the dependencies.
-          ;;
-          ;; Furthermore, we need to register it before executing the
-          ;; transaction block, since otherwise conflicts between
-          ;; recipes cannot be detected (the transaction block will
-          ;; only be run once for any given package in a transaction).
-          (straight--register-recipe recipe)
-          ;; And now we abort if a nil local repository was specified
-          ;; (if *no* local repository was specified, which is
-          ;; different, then a default name would have been
-          ;; generated). We return t because the package is available
-          ;; vacuously.
-          (unless local-repo
-            (cl-return-from straight-use-package t))
-          (straight--transaction-exec
-           ;; Ignore when the same package is requested twice (this
-           ;; will happen many times during dependency resolution).
-           ;; However, allow the user to request a package twice with
-           ;; different recipes or build settings, and in that case
-           ;; re-check everything.
-           (intern (format "use-package-%S-%S-%S"
-                           recipe no-clone no-build))
-           (lambda ()
-             (let (;; Check if the package has been successfully
-                   ;; built. If not, and this is an interactive call,
-                   ;; we'll want to display a helpful hint message
-                   ;; (see below). We have to check this here, before
-                   ;; the package is actually built.
-                   (already-registered
-                    (gethash package straight--success-cache))
-                   (available
-                    (straight--repository-is-available-p recipe)))
-               ;; Possibly abort based on NO-CLONE.
-               (when (if (straight--functionp no-clone)
-                         (funcall no-clone package available)
-                       no-clone)
-                 (cl-return-from straight-use-package nil))
-               ;; If we didn't abort, ensure the repository is cloned.
-               (unless available
-                 ;; We didn't decide to abort, and the repository
-                 ;; still isn't available. Make it available.
-                 (straight--clone-repository recipe cause))
-               ;; Possibly abort based on NO-BUILD.
-               (when (or
+    (let ((recipe (straight--convert-recipe
+                   (or
+                    (straight--get-overridden-recipe
+                     (if (listp melpa-style-recipe)
+                         (car melpa-style-recipe)
+                       melpa-style-recipe))
+                    melpa-style-recipe)
+                   cause)))
+      ;; We need to register the recipe before building the package,
+      ;; since the ability of `straight--convert-recipe' to deal
+      ;; properly with dependencies versioned in the same repository
+      ;; of their parent package will break unless the caches are
+      ;; updated before we recur to the dependencies.
+      ;;
+      ;; Furthermore, we need to register it before executing the
+      ;; transaction block, since otherwise conflicts between recipes
+      ;; cannot be detected (the transaction block will only be run
+      ;; once for any given package in a transaction).
+      (straight--register-recipe recipe)
+      (straight--with-plist recipe
+          (package local-repo type)
+        ;; Now, don't bother to go any further if the package was
+        ;; built-in. Return non-nil.
+        (when (eq type 'built-in)
+          (cl-return-from straight-use-package t))
+        (straight--transaction-exec
+         ;; Ignore when the same package is requested twice (this will
+         ;; happen many times during dependency resolution). However,
+         ;; allow the user to request a package twice with different
+         ;; recipes or build settings, and in that case re-check
+         ;; everything.
+         (intern (format "use-package-%S-%S-%S"
+                         recipe
+                         ;; If the NO-CLONE and NO-BUILD functions
+                         ;; compute their values dynamically, force
+                         ;; package rebuilding so the changed values
+                         ;; may be taken into account.
+                         (if (straight--functionp no-clone)
+                             (random)
+                           no-clone)
+                         (if (straight--functionp no-build)
+                             (random)
+                           no-build)))
+         (lambda ()
+           (let (;; Check if the package has been successfully built.
+                 ;; If not, and this is an interactive call, we'll
+                 ;; want to display a helpful hint message (see
+                 ;; below). We have to check this here, before the
+                 ;; package is actually built.
+                 (already-registered
+                  (gethash package straight--success-cache))
+                 (available
+                  ;; Package is vacuously available if nil local
+                  ;; repository was specified (if *no* local
+                  ;; repository was specified, which is different,
+                  ;; then a default name would have been generated).
+                  (or (null local-repo)
+                      (straight--repository-is-available-p recipe))))
+             ;; Possibly abort based on NO-CLONE.
+             (when (if (straight--functionp no-clone)
+                       (funcall no-clone package available)
+                     no-clone)
+               (cl-return-from straight-use-package nil))
+             ;; If we didn't abort, ensure the repository is cloned.
+             (unless available
+               ;; We didn't decide to abort, and the repository still
+               ;; isn't available. Make it available.
+               (straight--clone-repository recipe cause))
+             ;; Do this even for packages with `no-build' enabled, as
+             ;; we still want to check for modifications and (if any)
+             ;; invalidate the relevant entry in the recipe lookup
+             ;; cache.
+             (straight--transaction-exec
+              'build-cache
+              #'straight--load-build-cache
+              #'straight--save-build-cache)
+             (let* ((no-build
+                     (or
                       ;; Remember that `no-build' can come both from
                       ;; the arguments to `straight-use-package' and
-                      ;; from the actual recipe.
+                      ;; from the actual recipe. We also refrain from
+                      ;; trying to build packages which have no local
+                      ;; repositories.
+                      (null local-repo)
                       (plist-get recipe :no-build)
                       (if (straight--functionp no-build)
                           (funcall no-build package)
-                        no-build))
-                 (cl-return-from straight-use-package nil))
-               ;; Multi-file packages will need to be on the
-               ;; `load-path' in order to byte-compile properly.
-               (straight--add-package-to-load-path recipe)
-               (straight--transaction-exec
-                'build-cache
-                #'straight--load-build-cache
-                #'straight--save-build-cache)
-               (when (or
+                        no-build)))
+                    (modified
+                     (or
                       ;; This clause provides support for
                       ;; `straight-rebuild-package' and
                       ;; `straight-rebuild-all'.
@@ -4130,32 +4241,60 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
                        ;; The following form returns non-nil, so it
                        ;; doesn't affect the `and' logic.
                        (puthash package t straight--packages-not-to-rebuild))
-                      (straight--package-might-be-modified-p recipe))
+                      (straight--package-might-be-modified-p
+                       recipe no-build))))
+               (let ((func (intern (format "straight-recipes-%s-version"
+                                           package)))
+                     (table (gethash (intern package)
+                                     straight--recipe-lookup-cache)))
+                 ;; Invalidate recipe lookup cache when the recipe
+                 ;; repository is modified, or caching is disabled
+                 ;; because there's no version function defined for
+                 ;; the recipe repository, or because the version has
+                 ;; changed since the last time it was cached.
+                 (when (or modified
+                           (not (fboundp func))
+                           (not (equal
+                                 ;; Avoid trying to look up a key in
+                                 ;; a nil table.
+                                 (and table (gethash 'version table))
+                                 (funcall func))))
+                   (remhash (intern package) straight--recipe-lookup-cache)))
+               (unless no-build
+                 ;; Multi-file packages will need to be on the
+                 ;; `load-path' in order to byte-compile properly. So
+                 ;; we do this before `straight--build-package'.
+                 (straight--add-package-to-load-path recipe))
+               (when (and modified (not no-build))
                  (straight--build-package recipe cause))
-               ;; Here we are not actually trying to build the
-               ;; dependencies, but activate their autoloads. (See the
-               ;; comment in `straight--build-package' about this
-               ;; code.)
-               (dolist (dependency (straight--get-dependencies package))
-                 ;; There are three interesting things here. Firstly,
-                 ;; the recipe used is just the name of the
-                 ;; dependency. This causes the default recipe to be
-                 ;; looked up, unless one of the special cases in
-                 ;; `straight--convert-recipe' pops up. Secondly, the
-                 ;; values of NO-BUILD and NO-CLONE are always nil. If
-                 ;; the user has agreed to clone and build a package,
-                 ;; we assume that they also want to clone and build
-                 ;; all of its dependencies. Finally, we don't bother
-                 ;; to update `cause', since we're not expecting any
-                 ;; messages to be displayed here (all of the
-                 ;; dependencies should have already been cloned [if
-                 ;; necessary] and built back by
-                 ;; `straight--build-package').
-                 (straight-use-package (intern dependency) nil nil cause))
-               ;; Only make the package available after everything is
-               ;; kosher.
-               (straight--add-package-to-info-path recipe)
-               (straight--activate-package-autoloads recipe)
+               ;; We need to do this even if the package wasn't built,
+               ;; so we can keep track of modifications.
+               (straight--declare-successful-build recipe)
+               (unless no-build
+                 ;; Here we are not actually trying to build the
+                 ;; dependencies, but activate their autoloads. (See
+                 ;; the comment in `straight--build-package' about
+                 ;; this code.)
+                 (dolist (dependency (straight--get-dependencies package))
+                   ;; There are three interesting things here.
+                   ;; Firstly, the recipe used is just the name of the
+                   ;; dependency. This causes the default recipe to be
+                   ;; looked up, unless one of the special cases in
+                   ;; `straight--convert-recipe' pops up. Secondly,
+                   ;; the values of NO-BUILD and NO-CLONE are always
+                   ;; nil. If the user has agreed to clone and build a
+                   ;; package, we assume that they also want to clone
+                   ;; and build all of its dependencies. Finally, we
+                   ;; don't bother to update `cause', since we're not
+                   ;; expecting any messages to be displayed here (all
+                   ;; of the dependencies should have already been
+                   ;; cloned [if necessary] and built back by
+                   ;; `straight--build-package').
+                   (straight-use-package (intern dependency) nil nil cause))
+                 ;; Only make the package available after everything
+                 ;; is kosher.
+                 (straight--add-package-to-info-path recipe)
+                 (straight--activate-package-autoloads recipe))
                ;; In interactive use, tell the user how to install
                ;; packages permanently.
                (when (and interactive (not already-registered))
@@ -4163,12 +4302,10 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
                   (concat "If you want to keep %s, put "
                           "(straight-use-package %s%S) "
                           "in your init-file.")
-                  package "'" (intern package)))
-               ;; The package was installed successfully.
-               (puthash package t straight--success-cache)
-               t))))
-      ;; Return non-nil for built-in packages.
-      t)))
+                  package "'" (intern package))))
+             ;; The package was installed successfully.
+             (puthash package t straight--success-cache)
+             t)))))))
 
 ;;;###autoload
 (defun straight-register-package (melpa-style-recipe)
@@ -4315,7 +4452,15 @@ autoloads discarded."
     (dolist (package (hash-table-keys straight--build-cache))
       (unless (gethash package straight--profile-cache)
         (remhash package straight--build-cache)
-        (remhash package straight--autoloads-cache)))))
+        (remhash package straight--autoloads-cache)))
+    (dolist (source (hash-table-keys straight--recipe-lookup-cache))
+      (if (gethash (symbol-name source) straight--profile-cache)
+          (let ((table (gethash source straight--recipe-lookup-cache)))
+            (dolist (package (hash-table-keys table))
+              (unless (or (equal package 'version)
+                          (gethash package straight--profile-cache))
+                (remhash package table))))
+        (remhash source straight--recipe-lookup-cache)))))
 
 ;;;###autoload
 (defun straight-prune-build-directory ()

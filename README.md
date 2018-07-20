@@ -88,6 +88,7 @@ development takes place on the [`develop` branch][develop].)
   * [Comments and docstrings](#comments-and-docstrings)
 - [Contributing](#contributing)
 - [News](#news)
+  * [July 19, 2018](#july-19-2018)
   * [July 12, 2018](#july-12-2018)
   * [June 24, 2018](#june-24-2018)
   * [June 21, 2018](#june-21-2018)
@@ -1895,6 +1896,15 @@ following things:
   backend uses this functionality, since all files in the `recipes`
   directory are potentially recipes, but only the Git-based ones can
   actually be used.)
+* (Optional) Define a function `straight-recipes-NAME-version` which
+  returns a non-nil value indicating the current version of the logic
+  in your `straight-recipes-NAME-retrieve` function. Each time you
+  change the logic, this version value must be changed. If this
+  function is defined, then `straight.el` automatically and
+  transparently caches calls to `straight-recipes-NAME-retrieve`
+  within a single [transaction][transactions], using your version
+  value (and detection of modifications to the recipe repository) to
+  decide when to invalidate the cache.
 * Call `straight-use-recipes` with the recipe for your recipe
   repository. Make sure to include `:no-build` in the recipe, unless
   you also want to use the recipe repository as an executable Emacs
@@ -2403,6 +2413,23 @@ binary on your path, and you have installed
 [`markdown-toc`][markdown-toc]).
 
 ## News
+### July 19, 2018
+
+`straight.el` now automatically caches the recipes it looks up in
+recipe repositories. This should lead to a reduction in
+`straight.el`-related startup time of as much as 50% if you also use
+live modification detection, as disk IO and usage of external
+processes are reduced significantly.
+
+No changes to user configuration are necessary; however, if you define
+a custom recipe repository (call it `NAME`) then caching is not
+enabled by default. To enable caching, define a
+`straight-recipes-NAME-version` function which returns a non-nil value
+indicating the current version of the logic in
+`straight-recipes-NAME-retrieve`. This version value needs to be
+changed each time you change the logic, so that the recipe lookup
+cache for that recipe repository may automatically be invalidated.
+
 ### July 12, 2018
 
 I now maintain a [full mirror of GNU ELPA on GitHub][gnu-elpa-mirror].
