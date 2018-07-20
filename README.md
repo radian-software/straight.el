@@ -1149,7 +1149,7 @@ offer corrections for this section.
     * el-get goes the route of adding as many package sources as
       possible (e.g. `package.el`, many different version-control
       systems, various specific websites, and even system package
-      managers) so that packages can be used very easily
+      managers) so that packages can be used very easily.
     * `straight.el` only supports Git and in doing so is able to
       provide more advanced package management features.
 
