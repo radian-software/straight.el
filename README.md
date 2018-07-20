@@ -1155,10 +1155,6 @@ offer corrections for this section.
 
 #### Advantages of `straight.el`
 
-* `straight.el` has integrated support for selecting particular Git
-  revisions of packages. This process is more manual in el-get, as it
-  requires placing the commit hash into the recipe, which disables
-  updates.
 * `straight.el` uses your init-file as the sole source of truth for
   package operations. el-get has additional metadata stored outside
   the init-file, although specifying all packages in your init-file is
