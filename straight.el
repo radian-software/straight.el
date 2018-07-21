@@ -2093,38 +2093,36 @@ cloned."
          (cause (concat cause (when cause straight-arrow)
                         (format "Looking for %s recipe" package))))
     (cl-dolist (source sources)
-      (if-let* ((table (gethash source straight--recipe-lookup-cache))
-                ;; Can't use _ as a variable name because `if-let*'
-                ;; actually does use the variable, and then I get a
-                ;; byte-compile warning.
-                (unused (straight--checkhash package table)))
-          ;; Don't `cl-return' nil anywhere in this method. That will
-          ;; prevent us from checking the other recipe repositories.
-          (when-let ((recipe (gethash package table)))
-            (cl-return recipe))
-        (when-let ((recipe
-                    ;; NB: we use strings for the package names. This
-                    ;; is not just for convenience; it also allows us
-                    ;; to support having a package called `version'
-                    ;; while simultaneously using a symbol key called
-                    ;; `version' to keep track of the recipe
-                    ;; repository lookup logic version number.
-                    (puthash package
-                             (straight-recipes 'retrieve source cause
-                                               (intern package))
-                             (or (gethash source straight--recipe-lookup-cache)
-                                 (let ((table (make-hash-table :test #'equal))
-                                       (func (intern
-                                              (format
-                                               "straight-recipes-%S-version"
-                                               source))))
-                                   (when-let ((version (and (fboundp func)
-                                                            (funcall func))))
-                                     (puthash 'version version table))
-                                   (puthash source table
-                                            straight--recipe-lookup-cache)
-                                   table)))))
-          (cl-return recipe))))))
+      (let ((table (gethash source straight--recipe-lookup-cache)))
+        (if (and table (straight--checkhash package table))
+            ;; Don't `cl-return' nil anywhere in this method. That will
+            ;; prevent us from checking the other recipe repositories.
+            (when-let ((recipe (gethash package table)))
+              (cl-return recipe))
+          (when-let
+              ((recipe
+                ;; NB: we use strings for the package names. This is
+                ;; not just for convenience; it also allows us to
+                ;; support having a package called `version' while
+                ;; simultaneously using a symbol key called `version'
+                ;; to keep track of the recipe repository lookup logic
+                ;; version number.
+                (puthash package
+                         (straight-recipes 'retrieve source cause
+                                           (intern package))
+                         (or (gethash source straight--recipe-lookup-cache)
+                             (let ((table (make-hash-table :test #'equal))
+                                   (func (intern
+                                          (format
+                                           "straight-recipes-%S-version"
+                                           source))))
+                               (when-let ((version (and (fboundp func)
+                                                        (funcall func))))
+                                 (puthash 'version version table))
+                               (puthash source table
+                                        straight--recipe-lookup-cache)
+                               table)))))
+            (cl-return recipe)))))))
 
 (defun straight-recipes-list (&optional sources cause)
   "List recipes available in one or more SOURCES.
