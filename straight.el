@@ -1195,6 +1195,13 @@ This method simply delegates to the relevant
 `straight-vc-TYPE-keywords' method."
   (straight-vc 'keywords type))
 
+;;;;; Built-in packages
+
+(defun straight-vc-built-in-local-repo-name (recipe)
+  "Generate a repository name from straight.el-style RECIPE.
+For built-in packages, this is always nil."
+  nil)
+
 ;;;;; Git
 
 (defcustom straight-vc-git-default-branch "master"
