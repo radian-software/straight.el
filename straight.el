@@ -1197,7 +1197,7 @@ This method simply delegates to the relevant
 
 ;;;;; Built-in packages
 
-(defun straight-vc-built-in-local-repo-name (recipe)
+(defun straight-vc-built-in-local-repo-name (_recipe)
   "Generate a repository name from straight.el-style RECIPE.
 For built-in packages, this is always nil."
   nil)
