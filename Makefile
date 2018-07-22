@@ -52,9 +52,10 @@ clean:
 	@echo "[clean]" *.elc
 	@rm -f *.elc
 
+# Make sure to test with a package that supports Emacs 24.4 here.
 travis: compile checkdoc longlines
 	mkdir -p ~/.emacs.d/straight/repos/
 	ln -s $(PWD) ~/.emacs.d/straight/repos/
 	$(EMACS) --batch -l ~/.emacs.d/straight/repos/straight.el/bootstrap.el \
 		--eval "(straight-use-package 'use-package)" \
-		--eval "(use-package el-patch :straight t)"
+		--eval "(use-package clojure-mode :straight t)"

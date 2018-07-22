@@ -2154,6 +2154,33 @@ return nil."
 
 ;;;;;; GNU ELPA
 
+(defcustom straight-recipes-gnu-elpa-use-mirror nil
+  "Non-nil means to retrieve GNU ELPA packages via a mirror.
+This means that all the packages work, even the `externals-list'
+ones (e.g. `auctex'). However, you will not be able to contribute
+changes back to GNU ELPA directly from the repository. This
+should not be a major concern since the GNU ELPA build system
+does such a good job of discouraging contributions anyway."
+  :type 'boolean)
+
+;;;;;;; GNU ELPA mirror
+
+(defun straight-recipes-gnu-elpa-mirror-retrieve (package)
+  "Look up a PACKAGE recipe in the GNU ELPA mirror.
+PACKAGE should be a symbol. If the package is maintained in GNU
+ELPA, return a MELPA-style recipe. Otherwise, return nil."
+  (when (file-exists-p (symbol-name package))
+    `(,package :type git
+               :host github
+               :repo ,(format "emacs-straight/%S" package))))
+
+(defun straight-recipes-gnu-elpa-mirror-list ()
+  "Return a list of recipe names available in the GNU ELPA mirror.
+This is a list of strings."
+  (straight--directory-files))
+
+;;;;;;; GNU ELPA source
+
 (defcustom straight-recipes-gnu-elpa-url
   "https://git.savannah.gnu.org/git/emacs/elpa.git"
   "URL of the Git repository for the GNU ELPA package repository."
