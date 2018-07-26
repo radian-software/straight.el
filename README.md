@@ -1868,9 +1868,10 @@ You can customize the following user options:
   GitHub][gnu-elpa-mirror]. You can tell `straight.el` to retrieve
   packages from this mirror instead of the source repository by
   customizing the value of `straight-recipes-gnu-elpa-use-mirror` to
-  non-nil. At some point in the future, the default value of this user
-  option will likely change to non-nil. Note that changing the value
-  of this user option causes the default value of
+  non-nil. You must do this customization *before* the `straight.el`
+  [bootstrap]. At some point in the future, the default value of this
+  user option will likely change to non-nil. Note that changing the
+  value of this user option causes the default value of
   `straight-recipe-repositories` to shift to:
 
       (org-elpa melpa gnu-elpa-mirror emacsmirror)
@@ -2435,6 +2436,8 @@ I now maintain a [full mirror of GNU ELPA on GitHub][gnu-elpa-mirror].
 You can tell `straight.el` to use it by customizing the user option
 `straight-recipes-gnu-elpa-use-mirror`, and this will allow you to use
 packages such as AUCTeX correctly, which was previously impossible.
+Note that the user option must be customized *before* the
+`straight.el` [bootstrap].
 
 ### June 24, 2018
 
