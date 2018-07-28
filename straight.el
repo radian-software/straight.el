@@ -1244,8 +1244,10 @@ A nil value allows for inspection of all remote changes."
 
 ;;;;;; Utility functions
 
-;; We don't define `straight--profile-cache' until later. (Should some
-;; things be rearranged to make this unnecessary?)
+;; We don't define `straight--profile-cache' until later. I don't
+;; think it's possible to avoid the circular dependency in any sane
+;; way, since the VC layer is used to clone packages and we need to
+;; clone Magit here.
 (defvar straight--profile-cache)
 
 (cl-defun straight--magit-status (directory)
@@ -1386,7 +1388,7 @@ matter if a GitHub URL is suffixed with .git or not."
 (defun straight-vc-git--list-remotes ()
   "Return a list of Git remotes as strings for the current directory.
 Do not suppress unexpected errors."
-  ;; Git remotes cannot have newlines in them, thank goodness.
+  ;; Git remote names cannot have whitespace in them, thank goodness.
   (straight--split-and-trim (straight--get-call "git" "remote")))
 
 ;;;;;; Validation functions
