@@ -88,6 +88,7 @@ development takes place on the [`develop` branch][develop].)
   * [Comments and docstrings](#comments-and-docstrings)
 - [Contributing](#contributing)
 - [News](#news)
+  * [July 19, 2018](#july-19-2018)
   * [July 12, 2018](#july-12-2018)
   * [June 24, 2018](#june-24-2018)
   * [June 21, 2018](#june-21-2018)
@@ -164,9 +165,10 @@ First, place the following bootstrap code in your init-file:
 
 <!-- longlines-start -->
 
+    (defvar bootstrap-version)
     (let ((bootstrap-file
            (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
-          (bootstrap-version 4))
+          (bootstrap-version 5))
       (unless (file-exists-p bootstrap-file)
         (with-current-buffer
             (url-retrieve-synchronously
@@ -198,17 +200,16 @@ On macOS, you may receive an error:
     Could not create connection to raw.githubusercontent.com:443
 
 There are two ways to solve this problem. One way is to install a
-version of Emacs that is linked with GnuTLS. With [Homebrew], that
-looks like this:
+version of Emacs that is linked with GnuTLS. The [Homebrew] formula
+for Emacs was recently updated to link with GnuTLS by default, so you
+need only do this:
 
-    $ brew install gnutls
-    $ brew install emacs --devel --with-cocoa --with-gnutls
+    $ brew upgrade emacs
 
 The other way is to let Emacs use certificates provided by LibreSSL,
 which you can do by running these commands:
 
-    $ brew install gnutls
-    $ brew install libressl
+    $ brew install gnutls libressl
 
 And adding this to your init-file, *before* the bootstrap snippet:
 
@@ -1148,16 +1149,12 @@ offer corrections for this section.
     * el-get goes the route of adding as many package sources as
       possible (e.g. `package.el`, many different version-control
       systems, various specific websites, and even system package
-      managers) so that packages can be used very easily
+      managers) so that packages can be used very easily.
     * `straight.el` only supports Git and in doing so is able to
       provide more advanced package management features.
 
 #### Advantages of `straight.el`
 
-* `straight.el` has integrated support for selecting particular Git
-  revisions of packages. This process is more manual in el-get, as it
-  requires placing the commit hash into the recipe, which disables
-  updates.
 * `straight.el` uses your init-file as the sole source of truth for
   package operations. el-get has additional metadata stored outside
   the init-file, although specifying all packages in your init-file is
@@ -1347,9 +1344,10 @@ care of all these details for you:
 
 <!-- longlines-start -->
 
+    (defvar bootstrap-version)
     (let ((bootstrap-file
            (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
-          (bootstrap-version 4))
+          (bootstrap-version 5))
       (unless (file-exists-p bootstrap-file)
         (with-current-buffer
             (url-retrieve-synchronously
@@ -1870,9 +1868,10 @@ You can customize the following user options:
   GitHub][gnu-elpa-mirror]. You can tell `straight.el` to retrieve
   packages from this mirror instead of the source repository by
   customizing the value of `straight-recipes-gnu-elpa-use-mirror` to
-  non-nil. At some point in the future, the default value of this user
-  option will likely change to non-nil. Note that changing the value
-  of this user option causes the default value of
+  non-nil. You must do this customization *before* the `straight.el`
+  [bootstrap]. At some point in the future, the default value of this
+  user option will likely change to non-nil. Note that changing the
+  value of this user option causes the default value of
   `straight-recipe-repositories` to shift to:
 
       (org-elpa melpa gnu-elpa-mirror emacsmirror)
@@ -1897,6 +1896,15 @@ following things:
   backend uses this functionality, since all files in the `recipes`
   directory are potentially recipes, but only the Git-based ones can
   actually be used.)
+* (Optional) Define a function `straight-recipes-NAME-version` which
+  returns a non-nil value indicating the current version of the logic
+  in your `straight-recipes-NAME-retrieve` function. Each time you
+  change the logic, this version value must be changed. If this
+  function is defined, then `straight.el` automatically and
+  transparently caches calls to `straight-recipes-NAME-retrieve`
+  within a single [transaction][transactions], using your version
+  value (and detection of modifications to the recipe repository) to
+  decide when to invalidate the cache.
 * Call `straight-use-recipes` with the recipe for your recipe
   repository. Make sure to include `:no-build` in the recipe, unless
   you also want to use the recipe repository as an executable Emacs
@@ -2405,12 +2413,31 @@ binary on your path, and you have installed
 [`markdown-toc`][markdown-toc]).
 
 ## News
+### July 19, 2018
+
+`straight.el` now automatically caches the recipes it looks up in
+recipe repositories. This should lead to a reduction in
+`straight.el`-related startup time of as much as 50% if you also use
+live modification detection, as disk IO and usage of external
+processes are reduced significantly.
+
+No changes to user configuration are necessary; however, if you define
+a custom recipe repository (call it `NAME`) then caching is not
+enabled by default. To enable caching, define a
+`straight-recipes-NAME-version` function which returns a non-nil value
+indicating the current version of the logic in
+`straight-recipes-NAME-retrieve`. This version value needs to be
+changed each time you change the logic, so that the recipe lookup
+cache for that recipe repository may automatically be invalidated.
+
 ### July 12, 2018
 
 I now maintain a [full mirror of GNU ELPA on GitHub][gnu-elpa-mirror].
 You can tell `straight.el` to use it by customizing the user option
 `straight-recipes-gnu-elpa-use-mirror`, and this will allow you to use
 packages such as AUCTeX correctly, which was previously impossible.
+Note that the user option must be customized *before* the
+`straight.el` [bootstrap].
 
 ### June 24, 2018
 
