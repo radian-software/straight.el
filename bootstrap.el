@@ -28,10 +28,7 @@
           buffer-file-name)))
        (straight.el
         (expand-file-name
-         "straight.el" (file-name-directory bootstrap.el)))
-       (straight-compat.el
-        (expand-file-name
-         "straight-compat.el" (file-name-directory bootstrap.el))))
+         "straight.el" (file-name-directory bootstrap.el))))
   ;; This logic replicates that in `straight--byte-compile-package',
   ;; and is used to silence byte-compile warnings and other cruft.
   (cl-letf (((symbol-function #'save-some-buffers) #'ignore)
@@ -43,36 +40,26 @@
           (message-log-max nil)
           (inhibit-message t)
           (emacs-version-changed t))
-      ;; Compile and load files necessary for straight.el in reverse
-      ;; dependency order.
-      ;;
       ;; Argument 0 means (for some reason) to byte-compile even if
-      ;; the .elc file does not already exist.
-      (byte-recompile-file straight-compat.el nil 0)
+      ;; the .elc file does not already exist (but not if the .elc
+      ;; file is at least as new as the .el file).
+      (byte-recompile-file straight.el nil 0)
       (catch 'emacs-version-changed
-        ;; straight-compat.el has a fun hack that throws
+        ;; straight.el has a fun hack that throws
         ;; `emacs-version-changed' if the version of Emacs has changed
         ;; since the last time it was byte-compiled. This prevents us
-        ;; from accidentally loading invalid byte-code.
-        (load (expand-file-name (concat straight-compat.el "c")
+        ;; from accidentally loading invalid byte-code, hopefully.
+        (load (expand-file-name (concat straight.el "c")
                                 default-directory)
               nil 'nomessage 'nosuffix)
         (setq emacs-version-changed nil))
       (when emacs-version-changed
         ;; Don't use the optional LOAD argument for
         ;; `byte-compile-file' because it emits a message.
-        (byte-compile-file straight-compat.el)
-        (load (expand-file-name (concat straight-compat.el "c")
+        (byte-compile-file straight.el)
+        (load (expand-file-name (concat straight.el "c")
                                 default-directory)
-              nil 'nomessage 'nosuffix))
-      ;; Actually load the package manager. This doesn't do anything
-      ;; except initialize some caches.
-      (if emacs-version-changed
-          (byte-compile-file straight.el)
-        (byte-recompile-file straight.el nil 0))
-      (load (expand-file-name (concat straight.el "c")
-                              default-directory)
-            nil 'nomessage 'nosuffix))))
+              nil 'nomessage 'nosuffix)))))
 
 ;; This assures the byte-compiler that we know what we are doing when
 ;; we reference functions and variables from straight.el below. It
