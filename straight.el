@@ -54,8 +54,12 @@
 
 ;;;; Backports
 
+;; Note that we use `eval-and-compile' even for macros, because
+;; otherwise libraries which load the byte-compiled version of this
+;; file won't be able to use those macros.
+
 ;; Not defined before Emacs 25.1
-(eval-when-compile
+(eval-and-compile
   (unless (fboundp 'if-let)
     (defmacro if-let (varlist then &optional else)
       "Bind variables according to VARLIST and eval THEN or ELSE.
@@ -71,7 +75,7 @@ ELSE (or nil)."
              ,else))))))
 
 ;; Not defined before Emacs 25.1
-(eval-when-compile
+(eval-and-compile
   (unless (fboundp 'when-let)
     (defmacro when-let (varlist &rest body)
       "Bind variables according to VARLIST and conditionally eval BODY.
