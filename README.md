@@ -888,7 +888,7 @@ And here is a brief list of the main reasons you might not want to use
   present, whenever any package management operation is performed.
 * `straight.el` has a profile system that allows users of someone
   else's Emacs configuration to manage an additional subset of
-  packages, or to overriding upstream package configuration, without
+  packages, or to override upstream package configuration, without
   forking the upstream. `package.el` has no such concept.
 * `straight.el` is developed openly on GitHub, using a modern [issue
   tracker][issues] and continuous integration from [Travis
@@ -1022,7 +1022,7 @@ And here is a brief list of the main reasons you might not want to use
   management operation.
 * `straight.el` has a profile system that allows users of someone
   else's Emacs configuration to manage an additional subset of
-  packages, or to overriding upstream package configuration, without
+  packages, or to override upstream package configuration, without
   forking the upstream. Quelpa has no such concept.
 
 #### Advantages of Quelpa
@@ -1111,7 +1111,7 @@ offer corrections for this section.
   warnings that come from byte-compilation and autoload generation.
 * `straight.el` has a profile system that allows users of someone
   else's Emacs configuration to manage an additional subset of
-  packages, or to overriding upstream package configuration, without
+  packages, or to override upstream package configuration, without
   forking the upstream. Cask has no such concept.
 
 #### Advantages of Cask
@@ -1183,7 +1183,7 @@ offer corrections for this section.
   reports its progress verbosely.
 * `straight.el` has a profile system that allows users of someone
   else's Emacs configuration to manage an additional subset of
-  packages, or to overriding upstream package configuration, without
+  packages, or to override upstream package configuration, without
   forking the upstream. el-get has no such concept.
 
 #### Advantages of el-get
@@ -1254,7 +1254,7 @@ offer corrections for this section.
   [planned][borg-improvements] to be improved in a future release.)
 * `straight.el` has a profile system that allows users of someone
   else's Emacs configuration to manage an additional subset of
-  packages, or to overriding upstream package configuration, without
+  packages, or to override upstream package configuration, without
   forking the upstream. Borg has no such concept.
 
 #### Advantages of Borg
@@ -2611,7 +2611,7 @@ version of Org provides, and that a correctly built version of Org
 
     (provide 'org-version)
 
-    (straight-use-package 'org) ;; or org-plus-contrib if desired
+    (straight-use-package 'org) ; or org-plus-contrib if desired
 
 [bootstrap]: #getting-started
 [comments-and-docstrings]: #comments-and-docstrings
