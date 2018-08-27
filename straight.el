@@ -4714,8 +4714,8 @@ PREDICATE, if provided, filters the packages that are normalized.
 It is called with the package name as a string, and should return
 non-nil if the package should actually be normalized."
   (interactive)
-  (straight--map-existing-repos-interactively #'straight-push-package
-                                              predicate))
+  (straight--map-existing-repos-interactively
+   #'straight-push-package predicate))
 
 ;;;;; Lockfile management
 
