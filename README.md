@@ -68,6 +68,7 @@ development takes place on the [`develop` branch][develop].)
   * [The recipe format](#the-recipe-format)
     + [Version-control backends](#version-control-backends)
     + [Git backend](#git-backend)
+      - [Deprecated `:upstream` keyword](#deprecated-upstream-keyword)
   * [Recipe lookup](#recipe-lookup)
     + [Customizing recipe repositories](#customizing-recipe-repositories)
       - [GNU ELPA](#gnu-elpa)
@@ -88,6 +89,7 @@ development takes place on the [`develop` branch][develop].)
   * [Comments and docstrings](#comments-and-docstrings)
 - [Contributing](#contributing)
 - [News](#news)
+  * [September 12, 2018](#september-12-2018)
   * [July 19, 2018](#july-19-2018)
   * [July 12, 2018](#july-12-2018)
   * [June 24, 2018](#june-24-2018)
@@ -102,7 +104,6 @@ development takes place on the [`develop` branch][develop].)
   * [October 30, 2017](#october-30-2017)
   * [October 27, 2017](#october-27-2017)
   * [October 22, 2017](#october-22-2017)
-  * [July 27, 2017](#july-27-2017)
 - [Known issue FAQ](#known-issue-faq)
   * [Installing Org with `straight.el`](#installing-org-with-straightel)
 
@@ -256,9 +257,9 @@ In fact, `straight.el` has explicit support for using a forked
 package, since this is so common:
 
     (straight-use-package
-     '(el-patch :type git :host github :repo "your-name/el-patch"
-                :upstream (:host github
-                           :repo "raxod502/el-patch")))
+     '(el-patch :type git :host github :repo "raxod502/el-patch"
+                :fork (:host github
+                       :repo "your-name/el-patch")))
 
 You may also omit the `:type git` if you leave `straight-default-vc`
 at its default value of `git`.
@@ -287,9 +288,9 @@ missing packages if you provide `:straight t`:
 You can still provide a custom recipe for the package:
 
     (use-package el-patch
-      :straight (el-patch :type git :host github :repo "your-name/el-patch"
-                          :upstream (:host github
-                                     :repo "raxod502/el-patch")))
+      :straight (el-patch :type git :host github :repo "raxod502/el-patch"
+                          :fork (:host github
+                                 :repo "your-name/el-patch")))
 
 Specifying `:straight t` is unnecessary if you set
 `straight-use-package-by-default` to a non-nil value. (Note that the
@@ -327,11 +328,11 @@ interactive workflows to perform bulk operations on your packages.
 
 * To fetch from each package's configured remote, run `M-x
   straight-fetch-package` or `M-x straight-fetch-all`; to also fetch
-  from the upstream (if any), supply a prefix argument.
+  from the upstream for forked packages, supply a prefix argument.
 
 * To merge changes from each package's configured remote, run `M-x
   straight-merge-package` or `M-x straight-merge-all`; to also merge
-  from the upstream (if any), supply a prefix argument.
+  from the upstream for forked packages, supply a prefix argument.
 
 * To push all local changes to each package's configured remote, run
   `M-x straight-push-package` or `M-x straight-push-all`.
@@ -512,7 +513,7 @@ set of additional directives. For example, the `git` backend accepts:
 * `:host`
 * `:branch`
 * `:nonrecursive`
-* `:upstream`
+* `:fork`
 
 If a local repository is not present, then its fetch recipe describes
 how to obtain it. This is done using the `straight-vc-clone` function,
@@ -1428,9 +1429,9 @@ list][property-lists] providing information about how to install and
 build the package. Here is an example:
 
     (straight-use-package
-     '(el-patch :type git :host github :repo "your-name/el-patch"
-                :upstream (:host github
-                           :repo "raxod502/el-patch")))
+     '(el-patch :type git :host github :repo "raxod502/el-patch"
+                :fork (:host github
+                       :repo "your-name/el-patch")))
 
 If you give `straight-use-package` just a package name, then a recipe
 will be looked up by default (see the section on [recipe
@@ -1691,11 +1692,12 @@ a backend API method. The relevant methods are:
 * `fetch-from-remote`: given a recipe, fetch the latest version from
   its configured remote, if one is specified.
 * `fetch-from-upstream`: given a recipe, fetch the latest version from
-  its configured upstream, if one is specified.
+  its configured upstream, if the package is forked.
 * `merge-from-remote`: given a recipe, merge the latest version
   fetched from the configured remote, if any, to the local copy.
 * `merge-from-upstream`: given a recipe, merge the latest version
-  fetched from the configured upstream, if any, to the local copy.
+  fetched from the configured upstream, if the package is forked, to
+  the local copy.
 * `push-to-remote`: given a recipe, push the current version of the
   repository to its configured remote, if one is specified.
 * `check-out-commit`: given a local repository name and a commit
@@ -1730,33 +1732,44 @@ These are the keywords meaningful for the `git` backend:
   out when the repository is cloned, then this branch is checked out,
   if possible. This branch is also viewed as the "primary" branch for
   the purpose of normalization and interaction with the remote.
+* `:remote`: the name to use for the Git remote. If the package is
+  forked, this name is used for the upstream remote.
 * `:nonrecursive`: if non-nil, then submodules are not cloned. This is
   particularly important for the EmacsMirror recipe repository, which
   contains every known Emacs package in existence as submodules.
-* `:upstream`: a plist which specifies settings for an upstream, if
-  desired. This is meaningful for the `fetch-from-upstream` method. The
-  allowed keywords are `:repo`, `:host`, and `:branch`.
+* `:fork`: a plist which specifies settings for a fork, if desired.
+  This causes the `fetch-from-remote` method to operate on the fork;
+  you can use the `fetch-from-upstream` method to operate on the
+  upstream instead. The allowed keywords are `:repo`, `:host`,
+  `:branch`, and `:remote`.
 
 This section tells you how the `git` backend, specifically, implements
 the version-control backend API:
 
 * `clone`: clones the repository, including submodules if
   `:nonrecursive` is not provided. Checks out the commit specified in
-  your revision lockfile, or the `:branch`, or `origin/HEAD`. If an
-  `:upstream` is specified, fetches that remote as well.
+  your revision lockfile, or the `:branch` (from the `:fork`
+  configuration, if given), or `origin/HEAD`. If a `:fork` is
+  specified, also fetches from the upstream.
 * `normalize`: verifies that remote URLs are set correctly, that no
   merge is in progress, that the worktree is clean, and that the
-  primary `:branch` is checked out.
+  primary `:branch` (from the `:fork` configuration, if given) is
+  checked out.
 * `fetch-from-remote`: checks that remote URLs are set correctly, then
-  fetches from the primary remote.
+  fetches from the primary remote (the fork, if the package is
+  forked).
 * `fetch-from-upstream`: checks that remote URLs are set correctly,
-  then fetches from the upstream remote.
+  then fetches from the upstream remote. If the package is not a fork,
+  does nothing.
 * `merge-from-remote`: performs normalization, then merges from the
-  primary remote into the primary local `:branch`.
+  primary remote (the fork, if the package is forked) into the primary
+  local `:branch`.
 * `merge-from-upstream`: performs normalization, then merges from the
-  upstream remote into the primary local `:branch`.
+  upstream remote into the primary local `:branch`. If the package is
+  not a fork, does not attempt to merge.
 * `push-to-remote`: performs normalization, pulls from the primary
-  remote if necessary, and then pushes if necessary.
+  remote if necessary, and then pushes if necessary. This operation
+  acts on the fork, if the package is forked.
 * `check-out-commit`: verifies that no merge is in progress and that
   the worktree is clean, then checks out the specified commit.
 * `get-commit`: returns HEAD as a 40-character string.
@@ -1770,11 +1783,13 @@ You can customize the following user options:
 
 * `straight-vc-git-default-branch`: if `:branch` is unspecified, then
   this is used instead. Defaults to "master".
-* `straight-vc-git-primary-remote`: the name to use for the primary
-  remote. Defaults to "origin". This cannot be customized on a
-  per-repository basis.
-* `straight-vc-git-upstream-remote`: the name to use for the upstream
-  remote. Defaults to "upstream". This cannot be customized on a
+* `straight-vc-git-default-remote-name`: the name to use for the
+  primary remote, or the upstream remote if the package is forked.
+  Defaults to "origin". The `:remote` keyword may be used to override
+  the value of this variable on a per-repository basis.
+* `straight-vc-git-default-fork-name`: the name to use for the fork
+  remote, if the package is forked. Defaults to "fork". The `:remote`
+  keyword may be used to override the value of this variable on a
   per-repository basis.
 * `straight-vc-git-default-protocol`: the default protocol to use for
   automatically generated URLs when `:host` is non-nil. It can be
@@ -1789,6 +1804,27 @@ You can customize the following user options:
   quietly do fast-forward, to suppress asking for instructions on each
   package with updates, unless they're not trivial. Set to nil if
   you'd prefer to inspect all changes.
+
+##### Deprecated `:upstream` keyword
+
+`straight.el` previously supported fork configuration in recipes using
+an `:upstream` keyword rather than a `:fork` keyword. For various
+reasons, this was more complex to handle, which is why the change was
+made. For backwards compatibility, the `:upstream` keyword is still
+accepted, with the following behavior.
+
+When `straight.el` processes a recipe which uses the `:upstream`
+keyword, it moves the `:repo`, `:host`, and `:branch` keywords from
+that sub-plist to the top level, and moves those top-level keywords to
+a new `:fork` sub-plist. Then it sets the top-level and `:fork`
+sub-plist values of `:remote` to the values of the deprecated
+variables `straight-vc-git-upstream-remote` (defaults to "upstream")
+and `straight-vc-git-primary-remote` (defaults to "origin"),
+respectively.
+
+For backwards compatibility, if `straight-vc-git-primary-remote`
+differs from its default value of "origin", then its value is used in
+place of `straight-vc-git-default-remote-name`.
 
 ### Recipe lookup
 
@@ -2053,15 +2089,17 @@ managing your package's local repositories, using the configured
 * `M-x straight-normalize-package`: normalize a package
 * `M-x straight-normalize-all`: normalize all packages
 * `M-x straight-fetch-package`: fetch from a package's configured
-  remote; with prefix argument, also fetch from upstream if present
+  remote; with prefix argument, then for forks also fetch from the
+  upstream
 * `M-x straight-fetch-all`: fetch from all packages' configured
-  remotes; with prefix argument, also fetch from upstreams if present
+  remotes; with prefix argument, then for forks also fetch from the
+  upstreams
 * `M-x straight-merge-package`: merge the latest version fetched from
   a package's configured remote into the local copy; with prefix
-  argument, also merge from upstream
+  argument, then for forks also merge from the upstream
 * `M-x straight-merge-all`: merge the latest versions fetched from
   each package's configured remote into its local copy; with prefix
-  argument, also merge from upstreams
+  argument, then for forks also merge from the upstreams
 * `M-x straight-pull-package`: combination of `M-x
   straight-fetch-package` and `M-x straight-merge-package`
 * `M-x straight-pull-all`: combination of `M-x straight-fetch-all` and
@@ -2413,6 +2451,18 @@ binary on your path, and you have installed
 [`markdown-toc`][markdown-toc]).
 
 ## News
+### September 12, 2018
+
+`straight.el` now supports specifying configuration for your fork of a
+package via the new `:fork` keyword. The previously supported
+`:upstream` keyword is now deprecated, but still works for backwards
+compatibility. To support this change, the user options
+`straight-vc-git-primary-remote` and `straight-vc-git-upstream-remote`
+are deprecated (but still work for backwards compatibility), as they
+have been superseded by the new user options
+`straight-vc-git-default-remote-name` and
+`straight-vc-git-default-fork-name`. Your usage should be updated.
+
 ### July 19, 2018
 
 `straight.el` now automatically caches the recipes it looks up in
@@ -2510,33 +2560,6 @@ because `straight-pull-all` has been separated into
 ### October 22, 2017
 
 `straight.el` now supports Emacs 24.5 and Emacs 24.4.
-
-### July 27, 2017
-
-`straight.el` now uses a brand new transaction-based interface to
-optimize loading your init-file and evaluating sequences of
-`straight-use-package` forms. This means you'll need to update some
-things in your config:
-
-* Don't bother calling `straight-declare-init-succeeded`; it's no
-  longer needed.
-* Don't bother calling `straight-declare-init-finished`; it's no
-  longer needed.
-* In any function that is likely to evaluate multiple
-  `straight-use-package` forms (for example, a function that reloads
-  your init-file), you should wrap the evaluation in a
-  `straight-transaction` block for improved performance.
-* In any function that loads your whole init-file, put a call to
-  `straight-mark-transaction-as-init` at the start of the transaction
-  block.
-* If you have a function that loads your init-file, and you need to
-  call this function before loading your init-file in the first place,
-  the procedure is now to bind `straight-treat-as-init` and then
-  invoke `straight-finalize-transaction` in an enclosing
-  `unwind-protect`.
-
-Since `straight.el` has not yet reached a stable release, there is no
-backwards compatibility for the previous calling conventions.
 
 ## Known issue FAQ
 
