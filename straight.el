@@ -834,9 +834,9 @@ an error."
 (defun straight--get-call (program &rest args)
   "Run executable PROGRAM with given ARGS, returning its output.
 Return a string with whitespace trimmed from both ends. If the
-command cannot be run or its return code is nonzero, throw an
-error."
-  (string-trim (apply #'straight--get-call-raw program args)))
+command fails, throw an error."
+  (string-trim
+   (apply #'straight--get-call-raw command (delete nil (delete "" args)))))
 
 (defun straight--make-mtime (mtime)
   "Ensure that the `straight--mtimes-file' for MTIME (a string) exists.
@@ -1264,6 +1264,20 @@ For built-in packages, this is always nil."
 (defcustom straight-vc-git-default-branch "master"
   "The default value for `:branch' when `:type' is symbol `git'."
   :type 'string)
+
+(defcustom straight-vc-git-default-clone-depth 'full
+  "The default value for `:depth' when `:type' is symbol `git'.
+
+The history depth to use when cloning remote repository. Setting
+this to a number reduces repository size by limiting initial
+cloned history. Using values too small may result in straight
+being unable to fetch the locked commit for git servers such as
+github which don't support advertised fetch refs.
+
+See git clone --depth manual."
+  :group 'straight
+  :type '(choice (const :tag "Full" full)
+                 (integer :tag "Depth")))
 
 (defcustom straight-vc-git-primary-remote "origin"
   "The remote name to use for the primary remote."
@@ -1816,55 +1830,72 @@ COMMIT is a 40-character SHA-1 Git hash. If it cannot be checked
 out, signal a warning. If COMMIT is nil, check out the branch
 specified in RECIPE instead. If that fails, signal a warning."
   (straight--with-plist recipe
-      (local-repo repo host branch upstream nonrecursive)
+      (local-repo repo host branch upstream nonrecursive depth)
     (let ((success nil)
           (repo-dir (straight--repos-dir local-repo))
           (url (straight-vc-git--encode-url repo host))
-          (branch (or branch straight-vc-git-default-branch)))
+          (branch (or branch straight-vc-git-default-branch))
+          (history-depth (or depth straight-vc-git-default-clone-depth)))
       (unwind-protect
-          (progn
-            (straight--get-call
-             "git" "clone" "--origin"
-             straight-vc-git-primary-remote
-             "--no-checkout" url local-repo)
-            (let ((straight--default-directory nil)
-                  (default-directory repo-dir))
-              (when commit
-                (unless (straight--check-call
-                         "git" "checkout" commit)
-                  (straight--warn
-                   "Could not check out commit %S in repository %S"
-                   commit local-repo)
-                  ;; We couldn't check out the commit, best to proceed
-                  ;; as if we weren't given one.
-                  (setq commit nil)))
-              (unless commit
-                (unless (straight--check-call
-                         "git" "checkout" branch)
-                  (straight--warn
-                   "Could not check out branch %S of repository %S"
-                   branch local-repo)
-                  ;; Since we passed --no-checkout, we need to
-                  ;; explicitly check out *something*, even if it's
-                  ;; not the right thing.
-                  (straight--get-call "git" "checkout" "HEAD")))
-              (unless nonrecursive
-                (straight--get-call
-                 "git" "submodule" "update" "--init" "--recursive"))
-              (when upstream
-                (straight--with-plist upstream
-                    (repo host)
-                  (let ((url (straight-vc-git--encode-url repo host)))
-                    (straight--get-call
-                     "git" "remote" "add"
-                     straight-vc-git-upstream-remote url)
-                    (straight--get-call
-                     "git" "fetch" straight-vc-git-upstream-remote)))))
-            (setq success t))
-        ;; Make cloning an atomic operation.
-        (unless success
-          (when (file-exists-p repo-dir)
-            (delete-directory repo-dir 'recursive)))))))
+		  (progn
+			(apply
+			 #'straight--get-call
+			 `("git" "clone"
+			   ,@(unless (eq history-depth 'full)
+				   (list "--shallow-submodules"
+						 (format "--depth=%d" history-depth)))
+			   "--origin" ,straight-vc-git-primary-remote
+			   "--no-checkout" ,url ,local-repo))
+			(let ((straight--default-directory nil)
+				  (default-directory repo-dir))
+			  (when commit
+				(when (and
+					   (not (straight--check-call
+							 "git" "cat-file" "-t" commit))
+					   (numberp history-depth)
+					   (not (eq host 'github)))
+				  (ignore-errors
+					(straight--get-call
+					 "git" "fetch"
+					 (format "--depth=%d" history-depth)
+					 straight-vc-git-primary-remote
+					 commit)))
+				(unless (straight--check-call "git" "checkout" commit)
+				  (straight--warn
+				   "Could not check out commit %S in repository %S%s"
+				   commit local-repo
+				   (if (numberp history-depth)
+					   (format " with depth %d" history-depth)
+					 ""))
+				  ;; We couldn't check out the commit, best to proceed
+				  ;; as if we weren't given one.
+				  (setq commit nil)))
+			  (unless commit
+				(unless (straight--check-call "git" "checkout" branch)
+				  (straight--warn
+				   "Could not check out branch %S of repository %S"
+				   branch local-repo)
+				  ;; Since we passed --no-checkout, we need to
+				  ;; explicitly check out *something*, even if it's
+				  ;; not the right thing.
+				  (straight--get-call "git" "checkout" "HEAD")))
+			  (unless nonrecursive
+				(straight--get-call
+				 "git" "submodule" "update" "--init" "--recursive"))
+			  (when upstream
+				(straight--with-plist upstream
+					(repo host)
+				  (let ((url (straight-vc-git--encode-url repo host)))
+					(straight--get-call
+					 "git" "remote" "add"
+					 straight-vc-git-upstream-remote url)
+					(straight--get-call
+					 "git" "fetch" straight-vc-git-upstream-remote)))))
+			(setq success t))
+		;; Make cloning an atomic operation.
+		(unless success
+		  (when (file-exists-p repo-dir)
+			(delete-directory repo-dir 'recursive)))))))
 
 (cl-defun straight-vc-git-normalize (recipe)
   "Using straight.el-style RECIPE, make the repository locally sane.
@@ -1969,7 +2000,7 @@ then returned."
 
 (defun straight-vc-git-keywords ()
   "Return a list of keywords used by the VC backend for Git."
-  '(:repo :host :branch :nonrecursive :upstream))
+  '(:repo :host :branch :nonrecursive :upstream :depth))
 
 ;;;; Fetching repositories
 

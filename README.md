@@ -513,6 +513,7 @@ set of additional directives. For example, the `git` backend accepts:
 * `:branch`
 * `:nonrecursive`
 * `:upstream`
+* `:depth`
 
 If a local repository is not present, then its fetch recipe describes
 how to obtain it. This is done using the `straight-vc-clone` function,
