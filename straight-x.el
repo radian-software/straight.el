@@ -21,7 +21,6 @@
 
 (require 'cl-lib)
 (require 'subr-x)
-(require 'straight-compat)
 
 (require 'straight)
 

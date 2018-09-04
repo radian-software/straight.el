@@ -36,11 +36,68 @@
 ;; variable declarations in each section, run M-x occur with the
 ;; following query: ^;;;;* \|^(
 
+;;;; Detect change in Emacs version
+
+;; This throws an error if you byte-compile it with one Emacs version
+;; and then try to run the byte-compiled code in another Emacs
+;; version. See bootstrap.el.
+(eval
+ `(unless (equal
+           (emacs-version)
+           ,(eval-when-compile (emacs-version)))
+    (throw 'emacs-version-changed nil)))
+
 ;;;; Libraries
 
 (require 'cl-lib)
 (require 'subr-x)
-(require 'straight-compat)
+
+;;;; Backports
+
+;; Note that we use `eval-and-compile' even for macros, because
+;; otherwise libraries which load the byte-compiled version of this
+;; file won't be able to use those macros.
+
+;; Not defined before Emacs 25.1
+(eval-and-compile
+  (unless (fboundp 'if-let)
+    (defmacro if-let (varlist then &optional else)
+      "Bind variables according to VARLIST and eval THEN or ELSE.
+VARLIST must be of the form ((SYMBOL VALUEFORM)). Evaluate
+VALUEFORM and bind it to SYMBOL. If the result of evaluation is
+non-nil, evaluate and return THEN. Otherwise, evaluate and return
+ELSE (or nil)."
+      (let ((symbol (nth 0 (car varlist)))
+            (valueform (nth 1 (car varlist))))
+        `(let ((,symbol ,valueform))
+           (if ,symbol
+               ,then
+             ,else))))))
+
+;; Not defined before Emacs 25.1
+(eval-and-compile
+  (unless (fboundp 'when-let)
+    (defmacro when-let (varlist &rest body)
+      "Bind variables according to VARLIST and conditionally eval BODY.
+VARLIST must be of the form ((SYMBOL VALUEFORM)). Evaluate
+VALUEFORM and bind it to SYMBOL. If the result of evaluation is
+non-nil, evaluate and return BODY. Otherwise return nil."
+      `(if-let ,varlist
+           (progn ,@body)))))
+
+;; Not defined before Emacs 25.1
+(eval-and-compile
+  (unless (fboundp 'alist-get)
+    (defun alist-get (key alist)
+      "Return the value associated with KEY in ALIST, using `assq'."
+      (cdr (assq key alist)))))
+
+;; Not defined before Emacs 25.3
+(eval-and-compile
+  (unless (boundp 'inhibit-message)
+    (defvar inhibit-message nil
+      "Non-nil means calls to ‘message’ are not displayed.
+They are still logged to the *Messages* buffer.")))
 
 ;;;; Functions from other packages
 
@@ -4657,8 +4714,8 @@ PREDICATE, if provided, filters the packages that are normalized.
 It is called with the package name as a string, and should return
 non-nil if the package should actually be normalized."
   (interactive)
-  (straight--map-existing-repos-interactively #'straight-push-package
-                                              predicate))
+  (straight--map-existing-repos-interactively
+   #'straight-push-package predicate))
 
 ;;;;; Lockfile management
 
