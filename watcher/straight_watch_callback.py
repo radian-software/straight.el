@@ -36,28 +36,35 @@ def main(args):
     if len(args) != 2:
         die(usage())
     repos_dir, modified_dir = args
+    repos_dir = pathlib.Path(repos_dir).resolve()
+    modified_dir = pathlib.Path(modified_dir).resolve()
     paths = []
     for var in WATCHEXEC_VARS:
         if var in os.environ:
-            paths.extend(os.environ[var].split(os.pathsep))
+            for path in os.environ[var].split(os.pathsep):
+                paths.append(path)
     if not paths:
         die("straight_watch_callback.py: watchexec gave no modified files")
     if WATCHEXEC_VAR_COMMON in os.environ:
         common = os.environ[WATCHEXEC_VAR_COMMON]
-        paths = [os.path.abspath(common + path) for path in paths]
+        # Yes, string concatentation. For some reason when a common
+        # prefix is used, the individual paths start with a slash even
+        # though they're actually relative to the prefix.
+        paths = [common + path for path in paths]
+    paths = [pathlib.Path(path).resolve() for path in paths]
     paths = sorted(set(paths))
     repos = set()
     for path in paths:
         print("detect modification: {}".format(path), file=sys.stderr)
-        if path_contains(repos_dir, path):
-            repo = path_strip(repos_dir, path)
+        if repos_dir in path.parents:
+            repo = path.relative_to(repos_dir).parts[0]
             repos.add(repo)
     if repos:
-        os.makedirs(modified_dir, exist_ok=True)
+        modified_dir.mkdir(parents=True, exist_ok=True)
         repos = sorted(repos)
         for repo in repos:
             print("--> mark for rebuild: {}".format(repo), file=sys.stderr)
-            with open(os.path.join(modified_dir, repo), "w"):
+            with open(modified_dir / repo, "w"):
                 pass
 
 if __name__ == "__main__":
