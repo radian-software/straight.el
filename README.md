@@ -184,7 +184,7 @@ First, place the following bootstrap code in your init-file:
 Even if you want to use a particular version or branch of
 `straight.el`, or even your own fork, this code does not need to be
 modified. To learn more, see the documentation on [configuring the
-installation of straight.el][straight.el-recipe].
+installation of `straight.el`][straight.el-recipe].
 
 You should remove any code that relates to `package.el`; for example,
 references to `package-initialize`, `package-archives`, and (if you're
