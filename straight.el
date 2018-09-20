@@ -612,16 +612,30 @@ Otherwise, return nil."
   "Return non-nil if symlinks are well-supported by the OS.
 This means that they are used to build packages rather than
 copying files, which is slower and less space-efficient.
+To verify support, a symlink is created and tested.
 
-All operating systems support symlinks except Microsoft Windows."
-  (not (memq system-type '(ms-dos windows-nt cygwin))))
+All operating systems support symlinks; on Microsoft Windows,
+the user needs to be assigned the right to do so."
+  (let ((test-symlink (expand-file-name
+                       (format "%s" (random)) (temporary-file-directory)))
+        (test-target (expand-file-name
+                      (format "%s" (random)) (temporary-file-directory))))
+    (ignore-errors
+      (make-symbolic-link test-target test-symlink))
+    (prog1
+        (when (file-symlink-p test-symlink) t)
+      (ignore-errors
+        (delete-file test-symlink)
+        (delete-file test-target)))))
 
 (defcustom straight-use-symlinks (straight--symlinks-are-usable-p)
   "Whether to use symlinks for building packages.
-Using symlinks is always preferable, unless you use Microsoft
-Windows, in which you will have to use copying instead. This is
-slower, less space-efficient, and requiring of additional hacks,
-but such is Windows."
+Using symlinks is always preferable.
+
+If you use Microsoft Windows, your user will need to be assigned
+the right to \"Create symbolic links\" in \"secpol.msc\". Beware
+that copying is slower, less space-efficient, and requiring of
+additional hacks."
   :type 'boolean)
 
 (defun straight--directory-files (&optional directory match full sort)
