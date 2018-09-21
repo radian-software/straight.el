@@ -617,9 +617,9 @@ To verify support, a symlink is created and tested.
 All operating systems support symlinks; on Microsoft Windows,
 the user needs to be assigned the right to do so."
   (let ((test-symlink (expand-file-name
-                       (format "%s" (random)) (temporary-file-directory)))
+                       (format "%s" (random)) temporary-file-directory))
         (test-target (expand-file-name
-                      (format "%s" (random)) (temporary-file-directory))))
+                      (format "%s" (random)) temporary-file-directory)))
     (ignore-errors
       (make-symbolic-link test-target test-symlink))
     (prog1
