@@ -2015,9 +2015,11 @@ instead, if the recipe configures a fork. The FROM-UPSTREAM
 argument is not part of the VC API."
   (cl-block nil
     (straight-vc-git--destructure recipe
-        (upstream-repo upstream-remote fork-repo fork-remote)
-      (let ((repo (if from-upstream upstream-repo fork-repo))
-            (remote (if from-upstream upstream-remote fork-remote)))
+        (upstream-repo upstream-remote repo remote fork)
+      (when (and from-upstream (not fork))
+        (cl-return t))
+      (let ((repo (if from-upstream upstream-repo repo))
+            (remote (if from-upstream upstream-remote remote)))
         (unless repo
           (cl-return t))
         (while t
@@ -2038,10 +2040,12 @@ is not part of the VC API."
   (cl-block nil
     (straight-vc-git--destructure recipe
         (upstream-repo upstream-branch upstream-remote
-                       fork-repo fork-branch fork-remote)
-      (let ((remote-branch (if from-upstream upstream-branch fork-branch))
-            (repo (if from-upstream upstream-repo fork-repo))
-            (remote (if from-upstream upstream-remote fork-remote)))
+                       repo branch remote fork)
+      (when (and from-upstream (not fork))
+        (cl-return t))
+      (let ((remote-branch (if from-upstream upstream-branch branch))
+            (repo (if from-upstream upstream-repo repo))
+            (remote (if from-upstream upstream-remote remote)))
         (unless repo
           (cl-return t))
         (straight-vc-git--merge-from-remote-raw
