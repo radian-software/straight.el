@@ -613,15 +613,22 @@ Otherwise, return nil."
 This means that they are used to build packages rather than
 copying files, which is slower and less space-efficient.
 
-All operating systems support symlinks except Microsoft Windows."
+All operating systems support symlinks except for older versions
+of Microsoft Windows (before Windows Vista)."
   (not (memq system-type '(ms-dos windows-nt cygwin))))
 
 (defcustom straight-use-symlinks (straight--symlinks-are-usable-p)
   "Whether to use symlinks for building packages.
-Using symlinks is always preferable, unless you use Microsoft
-Windows, in which you will have to use copying instead. This is
-slower, less space-efficient, and requiring of additional hacks,
-but such is Windows."
+Using symlinks is always preferable.
+
+On Microsoft Windows, this variable has to be set to true
+manually, if desired, as symlink-functionality is not always
+available. On most versions of Windows 10, the user's account
+needs to be assigned the right to \"Create symbolic links\" in
+\"secpol.msc\".
+
+Beware that copying is slower, less space-efficient, and
+requiring of additional hacks."
   :type 'boolean)
 
 (defun straight--directory-files (&optional directory match full sort)
