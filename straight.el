@@ -613,19 +613,22 @@ Otherwise, return nil."
 This means that they are used to build packages rather than
 copying files, which is slower and less space-efficient.
 
-All operating systems support symlinks except for older versions
-of Microsoft Windows (before Windows Vista)."
+All operating systems support symlinks; however, on Microsoft
+Windows you may need additional system configuration (see
+variable `straight-use-symlinks')."
   (not (memq system-type '(ms-dos windows-nt cygwin))))
 
 (defcustom straight-use-symlinks (straight--symlinks-are-usable-p)
   "Whether to use symlinks for building packages.
 Using symlinks is always preferable.
 
-On Microsoft Windows, this variable has to be set to true
+On Microsoft Windows, this variable has to be set to non-nil
 manually, if desired, as symlink-functionality is not always
 available. On most versions of Windows 10, the user's account
 needs to be assigned the right to \"Create symbolic links\" in
-\"secpol.msc\".
+\"secpol.msc\". For more information about the symlink-setup on
+MS Windows please refer to the section \"Customizing how packages
+are built\" in the user manual.
 
 Beware that copying is slower, less space-efficient, and
 requiring of additional hacks."
