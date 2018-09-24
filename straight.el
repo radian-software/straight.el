@@ -5088,7 +5088,7 @@ Dec. 1, 2017), an additional argument CONTEXT was passed. This
 argument was used to identify whether package installation should
 happen or not, and whether the user should be prompted before
 doing it. When CONTEXT is not passed, straight.el has no way of
-deciding and instead just install the package unconditionally."
+deciding and instead just installs the package unconditionally."
   (when ensure
     (straight-use-package
      (or (and (not (eq ensure t)) ensure)
