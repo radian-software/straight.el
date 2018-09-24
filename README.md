@@ -1592,10 +1592,10 @@ value of `straight-use-symlinks` is nil on that platform. That causes
 copying to be used instead, and an advice is placed on `find-file` to
 cause the copied files to act as symlinks if you try to edit them.
 
-If you want to activate symlink support on MS Windows 7, 8, or 10, the
-following information may be helpful:
+If you want to activate symlink-support on MS Windows 7, 8, or 10, you
+should ensure the following requirements:
 
-* `straight-use-symlinks` has to be set to non-nil manually
+* `straight-use-symlinks` has to be set to non-nil manually.
 
 * Your user-account needs to be assigned the right to create symbolic
   links. To do so, run "secpol.msc" and in "Local Policies → User
@@ -1605,15 +1605,12 @@ following information may be helpful:
 * If you have User Account Control (UAC) enabled and your user-account
   belongs to the the _Administrators_ group you'll need to run Emacs
   in elevated mode to be able to create symlinks (see
-  [here](https://community.perforce.com/s/article/3472) and
-  [here](https://stackoverflow.com/questions/29063916/win32api-symlink-creation-issue-with-uac-enabled#29065060)
-  and, for an official reference, section Access Token Changes [in
-  this
-  document](https://msdn.microsoft.com/en-us/library/bb530410.aspx#vistauac_topic8)
+  [here][symlinks-perforce] and [here][symlinks-stackoverflow] and,
+  for an official reference, section Access Token Changes [in this
+  document][symlinks-microsoft].
 
-* [Windows Creators
-  Update](https://blogs.windows.com/buildingapps/2016/12/02/symlinks-windows-10/)
-  supports symlink creation without any special permission setup
+* [Windows Creators Update][symlinks-creators] supports
+  symlink-creation without any special permission setup.
 
 
 #### Customizing how packages are made available
@@ -2720,6 +2717,10 @@ version of Org provides, and that a correctly built version of Org
 [radian]: https://github.com/raxod502/radian
 [quelpa]: https://github.com/quelpa/quelpa
 [spacemacs]: http://spacemacs.org/
+[symlinks-creators]: https://blogs.windows.com/buildingapps/2016/12/02/symlinks-windows-10/
+[symlinks-microsoft]: https://msdn.microsoft.com/en-us/library/bb530410.aspx#vistauac_topic8
+[symlinks-perforce]: https://community.perforce.com/s/article/3472
+[symlinks-stackoverflow]: https://stackoverflow.com/questions/29063916/win32api-symlink-creation-issue-with-uac-enabled#29065060
 [tag-only-issue]: https://github.com/raxod502/straight.el/issues/31
 [travis-badge]: https://travis-ci.org/raxod502/straight.el.svg?branch=develop
 [travis-build]: https://travis-ci.org/raxod502/straight.el
