@@ -208,7 +208,7 @@ need only do this:
     $ brew upgrade emacs
 
 The other way is to let Emacs use certificates provided by LibreSSL,
-which you can do by running these commands:
+which you can do by running this command:
 
     $ brew install gnutls libressl
 
