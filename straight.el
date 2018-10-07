@@ -613,15 +613,25 @@ Otherwise, return nil."
 This means that they are used to build packages rather than
 copying files, which is slower and less space-efficient.
 
-All operating systems support symlinks except Microsoft Windows."
+All operating systems support symlinks; however, on Microsoft
+Windows you may need additional system configuration (see
+variable `straight-use-symlinks')."
   (not (memq system-type '(ms-dos windows-nt cygwin))))
 
 (defcustom straight-use-symlinks (straight--symlinks-are-usable-p)
   "Whether to use symlinks for building packages.
-Using symlinks is always preferable, unless you use Microsoft
-Windows, in which you will have to use copying instead. This is
-slower, less space-efficient, and requiring of additional hacks,
-but such is Windows."
+Using symlinks is always preferable.
+
+On Microsoft Windows, this variable has to be set to non-nil
+manually, if desired, as symlink-functionality is not always
+available. On most versions of Windows 10, the user's account
+needs to be assigned the right to \"Create symbolic links\" in
+\"secpol.msc\". For more information about the symlink-setup on
+MS Windows please refer to the section \"Customizing how packages
+are built\" in the user manual.
+
+Beware that copying is slower, less space-efficient, and
+requiring of additional hacks."
   :type 'boolean)
 
 (defun straight--directory-files (&optional directory match full sort)
@@ -852,7 +862,7 @@ This function may not work on all operating systems."
 
 ;;;;; Interactive popup windows
 
-(defmacro straight-catching-quit (&rest body)
+(defmacro straight--catching-quit (&rest body)
   "Exec BODY. If `quit' signaled, catch and return nil."
   (declare (indent defun))
   (let ((err (make-symbol "err")))
@@ -860,7 +870,7 @@ This function may not work on all operating systems."
          (progn ,@body)
        (quit))))
 
-(defun straight-popup-raw (prompt actions)
+(defun straight--popup-raw (prompt actions)
   "Display PROMPT and allow user to choose between one of several ACTIONS.
 PROMPT is a string, generally a complete sentence. ACTIONS is a
 list of lists (KEY DESC FUNC ARGS...). KEY is a string
@@ -869,7 +879,7 @@ identifying the key that triggers this action; it is passed to
 If it is nil, the action and its binding is not displayed in the
 popup, although it still takes effect. If the user selects an
 action, its FUNC is called with ARGS and the popup is dismissed.
-The return value of `straight-popup-raw' is the return value of
+The return value of `straight--popup-raw' is the return value of
 FUNC.
 
 ACTIONS later in the list take precedence over earlier ones with
@@ -900,15 +910,15 @@ regard to keybindings."
         (setq func (lookup-key keymap (vector (read-key prompt))))))
     (funcall func)))
 
-(defmacro straight-popup (prompt &rest actions)
-  "Same as `straight-popup-raw', but with reduced need for quoting.
+(defmacro straight--popup (prompt &rest actions)
+  "Same as `straight--popup-raw', but with reduced need for quoting.
 PROMPT is still evaluated at runtime. So are all elements of
 ACTIONS, except for FUNC, which is wrapped in a `lambda'
 automatically, and ARGS, which are superfluous and therefore
 instead used as additional forms to place in the `lambda' after
 FUNC."
   (declare (indent defun))
-  `(straight-popup-raw
+  `(straight--popup-raw
     ,prompt
     (list
      ,@(mapcar
@@ -921,7 +931,7 @@ FUNC."
   "Display a popup asking the user to confirm their questionable actions.
 PROMPT has a sensible default; otherwise it is a string. Return
 non-nil if the user confirms; nil if they abort."
-  (straight-popup (or prompt "Are you sure?")
+  (straight--popup (or prompt "Are you sure?")
     ("y" "Yes, proceed" t)
     ("n" "No, abort" nil)))
 
@@ -1140,7 +1150,7 @@ repository directory and delegates to the relevant
 
 (defun straight-vc-fetch-from-upstream (recipe)
   "Fetch from the upstream remote for straight.el-style RECIPE.
-If no upstream configured, do nothing.
+If RECIPE does not configure a fork, do nothing.
 
 If the RECIPE does not specify a local repository, then no action
 is taken.
@@ -1173,7 +1183,7 @@ repository directory and delegates to the relevant
 
 (defun straight-vc-merge-from-upstream (recipe)
   "Merge from the upstream remote for straight.el-style RECIPE.
-If no upstream configured, do nothing.
+If RECIPE does not configure a fork, do nothing.
 
 If the RECIPE does not specify a local repository, then no action
 is taken.
@@ -1266,11 +1276,45 @@ For built-in packages, this is always nil."
   :type 'string)
 
 (defcustom straight-vc-git-primary-remote "origin"
-  "The remote name to use for the primary remote."
+  "The remote name to use for the primary remote.
+This variable is deprecated, and only applies to usage of the
+deprecated `:upstream' keyword, except that if it is set to a
+non-default value then it overrides the value of
+`straight-vc-git-default-remote-name', for backwards
+compatibility."
   :type 'string)
+(make-obsolete-variable
+ 'straight-vc-git-primary-remote
+ "see `straight-vc-git-default-remote-name' and
+  `straight-vc-git-default-fork-name' instead,
+  but note that the semantics are different."
+ "2018-08-22")
 
 (defcustom straight-vc-git-upstream-remote "upstream"
-  "The remote name to use for the upstream remote."
+  "The remote name to use for the upstream remote.
+This variable is deprecated, and only applies to usage of the
+deprecated `:upstream' keyword."
+  :type 'string)
+(make-obsolete-variable
+ 'straight-vc-git-upstream-remote
+ "see `straight-vc-git-default-remote-name' and
+  `straight-vc-git-default-fork-name' instead,
+  but note that the semantics are different."
+ "2018-08-22")
+
+(defcustom straight-vc-git-default-remote-name "origin"
+  "The remote name to use for the primary remote.
+For a forked package, this means the upstream remote.
+
+You can override the value of this variable on a per-package
+basis using the `:remote' keyword."
+  :type 'string)
+
+(defcustom straight-vc-git-default-fork-name "fork"
+  "The remote name to use for the fork remote in a forked package.
+
+You can override the value of this variable on a per-package
+basis using the `:remote' keyword in the `:fork' sub-plist."
   :type 'string)
 
 (defcustom straight-vc-git-default-protocol 'https
@@ -1301,6 +1345,112 @@ A nil value allows for inspection of all remote changes."
 
 ;;;;;; Utility functions
 
+(defmacro straight-vc-git--destructure (recipe props &rest body)
+  "Binding from RECIPE the given (virtual) PROPS, eval and return BODY.
+Unlike `straight--with-plist', this macro has special support for
+the `:fork' sub-plist. In particular, the REPO, HOST, BRANCH, and
+REMOTE properties are taken from this sub-plist, while prepending
+them with `upstream-' allows you to get the top-level values.
+Prepending with `fork-' is the same as the default behavior,
+except that if no `:fork' is configured then the values are bound
+to nil. Furthermore, default values for BRANCH and REMOTE are
+computed, based on the relevant user options, and the deprecated
+`:upstream' property and accompanying user options are handled
+appropriately."
+  (declare
+   (debug (form sexp body))
+   (indent 2))
+  (let ((recipe-sym (make-symbol "--recipe--"))
+        (wrap-default
+         (lambda (prop check value
+                       &optional fork upstream-check upstream-value)
+           (pcase prop
+             (`host
+              `(cond
+                (,check ,value)
+                (,upstream-check ,upstream-value)
+                (t nil)))
+             (`branch
+              `(cond
+                (,check ,value)
+                (,upstream-check ,upstream-value)
+                (t straight-vc-git-default-branch)))
+             (`remote
+              `(cond
+                (,check ,value)
+                ,@(if fork
+                      `((t straight-vc-git-default-fork-name))
+                    `(((equal straight-vc-git-primary-remote "origin")
+                       straight-vc-git-default-remote-name)
+                      (t straight-vc-git-primary-remote)))))
+             (_ value)))))
+    `(let ((,recipe-sym ,recipe))
+       (straight--with-plist ,recipe-sym
+           (upstream repo host branch)
+         (when upstream
+           (setq ,recipe-sym (cl-copy-list ,recipe-sym))
+           (setq ,recipe-sym
+                 (plist-put
+                  ,recipe-sym :fork
+                  ;; Can't use a backquote here because we're already
+                  ;; inside another backquote and we want to avoid
+                  ;; resolving variables like
+                  ;; `straight-vc-git-primary-remote' at
+                  ;; macroexpansion time.
+                  (list
+                   :repo repo
+                   :host host
+                   :branch (or branch straight-vc-git-default-branch)
+                   :remote straight-vc-git-primary-remote)))
+           (dolist (kw '(:host :repo))
+             (setq ,recipe-sym
+                   (plist-put ,recipe-sym kw (plist-get upstream kw))))
+           (setq ,recipe-sym (plist-put ,recipe-sym :branch
+                                        (or (plist-get upstream :branch)
+                                            straight-vc-git-default-branch)))
+           (setq ,recipe-sym
+                 (plist-put
+                  ,recipe-sym :remote straight-vc-git-upstream-remote))))
+       (let (,@(mapcar (lambda (prop)
+                         `(,prop
+                           ,(let ((require-fork nil))
+                              (when (string-prefix-p
+                                     "fork-" (symbol-name prop))
+                                (setq prop (intern
+                                            (string-remove-prefix
+                                             "fork-" (symbol-name prop))))
+                                (setq require-fork t))
+                              (let ((kw (intern (format ":%S" prop))))
+                                (if (memq prop '(repo host branch remote))
+                                    `(if-let ((fork (plist-get
+                                                     ,recipe-sym :fork)))
+                                         ,(funcall
+                                           wrap-default
+                                           prop
+                                           `(plist-member fork ',kw)
+                                           `(plist-get fork ',kw)
+                                           'fork
+                                           `(plist-member ,recipe-sym ',kw)
+                                           `(plist-get ,recipe-sym ',kw))
+                                       ,(unless require-fork
+                                          (funcall
+                                           wrap-default
+                                           prop
+                                           `(plist-member ,recipe-sym ',kw)
+                                           `(plist-get ,recipe-sym ',kw))))
+                                  (setq prop (intern
+                                              (string-remove-prefix
+                                               "upstream-"
+                                               (symbol-name prop))))
+                                  (setq kw (intern (format ":%S" prop)))
+                                  (funcall
+                                   wrap-default
+                                   prop
+                                   `(plist-member ,recipe-sym ',kw)
+                                   `(plist-get ,recipe-sym ',kw)))))))
+                       props))
+         ,@body))))
+
 ;; We don't define `straight--profile-cache' until later. I don't
 ;; think it's possible to avoid the circular dependency in any sane
 ;; way, since the VC layer is used to clone packages and we need to
@@ -1321,12 +1471,12 @@ prompt. Return non-nil if Magit was installed. DIRECTORY is as in
     (magit-status-internal directory)))
 
 (defun straight-vc-git--popup-raw (prompt actions)
-  "Same as `straight-popup-raw', but specialized for vc-git methods.
+  "Same as `straight--popup-raw', but specialized for vc-git methods.
 Two additional actions are inserted at the end of the list: \"e\"
 for Dired and recursive edit, and \"g\" for Magit and recursive
 edit. Otherwise, PROMPT and ACTIONS are as for
-`straight-popup-raw'."
-  (straight-popup-raw
+`straight--popup-raw'."
+  (straight--popup-raw
    prompt
    (append
     actions
@@ -1343,13 +1493,13 @@ edit. Otherwise, PROMPT and ACTIONS are as for
              (recursive-edit)))))))))
 
 (defmacro straight-vc-git--popup (prompt &rest actions)
-  "Same as `straight-popup', but specialized for vc-git methods.
+  "Same as `straight--popup', but specialized for vc-git methods.
 Two additional actions are inserted at the end of the list: \"e\"
 for Dired and recursive edit, and \"g\" for Magit and recursive
 edit. Otherwise, PROMPT and ACTIONS are as for
-`straight-popup'."
+`straight--popup'."
   (declare (indent defun))
-  `(straight-popup
+  `(straight--popup
      ,prompt
      ,@actions
      ("e" "Dired and open recursive edit"
@@ -1527,26 +1677,25 @@ but recipe specifies a URL of
   "Ensure that repository for RECIPE has remotes set correctly.
 RECIPE is a straight.el-style plist.
 
-This means the primary and upstream remotes, if configured, have
+This means the primary and fork remotes, if configured, have
 their URLs set to the same as what is specified in the RECIPE.
 The URLs do not necessarily need to match exactly; they just have
 to satisfy `straight-vc-git--urls-compatible-p'."
-  (unless (plist-member recipe :repo)
-    (cl-return-from straight-vc-git--ensure-remotes t))
-  (straight--with-plist recipe
-      (local-repo repo host)
-    (let ((desired-url (straight-vc-git--encode-url repo host)))
-      (and (straight-vc-git--ensure-remote
-            local-repo straight-vc-git-primary-remote desired-url)
-           (or (not (plist-member recipe :upstream))
-               (straight--with-plist (plist-get recipe :upstream)
-                   (repo host)
-                 (let (;; NB: this is a different computation than
-                       ;; above.
-                       (desired-url (straight-vc-git--encode-url repo host)))
-                   (straight-vc-git--ensure-remote
-                    local-repo straight-vc-git-upstream-remote
-                    desired-url))))))))
+  (straight-vc-git--destructure recipe
+      (local-repo upstream-repo upstream-host upstream-remote
+                  fork-repo fork-host fork-remote)
+    (and (or (null upstream-repo)
+             (straight-vc-git--ensure-remote
+              local-repo
+              upstream-remote
+              (straight-vc-git--encode-url
+               upstream-repo upstream-host)))
+         (or (null fork-repo)
+             (straight-vc-git--ensure-remote
+              local-repo
+              fork-remote
+              (straight-vc-git--encode-url
+               fork-repo fork-host))))))
 
 ;; The following handles only merges, not rebases. See
 ;; https://github.com/raxod502/straight.el/issues/271.
@@ -1662,7 +1811,7 @@ confirmation, so this function should only be run after
           ;; Here be dragons! Watch the quoting very carefully in
           ;; order to get the lexical scoping to work right, and don't
           ;; confuse this syntax with the syntax of the
-          ;; `straight-popup' macro.
+          ;; `straight--popup' macro.
           `(,@(when ref-ahead-p
                 `(("f" ,(format "Fast-forward branch %S to %s"
                                 branch quoted-ref-name)
@@ -1725,15 +1874,14 @@ confirmation, so this function should only be run after
 REMOTE is a string. REMOTE-BRANCH is the branch in REMOTE that is
 used; it should be a string that is not prefixed with a remote
 name."
-  (straight--with-plist recipe
+  (straight-vc-git--destructure recipe
       (local-repo branch)
-    (let ((branch (or branch straight-vc-git-default-branch)))
-      (while t
-        (and (straight-vc-git--ensure-local recipe)
-             (or (straight-vc-git--ensure-head
-                  local-repo branch (format "%s/%s" remote remote-branch))
-                 (straight-register-repo-modification local-repo))
-             (cl-return-from straight-vc-git--merge-from-remote-raw t))))))
+    (while t
+      (and (straight-vc-git--ensure-local recipe)
+           (or (straight-vc-git--ensure-head
+                local-repo branch (format "%s/%s" remote remote-branch))
+               (straight-register-repo-modification local-repo))
+           (cl-return-from straight-vc-git--merge-from-remote-raw t)))))
 
 (cl-defun straight-vc-git--pull-from-remote-raw (recipe remote remote-branch)
   "Using straight.el-style RECIPE, pull from REMOTE.
@@ -1741,56 +1889,54 @@ REMOTE is a string. REMOTE-BRANCH is the branch in REMOTE that is
 used; it should be a string that is not prefixed with a remote
 name."
   (straight-vc-git-fetch-from-remote recipe)
-  (straight-vc-git--merge-from-remote-raw
-   recipe remote remote-branch))
+  (straight-vc-git--merge-from-remote-raw recipe remote remote-branch))
 
 (cl-defun straight-vc-git--ensure-head-pushed
     (recipe)
   "Ensure that in RECIPE's local repo, main branch is behind primary remote.
 Return non-nil. If no local repository, do nothing and return non-nil."
-  (unless (plist-member recipe :repo)
-    (cl-return-from straight-vc-git--ensure-head-pushed t))
-  (let ((push-error-message nil))
-    (while t
-      (while (not (straight-vc-git--ensure-local recipe)))
-      (straight--with-plist recipe
-          (local-repo branch)
-        (let* ((branch (or branch straight-vc-git-default-branch))
-               (ref (format "%s/%s" straight-vc-git-primary-remote branch)))
-          (when (straight--check-call
-                 "git" "merge-base" "--is-ancestor"
-                 branch ref)
-            (cl-return-from straight-vc-git--ensure-head-pushed t))
-          (let* ((log (straight--get-call
-                       "git" "log" "--format=%h %s"
-                       (concat ref ".." branch)))
-                 (num-commits (length (straight--split-and-trim log))))
-            (straight-vc-git--popup
-              (format
-               (concat "In repository %S, branch %S has %d "
-                       "commit%s unpushed to %S%s:\n\n%s")
-               local-repo branch num-commits (if (= num-commits 1) "" "s") ref
-               (if (> num-commits 5) ", including" "")
-               (concat
-                (straight--split-and-trim log 2 5)
-                (when push-error-message
-                  (concat "\n\nPush failed:\n\n  "
-                          push-error-message))))
-              ("f" (format "Pull %S into branch %S" ref branch)
-               (straight-vc-git--pull-from-remote-raw
-                recipe straight-vc-git-primary-remote branch))
-              ("p" (format "Push branch %S to %S" branch ref)
-               (when (straight-are-you-sure
-                      (format "Really push to %S in %S?" ref local-repo))
-                 (straight-catching-quit
-                   (let ((result
-                          (straight--call
-                           "git" "push" straight-vc-git-primary-remote
-                           (format
-                            "refs/heads/%s:refs/heads/%s" branch branch))))
-                     (unless (car result)
-                       (setq push-error-message
-                             (string-trim (cdr result)))))))))))))))
+  (cl-block nil
+    (straight-vc-git--destructure recipe
+        (local-repo repo branch remote)
+      (unless repo
+        (cl-return t))
+      (let ((push-error-message nil))
+        (while t
+          (while (not (straight-vc-git--ensure-local recipe)))
+          (let ((ref (format "%s/%s" remote branch)))
+            (when (straight--check-call
+                   "git" "merge-base" "--is-ancestor"
+                   branch ref)
+              (cl-return t))
+            (let* ((log (straight--get-call
+                         "git" "log" "--format=%h %s"
+                         (concat ref ".." branch)))
+                   (num-commits (length (straight--split-and-trim log))))
+              (straight-vc-git--popup
+                (format
+                 (concat "In repository %S, branch %S has %d "
+                         "commit%s unpushed to %S%s:\n\n%s")
+                 local-repo branch num-commits (if (= num-commits 1) "" "s")
+                 ref (if (> num-commits 5) ", including" "")
+                 (concat
+                  (straight--split-and-trim log 2 5)
+                  (when push-error-message
+                    (concat "\n\nPush failed:\n\n  "
+                            push-error-message))))
+                ("f" (format "Pull %S into branch %S" ref branch)
+                 (straight-vc-git--pull-from-remote-raw recipe remote branch))
+                ("p" (format "Push branch %S to %S" branch ref)
+                 (when (straight-are-you-sure
+                        (format "Really push to %S in %S?" ref local-repo))
+                   (straight--catching-quit
+                     (let ((result
+                            (straight--call
+                             "git" "push" remote
+                             (format
+                              "refs/heads/%s:refs/heads/%s" branch branch))))
+                       (unless (car result)
+                         (setq push-error-message
+                               (string-trim (cdr result))))))))))))))))
 
 (defun straight-vc-git--ensure-local (recipe)
   "Ensure that local repository for RECIPE is as expected.
@@ -1799,14 +1945,13 @@ merge currently in progress; the worktree is pristine; and the
 primary :branch is checked out. The reason for \"local\" in the
 name of this function is that no network communication is done
 with the remotes."
-  (straight--with-plist recipe
+  (straight-vc-git--destructure recipe
       (local-repo branch)
-    (let ((branch (or branch straight-vc-git-default-branch)))
-      (and (straight-vc-git--ensure-remotes recipe)
-           (or (and (straight-vc-git--ensure-nothing-in-progress local-repo)
-                    (straight-vc-git--ensure-worktree local-repo)
-                    (straight-vc-git--ensure-head local-repo branch))
-               (straight-register-repo-modification local-repo))))))
+    (and (straight-vc-git--ensure-remotes recipe)
+         (or (and (straight-vc-git--ensure-nothing-in-progress local-repo)
+                  (straight-vc-git--ensure-worktree local-repo)
+                  (straight-vc-git--ensure-head local-repo branch))
+             (straight-register-repo-modification local-repo)))))
 
 ;;;;;; API
 
@@ -1815,23 +1960,28 @@ with the remotes."
 COMMIT is a 40-character SHA-1 Git hash. If it cannot be checked
 out, signal a warning. If COMMIT is nil, check out the branch
 specified in RECIPE instead. If that fails, signal a warning."
-  (straight--with-plist recipe
-      (local-repo repo host branch upstream nonrecursive)
+  (straight-vc-git--destructure recipe
+      (package local-repo branch upstream-repo upstream-host
+               upstream-remote fork-repo fork-host
+               fork-remote nonrecursive)
+    (unless upstream-repo
+      (error "No `:repo' specified for package `%s'" package))
     (let ((success nil)
           (repo-dir (straight--repos-dir local-repo))
-          (url (straight-vc-git--encode-url repo host))
-          (branch (or branch straight-vc-git-default-branch)))
+          (url (straight-vc-git--encode-url upstream-repo upstream-host)))
       (unwind-protect
           (progn
             (straight--get-call
-             "git" "clone" "--origin"
-             straight-vc-git-primary-remote
+             "git" "clone" "--origin" upstream-remote
              "--no-checkout" url local-repo)
+            (when fork-repo
+              (let ((url (straight-vc-git--encode-url fork-repo fork-host)))
+                (straight--get-call "git" "remote" "add" fork-remote url)
+                (straight--get-call "git" "fetch" fork-remote)))
             (let ((straight--default-directory nil)
                   (default-directory repo-dir))
               (when commit
-                (unless (straight--check-call
-                         "git" "checkout" commit)
+                (unless (straight--check-call "git" "checkout" commit)
                   (straight--warn
                    "Could not check out commit %S in repository %S"
                    commit local-repo)
@@ -1839,8 +1989,7 @@ specified in RECIPE instead. If that fails, signal a warning."
                   ;; as if we weren't given one.
                   (setq commit nil)))
               (unless commit
-                (unless (straight--check-call
-                         "git" "checkout" branch)
+                (unless (straight--check-call "git" "checkout" branch)
                   (straight--warn
                    "Could not check out branch %S of repository %S"
                    branch local-repo)
@@ -1850,16 +1999,7 @@ specified in RECIPE instead. If that fails, signal a warning."
                   (straight--get-call "git" "checkout" "HEAD")))
               (unless nonrecursive
                 (straight--get-call
-                 "git" "submodule" "update" "--init" "--recursive"))
-              (when upstream
-                (straight--with-plist upstream
-                    (repo host)
-                  (let ((url (straight-vc-git--encode-url repo host)))
-                    (straight--get-call
-                     "git" "remote" "add"
-                     straight-vc-git-upstream-remote url)
-                    (straight--get-call
-                     "git" "fetch" straight-vc-git-upstream-remote)))))
+                 "git" "submodule" "update" "--init" "--recursive")))
             (setq success t))
         ;; Make cloning an atomic operation.
         (unless success
@@ -1871,7 +2011,7 @@ specified in RECIPE instead. If that fails, signal a warning."
 This means that its remote URLs are set correctly; there is no
 merge currently in progress; its worktree is pristine; and the
 primary :branch is checked out."
-  (straight--with-plist recipe
+  (straight-vc-git--destructure recipe
       (local-repo)
     (while t
       (and (or (straight-vc-git--ensure-local recipe)
@@ -1881,51 +2021,49 @@ primary :branch is checked out."
 (cl-defun straight-vc-git-fetch-from-remote (recipe &optional from-upstream)
   "Using straight.el-style RECIPE, fetch from the primary remote.
 If FROM-UPSTREAM is non-nil, fetch from the upstream remote
-instead, if one is configured. The FROM-UPSTREAM argument is not
-part of the VC API."
-  (unless (plist-member recipe :repo)
-    (cl-return-from straight-vc-git-fetch-from-remote t))
-  (straight--with-plist recipe
-      (upstream)
-    (unless (and from-upstream (null upstream))
-      (let ((remote (if from-upstream
-                        straight-vc-git-upstream-remote
-                      straight-vc-git-primary-remote)))
+instead, if the recipe configures a fork. The FROM-UPSTREAM
+argument is not part of the VC API."
+  (cl-block nil
+    (straight-vc-git--destructure recipe
+        (upstream-repo upstream-remote repo remote fork)
+      (when (and from-upstream (not fork))
+        (cl-return t))
+      (let ((repo (if from-upstream upstream-repo repo))
+            (remote (if from-upstream upstream-remote remote)))
+        (unless repo
+          (cl-return t))
         (while t
           (and (straight-vc-git--ensure-remotes recipe)
                (straight--get-call "git" "fetch" remote)
-               (cl-return-from straight-vc-git-fetch-from-remote t)))))))
+               (cl-return t)))))))
 
 (cl-defun straight-vc-git-fetch-from-upstream (recipe)
   "Using straight.el-style RECIPE, fetch from the upstream remote.
-If no upstream configured, do nothing."
+If RECIPE does not configure a fork, do nothing."
   (straight-vc-git-fetch-from-remote recipe 'from-upstream))
 
 (cl-defun straight-vc-git-merge-from-remote (recipe &optional from-upstream)
   "Using straight.el-style RECIPE, merge from the primary remote.
 If FROM-UPSTREAM is non-nil, merge from the upstream remote
-instead, if one is configured. The FROM-UPSTREAM argument is not
-part of the VC API."
-  (unless (plist-member recipe :repo)
-    (cl-return-from straight-vc-git-merge-from-remote t))
-  (straight--with-plist recipe
-      (branch upstream)
-    (unless (and from-upstream (null upstream))
-      (let* ((remote (if from-upstream
-                         straight-vc-git-upstream-remote
-                       straight-vc-git-primary-remote))
-             (branch (or branch straight-vc-git-default-branch))
-             (remote-branch
-              (if from-upstream
-                  (or (plist-get upstream :branch)
-                      straight-vc-git-default-branch)
-                branch)))
+instead, if RECIPE configures a fork. The FROM-UPSTREAM argument
+is not part of the VC API."
+  (cl-block nil
+    (straight-vc-git--destructure recipe
+        (upstream-repo upstream-branch upstream-remote
+                       repo branch remote fork)
+      (when (and from-upstream (not fork))
+        (cl-return t))
+      (let ((remote-branch (if from-upstream upstream-branch branch))
+            (repo (if from-upstream upstream-repo repo))
+            (remote (if from-upstream upstream-remote remote)))
+        (unless repo
+          (cl-return t))
         (straight-vc-git--merge-from-remote-raw
          recipe remote remote-branch)))))
 
 (defun straight-vc-git-merge-from-upstream (recipe)
   "Using straight.el-style RECIPE, merge from upstream.
-If no upstream is configured, do nothing."
+If RECIPE does not configure a fork, do nothing."
   (straight-vc-git-merge-from-remote recipe 'from-upstream))
 
 (cl-defun straight-vc-git-push-to-remote (recipe)
@@ -1937,11 +2075,12 @@ If no upstream is configured, do nothing."
 LOCAL-REPO is a string naming a local package repository. COMMIT
 is a 40-character string identifying a Git commit."
   (straight-register-repo-modification local-repo)
-  (while t
-    (and (straight-vc-git--ensure-nothing-in-progress local-repo)
-         (straight-vc-git--ensure-worktree local-repo)
-         (straight--get-call "git" "checkout" commit)
-         (cl-return-from straight-vc-git-check-out-commit))))
+  (cl-block nil
+    (while t
+      (and (straight-vc-git--ensure-nothing-in-progress local-repo)
+           (straight-vc-git--ensure-worktree local-repo)
+           (straight--get-call "git" "checkout" commit)
+           (cl-return)))))
 
 (defun straight-vc-git-get-commit (_local-repo)
   "Return the current commit for the current local repository.
@@ -1969,7 +2108,7 @@ then returned."
 
 (defun straight-vc-git-keywords ()
   "Return a list of keywords used by the VC backend for Git."
-  '(:repo :host :branch :nonrecursive :upstream))
+  '(:repo :host :branch :remote :nonrecursive :upstream :fork))
 
 ;;;; Fetching repositories
 
@@ -4046,7 +4185,7 @@ The default value is \"Processing\"."
                             local-repo)
                   (cl-block loop
                     (while t
-                      (straight-popup
+                      (straight--popup
                         (if-let ((err
                                   (condition-case-unless-debug e
                                       (progn
@@ -4597,8 +4736,8 @@ non-nil if the package should actually be normalized."
 PACKAGE is a string naming a package. Interactively, select
 PACKAGE from the known packages in the current Emacs session
 using `completing-read'. With prefix argument FROM-UPSTREAM,
-fetch not just from primary remote but also from configured
-upstream."
+fetch not just from primary remote but also from upstream (for
+forked packages)."
   (interactive (list (straight--select-package "Fetch package" nil 'installed)
                      current-prefix-arg))
   (let ((recipe (gethash package straight--recipe-cache)))
@@ -4610,7 +4749,7 @@ upstream."
 (defun straight-fetch-all (&optional from-upstream predicate)
   "Try to fetch all packages from their primary remotes.
 With prefix argument FROM-UPSTREAM, fetch not just from primary
-remotes but also from configured upstreams.
+remotes but also from upstreams (for forked packages).
 
 Return a list of recipes for packages that were not successfully
 fetched. If multiple packages come from the same local
@@ -4631,8 +4770,8 @@ non-nil if the package should actually be fetched."
 PACKAGE is a string naming a package. Interactively, select
 PACKAGE from the known packages in the current Emacs session
 using `completing-read'. With prefix argument FROM-UPSTREAM,
-merge not just from primary remote but also from configured
-upstream."
+merge not just from primary remote but also from upstream (for
+forked packages)."
   (interactive (list (straight--select-package "Merge package" nil 'installed)
                      current-prefix-arg))
   (let ((recipe (gethash package straight--recipe-cache)))
@@ -4644,7 +4783,7 @@ upstream."
 (defun straight-merge-all (&optional from-upstream predicate)
   "Try to merge all packages from their primary remotes.
 With prefix argument FROM-UPSTREAM, merge not just from primary
-remotes but also from configured upstreams.
+remotes but also from upstreams (for forked packages).
 
 Return a list of recipes for packages that were not successfully
 merged. If multiple packages come from the same local
@@ -4665,7 +4804,8 @@ non-nil if the package should actually be merged."
 PACKAGE is a string naming a package. Interactively, select
 PACKAGE from the known packages in the current Emacs session
 using `completing-read'. With prefix argument FROM-UPSTREAM, pull
-not just from primary remote but also from configured upstream."
+not just from primary remote but also from upstream (for forked
+packages)."
   (interactive (list (straight--select-package "Pull package" nil 'installed)
                      current-prefix-arg))
   (let ((recipe (gethash package straight--recipe-cache)))
@@ -4679,7 +4819,7 @@ not just from primary remote but also from configured upstream."
 (defun straight-pull-all (&optional from-upstream predicate)
   "Try to pull all packages from their primary remotes.
 With prefix argument FROM-UPSTREAM, pull not just from primary
-remotes but also from configured upstreams.
+remotes but also from upstreams (for forked packages).
 
 Return a list of recipes for packages that were not successfully
 pulled. If multiple packages come from the same local repository,
@@ -4958,7 +5098,7 @@ Dec. 1, 2017), an additional argument CONTEXT was passed. This
 argument was used to identify whether package installation should
 happen or not, and whether the user should be prompted before
 doing it. When CONTEXT is not passed, straight.el has no way of
-deciding and instead just install the package unconditionally."
+deciding and instead just installs the package unconditionally."
   (when ensure
     (straight-use-package
      (or (and (not (eq ensure t)) ensure)
