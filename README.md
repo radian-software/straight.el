@@ -17,7 +17,9 @@ development takes place on the [`develop` branch][develop].)
     + [Debugging](#debugging)
   * [Install packages](#install-packages)
   * [But what about my fork of (obscure .el package)?](#but-what-about-my-fork-of-obscure-el-package)
-  * [Integration with `use-package`](#integration-with-use-package)
+  * [Integration with other packages](#integration-with-other-packages)
+    + [`use-package`](#integration-with-use-package)
+    + [`hydra`](#integration-with-hydra)
   * [Edit packages locally](#edit-packages-locally)
   * [Automatic repository management](#automatic-repository-management)
   * [Configuration reproducibility](#configuration-reproducibility)
@@ -267,7 +269,9 @@ at its default value of `git`.
 To learn more, see the documentation
 on [the recipe format][recipe-format].
 
-### Integration with `use-package`
+### Integration with other packages
+
+#### Integration with `use-package`
 
 [`use-package`][use-package] is a macro that provides convenient
 syntactic sugar for many common tasks related to installing and
@@ -299,6 +303,15 @@ and you should not use it with `straight.el`.)
 
 To learn more, see the documentation on [`straight.el`'s `use-package`
 integration][use-package-integration].
+
+#### Integration with `hydra`
+
+[Hydra][hydra] is a package that enables users to create transient
+menus (called "hydras" in the package's terminology) that tie related
+commands into a family of short bindings with a common prefix. A
+"hydra" that aims to make the use of `straight.el` easier (by grouping
+interactive functions and presenting them to the user) [has
+been included in the hydra wiki][hydra-wiki-straight-entry]
 
 ### Edit packages locally
 
@@ -2705,6 +2718,8 @@ version of Org provides, and that a correctly built version of Org
 [gnu-elpa]: https://elpa.gnu.org/
 [gnu-elpa-mirror]: https://github.com/emacs-straight
 [homebrew]: https://brew.sh/
+[hydra]: https://github.com/abo-abo/hydra
+[hydra-wiki-straight-entry]: https://github.com/abo-abo/hydra/wiki/straight.el
 [issues]: https://github.com/raxod502/straight.el/issues
 [magit]: https://magit.vc/
 [markdown-toc]: https://github.com/jonschlinkert/markdown-toc
