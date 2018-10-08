@@ -270,7 +270,6 @@ To learn more, see the documentation
 on [the recipe format][recipe-format].
 
 ### Integration with other packages
-
 #### Integration with `use-package`
 
 [`use-package`][use-package] is a macro that provides convenient
