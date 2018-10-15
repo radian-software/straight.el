@@ -1974,12 +1974,12 @@ specified in RECIPE instead. If that fails, signal a warning."
             (straight--get-call
              "git" "clone" "--origin" upstream-remote
              "--no-checkout" url local-repo)
-            (when fork-repo
-              (let ((url (straight-vc-git--encode-url fork-repo fork-host)))
-                (straight--get-call "git" "remote" "add" fork-remote url)
-                (straight--get-call "git" "fetch" fork-remote)))
             (let ((straight--default-directory nil)
                   (default-directory repo-dir))
+              (when fork-repo
+                (let ((url (straight-vc-git--encode-url fork-repo fork-host)))
+                  (straight--get-call "git" "remote" "add" fork-remote url)
+                  (straight--get-call "git" "fetch" fork-remote)))
               (when commit
                 (unless (straight--check-call "git" "checkout" commit)
                   (straight--warn
