@@ -1710,7 +1710,7 @@ LOCAL-REPO is a string."
     (or (string-empty-p conflicted-files)
         (ignore
          (straight-vc-git--popup
-           (format "Repository %S has a merge conflict:\n%S"
+           (format "Repository %S has a merge conflict:\n%s"
                    local-repo
                    (straight--split-and-trim
                     conflicted-files 2))
@@ -1824,7 +1824,7 @@ confirmation, so this function should only be run after
                       (straight--get-call
                        "git" "checkout" branch)))))
             ,@(unless (or ref-ahead-p ref-behind-p)
-                `(("m" ,(format "Merge %S to branch %S" quoted-ref-name branch)
+                `(("m" ,(format "Merge %s to branch %S" quoted-ref-name branch)
                    ,(lambda ()
                       (if ref
                           (straight--check-call
