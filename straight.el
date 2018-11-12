@@ -1012,58 +1012,42 @@ have been performed, even if there was an error."
 ;;;; Feature detection
 
 (defun straight--determine-find-flavor ()
-  "Make an educated guess about `straight-find-flavor'.
-Return a symbol."
-  ;; Avoid at all costs throwing an error, since that would crash the
-  ;; loading of straight.el even before any code is run.
-  (condition-case _
-      (with-temp-buffer
-        ;; For reference, this is what "find --version" prints on some
-        ;; of the find(1) flavors supported by straight.el.
-        ;;
-        ;; == GNU find 4.6.0 on Arch Linux ==
-        ;;
-        ;; find (GNU findutils) 4.6.0
-        ;; Copyright (C) 2015 Free Software Foundation, Inc.
-        ;; [...]
-        ;; exit code 0
-        ;;
-        ;; == BSD find on macOS 10.11.6
-        ;;
-        ;; find: illegal option -- -
-        ;; usage: find [-H | -L | -P] [-EXdsx] [-f path] path ... [expression]
-        ;; find [-H | -L | -P] [-EXdsx] -f path [path ...] [expression]
-        ;; exit code 1
-        ;;
-        ;; == BusyBox 1.26.2
-        ;;
-        ;; find: unrecognized: --version
-        ;; BusyBox v1.26.2 (2017-10-04 13:37:41 GMT) multi-call binary.
-        ;;
-        ;; Usage: find [-HL] [PATH]... [OPTIONS] [ACTIONS]
-        ;; [...]
-        ;; exit code 1
-        (call-process "find" nil '(t t) nil "--version")
-        (goto-char (point-min))
-        (if (search-forward "BusyBox" nil 'noerror)
-            'busybox
-          'gnu/bsd))
-    ;; Just an educated guess.
-    (error 'gnu/bsd)))
+  "Determine the best default value of `straight-find-flavor'.
+This uses -newermt if possible, and -newer otherwise."
+  (if (straight--check-call
+       "find" "/dev/null" "-newermt" "2018-01-01 12:00:00")
+      `(newermt)
+    nil))
 
 (defcustom straight-find-flavor (straight--determine-find-flavor)
-  "Symbol identifying what sort of find(1) binary is available.
-This affects how the find(1) commands for modification checking
-are constructed. The `gnu/bsd' value is compatible with:
+  "What options the available find(1) binary supports.
+This is a list of symbols. If `newermt' is in the list, then
+find(1) is given the `-newermt' option to check for files newer
+than a particular timestamp. Otherwise, it is given the `-newer'
+option instead (this requires creating temporary files with
+particular mtimes, which is slower).
 
-* GNU find >=4.4.2
-* BSD find shipped with macOS >=10.11
+For backwards compatibility, the value of this variable may also
+be a symbol, which is translated into a corresponding list as
+follows:
 
-The `busybox' value is compatible with:
+`gnu/bsd' => `(newermt)'
+`busybox' => nil
 
-* BusyBox >=1.16.2"
-  :type '(choice (const :tag "GNU/BSD" gnu/bsd)
-                 (const :tag "BusyBox" busybox)))
+This usage is deprecated and will be removed."
+  :type '(list
+          (const :tag "Supports -newermt" newermt)))
+
+(defun straight--find-supports (symbol)
+  "Check if `straight-find-flavor' contains SYMBOL.
+However, if `straight-find-flavor' is itself one of the symbols
+supported for backwards compatibility, account for that
+appropriately."
+  (memq symbol
+        (pcase straight-find-flavor
+          (`gnu/bsd '(newermt))
+          (`busybox nil)
+          (lst lst))))
 
 ;;;; Version control
 
@@ -2928,7 +2912,7 @@ generated at the end of an init from the keys of
 
 ;; See http://stormlightarchive.wikia.com/wiki/Calendar for the
 ;; schema.
-(defvar straight--build-cache-version :betab
+(defvar straight--build-cache-version :kak
   "The current version of the build cache format.
 When the format on disk changes, this value is changed, so that
 straight.el knows to regenerate the whole cache.")
@@ -2959,7 +2943,6 @@ empty values (all packages will be rebuilt, with no caching)."
         (insert-file-contents-literally
          (straight--build-cache-file))
         (let ((version (read (current-buffer)))
-              (find-flavor (read (current-buffer)))
               (last-emacs-version (read (current-buffer)))
               (build-cache (read (current-buffer)))
               (autoloads-cache (read (current-buffer)))
@@ -2981,15 +2964,6 @@ empty values (all packages will be rebuilt, with no caching)."
                           (concat
                            "Rebuilding all packages due to "
                            "build cache schema change"))))
-                   ;; Find flavor should be the symbol currently in
-                   ;; use.
-                   (symbolp find-flavor)
-                   (or (eq find-flavor straight-find-flavor)
-                       (prog1 (setq malformed nil)
-                         (message
-                          (concat
-                           "Rebuilding all packages due to "
-                           "change in system find(1) utility"))))
                    ;; Emacs version should be the same as our current
                    ;; one.
                    (stringp last-emacs-version)
@@ -3067,12 +3041,6 @@ This uses the values of `straight--build-cache' and
           (print-length nil))
       ;; The version of the build cache.
       (print straight--build-cache-version (current-buffer))
-      ;; The format of the timestamps that were saved; if this changes
-      ;; (due to a new find(1) command installed), we will have to
-      ;; re-generate the build cache. It would be more efficient to
-      ;; save the timestamps in an OS-independent way, but this
-      ;; approach is simpler.
-      (print straight-find-flavor (current-buffer))
       ;; Record the current Emacs version. If a different version of
       ;; Emacs is used, we have to rebuild all the packages (because
       ;; byte-compiled files cannot necessarily still be loaded).
@@ -3273,15 +3241,12 @@ modified since their last builds.")
                   ;; repository *and* have a new enough mtime.
                   (let ((newer-or-newermt nil)
                         (mtime-or-file nil))
-                    (pcase straight-find-flavor
-                      (`gnu/bsd
-                       (setq newer-or-newermt "-newermt")
-                       (setq mtime-or-file mtime))
-                      (`busybox
-                       (setq newer-or-newermt "-newer")
-                       (setq mtime-or-file (straight--make-mtime mtime)))
-                      (_ (error "Unexpected `straight-find-flavor': %S"
-                                straight-find-flavor)))
+                    (if (straight--find-supports 'newermt)
+                        (progn
+                          (setq newer-or-newermt "-newermt")
+                          (setq mtime-or-file mtime))
+                        (setq newer-or-newermt "-newer")
+                        (setq mtime-or-file (straight--make-mtime mtime)))
                     (push (straight--repos-dir local-repo) args-paths)
                     (setq args-primaries
                           (append (list "-o"
@@ -3395,16 +3360,13 @@ last time."
                   (with-temp-buffer
                     (let ((newer-or-newermt nil)
                           (mtime-or-file nil))
-                      (pcase straight-find-flavor
-                        (`gnu/bsd
-                         (setq newer-or-newermt "-newermt")
-                         (setq mtime-or-file last-mtime))
-                        (`busybox
-                         (setq newer-or-newermt "-newer")
-                         (setq mtime-or-file
-                               (straight--make-mtime last-mtime)))
-                        (_ (error "Unexpected `straight-find-flavor': %S"
-                                  straight-find-flavor)))
+                      (if (straight--find-supports 'newermt)
+                          (progn
+                            (setq newer-or-newermt "-newermt")
+                            (setq mtime-or-file last-mtime))
+                        (setq newer-or-newermt "-newer")
+                        (setq mtime-or-file
+                              (straight--make-mtime last-mtime)))
                       (let* ((default-directory
                                (straight--repos-dir local-repo))
                              ;; This find(1) command ignores the .git
@@ -3893,10 +3855,7 @@ repository."
 (defun straight--format-timestamp (&optional timestamp)
   "Format an Elisp TIMESTAMP for the operating system.
 See `format-time-string' for the format of TIMESTAMP."
-  (pcase straight-find-flavor
-    (`gnu/bsd (format-time-string "%F %T%z" timestamp))
-    (`busybox (format-time-string "%F %T" timestamp))
-    (_ (error "Unexpected `straight-find-flavor': %S" straight-find-flavor))))
+  (format-time-string "%F %T" timestamp))
 
 (defun straight--declare-successful-build (recipe)
   "Update `straight--build-cache' to reflect a successful build of RECIPE.
