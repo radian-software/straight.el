@@ -3672,7 +3672,13 @@ required (see the Package-Requires header in a
 package.el-compliant Elisp package). The return value is a list
 of strings naming the packages that are mentioned in the
 dependency list."
-  (mapcar #'symbol-name (mapcar #'car dependencies)))
+  (mapcar
+   (lambda (dep)
+     (symbol-name
+      (if (listp dep)
+          (car dep)
+        dep)))
+   dependencies))
 
 (defun straight--compute-dependencies (package)
   "Register the dependencies of PACKAGE in `straight--build-cache'.
