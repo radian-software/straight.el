@@ -2374,7 +2374,15 @@ return nil."
             (cl-destructuring-bind (name . melpa-plist) melpa-recipe
               (straight--put plist :type 'git)
               (when-let ((files (plist-get melpa-plist :files)))
-                (straight--put plist :files files))
+                ;; We must include a *-pkg.el entry in the recipe
+                ;; because that file always needs to be linked over,
+                ;; if it is present, but the `:files' directive might
+                ;; not include it (and doesn't need to, because MELPA
+                ;; always re-creates a *-pkg.el file regardless). See
+                ;; https://github.com/raxod502/straight.el/issues/336.
+                (straight--put
+                 plist :files
+                 (append files (list (format "%S-pkg.el" package)))))
               (pcase (plist-get melpa-plist :fetcher)
                 (`git (straight--put plist :repo (plist-get melpa-plist :url)))
                 ((or `github `gitlab)
