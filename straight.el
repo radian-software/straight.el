@@ -3101,6 +3101,7 @@ This mode is automatically enabled or disabled as you bootstrap
 straight.el, according to the value of
 `straight-check-for-modifications'."
   :global t
+  :group 'straight
   (if straight-live-modifications-mode
       (add-hook 'before-save-hook #'straight-register-file-modification)
     (remove-hook 'before-save-hook #'straight-register-file-modification)))
@@ -3666,6 +3667,7 @@ then the file referenced there is used instead. This mode is
 automatically enabled or disabled when you load straight.el,
 according to the value of `straight-use-symlinks'."
   :global t
+  :group 'straight
   (if straight-symlink-emulation-mode
       (add-hook 'find-file-hook #'straight-maybe-emulate-symlink)
     (remove-hook 'find-file-hook #'straight-maybe-emulate-symlink)))
@@ -4990,6 +4992,7 @@ This mode is enabled or disabled automatically when straight.el
 is loaded, according to the value of
 `straight-enable-package-integration'."
   :global t
+  :group 'straight
   (with-eval-after-load 'package
     (if straight-package-neutering-mode
         (progn
@@ -5184,6 +5187,7 @@ This mode is enabled or disabled automatically when straight.el
 is loaded, according to the value of
 `straight-enable-use-package-integration'."
   :global t
+  :group 'straight
   (pcase straight-use-package--last-version
     (`ensure
      (with-eval-after-load 'use-package
