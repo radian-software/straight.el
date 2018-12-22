@@ -2404,7 +2404,7 @@ return nil."
 
 ;;;;;; GNU ELPA
 
-(defcustom straight-recipes-gnu-elpa-use-mirror nil
+(defcustom straight-recipes-gnu-elpa-use-mirror t
   "Non-nil means to retrieve GNU ELPA packages via a mirror.
 This means that all the packages work, even the `externals-list'
 ones (e.g. `auctex'). However, you will not be able to contribute

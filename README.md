@@ -1918,7 +1918,7 @@ can control which recipe repositories are searched, and in what order
 of precedence, by customizing `straight-recipe-repositories`. The
 default value is:
 
-    (org-elpa melpa gnu-elpa emacsmirror)
+    (org-elpa melpa gnu-elpa-mirror emacsmirror)
 
 ##### GNU ELPA
 
@@ -1934,16 +1934,16 @@ You can customize the following user options:
   full checkout of the Emacs source repository (more than 1GB) if you
   want all the packages to work correctly. To work around this
   problem, I maintain a [full mirror of GNU ELPA on
-  GitHub][gnu-elpa-mirror]. You can tell `straight.el` to retrieve
-  packages from this mirror instead of the source repository by
-  customizing the value of `straight-recipes-gnu-elpa-use-mirror` to
-  non-nil. You must do this customization *before* the `straight.el`
-  [bootstrap]. At some point in the future, the default value of this
-  user option will likely change to non-nil. Note that changing the
-  value of this user option causes the default value of
-  `straight-recipe-repositories` to shift to:
+  GitHub][gnu-elpa-mirror]. By default, `straight.el` retrieves
+  packages from this mirror instead of the source repository; this
+  behavior is controlled by the value of
+  `straight-recipes-gnu-elpa-use-mirror`. You must do any
+  customization of this variable *before* the `straight.el`
+  [bootstrap]. Note that setting the value of this user option to nil
+  causes the default value of `straight-recipe-repositories` to shift
+  to:
 
-      (org-elpa melpa gnu-elpa-mirror emacsmirror)
+      (org-elpa melpa gnu-elpa emacsmirror)
 
 ##### Defining new recipe repositories
 
@@ -2484,6 +2484,11 @@ binary on your path, and you have installed
 [`markdown-toc`][markdown-toc]).
 
 ## News
+### December 22, 2018
+
+The default value of the user option
+`straight-recipes-gnu-elpa-use-mirror` is now non-nil.
+
 ### September 12, 2018
 
 `straight.el` now supports specifying configuration for your fork of a
@@ -2554,45 +2559,6 @@ Autoloads caching is now enabled by default.
 There is now experimental support for caching autoloads in a single
 file, which should improve performance at startup. See the new user
 option `straight-cache-autoloads`.
-
-### December 12, 2017
-
-Due to major updates upstream, the interface for `straight.el`'s
-`use-package` integration has changed significantly. You should now
-use `:straight` instead of `:ensure` and `:recipe`, and use
-`straight-use-package-by-default` instead of
-`use-package-always-ensure`. You can recover the old behavior (for
-now) by customizing the variable `straight-use-package-version`.
-
-### December 8, 2017
-
-You can now install `org` and `org-plus-contrib` using `straight.el`
-just like you could from Org ELPA, with no extra effort required.
-
-### November 10, 2017
-
-`straight.el` now has out-of-the-box support for Microsoft Windows.
-
-### November 6, 2017
-
-You can now save about 500ms per 100 packages at Emacs init if you
-customize `straight-check-for-modifications` to `live`, which causes
-`straight.el` to detect package modifications as they are made instead
-of using `find(1)` at init time.
-
-### October 30, 2017
-
-`straight.el` now has a much more usable "package update" operation
-because `straight-pull-all` has been separated into
-`straight-fetch-all` and `straight-merge-all`.
-
-### October 27, 2017
-
-`straight.el` now supports texinfo manuals.
-
-### October 22, 2017
-
-`straight.el` now supports Emacs 24.5 and Emacs 24.4.
 
 ## Known issue FAQ
 
