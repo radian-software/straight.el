@@ -1934,9 +1934,10 @@ You can customize the following user options:
   full checkout of the Emacs source repository (more than 1GB) if you
   want all the packages to work correctly. To work around this
   problem, I maintain a [full mirror of GNU ELPA on
-  GitHub][gnu-elpa-mirror]. By default, `straight.el` retrieves
-  packages from this mirror instead of the source repository; this
-  behavior is controlled by the value of
+  GitHub][gnu-elpa-mirror]. (The tooling used to maintain this mirror
+  is located [here][gnu-elpa-mirror-tool].) By default, `straight.el`
+  retrieves packages from this mirror instead of the source
+  repository; this behavior is controlled by the value of
   `straight-recipes-gnu-elpa-use-mirror`. You must do any
   customization of this variable *before* the `straight.el`
   [bootstrap]. Note that setting the value of this user option to nil
@@ -2682,6 +2683,7 @@ version of Org provides, and that a correctly built version of Org
 [gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg
 [gnu-elpa]: https://elpa.gnu.org/
 [gnu-elpa-mirror]: https://github.com/emacs-straight
+[gnu-elpa-mirror-tool]: https://github.com/raxod502/gnu-elpa-mirror
 [homebrew]: https://brew.sh/
 [hydra]: https://github.com/abo-abo/hydra
 [hydra-wiki-straight-entry]: https://github.com/abo-abo/hydra/wiki/straight.el
