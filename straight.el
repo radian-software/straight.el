@@ -1957,7 +1957,7 @@ specified in RECIPE instead. If that fails, signal a warning."
           (progn
             (straight--get-call
              "git" "clone" "--origin" upstream-remote
-             "--no-checkout" url (expand-file-name local-repo))
+             "--no-checkout" url repo-dir)
             (let ((straight--default-directory nil)
                   (default-directory repo-dir))
               (when fork-repo
