@@ -2603,6 +2603,10 @@ version of Org provides, and that a correctly built version of Org
 *would* provide, but that the unbuilt version of Org installed by
 `straight.el` does not actually provide.
 
+Make sure to put this code as early as you can in your init-file;
+otherwise, another package may try to load Org, which will result in
+the outdated Emacs-provided Org being loaded.
+
     (require 'subr-x)
     (straight-use-package 'git)
 
