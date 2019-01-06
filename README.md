@@ -309,8 +309,8 @@ integration][use-package-integration].
 menus (called "hydras" in the package's terminology) that tie related
 commands into a family of short bindings with a common prefix. A
 "hydra" that aims to make the use of `straight.el` easier (by grouping
-interactive functions and presenting them to the user) [has
-been included in the hydra wiki][hydra-wiki-straight-entry]
+interactive functions and presenting them to the user) [has been
+included in the Hydra wiki][hydra-wiki-straight-entry].
 
 ### Edit packages locally
 

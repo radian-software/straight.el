@@ -2206,7 +2206,7 @@ This variable is designed for cases when your init-file is first
 loaded after init has completed, for some reason (e.g. if you are
 profiling it using `esup'). To use it, bind it to non-nil for the
 duration of loading your init-file, and then make sure to call
-`straight-finalize-transaction'")
+`straight-finalize-transaction'.")
 
 ;;;;; Recipe repositories
 
