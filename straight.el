@@ -760,7 +760,7 @@ The return value of this function is undefined."
                "\n\n")
               (setq straight--process-output-beginning
                     (point-marker)))
-            (condition-case _
+            (condition-case e
                 (let* ((default-directory directory)
                        (return (apply
                                 #'call-process
@@ -778,7 +778,8 @@ The return value of this function is undefined."
               (file-missing
                (setq straight--process-output-beginning nil)
                (straight--ensure-blank-lines 2)
-               (insert (format "[Program not found]\n"))))))))))
+               (insert
+                (format "[File error while %s]\n" (downcase (cadr e))))))))))))
 
 (defun straight--process-run-p ()
   "Return non-nil if the last process was run successfully.
