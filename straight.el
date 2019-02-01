@@ -4861,6 +4861,10 @@ by reloading the init-file again. If FORCE is
 non-nil (interactively, if a prefix argument is provided), skip
 all checks and write the lockfile anyway.
 
+Currently, writing version lockfiles requires cloning all lazily
+installed packages. Hopefully, this inconvenient requirement will
+be removed in the future.
+
 Multiple lockfiles may be written (one for each profile),
 according to the value of `straight-profiles'."
   (interactive "P")
@@ -4887,15 +4891,13 @@ according to the value of `straight-profiles'."
                                      (plist-get recipe :local-repo))
                                    unpushed-recipes)
                            ", ")))))))
-    (let ((versions-alist (straight--get-versions)))
-      (straight--map-repos
-       (lambda (recipe)
-         (straight--with-plist recipe
-             (local-repo package)
-           (unless (or (null local-repo)
-                       (assoc local-repo versions-alist)
-                       (straight--repository-is-available-p recipe))
-             (straight-use-package (intern package)))))))
+    (straight--map-repos
+     (lambda (recipe)
+       (straight--with-plist recipe
+           (local-repo package)
+         (unless (or (null local-repo)
+                     (straight--repository-is-available-p recipe))
+           (straight-use-package (intern package) nil 'no-build)))))
     (dolist (spec straight-profiles)
       (cl-destructuring-bind (profile . versions-lockfile) spec
         (let ((versions-alist nil)
