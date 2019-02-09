@@ -1946,7 +1946,7 @@ COMMIT is a 40-character SHA-1 Git hash. If it cannot be checked
 out, signal a warning. If COMMIT is nil, check out the branch
 specified in RECIPE instead. If that fails, signal a warning."
   (straight-vc-git--destructure recipe
-      (package local-repo branch upstream-repo upstream-host
+      (package local-repo branch remote upstream-repo upstream-host
                upstream-remote fork-repo fork-host
                fork-remote nonrecursive)
     (unless upstream-repo
@@ -1974,7 +1974,9 @@ specified in RECIPE instead. If that fails, signal a warning."
                   ;; as if we weren't given one.
                   (setq commit nil)))
               (unless commit
-                (unless (straight--check-call "git" "checkout" branch)
+                (unless (straight--check-call
+                         "git" "checkout" "-B" branch
+                         (format "%s/%s" remote branch))
                   (straight--warn
                    "Could not check out branch %S of repository %S"
                    branch local-repo)
