@@ -1957,7 +1957,7 @@ specified in RECIPE instead. If that fails, signal a warning."
           (progn
             (straight--get-call
              "git" "clone" "--origin" upstream-remote
-             "--no-checkout" url local-repo)
+             "--no-checkout" url repo-dir)
             (let ((straight--default-directory nil)
                   (default-directory repo-dir))
               (when fork-repo
@@ -2206,7 +2206,7 @@ This variable is designed for cases when your init-file is first
 loaded after init has completed, for some reason (e.g. if you are
 profiling it using `esup'). To use it, bind it to non-nil for the
 duration of loading your init-file, and then make sure to call
-`straight-finalize-transaction'")
+`straight-finalize-transaction'.")
 
 ;;;;; Recipe repositories
 
@@ -2374,7 +2374,15 @@ return nil."
             (cl-destructuring-bind (name . melpa-plist) melpa-recipe
               (straight--put plist :type 'git)
               (when-let ((files (plist-get melpa-plist :files)))
-                (straight--put plist :files files))
+                ;; We must include a *-pkg.el entry in the recipe
+                ;; because that file always needs to be linked over,
+                ;; if it is present, but the `:files' directive might
+                ;; not include it (and doesn't need to, because MELPA
+                ;; always re-creates a *-pkg.el file regardless). See
+                ;; https://github.com/raxod502/straight.el/issues/336.
+                (straight--put
+                 plist :files
+                 (append files (list (format "%S-pkg.el" package)))))
               (pcase (plist-get melpa-plist :fetcher)
                 (`git (straight--put plist :repo (plist-get melpa-plist :url)))
                 ((or `github `gitlab)
@@ -2396,7 +2404,7 @@ return nil."
 
 ;;;;;; GNU ELPA
 
-(defcustom straight-recipes-gnu-elpa-use-mirror nil
+(defcustom straight-recipes-gnu-elpa-use-mirror t
   "Non-nil means to retrieve GNU ELPA packages via a mirror.
 This means that all the packages work, even the `externals-list'
 ones (e.g. `auctex'). However, you will not be able to contribute
@@ -3093,6 +3101,7 @@ This mode is automatically enabled or disabled as you bootstrap
 straight.el, according to the value of
 `straight-check-for-modifications'."
   :global t
+  :group 'straight
   (if straight-live-modifications-mode
       (add-hook 'before-save-hook #'straight-register-file-modification)
     (remove-hook 'before-save-hook #'straight-register-file-modification)))
@@ -3658,6 +3667,7 @@ then the file referenced there is used instead. This mode is
 automatically enabled or disabled when you load straight.el,
 according to the value of `straight-use-symlinks'."
   :global t
+  :group 'straight
   (if straight-symlink-emulation-mode
       (add-hook 'find-file-hook #'straight-maybe-emulate-symlink)
     (remove-hook 'find-file-hook #'straight-maybe-emulate-symlink)))
@@ -3672,7 +3682,13 @@ required (see the Package-Requires header in a
 package.el-compliant Elisp package). The return value is a list
 of strings naming the packages that are mentioned in the
 dependency list."
-  (mapcar #'symbol-name (mapcar #'car dependencies)))
+  (mapcar
+   (lambda (dep)
+     (symbol-name
+      (if (listp dep)
+          (car dep)
+        dep)))
+   dependencies))
 
 (defun straight--compute-dependencies (package)
   "Register the dependencies of PACKAGE in `straight--build-cache'.
@@ -4976,6 +4992,7 @@ This mode is enabled or disabled automatically when straight.el
 is loaded, according to the value of
 `straight-enable-package-integration'."
   :global t
+  :group 'straight
   (with-eval-after-load 'package
     (if straight-package-neutering-mode
         (progn
@@ -5170,6 +5187,7 @@ This mode is enabled or disabled automatically when straight.el
 is loaded, according to the value of
 `straight-enable-use-package-integration'."
   :global t
+  :group 'straight
   (pcase straight-use-package--last-version
     (`ensure
      (with-eval-after-load 'use-package
