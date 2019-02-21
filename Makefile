@@ -6,7 +6,7 @@ for_checkdoc := straight.el
 for_longlines := $(wildcard *.el *.md *.yml) Makefile
 
 .PHONY: all
-all: compile checkdoc longlines
+all: compile checkdoc toc longlines
 
 .PHONY: compile
 compile:
@@ -44,7 +44,11 @@ longlines:
 .PHONY: toc
 toc: README.md
 	@echo "[toc] $^"
-	@markdown-toc -i $^
+	@if command -v markdown-toc >/dev/null; then \
+	    markdown-toc -i $^ ; \
+	else \
+	    echo "  --> markdown-toc missing, skipping" ; \
+	fi
 
 .PHONY: clean
 clean:
