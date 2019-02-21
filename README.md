@@ -2104,6 +2104,16 @@ If all you want to do is change which branch you are installing
 least until the recipe happens to be changed upstream and your
 init-file isn't updated.)
 
+There is one minor caveat to the above discussion. If your fork makes
+changes to the way in which recipes are interpreted, then those
+changes will not be effective during the interpretation of your own
+recipe for `straight.el`. If you wish for them to be, then you will
+have to follow the same procedure that is followed in `straight.el`
+itself for making changes to recipe interpretation. These details are
+outlined in the [developer manual][straight.el-recipe-internals]; see
+also `install.el` for an explanation of this aspect of the bootstrap
+mechanism.
+
 ### Interactive usage
 
 The primary usage of `straight.el` is expected to be in your
