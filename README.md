@@ -24,6 +24,8 @@ development takes place on the [`develop` branch][develop].)
   * [Automatic repository management](#automatic-repository-management)
   * [Configuration reproducibility](#configuration-reproducibility)
   * [Installing Org](#installing-org)
+- [FAQ](#faq)
+  * [The wrong version of my package was loaded](#the-wrong-version-of-my-package-was-loaded)
 - [Conceptual overview](#conceptual-overview)
   * [TL;DR](#tldr)
   * [What is a package?](#what-is-a-package)
@@ -370,6 +372,56 @@ lockfiles][lockfiles].
 
 There are [some complications][org] with installing Org at the moment.
 However, they are not hard to work around.
+
+## FAQ
+### The wrong version of my package was loaded
+
+To explain this problem, let us consider a concrete example. In [this
+issue][eglot-issue], a user found that the code
+
+    (straight-use-package 'company-lsp)
+    (straight-use-package 'eglot)
+
+sometimes resulted in runtime errors because an old version of Flymake
+was being used.
+
+The root problem here is that you want the most recent version of
+Flymake to be installed by `straight.el`, but Emacs also ships an
+older version, and that older version is getting loaded instead.
+
+The older version will be loaded if `(require 'flymake)` (or similar)
+is invoked before `straight.el` has made Flymake available (by means
+of `(straight-use-package 'flymake)` or similar). But why would
+`straight.el` not make Flymake available?
+
+The only way that `straight.el` knows to make Flymake available is if
+either you manually invoke `straight-use-package` in your init-file,
+or if one of the packages that you request in your init-file declares
+Flymake as a dependency. Now, any package that uses Flymake ought to
+declare it as a dependency. Thus, there should be no way for a package
+to load the Emacs-provided version of Flymake. However, sometimes
+package authors overlook this problem (it does not always cause an
+error, and sometimes package authors do not test exhaustively enough).
+
+In this case, the problem was that `company-lsp` declared a dependency
+on `lsp-mode`, and `lsp-mode` used Flymake without declaring a
+dependency on `flymake`. There are two ways to work around the
+problem:
+
+* (Preferable) Fix `lsp-mode` to declare a dependency on `flymake`.
+* (Workaround) Manually invoke `(straight-use-package 'flymake)`
+  before `(straight-use-package 'flymake)`.
+
+If you test this yourself, you might find it difficult to reproduce
+the problem. That is because there is only an issue when Flymake is
+actually loaded, and this doesn't necessarily happen when invoking
+`(straight-use-package 'company-lsp)` *unless* `straight.el` needs to
+rebuild the relevant packages (which includes byte-compilation, which
+sometimes means actually loading dependencies). Keep this in mind when
+testing.
+
+See [this issue][suppress-built-in-issue] for discussion about ways of
+mitigating the bad UX of this situation.
 
 ## Conceptual overview
 
@@ -2672,6 +2724,7 @@ the outdated Emacs-provided Org being loaded.
 [build-command-issue]: https://github.com/raxod502/straight.el/issues/72
 [cask]: https://github.com/cask/cask
 [develop]: https://github.com/raxod502/straight.el/tree/develop
+[eglot-issue]: https://github.com/raxod502/straight.el/issues/355
 [el-get]: https://github.com/dimitri/el-get
 [emacs]: https://www.gnu.org/software/emacs/
 [emacsmirror]: https://emacsmirror.net/
@@ -2697,6 +2750,7 @@ the outdated Emacs-provided Org being loaded.
 [radian]: https://github.com/raxod502/radian
 [quelpa]: https://github.com/quelpa/quelpa
 [spacemacs]: http://spacemacs.org/
+[suppress-built-in-issue]: https://github.com/raxod502/straight.el/issues/236
 [symlinks-creators]: https://blogs.windows.com/buildingapps/2016/12/02/symlinks-windows-10/
 [symlinks-microsoft]: https://msdn.microsoft.com/en-us/library/bb530410.aspx#vistauac_topic8
 [symlinks-perforce]: https://community.perforce.com/s/article/3472
