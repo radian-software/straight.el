@@ -33,8 +33,8 @@ longlines:
 	@echo "[longlines] $(for_longlines)"
 	@for file in $(for_longlines); do \
 	    cat "$$file" \
-	        | sed '/<!-- toc -->/,/<!-- tocstop -->/d' \
-	        | sed '/longlines-start/,/longlines-stop/d' \
+	        | sed '/[<]!-- toc -->/,/<!-- tocstop -->/d' \
+	        | sed '/[l]onglines-start/,/longlines-stop/d' \
 	        | grep -E '.{80}' \
 	        | grep -E -v '\[.+\]: (#|http)' \
 	        | sed "s/^/$$file:long line: /" \
