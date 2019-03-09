@@ -2716,7 +2716,7 @@ nil."
 ;;;;; Recipe registration
 
 (defvar straight--build-keywords
-  '(:local-repo :files :no-autoloads)
+  '(:local-repo :files :no-autoloads :no-byte-compile)
   "Keywords that affect how a package is built locally.
 If the values for any of these keywords change, then package
 needs to be rebuilt. See also `straight-vc-keywords'.")
@@ -3804,11 +3804,20 @@ modifies the build folder, not the original repository."
 
 ;;;;; Byte-compilation
 
-(defun straight--byte-compile-package (recipe)
+(defcustom straight-disable-byte-compilation nil
+  "Non-nil means do not byte-compile packages by default.
+This can be overridden by the `:no-byte-compile' property of an
+individual package recipe."
+  :type 'boolean)
+
+(cl-defun straight--byte-compile-package (recipe)
   "Byte-compile files for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
+  (when (straight--plist-get recipe :no-byte-compile
+                             straight-disable-byte-compilation)
+    (cl-return-from straight--byte-compile-package))
   ;; We need to load `bytecomp' so that the `symbol-function'
   ;; assignments below are sure to work. Since we byte-compile this
   ;; file, we need to `require' the feature at compilation time too.
@@ -5281,7 +5290,7 @@ is loaded, according to the value of
 ;;; straight.el ends here
 
 ;; Local Variables:
-;; checkdoc-symbol-words: ("top-level")
+;; checkdoc-symbol-words: ("byte-compile" "top-level")
 ;; checkdoc-verb-check-experimental-flag: nil
 ;; indent-tabs-mode: nil
 ;; outline-regexp: ";;;;* "

@@ -1642,6 +1642,14 @@ you *really* know what you're doing). You can also customize the
 variable `straight-disable-autoloads` to effect this change on all
 recipes which do not explicitly specify a `:no-autoloads` attribute.
 
+By specifying a non-nil value for the `:no-byte-compile` attribute in
+a package's recipe, you may inhibit byte-compilation. See [this
+issue][byte-compilation-issue] for discussion of why this might be
+useful. You can also customize the variable
+`straight-disable-byte-compilation` to effect this change on all
+recipes which do not explicitly specify a `:no-byte-compile`
+attribute.
+
 Usually, `straight.el` uses symbolic links ("symlinks") to make
 package files available from the build directory. This happens when
 `straight-use-symlinks` is non-nil, the default. On Microsoft Windows,
@@ -2732,6 +2740,7 @@ the outdated Emacs-provided Org being loaded.
 [borg]: https://github.com/emacscollective/borg
 [borg-improvements]: https://github.com/raxod502/straight.el/issues/95#issuecomment-316379495
 [build-command-issue]: https://github.com/raxod502/straight.el/issues/72
+[byte-compilation-issue]: https://github.com/raxod502/straight.el/issues/357
 [cask]: https://github.com/cask/cask
 [develop]: https://github.com/raxod502/straight.el/tree/develop
 [eglot-issue]: https://github.com/raxod502/straight.el/issues/355
