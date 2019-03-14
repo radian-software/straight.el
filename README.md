@@ -26,6 +26,7 @@ development takes place on the [`develop` branch][develop].)
   * [Installing Org](#installing-org)
 - [FAQ](#faq)
   * [The wrong version of my package was loaded](#the-wrong-version-of-my-package-was-loaded)
+  * [How do I pin package versions?](#how-do-i-pin-package-versions)
 - [Conceptual overview](#conceptual-overview)
   * [TL;DR](#tldr)
   * [What is a package?](#what-is-a-package)
@@ -422,6 +423,11 @@ testing.
 
 See [this issue][suppress-built-in-issue] for discussion about ways of
 mitigating the bad UX of this situation.
+
+### How do I pin package versions?
+
+This is a planned feature. In the meantime, contributors have proposed
+various workarounds. See [#246].
 
 ## Conceptual overview
 
@@ -2736,6 +2742,7 @@ the outdated Emacs-provided Org being loaded.
 [user-manual]: #user-manual
 [vc-backends]: #version-control-backends
 
+[#246]: https://github.com/raxod502/straight.el/issues/246
 [auto-compile]: https://github.com/tarsius/auto-compile
 [borg]: https://github.com/emacscollective/borg
 [borg-improvements]: https://github.com/raxod502/straight.el/issues/95#issuecomment-316379495
