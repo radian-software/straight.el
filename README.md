@@ -1528,16 +1528,16 @@ to change this would be welcome.)
 
 `watch-files` causes `straight.el` to automatically invoke a
 filesystem watcher to detect modifications as they are made, inside or
-outside of Emacs. For this setting to work, you must have `python3`
-and [`watchexec`][watchexec] installed on your `PATH`. By default, the
-watcher persists after Emacs is closed. You can stop it manually by
-running `M-x straight-watcher-stop`, and start it again by running
-`M-x straight-watcher-start`. The watcher script is designed so that
-when one instance is started, all the others gracefully shut down, so
-you don't have to worry about accidentally ending up with more than
-one. There is nothing exciting in the process buffer for the watcher,
-but if you are interested in it then its name is given by
-`straight-watcher-process-buffer`.
+outside of Emacs. For this setting to work, you must have
+[`python3`][python] and [`watchexec`][watchexec] installed on your
+`PATH`. By default, the watcher persists after Emacs is closed. You
+can stop it manually by running `M-x straight-watcher-stop`, and start
+it again by running `M-x straight-watcher-start`. The watcher script
+is designed so that when one instance is started, all the others
+gracefully shut down, so you don't have to worry about accidentally
+ending up with more than one. There is nothing exciting in the process
+buffer for the watcher, but if you are interested in it then its name
+is given by `straight-watcher-process-buffer`.
 
 There is probably no good reason to use both `check-on-save` and
 `watch-files` at the same time. Your configuration can dynamically
@@ -2620,8 +2620,21 @@ with Emacs, rather than cloning the upstream repository:
 
 ### My init time got slower
 
-There are some planned changes which will make `straight.el` just as
-fast as `package.el`, if not faster. See [#9].
+Your first step should be to customize the value of
+`straight-check-for-modifications`. The best setting is `(watch-files
+find-when-checking)`; this is not enabled by default because it is
+impolite to spawn persistent background processes without asking, and
+because you must install [Python 3][python] and
+[`watchexec`][watchexec] for it to work. If you can't stand the extra
+dependencies and background process, consider the setting
+`(check-on-save find-when-checking)` instead, which is just as fast
+but won't catch package modifications unless they are made within
+Emacs via the `save-buffer` command.
+
+Even with lazy modification detection, as described above,
+`straight.el` is not quite as fast as `package.el` (by a few
+percentage points). There are some planned changes which will make
+`straight.el` just as fast as `package.el`, if not faster. See [#9].
 
 ## News
 ### March 15, 2019
@@ -2787,6 +2800,7 @@ option `straight-cache-autoloads`.
 [package.el-format]: https://www.gnu.org/software/emacs/manual/html_node/elisp/Packaging-Basics.html
 [prelude]: https://github.com/bbatsov/prelude
 [property-lists]: https://www.gnu.org/software/emacs/manual/html_node/elisp/Property-Lists.html
+[python]: https://www.python.org/
 [radian]: https://github.com/raxod502/radian
 [quelpa]: https://github.com/quelpa/quelpa
 [spacemacs]: http://spacemacs.org/
