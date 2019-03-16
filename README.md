@@ -2718,9 +2718,9 @@ the outdated Emacs-provided Org being loaded.
   [#user/integration/use-package]: #integration-with-use-package-1
 [#dev]: #developer-manual
  [#dev/vc-backends]: #developer-manual
- [#dev/recipe-formats]: #FIXME
- [#dev/recipe-internals]: #FIXME
- [#dev/transactions]: #FIXME
+ [#dev/recipe-formats]: #developer-manual
+ [#dev/recipe-internals]: #developer-manual
+ [#dev/transactions]: #developer-manual
 [#trivia]: #trivia
  [#trivia/comments]: #comments-and-docstrings
 [#news]: #news
