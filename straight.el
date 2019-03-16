@@ -5318,11 +5318,12 @@ Inserted by installing org-mode or when a release is made."
         (string-trim
          (with-output-to-string
            (with-current-buffer standard-output
-             (call-process "describe"
-                           nil t nil
-                           "--match=release*"
-                           "--abbrev=6"
-                           "HEAD"))))))
+             (call-process
+              "git" nil t nil
+              "describe"
+              "--match=release*"
+              "--abbrev=6"
+              "HEAD"))))))
 
     (defun org-release ()
       "The release version of org-mode.
@@ -5333,11 +5334,12 @@ Inserted by installing org-mode or when a release is made."
           "release_"
           (with-output-to-string
             (with-current-buffer standard-output
-              (call-process "describe"
-                            nil t nil
-                            "--match=release*"
-                            "--abbrev=0"
-                            "HEAD")))))))
+              (call-process
+               "git" nil t nil
+               "describe"
+               "--match=release*"
+               "--abbrev=0"
+               "HEAD")))))))
 
     (provide 'org-version)))
 
