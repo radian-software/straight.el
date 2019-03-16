@@ -22,7 +22,9 @@ chat][gitter-badge]][gitter]
   * [Configuration reproducibility](#configuration-reproducibility)
 - [FAQ](#faq)
   * [The wrong version of my package was loaded](#the-wrong-version-of-my-package-was-loaded)
-  * [How do I pin package versions?](#how-do-i-pin-package-versions)
+  * [The interactive version-control operations are confusing](#the-interactive-version-control-operations-are-confusing)
+  * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
+  * [My init time got slower](#my-init-time-got-slower)
 - [Conceptual overview](#conceptual-overview)
   * [TL;DR](#tldr)
   * [What is a package?](#what-is-a-package)
@@ -104,7 +106,6 @@ chat][gitter-badge]][gitter]
   * [June 5, 2018](#june-5-2018)
   * [May 31, 2018](#may-31-2018)
   * [April 21, 2018](#april-21-2018)
-- [Known issue FAQ](#known-issue-faq)
 
 <!-- tocstop -->
 
@@ -418,10 +419,21 @@ more fun problems you can encounter with Org.
 See [this issue][#236] for discussion about ways of mitigating the bad
 UX of this situation.
 
-### How do I pin package versions?
+### The interactive version-control operations are confusing
+
+This part of `straight.el` still needs some work; see [#54] about the
+UX of pushing and pulling, and [#58] about commits not being available
+when thawing a lockfile.
+
+### How do I pin package versions or use only tagged releases?
 
 This is a planned feature. In the meantime, contributors have proposed
-various workarounds. See [#246].
+various workarounds. See [#246] and [#31].
+
+### My init time got slower
+
+There are some planned changes which will make `straight.el` just as
+fast as `package.el`, if not faster. See [#9].
 
 ## Conceptual overview
 
@@ -2669,20 +2681,6 @@ Autoloads caching is now enabled by default.
 There is now experimental support for caching autoloads in a single
 file, which should improve performance at startup. See the new user
 option `straight-cache-autoloads`.
-
-## Known issue FAQ
-
-This section lists items from the [issue tracker][issues] which are
-particularly impactful to user experience.
-
-* *Switching to `straight.el` made my init time slower:* See [#9],
-  [#119].
-* *I only want to use stable versions of packages:* See [#31].
-* *The functions for pushing changes upstream are doing things that
-  don't make sense:* See [#54].
-* *When performing repository management operations, I get errors
-  about packages not being installed and commits not being available:*
-  See [#58], [#110].
 
 [#principles]: #guiding-principles
 [#quickstart]: #getting-started
