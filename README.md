@@ -91,11 +91,11 @@ chat][gitter-badge]][gitter]
   * [Comments and docstrings](#comments-and-docstrings)
 - [Contributing](#contributing)
 - [FAQ](#faq)
+  * [My init time got slower](#my-init-time-got-slower)
   * [The wrong version of my package was loaded](#the-wrong-version-of-my-package-was-loaded)
   * [The interactive version-control operations are confusing](#the-interactive-version-control-operations-are-confusing)
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
-  * [My init time got slower](#my-init-time-got-slower)
 - [News](#news)
   * [March 15, 2019](#march-15-2019)
   * [December 22, 2018](#december-22-2018)
@@ -2539,6 +2539,24 @@ binary on your path, and you have installed
 [`markdown-toc`][markdown-toc]).
 
 ## FAQ
+### My init time got slower
+
+Your first step should be to customize the value of
+`straight-check-for-modifications`. The best setting is `(watch-files
+find-when-checking)`; this is not enabled by default because it is
+impolite to spawn persistent background processes without asking, and
+because you must install [Python 3][python] and
+[`watchexec`][watchexec] for it to work. If you can't stand the extra
+dependencies and background process, consider the setting
+`(check-on-save find-when-checking)` instead, which is just as fast
+but won't catch package modifications unless they are made within
+Emacs via the `save-buffer` command.
+
+Even with lazy modification detection, as described above,
+`straight.el` is not quite as fast as `package.el` (by a few
+percentage points). There are some planned changes which will make
+`straight.el` just as fast as `package.el`, if not faster. See [#9].
+
 ### The wrong version of my package was loaded
 
 To explain this problem, let us consider a concrete example. In [this
@@ -2617,24 +2635,6 @@ with Emacs, rather than cloning the upstream repository:
     (straight-use-package '(org :type built-in))
 
 [Read more.][#user/recipes]
-
-### My init time got slower
-
-Your first step should be to customize the value of
-`straight-check-for-modifications`. The best setting is `(watch-files
-find-when-checking)`; this is not enabled by default because it is
-impolite to spawn persistent background processes without asking, and
-because you must install [Python 3][python] and
-[`watchexec`][watchexec] for it to work. If you can't stand the extra
-dependencies and background process, consider the setting
-`(check-on-save find-when-checking)` instead, which is just as fast
-but won't catch package modifications unless they are made within
-Emacs via the `save-buffer` command.
-
-Even with lazy modification detection, as described above,
-`straight.el` is not quite as fast as `package.el` (by a few
-percentage points). There are some planned changes which will make
-`straight.el` just as fast as `package.el`, if not faster. See [#9].
 
 ## News
 ### March 15, 2019
