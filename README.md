@@ -20,12 +20,6 @@ chat][gitter-badge]][gitter]
   * [Edit packages locally](#edit-packages-locally)
   * [Automatic repository management](#automatic-repository-management)
   * [Configuration reproducibility](#configuration-reproducibility)
-- [FAQ](#faq)
-  * [The wrong version of my package was loaded](#the-wrong-version-of-my-package-was-loaded)
-  * [The interactive version-control operations are confusing](#the-interactive-version-control-operations-are-confusing)
-  * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
-  * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
-  * [My init time got slower](#my-init-time-got-slower)
 - [Conceptual overview](#conceptual-overview)
   * [TL;DR](#tldr)
   * [What is a package?](#what-is-a-package)
@@ -96,6 +90,12 @@ chat][gitter-badge]][gitter]
 - [Trivia](#trivia)
   * [Comments and docstrings](#comments-and-docstrings)
 - [Contributing](#contributing)
+- [FAQ](#faq)
+  * [The wrong version of my package was loaded](#the-wrong-version-of-my-package-was-loaded)
+  * [The interactive version-control operations are confusing](#the-interactive-version-control-operations-are-confusing)
+  * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
+  * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
+  * [My init time got slower](#my-init-time-got-slower)
 - [News](#news)
   * [March 15, 2019](#march-15-2019)
   * [December 22, 2018](#december-22-2018)
@@ -359,89 +359,6 @@ straight-thaw-versions`.
 
 To learn more, see the documentation on [version
 lockfiles][#user/lockfiles].
-
-## FAQ
-### The wrong version of my package was loaded
-
-To explain this problem, let us consider a concrete example. In [this
-issue][#355], a user found that the code
-
-    (straight-use-package 'company-lsp)
-    (straight-use-package 'eglot)
-
-sometimes resulted in runtime errors because an old version of Flymake
-was being used.
-
-The root problem here is that you want the most recent version of
-Flymake to be installed by `straight.el`, but Emacs also ships an
-older version, and that older version is getting loaded instead.
-
-The older version will be loaded if `(require 'flymake)` (or similar)
-is invoked before `straight.el` has made Flymake available (by means
-of `(straight-use-package 'flymake)` or similar). But why would
-`straight.el` not make Flymake available?
-
-The only way that `straight.el` knows to make Flymake available is if
-either you manually invoke `straight-use-package` in your init-file,
-or if one of the packages that you request in your init-file declares
-Flymake as a dependency. Now, any package that uses Flymake ought to
-declare it as a dependency. Thus, there should be no way for a package
-to load the Emacs-provided version of Flymake. However, sometimes
-package authors overlook this problem (it does not always cause an
-error, and sometimes package authors do not test exhaustively enough).
-
-In this case, the problem was that `company-lsp` declared a dependency
-on `lsp-mode`, and `lsp-mode` used Flymake without declaring a
-dependency on `flymake`. There are two ways to work around the
-problem:
-
-* (Preferable) Fix `lsp-mode` to declare a dependency on `flymake`.
-* (Workaround) Manually invoke `(straight-use-package 'flymake)`
-  before `(straight-use-package 'flymake)`.
-
-If you test this yourself, you might find it difficult to reproduce
-the problem. That is because there is only an issue when Flymake is
-actually loaded, and this doesn't necessarily happen when invoking
-`(straight-use-package 'company-lsp)` *unless* `straight.el` needs to
-rebuild the relevant packages (which includes byte-compilation, which
-sometimes means actually loading dependencies). Keep this in mind when
-testing.
-
-This problem commonly occurs with Org, since (1) Org is popular, (2)
-Emacs ships an obsolete version of Org, (3) many users want to use the
-up-to-date version, and (4) Org breaks backwards compatibility
-frequently. To solve it, simply make sure that you invoke
-`(straight-use-package 'org)` or `(straight-use-package
-'org-plus-contrib)` before running any code that could load Org,
-including installing any package that lists it as a dependency. See
-also the [integration with Org][#user/integration/org] section for
-more fun problems you can encounter with Org.
-
-See [this issue][#236] for discussion about ways of mitigating the bad
-UX of this situation.
-
-### The interactive version-control operations are confusing
-
-This part of `straight.el` still needs some work; see [#54] about the
-UX of pushing and pulling, and [#58] about commits not being available
-when thawing a lockfile.
-
-### How do I pin package versions or use only tagged releases?
-
-This is a planned feature. In the meantime, contributors have proposed
-various workarounds. See [#246] and [#31].
-
-### How can I use the built-in version of a package?
-
-To tell `straight.el` that you want to use the version of Org shipped
-with Emacs, rather than cloning the upstream repository:
-
-    (straight-use-package '(org :type built-in))
-
-### My init time got slower
-
-There are some planned changes which will make `straight.el` just as
-fast as `package.el`, if not faster. See [#9].
 
 ## Conceptual overview
 
@@ -2620,6 +2537,89 @@ You can run the linting locally simply by running
 (although first you should make sure there is a suitable `emacs`
 binary on your path, and you have installed
 [`markdown-toc`][markdown-toc]).
+
+## FAQ
+### The wrong version of my package was loaded
+
+To explain this problem, let us consider a concrete example. In [this
+issue][#355], a user found that the code
+
+    (straight-use-package 'company-lsp)
+    (straight-use-package 'eglot)
+
+sometimes resulted in runtime errors because an old version of Flymake
+was being used.
+
+The root problem here is that you want the most recent version of
+Flymake to be installed by `straight.el`, but Emacs also ships an
+older version, and that older version is getting loaded instead.
+
+The older version will be loaded if `(require 'flymake)` (or similar)
+is invoked before `straight.el` has made Flymake available (by means
+of `(straight-use-package 'flymake)` or similar). But why would
+`straight.el` not make Flymake available?
+
+The only way that `straight.el` knows to make Flymake available is if
+either you manually invoke `straight-use-package` in your init-file,
+or if one of the packages that you request in your init-file declares
+Flymake as a dependency. Now, any package that uses Flymake ought to
+declare it as a dependency. Thus, there should be no way for a package
+to load the Emacs-provided version of Flymake. However, sometimes
+package authors overlook this problem (it does not always cause an
+error, and sometimes package authors do not test exhaustively enough).
+
+In this case, the problem was that `company-lsp` declared a dependency
+on `lsp-mode`, and `lsp-mode` used Flymake without declaring a
+dependency on `flymake`. There are two ways to work around the
+problem:
+
+* (Preferable) Fix `lsp-mode` to declare a dependency on `flymake`.
+* (Workaround) Manually invoke `(straight-use-package 'flymake)`
+  before `(straight-use-package 'flymake)`.
+
+If you test this yourself, you might find it difficult to reproduce
+the problem. That is because there is only an issue when Flymake is
+actually loaded, and this doesn't necessarily happen when invoking
+`(straight-use-package 'company-lsp)` *unless* `straight.el` needs to
+rebuild the relevant packages (which includes byte-compilation, which
+sometimes means actually loading dependencies). Keep this in mind when
+testing.
+
+This problem commonly occurs with Org, since (1) Org is popular, (2)
+Emacs ships an obsolete version of Org, (3) many users want to use the
+up-to-date version, and (4) Org breaks backwards compatibility
+frequently. To solve it, simply make sure that you invoke
+`(straight-use-package 'org)` or `(straight-use-package
+'org-plus-contrib)` before running any code that could load Org,
+including installing any package that lists it as a dependency. See
+also the [integration with Org][#user/integration/org] section for
+more fun problems you can encounter with Org.
+
+See [this issue][#236] for discussion about ways of mitigating the bad
+UX of this situation.
+
+### The interactive version-control operations are confusing
+
+This part of `straight.el` still needs some work; see [#54] about the
+UX of pushing and pulling, and [#58] about commits not being available
+when thawing a lockfile.
+
+### How do I pin package versions or use only tagged releases?
+
+This is a planned feature. In the meantime, contributors have proposed
+various workarounds. See [#246] and [#31].
+
+### How can I use the built-in version of a package?
+
+To tell `straight.el` that you want to use the version of Org shipped
+with Emacs, rather than cloning the upstream repository:
+
+    (straight-use-package '(org :type built-in))
+
+### My init time got slower
+
+There are some planned changes which will make `straight.el` just as
+fast as `package.el`, if not faster. See [#9].
 
 ## News
 ### March 15, 2019
