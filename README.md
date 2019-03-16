@@ -1318,7 +1318,7 @@ This section tells you everything you need to know about the
 user-facing features of `straight.el`. For implementation details, see
 the [developer manual][#dev]. It may also be helpful to get some
 perspective on the overarching concepts of `straight.el` from the
-[conceptual overview][conceptual-overview].
+[conceptual overview][#concepts].
 
 ### Bootstrapping `straight.el`
 
@@ -2509,7 +2509,7 @@ See [the Hydra wiki][hydra-wiki-straight-entry].
 This section tells you about all the interesting implementation
 details and design decisions that power `straight.el` behind the
 scenes. It assumes you have already read the [user manual][#user] and
-the [conceptual overview][conceptual-overview].
+the [conceptual overview][#concepts].
 
 Unfortunately, I haven't yet had time to write it. See [#51].
 
