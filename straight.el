@@ -4287,6 +4287,13 @@ action, just return it)."
 
 ;;;;; Package registration
 
+(defcustom straight-use-package-pre-build-functions nil
+  "Abnormal hook run before building a package.
+Each hook function is called with the name of the package as a
+string. For forward compatibility, it should accept and ignore
+additional arguments."
+  :type 'hook)
+
 ;;;###autoload
 (cl-defun straight-use-package
     (melpa-style-recipe &optional no-clone no-build cause interactive)
@@ -4450,6 +4457,8 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
                                  (and table (gethash 'version table))
                                  (funcall func))))
                    (remhash (intern package) straight--recipe-lookup-cache)))
+               (run-hook-with-args
+                'straight-use-package-pre-build-functions package)
                (unless no-build
                  ;; Multi-file packages will need to be on the
                  ;; `load-path' in order to byte-compile properly. So
@@ -5282,6 +5291,61 @@ is loaded, according to the value of
                                        '('(t) straight-use-package-by-default)
                                        use-package-defaults
                                        'symbol))))))))
+
+;;;;; Org integration
+
+(defcustom straight-fix-org t
+  "If non-nil, install a workaround for a problem with Org.
+See <https://github.com/raxod502/straight.el/issues/211> for
+discussion.
+
+This variable must be set before straight.el is loaded in order
+to take effect."
+  :type 'boolean)
+
+(defun straight--fix-org-function (package &rest _)
+  "Pre-build function to fix Org. See `straight-fix-org'.
+PACKAGE is the name of the package being built, as a string.
+
+This function is for use on the hook
+`straight-use-package-pre-build-functions'."
+  (when (member package '("org" "org-plus-contrib"))
+
+    (defun org-git-version ()
+      "The Git version of org-mode.
+Inserted by installing org-mode or when a release is made."
+      (let ((default-directory (straight--repos-dir "org")))
+        (string-trim
+         (with-output-to-string
+           (with-current-buffer standard-output
+             (call-process "describe"
+                           nil t nil
+                           "--match=release*"
+                           "--abbrev=6"
+                           "HEAD"))))))
+
+    (defun org-release ()
+      "The release version of org-mode.
+Inserted by installing org-mode or when a release is made."
+      (let ((default-directory (straight--repos-dir "org")))
+        (string-trim
+         (string-remove-prefix
+          "release_"
+          (with-output-to-string
+            (with-current-buffer standard-output
+              (call-process "describe"
+                            nil t nil
+                            "--match=release*"
+                            "--abbrev=0"
+                            "HEAD")))))))
+
+    (provide 'org-version)))
+
+(if straight-fix-org
+    (add-hook 'straight-use-package-pre-build-functions
+              #'straight--fix-org-function)
+  (remove-hook 'straight-use-package-pre-build-functions
+               #'straight--fix-org-function))
 
 ;;;; Closing remarks
 

@@ -20,7 +20,6 @@ chat][gitter-badge]][gitter]
   * [Edit packages locally](#edit-packages-locally)
   * [Automatic repository management](#automatic-repository-management)
   * [Configuration reproducibility](#configuration-reproducibility)
-  * [Installing Org](#installing-org)
 - [FAQ](#faq)
   * [The wrong version of my package was loaded](#the-wrong-version-of-my-package-was-loaded)
   * [How do I pin package versions?](#how-do-i-pin-package-versions)
@@ -67,6 +66,7 @@ chat][gitter-badge]][gitter]
     + [Customizing when packages are built](#customizing-when-packages-are-built)
     + [Customizing how packages are built](#customizing-how-packages-are-built)
     + [Customizing how packages are made available](#customizing-how-packages-are-made-available)
+    + [Hooks run by `straight-use-package`](#hooks-run-by-straight-use-package)
   * [The recipe format](#the-recipe-format)
     + [Version-control backends](#version-control-backends)
     + [Git backend](#git-backend)
@@ -86,6 +86,7 @@ chat][gitter-badge]][gitter]
   * [Integration with other packages](#integration-with-other-packages)
     + [Integration with `use-package`](#integration-with-use-package-1)
     + ["Integration" with `package.el`](#integration-with-packageel)
+    + [Integration with Org](#integration-with-org)
     + [Integration with Hydra](#integration-with-hydra)
   * [Miscellaneous](#miscellaneous)
 - [Developer manual](#developer-manual)
@@ -103,7 +104,6 @@ chat][gitter-badge]][gitter]
   * [May 31, 2018](#may-31-2018)
   * [April 21, 2018](#april-21-2018)
 - [Known issue FAQ](#known-issue-faq)
-  * [Installing Org with `straight.el`](#installing-org-with-straightel)
 
 <!-- tocstop -->
 
@@ -357,11 +357,6 @@ straight-thaw-versions`.
 To learn more, see the documentation on [version
 lockfiles][#user/lockfiles].
 
-### Installing Org
-
-There are [some complications][#issue-faq/org] with installing Org at
-the moment. However, they are not hard to work around.
-
 ## FAQ
 ### The wrong version of my package was loaded
 
@@ -408,6 +403,16 @@ actually loaded, and this doesn't necessarily happen when invoking
 rebuild the relevant packages (which includes byte-compilation, which
 sometimes means actually loading dependencies). Keep this in mind when
 testing.
+
+This problem commonly occurs with Org, since (1) Org is popular, (2)
+Emacs ships an obsolete version of Org, (3) many users want to use the
+up-to-date version, and (4) Org breaks backwards compatibility
+frequently. To solve it, simply make sure that you invoke
+`(straight-use-package 'org)` or `(straight-use-package
+'org-plus-contrib)` before running any code that could load Org,
+including installing any package that lists it as a dependency. See
+also the [integration with Org][#user/integration/org] section for
+more fun problems you can encounter with Org.
 
 See [this issue][#236] for discussion about ways of mitigating the bad
 UX of this situation.
@@ -1681,6 +1686,16 @@ configuration should be necessary to make this work; however, you may
 wish to call [`straight-prune-build`][#user/interactive] occasionally,
 since otherwise this cache file may grow quite large over time.
 
+#### Hooks run by `straight-use-package`
+
+Currently, `straight-use-package` supports one hook:
+
+* `straight-use-package-pre-build-functions`: The functions in this
+  hook are run just before building a package (and only if the package
+  needs to be built). They are passed the name of the package being
+  built as a string, and should take and ignore any additional
+  arguments.
+
 ### The recipe format
 
 The general format for a `straight.el` recipe is:
@@ -2474,6 +2489,30 @@ all of these "features" by setting `package-enable-at-startup` to nil
 and enabling some advices. You can override this behavior by
 customizing `straight-enable-package-integration`, however.
 
+#### Integration with Org
+
+Org expects you to run `make` in its source repository before you run
+it, but `straight.el` does not yet support running such build systems
+automatically (see [#72]). This presents two problems:
+
+* Byte-compiling Org without running `make` first produces some
+  annoying warnings.
+* Running `make` generates a file `org-version.el` which provides the
+  functions `org-git-version` and `org-release`. Thus the version of
+  Org provided by `straight.el` does not include these functions, but
+  the obsolete version of Org provided by Emacs (see [the
+  FAQ][#faq/package-versions]) does. This can result in the obsolete
+  version getting partially loaded, which is confusing.
+
+See [#211] for discussion.
+
+By default, `straight.el` installs a hack (namely, defining the
+functions `org-git-version` and `org-release` itself) whenever you ask
+it to install Org. This functionality is implemented using
+[`straight-use-package-pre-build-functions`][#user/install/hooks]. You
+can disable it by setting the value of the variable `straight-fix-org`
+to nil.
+
 #### Integration with Hydra
 
 See [the Hydra wiki][hydra-wiki-straight-entry].
@@ -2635,65 +2674,11 @@ particularly impactful to user experience.
 * *When performing repository management operations, I get errors
   about packages not being installed and commits not being available:*
   See [#58], [#110].
-* *Org is giving me compile warnings:* See [#72], [#115].
-
-### Installing Org with `straight.el`
-
-Because Org is not designed to be run without running `make` first,
-and `straight.el` does not yet support custom build steps for
-packages, it is possible to get spurious warnings from an Org
-installed via `straight.el`, as per [#211]. The situation is actually
-even more confusing, since Emacs also provides an outdated version of
-Org and there is no way to disable this. As a result, this section
-outlines a simple way to install Org via `straight.el` without getting
-any warnings and without risking the outdated Org provided by Emacs
-from being loaded.
-
-This hack basically provides the three things that Emacs' outdated
-version of Org provides, and that a correctly built version of Org
-*would* provide, but that the unbuilt version of Org installed by
-`straight.el` does not actually provide.
-
-Make sure to put this code as early as you can in your init-file;
-otherwise, another package may try to load Org, which will result in
-the outdated Emacs-provided Org being loaded.
-
-    (require 'subr-x)
-    (straight-use-package 'git)
-
-    (defun org-git-version ()
-      "The Git version of org-mode.
-    Inserted by installing org-mode or when a release is made."
-      (require 'git)
-      (let ((git-repo (expand-file-name
-                       "straight/repos/org/" user-emacs-directory)))
-        (string-trim
-         (git-run "describe"
-                  "--match=release\*"
-                  "--abbrev=6"
-                  "HEAD"))))
-
-    (defun org-release ()
-      "The release version of org-mode.
-    Inserted by installing org-mode or when a release is made."
-      (require 'git)
-      (let ((git-repo (expand-file-name
-                       "straight/repos/org/" user-emacs-directory)))
-        (string-trim
-         (string-remove-prefix
-          "release_"
-          (git-run "describe"
-                   "--match=release\*"
-                   "--abbrev=0"
-                   "HEAD")))))
-
-    (provide 'org-version)
-
-    (straight-use-package 'org) ; or org-plus-contrib if desired
 
 [#principles]: #guiding-principles
 [#quickstart]: #getting-started
 [#faq]: #faq
+ [#faq/package-versions]: #the-wrong-version-of-my-package-was-loaded
 [#concepts]: #conceptual-overview
  [#concepts/straight-use-package]: #what-happens-when-i-call-straight-use-package
 [#comparison]: #comparison-to-other-package-managers
@@ -2702,6 +2687,7 @@ the outdated Emacs-provided Org being loaded.
 [#user]: #user-manual
  [#user/install]: #installing-packages-programmatically
   [#user/install/loading]: #customizing-how-packages-are-made-available
+  [#user/install/hooks]: #hooks-run-by-straight-use-package
  [#user/recipes]: #the-recipe-format
  [#user/recipes/vc-backends]: #version-control-backends
  [#user/recipes/git]: #git-backend
@@ -2716,6 +2702,7 @@ the outdated Emacs-provided Org being loaded.
  [#user/transactions]: #the-transaction-system
  [#user/integration]: #integration-with-other-packages
   [#user/integration/use-package]: #integration-with-use-package-1
+  [#user/integration/org]: #integration-with-org
 [#dev]: #developer-manual
  [#dev/vc-backends]: #developer-manual
  [#dev/recipe-formats]: #developer-manual
@@ -2724,7 +2711,6 @@ the outdated Emacs-provided Org being loaded.
 [#trivia]: #trivia
  [#trivia/comments]: #comments-and-docstrings
 [#news]: #news
-[#issue-faq/org]: #installing-org-with-straightel
 
 [#9]: https://github.com/raxod502/straight.el/issues/9
 [#31]: https://github.com/raxod502/straight.el/issues/31
