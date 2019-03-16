@@ -69,6 +69,7 @@ chat][gitter-badge]][gitter]
     + [Git backend](#git-backend)
       - [Deprecated `:upstream` keyword](#deprecated-upstream-keyword)
   * [Recipe lookup](#recipe-lookup)
+    + [Updating recipe repositories](#updating-recipe-repositories)
     + [Customizing recipe repositories](#customizing-recipe-repositories)
       - [GNU ELPA](#gnu-elpa)
       - [Defining new recipe repositories](#defining-new-recipe-repositories)
@@ -92,6 +93,7 @@ chat][gitter-badge]][gitter]
 - [Contributing](#contributing)
 - [FAQ](#faq)
   * [My init time got slower](#my-init-time-got-slower)
+  * [How do I update MELPA et al.?](#how-do-i-update-melpa-et-al)
   * [The wrong version of my package was loaded](#the-wrong-version-of-my-package-was-loaded)
   * [The interactive version-control operations are confusing](#the-interactive-version-control-operations-are-confusing)
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
@@ -1924,6 +1926,23 @@ and painless as possible:
   (although if there are conflicts in other parts of the recipe, a
   warning will still be displayed).
 
+#### Updating recipe repositories
+
+As mentioned in the [conceptual overview][#concepts/lookup], recipe
+repositories are just regular packages, with some extra code to look
+up recipes in the relevant local repository.
+
+This means that updating a recipe repository is done the same way as
+updating a regular package, i.e. with [`M-x
+straight-pull-package`][#user/interactive/vc]. You should do this if
+you find that a package isn't listed by `M-x
+straight-use-package`—perhaps it was added recently.
+
+Note that there is currently some potentially surprising behavior if
+you update all packages at once using `M-x straight-pull-all` or `M-x
+straight-merge-all`, and this bulk update includes recipe repository
+updates: see [#323].
+
 #### Customizing recipe repositories
 
 The recipe repository system is designed to be extended. Firstly, you
@@ -2557,6 +2576,11 @@ Even with lazy modification detection, as described above,
 percentage points). There are some planned changes which will make
 `straight.el` just as fast as `package.el`, if not faster. See [#9].
 
+### How do I update MELPA et al.?
+
+Using [`M-x straight-pull-package`][#user/interactive/vc], like for
+any other package. [Read more.][#user/lookup/update]
+
 ### The wrong version of my package was loaded
 
 To explain this problem, let us consider a concrete example. In [this
@@ -2726,6 +2750,7 @@ option `straight-cache-autoloads`.
 [#faq]: #faq
  [#faq/package-versions]: #the-wrong-version-of-my-package-was-loaded
 [#concepts]: #conceptual-overview
+ [#concepts/lookup]: #where-do-recipes-come-from
  [#concepts/straight-use-package]: #what-happens-when-i-call-straight-use-package
 [#comparison]: #comparison-to-other-package-managers
  [#comparison/package.el]: #comparison-to-packageel
@@ -2738,6 +2763,7 @@ option `straight-cache-autoloads`.
  [#user/recipes/vc-backends]: #version-control-backends
  [#user/recipes/git]: #git-backend
  [#user/lookup]: #recipe-lookup
+  [#user/lookup/update]: #updating-recipe-repositories
   [#user/lookup/repos]: #customizing-recipe-repositories
  [#user/overriding]: #overriding-recipes
   [#user/overriding/straight.el]: #overriding-the-recipe-for-straightel
@@ -2771,6 +2797,7 @@ option `straight-cache-autoloads`.
 [#211]: https://github.com/raxod502/straight.el/issues/211
 [#236]: https://github.com/raxod502/straight.el/issues/236
 [#246]: https://github.com/raxod502/straight.el/issues/246
+[#323]: https://github.com/raxod502/straight.el/issues/323
 [#355]: https://github.com/raxod502/straight.el/issues/355
 [#357]: https://github.com/raxod502/straight.el/issues/357
 
