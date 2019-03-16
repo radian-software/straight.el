@@ -2616,6 +2616,8 @@ with Emacs, rather than cloning the upstream repository:
 
     (straight-use-package '(org :type built-in))
 
+[Read more.][#user/recipes]
+
 ### My init time got slower
 
 There are some planned changes which will make `straight.el` just as
