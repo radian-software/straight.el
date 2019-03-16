@@ -94,6 +94,7 @@ chat][gitter-badge]][gitter]
   * [Comments and docstrings](#comments-and-docstrings)
 - [Contributing](#contributing)
 - [News](#news)
+  * [March 15, 2019](#march-15-2019)
   * [December 22, 2018](#december-22-2018)
   * [September 12, 2018](#september-12-2018)
   * [July 19, 2018](#july-19-2018)
@@ -2585,6 +2586,14 @@ binary on your path, and you have installed
 [`markdown-toc`][markdown-toc]).
 
 ## News
+### March 15, 2019
+
+`straight.el` [now installs a hack for Org by
+default][#user/integration/org], so Org should work out of the box
+with no compile warnings. If you have code to work around the problem
+in your init-file, you can safely remove it. To avoid installing the
+hack, customize the variable `straight-fix-org`.
+
 ### December 22, 2018
 
 The default value of the user option
