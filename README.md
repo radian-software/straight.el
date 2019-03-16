@@ -3,8 +3,8 @@ for the [Emacs] hacker.
 
 **Please check out the [FAQ][#faq] and [news][#news] :)**
 
-[![Build status][travis-badge]][travis-build]
-[![Gitter chat][gitter-badge]][gitter]
+[![Build status][travis-badge]][travis-build] [![Gitter
+chat][gitter-badge]][gitter]
 
 <!-- longlines-start -->
 
@@ -136,9 +136,8 @@ for the [Emacs] hacker.
   package updates are also optional.
 * Extensible APIs to add new recipe sources and version-control
   backends.
-* The cleanest source code you've ever
-  seen. [45%][#trivia/comments] of `straight.el` is comments
-  and docstrings.
+* The cleanest source code you've ever seen. [45%][#trivia/comments]
+  of `straight.el` is comments and docstrings.
 
 ## Guiding principles
 
@@ -233,8 +232,8 @@ it will not actually `require` the features provided by the package.
 This means that you might need to use `require` or `autoload` for some
 antiquated packages that do not properly declare their autoloads.
 
-To learn more, see the documentation
-on [the package lifecycle][#user/install].
+To learn more, see the documentation on [the package
+lifecycle][#user/install].
 
 ### But what about my fork of (obscure .el package)?
 
@@ -262,8 +261,8 @@ package, since this is so common:
 You may also omit the `:type git` if you leave `straight-default-vc`
 at its default value of `git`.
 
-To learn more, see the documentation
-on [the recipe format][#user/recipes].
+To learn more, see the documentation on [the recipe
+format][#user/recipes].
 
 ### Integration with `use-package`
 
@@ -360,8 +359,8 @@ lockfiles][#user/lockfiles].
 
 ### Installing Org
 
-There are [some complications][#issue-faq/org] with installing Org at the moment.
-However, they are not hard to work around.
+There are [some complications][#issue-faq/org] with installing Org at
+the moment. However, they are not hard to work around.
 
 ## FAQ
 ### The wrong version of my package was loaded
@@ -410,8 +409,8 @@ rebuild the relevant packages (which includes byte-compilation, which
 sometimes means actually loading dependencies). Keep this in mind when
 testing.
 
-See [this issue][#236] for discussion about ways of
-mitigating the bad UX of this situation.
+See [this issue][#236] for discussion about ways of mitigating the bad
+UX of this situation.
 
 ### How do I pin package versions?
 
@@ -422,8 +421,7 @@ various workarounds. See [#246].
 
 This section describes, at a high level, how the different mechanisms
 in `straight.el` play together. This illustrates how `straight.el`
-manages to accomplish all of its [guiding
-principles][#principles].
+manages to accomplish all of its [guiding principles][#principles].
 
 ### TL;DR
 
@@ -873,13 +871,11 @@ And here is a brief list of the main reasons you might not want to use
   packages).
 * `straight.el` does not currently support using only stable versions
   of packages (i.e. tagged revisions), although this is a [planned
-  feature][#31]. If this is important to you, you probably
-  want to go with `package.el` (with GNU ELPA and MELPA Stable), Cask,
-  or Quelpa.
+  feature][#31]. If this is important to you, you probably want to go
+  with `package.el` (with GNU ELPA and MELPA Stable), Cask, or Quelpa.
 * `straight.el` does not currently support arbitrary build commands
-  like `make`, although this is a [planned
-  feature][#72]. This feature is supported by el-get
-  and Borg.
+  like `make`, although this is a [planned feature][#72]. This feature
+  is supported by el-get and Borg.
 * If you don't like having to modify your init-file to do package
   management, then `straight.el` is absolutely not for you. You want
   `package.el`, Quelpa, el-get, or Borg.
@@ -946,9 +942,9 @@ And here is a brief list of the main reasons you might not want to use
   forking the upstream. `package.el` has no such concept.
 * `straight.el` is developed openly on GitHub, using a modern [issue
   tracker][issues] and continuous integration from [Travis
-  CI][travis-build]. It welcomes contributions of any
-  type. `straight.el` is licensed under the permissive MIT license and
-  does not require a copyright assignment. `straight.el` is developed
+  CI][travis-build]. It welcomes contributions of any type.
+  `straight.el` is licensed under the permissive MIT license and does
+  not require a copyright assignment. `straight.el` is developed
   actively and has explicit support for installing development
   versions of itself, as well as for contributing upstream changes.
   `package.el` is maintained as a part of Emacs core, meaning that the
@@ -967,8 +963,8 @@ And here is a brief list of the main reasons you might not want to use
   central server deals with where the packages originally came from.
   `straight.el` cannot be used at all without Git.
 * `package.el` is built in to Emacs and does not require additional
-  configuration to get started with. `straight.el` requires the
-  use of a 10-line bootstrap snippet in your init-file.
+  configuration to get started with. `straight.el` requires the use of
+  a 10-line bootstrap snippet in your init-file.
 * `package.el` can perform bulk package updates more quickly since it
   relies on central servers.
 * `package.el` has a user interface for package management that also
@@ -1060,10 +1056,10 @@ And here is a brief list of the main reasons you might not want to use
   operations on your package's Git repositories. Quelpa allows this,
   but all local changes will be silently overridden whenever Quelpa
   performs an update.
-* `straight.el` is designed with `emacs -Q` bug reports in mind.
-  Since Quelpa is based on `package.el`, it is also unsuitable for
-  minimal bug reproductions, since it automatically loads all of your
-  packages on any package operation, even in `emacs -Q`.
+* `straight.el` is designed with `emacs -Q` bug reports in mind. Since
+  Quelpa is based on `package.el`, it is also unsuitable for minimal
+  bug reproductions, since it automatically loads all of your packages
+  on any package operation, even in `emacs -Q`.
 * `straight.el` operates quietly when all is going well. Since Quelpa
   is based on `package.el`, it displays all messages, errors, and
   warnings that come from byte-compilation and autoload generation. It
@@ -1373,9 +1369,9 @@ offer corrections for this section.
 
 This section tells you everything you need to know about the
 user-facing features of `straight.el`. For implementation details, see
-the [developer manual][#dev]. It may also be helpful to
-get some perspective on the overarching concepts of `straight.el` from
-the [conceptual overview][conceptual-overview].
+the [developer manual][#dev]. It may also be helpful to get some
+perspective on the overarching concepts of `straight.el` from the
+[conceptual overview][conceptual-overview].
 
 ### Bootstrapping `straight.el`
 
@@ -1417,16 +1413,16 @@ Despite the reference to `develop`, this snippet actually installs
 from the `master` branch by default, just like every other package.
 Furthermore, the correct revision of `straight.el` is checked out, if
 you have one specified in your lockfile. Even better, you can
-[override the recipe for `straight.el`][#user/overriding/straight.el], just like
-for any other package.
+[override the recipe for `straight.el`][#user/overriding/straight.el],
+just like for any other package.
 
 ### Installing packages programmatically
 
 The primary entry point to `straight.el` is the `straight-use-package`
 function. It can be invoked interactively (for installing a package
 temporarily) or programmatically (for installing a package
-permanently). This section covers the programmatic usage;
-see [later][#user/interactive] for interactive usage.
+permanently). This section covers the programmatic usage; see
+[later][#user/interactive] for interactive usage.
 
 Here is the basic usage of `straight-use-package`:
 
@@ -1456,8 +1452,8 @@ that are specified in the [`package.el` format][package.el-format]. To
 spare you reading that documentation, this is either a
 `Package-Requires` header in `PACKAGENAME.el`, or an argument to a
 `define-package` invocation in `PACKAGENAME-pkg.el`. Despite the [many
-shortcomings][#comparison/package.el/+straight.el] of `package.el`, it has done a
-good job of creating a standardized format for dependency
+shortcomings][#comparison/package.el/+straight.el] of `package.el`, it
+has done a good job of creating a standardized format for dependency
 declarations.
 
 There is one exception to the above statement: not all entries
@@ -1543,9 +1539,9 @@ recipe, and no additional arguments.
   dependency (see [recipe lookup][#user/lookup], but see also [recipe
   overrides][#user/overriding]).
 * `straight-use-package-no-build`: always stop before the build step.
-  This is used by [`straight-freeze-versions`][#user/lockfiles] to make sure
-  packages are cloned, since building them is unnecessary for writing
-  the lockfiles.
+  This is used by [`straight-freeze-versions`][#user/lockfiles] to
+  make sure packages are cloned, since building them is unnecessary
+  for writing the lockfiles.
 * `straight-use-package-lazy`: stop at the clone step if the package's
   local repository is not already cloned. This is used for
   lazy-loading.
@@ -1624,8 +1620,8 @@ By specifying a non-nil value for the `:no-build` attribute in a
 package's [recipe][#user/recipes], you may prevent the package from
 being built at all. This is usually useful for recipe repositories
 which do not bundle executable Lisp code. (Make sure to use
-[`straight-use-recipes`][#user/lookup/repos] for
-registering recipe repositories.)
+[`straight-use-recipes`][#user/lookup/repos] for registering recipe
+repositories.)
 
 By specifying a non-nil value for the `:no-autoloads` attribute in a
 package's recipe, you may prevent any autoloads provided by the
@@ -1639,11 +1635,10 @@ recipes which do not explicitly specify a `:no-autoloads` attribute.
 
 By specifying a non-nil value for the `:no-byte-compile` attribute in
 a package's recipe, you may inhibit byte-compilation. See [this
-issue][#357] for discussion of why this might be
-useful. You can also customize the variable
-`straight-disable-byte-compilation` to effect this change on all
-recipes which do not explicitly specify a `:no-byte-compile`
-attribute.
+issue][#357] for discussion of why this might be useful. You can also
+customize the variable `straight-disable-byte-compilation` to effect
+this change on all recipes which do not explicitly specify a
+`:no-byte-compile` attribute.
 
 Usually, `straight.el` uses symbolic links ("symlinks") to make
 package files available from the build directory. This happens when
@@ -1715,8 +1710,9 @@ meaning in a recipe (unknown keywords are ignored but preserved):
   repository, both should specify a `:files` directive.
 
   If you do not provide `:local-repo`, then it defaults to a value
-  derived from the [version-control settings][#user/recipes/vc-backends], or as a
-  last resort the package name.
+  derived from the [version-control
+  settings][#user/recipes/vc-backends], or as a last resort the
+  package name.
 
 * `:files`
 
@@ -1881,9 +1877,9 @@ You can customize the following user options:
   operations will offer to re-set your remote URLs from HTTPS to SSH
   or vice versa, depending on the value of
   `straight-vc-git-default-protocol`. This is nil by default.
-* `straight-vc-git-auto-fast-forward`: if this is non-nil, pulling will
-  quietly do fast-forward, to suppress asking for instructions on each
-  package with updates, unless they're not trivial. Set to nil if
+* `straight-vc-git-auto-fast-forward`: if this is non-nil, pulling
+  will quietly do fast-forward, to suppress asking for instructions on
+  each package with updates, unless they're not trivial. Set to nil if
   you'd prefer to inspect all changes.
 
 ##### Deprecated `:upstream` keyword
@@ -1949,9 +1945,9 @@ and painless as possible:
   (either by default, or due to explicit specification) with a
   previously registered package, and the two packages specify
   different values for their version-control keywords (see
-  [version-control backends][#user/recipes/vc-backends]), then the new recipe is
-  used but a warning is signalled. If the repository was already
-  cloned, this means the second recipe will have no effect.
+  [version-control backends][#user/recipes/vc-backends]), then the new
+  recipe is used but a warning is signalled. If the repository was
+  already cloned, this means the second recipe will have no effect.
 
   But if the second recipe was fetched automatically from a recipe
   repository, all of its version-control keywords will be silently
@@ -2020,9 +2016,9 @@ following things:
   change the logic, this version value must be changed. If this
   function is defined, then `straight.el` automatically and
   transparently caches calls to `straight-recipes-NAME-retrieve`
-  within a single [transaction][#user/transactions], using your version
-  value (and detection of modifications to the recipe repository) to
-  decide when to invalidate the cache.
+  within a single [transaction][#user/transactions], using your
+  version value (and detection of modifications to the recipe
+  repository) to decide when to invalidate the cache.
 * Call `straight-use-recipes` with the recipe for your recipe
   repository. Make sure to include `:no-build` in the recipe, unless
   you also want to use the recipe repository as an executable Emacs
@@ -2052,12 +2048,12 @@ use it by customizing `straight-recipe-overrides`, or by calling
 `straight-override-recipe`.
 
 `straight-recipe-overrides` is an association list from [profile
-names][#user/lockfiles/profiles] to *override alists*. If you don't care about the
-profile system, you can just use a single override specification, with
-the profile name nil. Each override alist is just a list of
-recipes. Because the car of a recipe is just the package name as a
-symbol, this list of recipes is also an alist whose keys are recipe
-names and whose values are the plists for those recipes.
+names][#user/lockfiles/profiles] to *override alists*. If you don't
+care about the profile system, you can just use a single override
+specification, with the profile name nil. Each override alist is just
+a list of recipes. Because the car of a recipe is just the package
+name as a symbol, this list of recipes is also an alist whose keys are
+recipe names and whose values are the plists for those recipes.
 
 Even if an explicit recipe is supplied to `straight-use-package`, the
 one given in `straight-recipe-overrides` will be used instead, if such
@@ -2077,9 +2073,9 @@ and then reload it, the entry will actually be removed from
 As was briefly mentioned earlier, you can actually override the recipe
 of `straight.el` itself using `straight-recipe-overrides`! How does
 this work? Well, it's basically black magic. If you want the details,
-go read the [developer manual][#dev/recipe-internals]. All you
-need to know is that you can set `straight-recipe-overrides`, and it
-will magically work. The only caveat is that if you change the
+go read the [developer manual][#dev/recipe-internals]. All you need to
+know is that you can set `straight-recipe-overrides`, and it will
+magically work. The only caveat is that if you change the
 `:local-repo` for `straight.el`, then you will also need to adjust the
 value of `bootstrap-file` in the [bootstrap snippet][#quickstart]
 accordingly, since otherwise your init-file will not know where to
@@ -2112,8 +2108,8 @@ changes will not be effective during the interpretation of your own
 recipe for `straight.el`. If you wish for them to be, then you will
 have to follow the same procedure that is followed in `straight.el`
 itself for making changes to recipe interpretation. These details are
-outlined in the [developer manual][#dev/recipe-internals]; see
-also `install.el` for an explanation of this aspect of the bootstrap
+outlined in the [developer manual][#dev/recipe-internals]; see also
+`install.el` for an explanation of this aspect of the bootstrap
 mechanism.
 
 ### Interactive usage
@@ -2158,8 +2154,8 @@ allow you to select a particular package to check or rebuild.
 Finally, you may use `M-x straight-prune-build` in order to tell
 `straight.el` to forget about any packages which were not registered
 since the last init transaction (see [the transaction
-system][#user/transactions]). This may improve performance, although only
-slightly, and will clean up stale entries in the `build`
+system][#user/transactions]). This may improve performance, although
+only slightly, and will clean up stale entries in the `build`
 directory. You can call this function in your init-file if you really
 wish your filesystem to be as clean as possible, although it's not
 particularly recommended as the performance implications are
@@ -2168,15 +2164,16 @@ call it on a fully successful init; otherwise, an error during init
 will result in some packages' build information being discarded, and
 they will need to be rebuilt next time.
 
-If you have enabled [autoloads caching][#user/install/loading],
-it is advisable to call `straight-prune-build` occasionally, since
-otherwise the build cache may grow quite large over time.
+If you have enabled [autoloads caching][#user/install/loading], it is
+advisable to call `straight-prune-build` occasionally, since otherwise
+the build cache may grow quite large over time.
 
 #### Version control operations
 
 `straight.el` provides a number of highly interactive workflows for
 managing your package's local repositories, using the configured
-[version-control backends][#user/recipes/vc-backends]. They are as follows:
+[version-control backends][#user/recipes/vc-backends]. They are as
+follows:
 
 * `M-x straight-normalize-package`: normalize a package
 * `M-x straight-normalize-all`: normalize all packages
@@ -2201,8 +2198,9 @@ managing your package's local repositories, using the configured
 * `M-x straight-push-all`: push all packages to their remotes, if
   necessary
 
-See the sections on [version-control backends][#user/recipes/vc-backends] and the
-[Git backend][#user/recipes/git] in particular for more information about
+See the sections on [version-control
+backends][#user/recipes/vc-backends] and the [Git
+backend][#user/recipes/git] in particular for more information about
 the meanings of these operations.
 
 ### Lockfile management
@@ -2236,9 +2234,10 @@ cloning them for the first time.
 
 To install the versions of the packages specified in your version
 lockfiles, run `M-x straight-thaw-versions`. You may need to run `M-x
-straight-fetch-all` first to ensure that you have those versions available.
-Thawing will interactively check for local changes before checking out the
-relevant revisions, so don't worry about things getting overwritten.
+straight-fetch-all` first to ensure that you have those versions
+available. Thawing will interactively check for local changes before
+checking out the relevant revisions, so don't worry about things
+getting overwritten.
 
 #### The profile system
 
@@ -2282,9 +2281,9 @@ should make sure that each potential value of
 `straight-profiles`, since otherwise some packages might not be
 written into your lockfiles.
 
-When customizing [`straight-recipe-overrides`][#user/overriding],
-note that if multiple profiles are set to override the same recipe,
-then the last one listed in `straight-profiles` will take precedence.
+When customizing [`straight-recipe-overrides`][#user/overriding], note
+that if multiple profiles are set to override the same recipe, then
+the last one listed in `straight-profiles` will take precedence.
 Similarly, when using `M-x straight-thaw-versions`, if different
 lockfiles specify revisions for the same local repository, the last
 one in `straight-profiles` will take precedence.
@@ -2343,8 +2342,8 @@ reload the init-file:
 
 The transaction system is also used for performing various
 optimizations. The details of these optimizations are relegated to the
-[developer manual][#dev/transactions], but the user-facing
-impact is as follows: any time you are evaluating more than one
+[developer manual][#dev/transactions], but the user-facing impact is
+as follows: any time you are evaluating more than one
 `straight-use-package` form, the operation will be faster if you wrap
 it in a `straight-transaction` block. If the operation happens to
 correspond to a reloading of the init-file, then you should call
@@ -2393,9 +2392,9 @@ a "minimal test case".
 On the contrary, bootstrapping `straight.el` does not load anything
 except for `straight.el` itself (the default recipe repositories are
 registered, but not cloned until needed). You should normally be
-loading `straight.el` by means of the [bootstrap snippet][#quickstart],
-but when you are in `emacs -Q`, here is how you can initialize
-`straight.el`:
+loading `straight.el` by means of the [bootstrap
+snippet][#quickstart], but when you are in `emacs -Q`, here is how you
+can initialize `straight.el`:
 
     M-x load-file RET ~/.emacs.d/straight/repos/straight.el/bootstrap.el RET
 
@@ -2497,9 +2496,8 @@ See [the Hydra wiki][hydra-wiki-straight-entry].
 
 This section tells you about all the interesting implementation
 details and design decisions that power `straight.el` behind the
-scenes. It assumes you have already read the [user
-manual][#user] and the [conceptual
-overview][conceptual-overview].
+scenes. It assumes you have already read the [user manual][#user] and
+the [conceptual overview][conceptual-overview].
 
 Unfortunately, I haven't yet had time to write it. See [#51].
 
@@ -2629,22 +2627,19 @@ option `straight-cache-autoloads`.
 This section lists items from the [issue tracker][issues] which are
 particularly impactful to user experience.
 
-* *Switching to `straight.el` made my init time slower:*
-  See
+* *Switching to `straight.el` made my init time slower:* See
   [#9](https://github.com/raxod502/straight.el/issues/9),
   [#119](https://github.com/raxod502/straight.el/issues/119).
-* *I only want to use stable versions of packages:*
-  See [#31](https://github.com/raxod502/straight.el/issues/31).
+* *I only want to use stable versions of packages:* See
+  [#31](https://github.com/raxod502/straight.el/issues/31).
 * *The functions for pushing changes upstream are doing things that
-  don't make sense:*
-  See [#54](https://github.com/raxod502/straight.el/issues/54).
+  don't make sense:* See
+  [#54](https://github.com/raxod502/straight.el/issues/54).
 * *When performing repository management operations, I get errors
   about packages not being installed and commits not being available:*
-  See
-  [#58](https://github.com/raxod502/straight.el/issues/58),
+  See [#58](https://github.com/raxod502/straight.el/issues/58),
   [#110](https://github.com/raxod502/straight.el/issues/110).
-* *Org is giving me compile warnings:*
-  See
+* *Org is giving me compile warnings:* See
   [#72](https://github.com/raxod502/straight.el/issues/72),
   [#115](https://github.com/raxod502/straight.el/issues/115).
 
