@@ -2627,34 +2627,27 @@ option `straight-cache-autoloads`.
 This section lists items from the [issue tracker][issues] which are
 particularly impactful to user experience.
 
-* *Switching to `straight.el` made my init time slower:* See
-  [#9](https://github.com/raxod502/straight.el/issues/9),
-  [#119](https://github.com/raxod502/straight.el/issues/119).
-* *I only want to use stable versions of packages:* See
-  [#31](https://github.com/raxod502/straight.el/issues/31).
+* *Switching to `straight.el` made my init time slower:* See [#9],
+  [#119].
+* *I only want to use stable versions of packages:* See [#31].
 * *The functions for pushing changes upstream are doing things that
-  don't make sense:* See
-  [#54](https://github.com/raxod502/straight.el/issues/54).
+  don't make sense:* See [#54].
 * *When performing repository management operations, I get errors
   about packages not being installed and commits not being available:*
-  See [#58](https://github.com/raxod502/straight.el/issues/58),
-  [#110](https://github.com/raxod502/straight.el/issues/110).
-* *Org is giving me compile warnings:* See
-  [#72](https://github.com/raxod502/straight.el/issues/72),
-  [#115](https://github.com/raxod502/straight.el/issues/115).
+  See [#58], [#110].
+* *Org is giving me compile warnings:* See [#72], [#115].
 
 ### Installing Org with `straight.el`
 
 Because Org is not designed to be run without running `make` first,
 and `straight.el` does not yet support custom build steps for
 packages, it is possible to get spurious warnings from an Org
-installed via `straight.el`, as per
-[#211](https://github.com/raxod502/straight.el/issues/211). The
-situation is actually even more confusing, since Emacs also provides
-an outdated version of Org and there is no way to disable this. As a
-result, this section outlines a simple way to install Org via
-`straight.el` without getting any warnings and without risking the
-outdated Org provided by Emacs from being loaded.
+installed via `straight.el`, as per [#211]. The situation is actually
+even more confusing, since Emacs also provides an outdated version of
+Org and there is no way to disable this. As a result, this section
+outlines a simple way to install Org via `straight.el` without getting
+any warnings and without risking the outdated Org provided by Emacs
+from being loaded.
 
 This hack basically provides the three things that Emacs' outdated
 version of Org provides, and that a correctly built version of Org
@@ -2733,10 +2726,17 @@ the outdated Emacs-provided Org being loaded.
 [#news]: #news
 [#issue-faq/org]: #installing-org-with-straightel
 
+[#9]: https://github.com/raxod502/straight.el/issues/9
 [#31]: https://github.com/raxod502/straight.el/issues/31
 [#51]: https://github.com/raxod502/straight.el/issues/51
+[#54]: https://github.com/raxod502/straight.el/issues/54
+[#58]: https://github.com/raxod502/straight.el/issues/58
 [#72]: https://github.com/raxod502/straight.el/issues/72
 [#95-c1]: https://github.com/raxod502/straight.el/issues/95#issuecomment-316379495
+[#110]: https://github.com/raxod502/straight.el/issues/110
+[#115]: https://github.com/raxod502/straight.el/issues/115
+[#119]: https://github.com/raxod502/straight.el/issues/119
+[#211]: https://github.com/raxod502/straight.el/issues/211
 [#236]: https://github.com/raxod502/straight.el/issues/236
 [#246]: https://github.com/raxod502/straight.el/issues/246
 [#355]: https://github.com/raxod502/straight.el/issues/355
@@ -2774,7 +2774,7 @@ the outdated Emacs-provided Org being loaded.
 [symlinks-creators]: https://blogs.windows.com/buildingapps/2016/12/02/symlinks-windows-10/
 [symlinks-microsoft]: https://msdn.microsoft.com/en-us/library/bb530410.aspx#vistauac_topic8
 [symlinks-perforce]: https://community.perforce.com/s/article/3472
-[symlinks-stackoverflow]: https://stackoverflow.com/questions/29063916/win32api-symlink-creation-issue-with-uac-enabled#29065060
+[symlinks-stackoverflow]: https://stackoverflow.com/a/29065060/3538165
 [travis-badge]: https://travis-ci.org/raxod502/straight.el.svg?branch=develop
 [travis-build]: https://travis-ci.org/raxod502/straight.el
 [use-package]: https://github.com/jwiegley/use-package
