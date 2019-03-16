@@ -24,6 +24,7 @@ chat][gitter-badge]][gitter]
   * [The wrong version of my package was loaded](#the-wrong-version-of-my-package-was-loaded)
   * [The interactive version-control operations are confusing](#the-interactive-version-control-operations-are-confusing)
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
+  * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
   * [My init time got slower](#my-init-time-got-slower)
 - [Conceptual overview](#conceptual-overview)
   * [TL;DR](#tldr)
@@ -430,6 +431,13 @@ when thawing a lockfile.
 This is a planned feature. In the meantime, contributors have proposed
 various workarounds. See [#246] and [#31].
 
+### How can I use the built-in version of a package?
+
+To tell `straight.el` that you want to use the version of Org shipped
+with Emacs, rather than cloning the upstream repository:
+
+    (straight-use-package '(org :type built-in))
+
 ### My init time got slower
 
 There are some planned changes which will make `straight.el` just as
@@ -587,7 +595,9 @@ set of additional directives. For example, the `git` backend accepts:
 If a local repository is not present, then its fetch recipe describes
 how to obtain it. This is done using the `straight-vc-clone` function,
 which delegates to one of the backend implementations of the `clone`
-operation, according to `:type`.
+operation, according to `:type`. (The option `:type built-in` is a
+special case that results in all version-control operations for the
+package being ignored.)
 
 However, even with a particular repository source specified, there is
 still the question of which version of the repository to use. This is
@@ -1773,14 +1783,28 @@ meaning in a recipe (unknown keywords are ignored but preserved):
   managing the package's local repository. It defaults to the value of
   `straight-default-vc`, which defaults to `git`.
 
-  The only version-control backend currently supported is `git`,
-  although more backends may be added.
+  The only traditional version-control backend currently supported is
+  `git`, although more backends may be added.
+
+  As a special case, however, you may specify the value `built-in`,
+  which results in all version-control operations on the package being
+  ignored. This allows you to tell `straight.el` that a package has
+  already been provided (for example, because a version of it is
+  shipped by Emacs) and does not have a local repository which needs
+  to be cloned, updated, and so on. Here is how you can tell
+  `straight.el` that you would like to use the Emacs-provided copy of
+  Org, rather than cloning it from the upstream repository if another
+  package declares it as a dependency:
+
+      (straight-use-package '(org :type built-in))
 
 * backend-specific keywords
 
   Depending on the value of `:type`, additional keywords (relevant to
   how the package's repository is cloned and managed) will be
   meaningful. See the next section.
+
+  The `built-in` pseudo-backend does not take any other keywords.
 
 #### Version-control backends
 
