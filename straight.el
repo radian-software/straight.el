@@ -3724,30 +3724,30 @@ this run of straight.el)."
          ;; The second is to put the information as headers in the
          ;; preamble of the file <PACKAGE-NAME>.el. We account for
          ;; both of them here.
-         (or (condition-case nil
-                 (with-temp-buffer
-                   (insert-file-contents-literally ; bypass `find-file-hook'
-                    (straight--file
-                     "build" package
-                     (format "%s-pkg.el" package)))
+         (or (ignore-errors
+               (with-temp-buffer
+                 ;; Bypass `find-file-hook'.
+                 (insert-file-contents-literally
+                  (straight--file
+                   "build" package
+                   (format "%s-pkg.el" package)))
+                 (straight--process-dependencies
+                  (eval (nth 4 (read (current-buffer)))))))
+             (ignore-errors
+               (with-temp-buffer
+                 (insert-file-contents-literally
+                  (straight--file
+                   "build" package
+                   (format "%s.el" package)))
+                 ;; Who cares if the rest of the header is
+                 ;; well-formed? Maybe package.el does, but all we
+                 ;; really need is the dependency alist. If it's
+                 ;; missing or malformed, we just assume the package
+                 ;; has no dependencies.
+                 (re-search-forward "^;; Package-Requires: ")
+                 (when (looking-at "(")
                    (straight--process-dependencies
-                    (eval (nth 4 (read (current-buffer))))))
-               (error nil))
-             (condition-case nil
-                 (with-temp-buffer
-                   (insert-file-contents-literally ; bypass `find-file-hook'
-                    (straight--file
-                     "build" package
-                     (format "%s.el" package)))
-                   ;; Who cares if the rest of the header is
-                   ;; well-formed? Maybe package.el does, but all we
-                   ;; really need is the dependency alist. If it's
-                   ;; missing or malformed, we just assume the package
-                   ;; has no dependencies.
-                   (re-search-forward "^;; Package-Requires: ")
-                   (straight--process-dependencies
-                    (read (current-buffer))))
-               (error nil)))))
+                    (read (current-buffer)))))))))
     (straight--insert 1 package dependencies straight--build-cache)))
 
 (defun straight--get-dependencies (package)
