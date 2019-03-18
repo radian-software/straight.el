@@ -2376,6 +2376,7 @@ return nil."
                 (plist nil))
             (cl-destructuring-bind (name . melpa-plist) melpa-recipe
               (straight--put plist :type 'git)
+              (straight--put plist :flavor 'melpa)
               (when-let ((files (plist-get melpa-plist :files)))
                 ;; We must include a *-pkg.el entry in the recipe
                 ;; because that file always needs to be linked over,
@@ -2403,7 +2404,7 @@ return nil."
 
 (defun straight-recipes-melpa-version ()
   "Return the current version of the MELPA retriever."
-  1)
+  2)
 
 ;;;;;; GNU ELPA
 
@@ -2716,7 +2717,7 @@ nil."
 ;;;;; Recipe registration
 
 (defvar straight--build-keywords
-  '(:local-repo :files :no-autoloads :no-byte-compile)
+  '(:local-repo :files :flavor :no-autoloads :no-byte-compile)
   "Keywords that affect how a package is built locally.
 If the values for any of these keywords change, then package
 needs to be rebuilt. See also `straight-vc-keywords'.")
@@ -3412,13 +3413,14 @@ last time."
 It is also spliced in at any point where the `:defaults' keyword
 is used in a `:files' directive.")
 
-(defun straight--expand-files-directive-internal (files src-dir prefix)
+(defun straight--expand-files-directive-internal (files src-dir prefix flavor)
   "Expand FILES directive in SRC-DIR with path PREFIX.
 FILES is a list that can be used for the `:files' directive in a
 recipe. SRC-DIR is an absolute path to the directory relative to
 which wildcards are to be expanded. PREFIX is a string, either
 empty or ending with a slash, that should be prepended to all
-target paths.
+target paths. FLAVOR is either the symbol `melpa' or nil; see
+`straight-expand-files-directive'.
 
 The return value is a cons cell of a list of mappings and a list
 of exclusions. The mappings are of the same form that is returned
@@ -3453,7 +3455,12 @@ destinations."
                     ;; achieve a default of linking to the root
                     ;; directory of the target, but possibly with a
                     ;; prefix if one was created by an enclosing list.
-                    (cons file (concat prefix (file-name-nondirectory file))))
+                    (let ((filename (file-name-nondirectory file)))
+                      (when (eq flavor 'melpa)
+                        (setq filename
+                              (replace-regexp-in-string
+                               "\\.in\\'" "" filename 'fixedcase)))
+                      (cons file (concat prefix filename))))
                   (file-expand-wildcards spec))
                  files)))
          ;; The only other possibilities were already taken care of.
@@ -3463,7 +3470,7 @@ destinations."
           (cl-destructuring-bind
               (rec-mappings . rec-exclusions)
               (straight--expand-files-directive-internal
-               (cdr spec) src-dir prefix)
+               (cdr spec) src-dir prefix flavor)
             ;; We still want to make previously established mappings
             ;; subject to removal, but this time we're inverting the
             ;; meaning of the sub-list so that its mappings become our
@@ -3490,7 +3497,7 @@ destinations."
               ;; "rec" stands for "recursive".
               (rec-mappings . rec-exclusions)
               (straight--expand-files-directive-internal
-               (cdr spec) src-dir (concat prefix (car spec) "/"))
+               (cdr spec) src-dir (concat prefix (car spec) "/") flavor)
             ;; Any previously established mappings are subject to
             ;; removal from the `:exclude' clauses inside the
             ;; sub-list, if any.
@@ -3528,7 +3535,8 @@ destinations."
     ;; too much.
     (cons (reverse mappings) (reverse exclusions))))
 
-(defun straight-expand-files-directive (files src-dir dest-dir)
+(defun straight-expand-files-directive
+    (files src-dir dest-dir &optional flavor)
   "Expand FILES directive mapping from SRC-DIR to DEST-DIR.
 SRC-DIR and DEST-DIR are absolute paths; the intention is that
 symlinks are created in DEST-DIR pointing to SRC-DIR (but this
@@ -3599,13 +3607,18 @@ the MELPA recipe repository, with some minor differences:
 
 * When using `:exclude' in a MELPA recipe, only links defined in
   the current list are subject to removal, and not links defined
-  in higher-level lists."
+  in higher-level lists.
+
+If FLAVOR is nil or omitted, then expansion takes place as
+described above. If FLAVOR is the symbol `melpa', then *.el.in
+files will be linked as *.el files as in MELPA. If FLAVOR is any
+other value, the behavior is not specified."
   ;; We bind `default-directory' here so we don't have to do it
   ;; repeatedly in the recursive section.
   (let* ((default-directory src-dir)
          (result (straight--expand-files-directive-internal
                   (or files straight-default-files-directive)
-                  src-dir ""))
+                  src-dir "" flavor))
          ;; We can safely discard the exclusions in the cdr of
          ;; `result', since any mappings that should have been
          ;; subject to removal have already had the exclusions
@@ -3628,7 +3641,7 @@ the MELPA recipe repository, with some minor differences:
 This deletes any existing files in the relevant subdirectory of
 the build directory, creating a pristine set of symlinks."
   (straight--with-plist recipe
-      (package local-repo files)
+      (package local-repo files flavor)
     ;; Remove the existing built package, if necessary.
     (let ((dir (straight--build-dir package)))
       (when (file-exists-p dir)
@@ -3639,7 +3652,8 @@ the build directory, creating a pristine set of symlinks."
     (dolist (spec (straight-expand-files-directive
                    files
                    (straight--repos-dir local-repo)
-                   (straight--build-dir package)))
+                   (straight--build-dir package)
+                   flavor))
       (cl-destructuring-bind (repo-file . build-file) spec
         (make-directory (file-name-directory build-file) 'parents)
         (straight--symlink-recursively repo-file build-file)))))
@@ -3857,13 +3871,14 @@ repository."
   (when (and (executable-find "makeinfo")
              (executable-find "install-info"))
     (straight--with-plist recipe
-        (package local-repo files)
+        (package local-repo files flavor)
       (let (infos)
         (pcase-dolist (`(,repo-file . ,build-file)
                        (straight-expand-files-directive
                         files
                         (straight--repos-dir local-repo)
-                        (straight--build-dir package)))
+                        (straight--build-dir package)
+                        flavor))
           (when (string-match-p ".texi\\(nfo\\)?$" repo-file)
             (let ((texi repo-file)
                   (info

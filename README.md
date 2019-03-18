@@ -1690,6 +1690,13 @@ meaning in a recipe (unknown keywords are ignored but preserved):
   allows you full flexibility on how the links are made; see the
   docstring of `straight-expand-files-directive` for the full details.
 
+* `:flavor`
+
+  If this is non-nil, then it changes the interpretation of the
+  `:files` directive for compatibility with an existing upstream
+  recipe source. See the docstring of
+  `straight-expand-files-directive` for details.
+
 * `:no-build`
 
   If this is non-nil, then it causes the build step to be skipped
