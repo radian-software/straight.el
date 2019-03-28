@@ -1539,7 +1539,9 @@ is designed so that when one instance is started, all the others
 gracefully shut down, so you don't have to worry about accidentally
 ending up with more than one. There is nothing exciting in the process
 buffer for the watcher, but if you are interested in it then its name
-is given by `straight-watcher-process-buffer`.
+is given by `straight-watcher-process-buffer`. (By default, the name
+has a leading space so that the buffer does not appear in the buffer
+list.)
 
 There is probably no good reason to use both `check-on-save` and
 `watch-files` at the same time. Your configuration can dynamically
