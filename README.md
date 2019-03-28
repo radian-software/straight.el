@@ -2509,7 +2509,9 @@ See [the Hydra wiki][hydra-wiki-straight-entry].
 
 * By default, `straight.el` reports process output the
   `*straight-process*` buffer. You can customize the name of this
-  buffer via the `straight-process-buffer` user option.
+  buffer via the `straight-process-buffer` user option. If you want to
+  hide this buffer by default, consider adding a leading space to the
+  name.
 
 ## Developer manual
 
