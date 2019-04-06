@@ -5356,6 +5356,7 @@ Inserted by installing org-mode or when a release is made."
                "--abbrev=0"
                "HEAD")))))))
 
+    (defconst org-version (org-version))
     (provide 'org-version)))
 
 (if straight-fix-org
