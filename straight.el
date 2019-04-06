@@ -2505,7 +2505,7 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
 
 ;;;;; Recipe conversion
 
-(defcustom straight-built-in-pseudo-packages '(emacs)
+(defcustom straight-built-in-pseudo-packages '(emacs python)
   "List of built-in packages that aren't real packages.
 If any of these are specified as dependencies, straight.el will
 just skip them instead of looking for a recipe.
