@@ -2628,7 +2628,7 @@ problem:
 
 * (Preferable) Fix `lsp-mode` to declare a dependency on `flymake`.
 * (Workaround) Manually invoke `(straight-use-package 'flymake)`
-  before `(straight-use-package 'flymake)`.
+  before `(straight-use-package 'company-lsp)`.
 
 If you test this yourself, you might find it difficult to reproduce
 the problem. That is because there is only an issue when Flymake is
