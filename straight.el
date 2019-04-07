@@ -4966,7 +4966,7 @@ according to the value of `straight-profiles'."
               ;;
               ;; The version keyword comes after the versions alist so
               ;; that you can ignore it if you don't need it.
-              "(%s)\n:saturn\n"
+              "(%s)\n:uranus\n"
               (mapconcat
                (apply-partially #'format "%S")
                versions-alist
