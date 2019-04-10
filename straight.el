@@ -760,7 +760,7 @@ The return value of this function is undefined."
                "\n\n")
               (setq straight--process-output-beginning
                     (point-marker)))
-            (condition-case _
+            (condition-case e
                 (let* ((default-directory directory)
                        (return (apply
                                 #'call-process
@@ -778,7 +778,8 @@ The return value of this function is undefined."
               (file-missing
                (setq straight--process-output-beginning nil)
                (straight--ensure-blank-lines 2)
-               (insert (format "[Program not found]\n"))))))))))
+               (insert
+                (format "[File error while %s]\n" (downcase (cadr e))))))))))))
 
 (defun straight--process-run-p ()
   "Return non-nil if the last process was run successfully.
@@ -1945,7 +1946,7 @@ COMMIT is a 40-character SHA-1 Git hash. If it cannot be checked
 out, signal a warning. If COMMIT is nil, check out the branch
 specified in RECIPE instead. If that fails, signal a warning."
   (straight-vc-git--destructure recipe
-      (package local-repo branch upstream-repo upstream-host
+      (package local-repo branch remote upstream-repo upstream-host
                upstream-remote fork-repo fork-host
                fork-remote nonrecursive)
     (unless upstream-repo
@@ -1973,7 +1974,9 @@ specified in RECIPE instead. If that fails, signal a warning."
                   ;; as if we weren't given one.
                   (setq commit nil)))
               (unless commit
-                (unless (straight--check-call "git" "checkout" branch)
+                (unless (straight--check-call
+                         "git" "checkout" "-B" branch
+                         (format "%s/%s" remote branch))
                   (straight--warn
                    "Could not check out branch %S of repository %S"
                    branch local-repo)
@@ -2373,6 +2376,7 @@ return nil."
                 (plist nil))
             (cl-destructuring-bind (name . melpa-plist) melpa-recipe
               (straight--put plist :type 'git)
+              (straight--put plist :flavor 'melpa)
               (when-let ((files (plist-get melpa-plist :files)))
                 ;; We must include a *-pkg.el entry in the recipe
                 ;; because that file always needs to be linked over,
@@ -2400,7 +2404,7 @@ return nil."
 
 (defun straight-recipes-melpa-version ()
   "Return the current version of the MELPA retriever."
-  1)
+  2)
 
 ;;;;;; GNU ELPA
 
@@ -2713,7 +2717,7 @@ nil."
 ;;;;; Recipe registration
 
 (defvar straight--build-keywords
-  '(:local-repo :files :no-autoloads)
+  '(:local-repo :files :flavor :no-autoloads :no-byte-compile)
   "Keywords that affect how a package is built locally.
 If the values for any of these keywords change, then package
 needs to be rebuilt. See also `straight-vc-keywords'.")
@@ -3409,13 +3413,14 @@ last time."
 It is also spliced in at any point where the `:defaults' keyword
 is used in a `:files' directive.")
 
-(defun straight--expand-files-directive-internal (files src-dir prefix)
+(defun straight--expand-files-directive-internal (files src-dir prefix flavor)
   "Expand FILES directive in SRC-DIR with path PREFIX.
 FILES is a list that can be used for the `:files' directive in a
 recipe. SRC-DIR is an absolute path to the directory relative to
 which wildcards are to be expanded. PREFIX is a string, either
 empty or ending with a slash, that should be prepended to all
-target paths.
+target paths. FLAVOR is either the symbol `melpa' or nil; see
+`straight-expand-files-directive'.
 
 The return value is a cons cell of a list of mappings and a list
 of exclusions. The mappings are of the same form that is returned
@@ -3450,7 +3455,12 @@ destinations."
                     ;; achieve a default of linking to the root
                     ;; directory of the target, but possibly with a
                     ;; prefix if one was created by an enclosing list.
-                    (cons file (concat prefix (file-name-nondirectory file))))
+                    (let ((filename (file-name-nondirectory file)))
+                      (when (eq flavor 'melpa)
+                        (setq filename
+                              (replace-regexp-in-string
+                               "\\.in\\'" "" filename 'fixedcase)))
+                      (cons file (concat prefix filename))))
                   (file-expand-wildcards spec))
                  files)))
          ;; The only other possibilities were already taken care of.
@@ -3460,7 +3470,7 @@ destinations."
           (cl-destructuring-bind
               (rec-mappings . rec-exclusions)
               (straight--expand-files-directive-internal
-               (cdr spec) src-dir prefix)
+               (cdr spec) src-dir prefix flavor)
             ;; We still want to make previously established mappings
             ;; subject to removal, but this time we're inverting the
             ;; meaning of the sub-list so that its mappings become our
@@ -3487,7 +3497,7 @@ destinations."
               ;; "rec" stands for "recursive".
               (rec-mappings . rec-exclusions)
               (straight--expand-files-directive-internal
-               (cdr spec) src-dir (concat prefix (car spec) "/"))
+               (cdr spec) src-dir (concat prefix (car spec) "/") flavor)
             ;; Any previously established mappings are subject to
             ;; removal from the `:exclude' clauses inside the
             ;; sub-list, if any.
@@ -3525,7 +3535,8 @@ destinations."
     ;; too much.
     (cons (reverse mappings) (reverse exclusions))))
 
-(defun straight-expand-files-directive (files src-dir dest-dir)
+(defun straight-expand-files-directive
+    (files src-dir dest-dir &optional flavor)
   "Expand FILES directive mapping from SRC-DIR to DEST-DIR.
 SRC-DIR and DEST-DIR are absolute paths; the intention is that
 symlinks are created in DEST-DIR pointing to SRC-DIR (but this
@@ -3596,13 +3607,18 @@ the MELPA recipe repository, with some minor differences:
 
 * When using `:exclude' in a MELPA recipe, only links defined in
   the current list are subject to removal, and not links defined
-  in higher-level lists."
+  in higher-level lists.
+
+If FLAVOR is nil or omitted, then expansion takes place as
+described above. If FLAVOR is the symbol `melpa', then *.el.in
+files will be linked as *.el files as in MELPA. If FLAVOR is any
+other value, the behavior is not specified."
   ;; We bind `default-directory' here so we don't have to do it
   ;; repeatedly in the recursive section.
   (let* ((default-directory src-dir)
          (result (straight--expand-files-directive-internal
                   (or files straight-default-files-directive)
-                  src-dir ""))
+                  src-dir "" flavor))
          ;; We can safely discard the exclusions in the cdr of
          ;; `result', since any mappings that should have been
          ;; subject to removal have already had the exclusions
@@ -3625,7 +3641,7 @@ the MELPA recipe repository, with some minor differences:
 This deletes any existing files in the relevant subdirectory of
 the build directory, creating a pristine set of symlinks."
   (straight--with-plist recipe
-      (package local-repo files)
+      (package local-repo files flavor)
     ;; Remove the existing built package, if necessary.
     (let ((dir (straight--build-dir package)))
       (when (file-exists-p dir)
@@ -3636,7 +3652,8 @@ the build directory, creating a pristine set of symlinks."
     (dolist (spec (straight-expand-files-directive
                    files
                    (straight--repos-dir local-repo)
-                   (straight--build-dir package)))
+                   (straight--build-dir package)
+                   flavor))
       (cl-destructuring-bind (repo-file . build-file) spec
         (make-directory (file-name-directory build-file) 'parents)
         (straight--symlink-recursively repo-file build-file)))))
@@ -3707,30 +3724,30 @@ this run of straight.el)."
          ;; The second is to put the information as headers in the
          ;; preamble of the file <PACKAGE-NAME>.el. We account for
          ;; both of them here.
-         (or (condition-case nil
-                 (with-temp-buffer
-                   (insert-file-contents-literally ; bypass `find-file-hook'
-                    (straight--file
-                     "build" package
-                     (format "%s-pkg.el" package)))
+         (or (ignore-errors
+               (with-temp-buffer
+                 ;; Bypass `find-file-hook'.
+                 (insert-file-contents-literally
+                  (straight--file
+                   "build" package
+                   (format "%s-pkg.el" package)))
+                 (straight--process-dependencies
+                  (eval (nth 4 (read (current-buffer)))))))
+             (ignore-errors
+               (with-temp-buffer
+                 (insert-file-contents-literally
+                  (straight--file
+                   "build" package
+                   (format "%s.el" package)))
+                 ;; Who cares if the rest of the header is
+                 ;; well-formed? Maybe package.el does, but all we
+                 ;; really need is the dependency alist. If it's
+                 ;; missing or malformed, we just assume the package
+                 ;; has no dependencies.
+                 (re-search-forward "^;; Package-Requires: ")
+                 (when (looking-at "(")
                    (straight--process-dependencies
-                    (eval (nth 4 (read (current-buffer))))))
-               (error nil))
-             (condition-case nil
-                 (with-temp-buffer
-                   (insert-file-contents-literally ; bypass `find-file-hook'
-                    (straight--file
-                     "build" package
-                     (format "%s.el" package)))
-                   ;; Who cares if the rest of the header is
-                   ;; well-formed? Maybe package.el does, but all we
-                   ;; really need is the dependency alist. If it's
-                   ;; missing or malformed, we just assume the package
-                   ;; has no dependencies.
-                   (re-search-forward "^;; Package-Requires: ")
-                   (straight--process-dependencies
-                    (read (current-buffer))))
-               (error nil)))))
+                    (read (current-buffer)))))))))
     (straight--insert 1 package dependencies straight--build-cache)))
 
 (defun straight--get-dependencies (package)
@@ -3801,11 +3818,20 @@ modifies the build folder, not the original repository."
 
 ;;;;; Byte-compilation
 
-(defun straight--byte-compile-package (recipe)
+(defcustom straight-disable-byte-compilation nil
+  "Non-nil means do not byte-compile packages by default.
+This can be overridden by the `:no-byte-compile' property of an
+individual package recipe."
+  :type 'boolean)
+
+(cl-defun straight--byte-compile-package (recipe)
   "Byte-compile files for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
+  (when (straight--plist-get recipe :no-byte-compile
+                             straight-disable-byte-compilation)
+    (cl-return-from straight--byte-compile-package))
   ;; We need to load `bytecomp' so that the `symbol-function'
   ;; assignments below are sure to work. Since we byte-compile this
   ;; file, we need to `require' the feature at compilation time too.
@@ -3845,13 +3871,14 @@ repository."
   (when (and (executable-find "makeinfo")
              (executable-find "install-info"))
     (straight--with-plist recipe
-        (package local-repo files)
+        (package local-repo files flavor)
       (let (infos)
         (pcase-dolist (`(,repo-file . ,build-file)
                        (straight-expand-files-directive
                         files
                         (straight--repos-dir local-repo)
-                        (straight--build-dir package)))
+                        (straight--build-dir package)
+                        flavor))
           (when (string-match-p ".texi\\(nfo\\)?$" repo-file)
             (let ((texi repo-file)
                   (info
@@ -4275,6 +4302,13 @@ action, just return it)."
 
 ;;;;; Package registration
 
+(defcustom straight-use-package-pre-build-functions nil
+  "Abnormal hook run before building a package.
+Each hook function is called with the name of the package as a
+string. For forward compatibility, it should accept and ignore
+additional arguments."
+  :type 'hook)
+
 ;;;###autoload
 (cl-defun straight-use-package
     (melpa-style-recipe &optional no-clone no-build cause interactive)
@@ -4438,6 +4472,8 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
                                  (and table (gethash 'version table))
                                  (funcall func))))
                    (remhash (intern package) straight--recipe-lookup-cache)))
+               (run-hook-with-args
+                'straight-use-package-pre-build-functions package)
                (unless no-build
                  ;; Multi-file packages will need to be on the
                  ;; `load-path' in order to byte-compile properly. So
@@ -4860,6 +4896,10 @@ by reloading the init-file again. If FORCE is
 non-nil (interactively, if a prefix argument is provided), skip
 all checks and write the lockfile anyway.
 
+Currently, writing version lockfiles requires cloning all lazily
+installed packages. Hopefully, this inconvenient requirement will
+be removed in the future.
+
 Multiple lockfiles may be written (one for each profile),
 according to the value of `straight-profiles'."
   (interactive "P")
@@ -4886,15 +4926,13 @@ according to the value of `straight-profiles'."
                                      (plist-get recipe :local-repo))
                                    unpushed-recipes)
                            ", ")))))))
-    (let ((versions-alist (straight--get-versions)))
-      (straight--map-repos
-       (lambda (recipe)
-         (straight--with-plist recipe
-             (local-repo package)
-           (unless (or (null local-repo)
-                       (assoc local-repo versions-alist)
-                       (straight--repository-is-available-p recipe))
-             (straight-use-package (intern package)))))))
+    (straight--map-repos
+     (lambda (recipe)
+       (straight--with-plist recipe
+           (local-repo package)
+         (unless (or (null local-repo)
+                     (straight--repository-is-available-p recipe))
+           (straight-use-package (intern package) nil 'no-build)))))
     (dolist (spec straight-profiles)
       (cl-destructuring-bind (profile . versions-lockfile) spec
         (let ((versions-alist nil)
@@ -5269,6 +5307,63 @@ is loaded, according to the value of
                                        use-package-defaults
                                        'symbol))))))))
 
+;;;;; Org integration
+
+(defcustom straight-fix-org t
+  "If non-nil, install a workaround for a problem with Org.
+See <https://github.com/raxod502/straight.el/issues/211> for
+discussion.
+
+This variable must be set before straight.el is loaded in order
+to take effect."
+  :type 'boolean)
+
+(defun straight--fix-org-function (package &rest _)
+  "Pre-build function to fix Org. See `straight-fix-org'.
+PACKAGE is the name of the package being built, as a string.
+
+This function is for use on the hook
+`straight-use-package-pre-build-functions'."
+  (when (member package '("org" "org-plus-contrib"))
+
+    (defun org-git-version ()
+      "The Git version of org-mode.
+Inserted by installing org-mode or when a release is made."
+      (let ((default-directory (straight--repos-dir "org")))
+        (string-trim
+         (with-output-to-string
+           (with-current-buffer standard-output
+             (call-process
+              "git" nil t nil
+              "describe"
+              "--match=release*"
+              "--abbrev=6"
+              "HEAD"))))))
+
+    (defun org-release ()
+      "The release version of org-mode.
+Inserted by installing org-mode or when a release is made."
+      (let ((default-directory (straight--repos-dir "org")))
+        (string-trim
+         (string-remove-prefix
+          "release_"
+          (with-output-to-string
+            (with-current-buffer standard-output
+              (call-process
+               "git" nil t nil
+               "describe"
+               "--match=release*"
+               "--abbrev=0"
+               "HEAD")))))))
+
+    (provide 'org-version)))
+
+(if straight-fix-org
+    (add-hook 'straight-use-package-pre-build-functions
+              #'straight--fix-org-function)
+  (remove-hook 'straight-use-package-pre-build-functions
+               #'straight--fix-org-function))
+
 ;;;; Closing remarks
 
 (provide 'straight)
@@ -5276,7 +5371,7 @@ is loaded, according to the value of
 ;;; straight.el ends here
 
 ;; Local Variables:
-;; checkdoc-symbol-words: ("top-level")
+;; checkdoc-symbol-words: ("byte-compile" "top-level")
 ;; checkdoc-verb-check-experimental-flag: nil
 ;; indent-tabs-mode: nil
 ;; outline-regexp: ";;;;* "

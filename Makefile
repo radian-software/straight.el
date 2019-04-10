@@ -6,7 +6,7 @@ for_checkdoc := straight.el
 for_longlines := $(wildcard *.el *.md *.yml) Makefile
 
 .PHONY: all
-all: compile checkdoc longlines
+all: compile checkdoc toc longlines
 
 .PHONY: compile
 compile:
@@ -33,8 +33,8 @@ longlines:
 	@echo "[longlines] $(for_longlines)"
 	@for file in $(for_longlines); do \
 	    cat "$$file" \
-	        | sed '/<!-- toc -->/,/<!-- tocstop -->/d' \
-	        | sed '/longlines-start/,/longlines-stop/d' \
+	        | sed '/[<]!-- toc -->/,/<!-- tocstop -->/d' \
+	        | sed '/[l]onglines-start/,/longlines-stop/d' \
 	        | grep -E '.{80}' \
 	        | grep -E -v '\[.+\]: (#|http)' \
 	        | sed "s/^/$$file:long line: /" \
@@ -44,7 +44,11 @@ longlines:
 .PHONY: toc
 toc: README.md
 	@echo "[toc] $^"
-	@markdown-toc -i $^
+	@if command -v markdown-toc >/dev/null; then \
+	    markdown-toc -i $^ ; \
+	else \
+	    echo "  --> markdown-toc missing, skipping" ; \
+	fi
 
 .PHONY: clean
 clean:
