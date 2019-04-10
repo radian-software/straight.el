@@ -1997,9 +1997,6 @@ specified in RECIPE instead. If that fails, signal a warning."
                      straight-vc-git-default-clone-depth)))
       (unwind-protect
           (progn
-            ;; (straight--get-call
-            ;;  "git" "clone" "--origin" upstream-remote
-            ;;  "--no-checkout" url repo-dir)
             (straight-vc-git--clone-internal :depth depth
                                              :upstream-remote upstream-remote
                                              :url url
