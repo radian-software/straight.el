@@ -1957,24 +1957,24 @@ If this fails, try again to clone without the option --depth and --branch,
 as a fallback."
   (cond
    ((eq depth 'full)
-    ;; clone the whole history of the repository
+    ;; Clone the whole history of the repository.
     (straight--get-call
      "git" "clone" "--origin" upstream-remote
      "--no-checkout" url repo-dir))
    ((integerp depth)
-    ;; shallow clone
+    ;; Do a shallow clone.
     (condition-case err
         (straight--get-call
          "git" "clone" "--origin" upstream-remote
          "--no-checkout" url repo-dir
          "--depth" (number-to-string depth)
          "--branch" branch)
-      ;; fallback for dumb http protocol
+      ;; Fallback for dumb http protocol.
       (error (straight-vc-git--clone-internal :depth 'full
                                               :upstream-remote upstream-remote
                                               :url url
                                               :repo-dir repo-dir))))
-   (t (error "Invalid value %s of depth for %s" depth url))))
+   (t (error "Invalid value %S of depth for %s" depth url))))
 
 ;;;;;; API
 
