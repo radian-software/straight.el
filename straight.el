@@ -1948,7 +1948,8 @@ unless a commit is specified (e.g. by version lockfiles). "
   :group 'straight
   :type '(choice integer (const full)))
 
-(cl-defun straight-vc-git--clone-internal (&key depth upstream-remote url repo-dir branch)
+(cl-defun straight-vc-git--clone-internal
+    (&key depth upstream-remote url repo-dir branch)
   "Clone a remote repository from URL.
 
 If DEPTH is the symbol `full', clone the whole history of the repository.
