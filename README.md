@@ -1799,6 +1799,11 @@ These are the keywords meaningful for the `git` backend:
   you can use the `fetch-from-upstream` method to operate on the
   upstream instead. The allowed keywords are `:repo`, `:host`,
   `:branch`, and `:remote`.
+* `:depth`: either the symbol `full` or an integer. If `full`, then
+  the repository is cloned with its whole history. If an integer `N`,
+  then the repository is cloned with the option `--depth N`, unless a
+  commit is specified (e.g. by version lockfiles). The default value
+  is `full`.
 
 This section tells you how the `git` backend, specifically, implements
 the version-control backend API:
@@ -1861,6 +1866,11 @@ You can customize the following user options:
   will quietly do fast-forward, to suppress asking for instructions on
   each package with updates, unless they're not trivial. Set to nil if
   you'd prefer to inspect all changes.
+* `straight-vc-git-default-clone-depth`: the default value for the
+  `:depth` keyword. It can be either the symbol `full` or an integer,
+  and defaults to `full`. Setting this variable to a small integer will
+  reduce the size of repositories. Note that this variable does *not*
+  affect packages whose versions are locked.
 
 ##### Deprecated `:upstream` keyword
 
