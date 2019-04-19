@@ -1963,7 +1963,7 @@ as a fallback."
      "--no-checkout" url repo-dir))
    ((integerp depth)
     ;; Do a shallow clone.
-    (condition-case err
+    (condition-case nil
         (straight--get-call
          "git" "clone" "--origin" upstream-remote
          "--no-checkout" url repo-dir
