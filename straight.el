@@ -1944,7 +1944,7 @@ with the remotes."
 The value should be the symbol `full' or an integer. If the value
 is `full', clone the whole history of repositories. If the value is
 an integer N, remote repositories are cloned with the option --depth N,
-unless a commit is specified (e.g. by version lockfiles). "
+unless a commit is specified (e.g. by version lockfiles)."
   :group 'straight
   :type '(choice integer (const full)))
 
