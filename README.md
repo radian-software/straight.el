@@ -2240,11 +2240,9 @@ make sure to check out the specified revisions of each package when
 cloning them for the first time.
 
 To install the versions of the packages specified in your version
-lockfiles, run `M-x straight-thaw-versions`. You may need to run `M-x
-straight-fetch-all` first to ensure that you have those versions
-available. Thawing will interactively check for local changes before
-checking out the relevant revisions, so don't worry about things
-getting overwritten.
+lockfiles, run `M-x straight-thaw-versions`. Thawing will
+interactively check for local changes before checking out the relevant
+revisions, so don't worry about things getting overwritten.
 
 #### The profile system
 
