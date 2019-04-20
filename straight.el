@@ -2121,7 +2121,7 @@ is a 40-character string identifying a Git commit."
     (while t
       (and (straight-vc-git--ensure-nothing-in-progress local-repo)
            (straight-vc-git--ensure-worktree local-repo)
-           (straight--get-call "git" "checkout" commit)
+           (straight--get-call "git" "reset" "--hard" commit)
            (cl-return)))))
 
 (cl-defun straight-vc-git-commit-present-p (local-repo commit)
