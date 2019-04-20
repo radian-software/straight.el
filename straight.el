@@ -1938,6 +1938,45 @@ with the remotes."
                   (straight-vc-git--ensure-head local-repo branch))
              (straight-register-repo-modification local-repo)))))
 
+(defcustom straight-vc-git-default-clone-depth 'full
+  "The default value for `:depth' when `:type' is the symbol `git'.
+
+The value should be the symbol `full' or an integer. If the value
+is `full', clone the whole history of repositories. If the value is
+an integer N, remote repositories are cloned with the option --depth N,
+unless a commit is specified (e.g. by version lockfiles)."
+  :group 'straight
+  :type '(choice integer (const full)))
+
+(cl-defun straight-vc-git--clone-internal
+    (&key depth upstream-remote url repo-dir branch)
+  "Clone a remote repository from URL.
+
+If DEPTH is the symbol `full', clone the whole history of the repository.
+If DEPTH is an integer, clone with the option --depth DEPTH --branch BRANCH.
+If this fails, try again to clone without the option --depth and --branch,
+as a fallback."
+  (cond
+   ((eq depth 'full)
+    ;; Clone the whole history of the repository.
+    (straight--get-call
+     "git" "clone" "--origin" upstream-remote
+     "--no-checkout" url repo-dir))
+   ((integerp depth)
+    ;; Do a shallow clone.
+    (condition-case nil
+        (straight--get-call
+         "git" "clone" "--origin" upstream-remote
+         "--no-checkout" url repo-dir
+         "--depth" (number-to-string depth)
+         "--branch" branch)
+      ;; Fallback for dumb http protocol.
+      (error (straight-vc-git--clone-internal :depth 'full
+                                              :upstream-remote upstream-remote
+                                              :url url
+                                              :repo-dir repo-dir))))
+   (t (error "Invalid value %S of depth for %s" depth url))))
+
 ;;;;;; API
 
 (defun straight-vc-git-clone (recipe commit)
@@ -1948,17 +1987,22 @@ specified in RECIPE instead. If that fails, signal a warning."
   (straight-vc-git--destructure recipe
       (package local-repo branch remote upstream-repo upstream-host
                upstream-remote fork-repo fork-host
-               fork-remote nonrecursive)
+               fork-remote nonrecursive depth)
     (unless upstream-repo
       (error "No `:repo' specified for package `%s'" package))
     (let ((success nil)
           (repo-dir (straight--repos-dir local-repo))
-          (url (straight-vc-git--encode-url upstream-repo upstream-host)))
+          (url (straight-vc-git--encode-url upstream-repo upstream-host))
+          (depth (or (when commit 'full)
+                     depth
+                     straight-vc-git-default-clone-depth)))
       (unwind-protect
           (progn
-            (straight--get-call
-             "git" "clone" "--origin" upstream-remote
-             "--no-checkout" url repo-dir)
+            (straight-vc-git--clone-internal :depth depth
+                                             :upstream-remote upstream-remote
+                                             :url url
+                                             :repo-dir repo-dir
+                                             :branch branch)
             (let ((straight--default-directory nil)
                   (default-directory repo-dir))
               (when fork-repo
@@ -2095,7 +2139,7 @@ then returned."
 
 (defun straight-vc-git-keywords ()
   "Return a list of keywords used by the VC backend for Git."
-  '(:repo :host :branch :remote :nonrecursive :upstream :fork))
+  '(:repo :host :branch :remote :nonrecursive :upstream :fork :depth))
 
 ;;;; Fetching repositories
 
@@ -4966,7 +5010,7 @@ according to the value of `straight-profiles'."
               ;;
               ;; The version keyword comes after the versions alist so
               ;; that you can ignore it if you don't need it.
-              "(%s)\n:uranus\n"
+              "(%s)\n:neptune\n"
               (mapconcat
                (apply-partially #'format "%S")
                versions-alist
