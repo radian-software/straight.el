@@ -1216,6 +1216,13 @@ repository directory and delegates to the relevant
   (let ((straight--default-directory (straight--repos-dir local-repo)))
     (straight-vc 'check-out-commit type local-repo commit)))
 
+(defun straight-vc-commit-present-p (recipe commit)
+  "Check if COMMIT can be checked out without fetching it in RECIPE."
+  (straight--with-plist recipe
+      (local-repo type)
+    (let ((straight--default-directory (straight--repos-dir local-repo)))
+      (straight-vc 'commit-present-p type local-repo commit))))
+
 (defun straight-vc-get-commit (type local-repo)
   "Using VC backend TYPE, in LOCAL-REPO, return current commit.
 TYPE is a symbol like symbol `git', etc. LOCAL-REPO is a string
@@ -2116,6 +2123,14 @@ is a 40-character string identifying a Git commit."
            (straight-vc-git--ensure-worktree local-repo)
            (straight--get-call "git" "checkout" commit)
            (cl-return)))))
+
+(cl-defun straight-vc-git-commit-present-p (local-repo commit)
+  (cl-block nil
+    (while t
+      (and (straight-vc-git--ensure-nothing-in-progress local-repo)
+           (cl-return
+            (straight--check-call
+             "git" "rev-parse" "-q" "--verify" (format "%s^{commit}" commit)))))))
 
 (defun straight-vc-git-get-commit (_local-repo)
   "Return the current commit for the current local repository.
