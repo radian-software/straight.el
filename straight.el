@@ -5050,6 +5050,8 @@ according to the value of `straight-profiles'."
              ;; We can't use `alist-get' here because that uses
              ;; `eq', and our hash-table keys are strings.
              (when-let ((commit (cdr (assoc local-repo versions-alist))))
+               (unless (straight-vc-commit-present-p recipe commit)
+                 (straight-vc-fetch-from-upstream recipe))
                (straight-vc-check-out-commit
                 type local-repo commit)))))))))
 
