@@ -1217,7 +1217,8 @@ repository directory and delegates to the relevant
     (straight-vc 'check-out-commit type local-repo commit)))
 
 (defun straight-vc-commit-present-p (recipe commit)
-  "Check if COMMIT can be checked out without fetching it in RECIPE."
+  "Check in RECIPE's repo if COMMIT can be checked out without fetching it.
+Returns non-nil if the commit is available."
   (straight--with-plist recipe
       (local-repo type)
     (let ((straight--default-directory (straight--repos-dir local-repo)))
