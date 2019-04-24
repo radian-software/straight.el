@@ -669,8 +669,8 @@ be interpreted later as a symlink."
         (if straight-use-symlinks
             (if (executable-find "cmd")
                 (call-process "cmd" nil nil nil "/c" "mklink"
-                              (replace-regexp-in-string "/" "\\" link-name t t)
-                              (replace-regexp-in-string "/" "\\" link-target t t))
+                              (subst-char-in-string ?/ ?\\ link-name)
+                              (subst-char-in-string ?/ ?\\ link-target))
               (make-symbolic-link link-target link-name))
           (copy-file link-target link-name)
           (let ((build-dir (straight--build-dir)))

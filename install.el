@@ -203,8 +203,8 @@
               (if straight-use-symlinks
                   (if (executable-find "cmd")
                       (call-process "cmd" nil nil nil "/c" "mklink"
-                                    (replace-regexp-in-string "/" "\\" link-name t t)
-                                    (replace-regexp-in-string "/" "\\" link-target t t))
+                                    (subst-char-in-string ?/ ?\\ link-name)
+                                    (subst-char-in-string ?/ ?\\ link-target))
                     (make-symbolic-link link-target link-name))
                 (with-temp-file link-name
                   (print
