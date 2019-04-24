@@ -186,14 +186,14 @@
                    ;; This is a relative symlink. It won't break if you
                    ;; (for some silly reason) move your
                    ;; `user-emacs-directory'.
-                   (target (concat "repos/" local-repo "/bootstrap.el"))
-                   (linkname (concat user-emacs-directory
+                   (link-target (concat "repos/" local-repo "/bootstrap.el"))
+                   (link-name (concat user-emacs-directory
                                      "straight/bootstrap.el")))
               (ignore-errors
                 ;; If it's a directory, the linking will fail. Just let
                 ;; the user deal with it in that case, since they are
                 ;; doing something awfully weird.
-                (delete-file linkname))
+                (delete-file link-name))
               ;; Unfortunately, there appears to be no way to get
               ;; `make-symbolic-link' to overwrite an existing file,
               ;; like 'ln -sf'. Providing the OK-IF-ALREADY-EXISTS
@@ -201,11 +201,15 @@
               ;; existing file. That's why we have to `delete-file'
               ;; above.
               (if straight-use-symlinks
-                  (make-symbolic-link target linkname)
-                (with-temp-file linkname
+                  (if (executable-find "cmd")
+                      (call-process "cmd" nil nil nil "/c" "mklink"
+                                    (replace-regexp-in-string "/" "\\" link-name t t)
+                                    (replace-regexp-in-string "/" "\\" link-target t t))
+                    (make-symbolic-link link-target link-name))
+                (with-temp-file link-name
                   (print
                    `(load (expand-file-name
-                           ,target (file-name-directory load-file-name))
+                           ,link-target (file-name-directory load-file-name))
                           nil 'nomessage)
                    (current-buffer)))))))
        (current-buffer))

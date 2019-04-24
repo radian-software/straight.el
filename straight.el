@@ -646,7 +646,7 @@ SORT has been inverted from `directory-files'. Finally, the . and
                             full match (not sort)))))
 
 (defun straight--symlink-recursively (link-target link-name)
-  "Make a symbolic link to LINK-TARGET, named LINKNAME, recursively.
+  "Make a symbolic link to LINK-TARGET, named LINK-NAME, recursively.
 This means that if the link target is a directory, then a
 corresponding directory is created (called LINK-NAME) and all
 descendants of LINK-TARGET are linked separately into
@@ -667,7 +667,11 @@ be interpreted later as a symlink."
     (make-directory (file-name-directory link-name) 'parents)
     (condition-case _
         (if straight-use-symlinks
-            (make-symbolic-link link-target link-name)
+            (if (executable-find "cmd")
+                (call-process "cmd" nil nil nil "/c" "mklink"
+                              (replace-regexp-in-string "/" "\\" link-name t t)
+                              (replace-regexp-in-string "/" "\\" link-target t t))
+              (make-symbolic-link link-target link-name))
           (copy-file link-target link-name)
           (let ((build-dir (straight--build-dir)))
             (when (straight--path-prefix-p build-dir link-name)
