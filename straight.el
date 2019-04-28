@@ -5050,7 +5050,7 @@ according to the value of `straight-profiles'."
              (when-let ((commit (cdr (assoc local-repo versions-alist))))
                (straight-vc-normalize recipe)
                (unless (straight-vc-commit-present-p recipe commit)
-                 (straight-vc-fetch-from-upstream recipe))
+                 (straight-vc-fetch-from-remote recipe))
                (straight-vc-check-out-commit
                 type local-repo commit)))))))))
 
