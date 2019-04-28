@@ -1743,6 +1743,9 @@ a backend API method. The relevant methods are:
 
 * `clone`: given a recipe and a commit object, clone the repository
   and attempt to check out the given commit.
+* `commit-present-p`: given a recipe and a commit object, return
+  whether the commit can be checked out offline, i.e., without
+  fetching from the remote.
 * `normalize`: given a recipe, "normalize" the repository (this
   generally means reverting it to a standard state, such as a clean
   working directory, but does not entail checking out any particular
@@ -1813,6 +1816,8 @@ the version-control backend API:
   your revision lockfile, or the `:branch` (from the `:fork`
   configuration, if given), or `origin/HEAD`. If a `:fork` is
   specified, also fetches from the upstream.
+* `commit-present-p`: checks if the commit SHA is among the revisions
+  that are present locally.
 * `normalize`: verifies that remote URLs are set correctly, that no
   merge is in progress, that the worktree is clean, and that the
   primary `:branch` (from the `:fork` configuration, if given) is
@@ -1833,7 +1838,8 @@ the version-control backend API:
   remote if necessary, and then pushes if necessary. This operation
   acts on the fork, if the package is forked.
 * `check-out-commit`: verifies that no merge is in progress and that
-  the worktree is clean, then checks out the specified commit.
+  the worktree is clean, then resets the worktree to the specified
+  commit.
 * `get-commit`: returns HEAD as a 40-character string.
 * `local-repo-name`: if `:host` is non-nil, then `:repo` will be of
   the form "username/repository", and "repository" is used. Otherwise,
