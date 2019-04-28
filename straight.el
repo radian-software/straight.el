@@ -2125,13 +2125,10 @@ is a 40-character string identifying a Git commit."
            (straight--get-call "git" "reset" "--hard" commit)
            (cl-return)))))
 
-(cl-defun straight-vc-git-commit-present-p (local-repo commit)
-  (cl-block nil
-    (while t
-      (and (straight-vc-git--ensure-nothing-in-progress local-repo)
-           (cl-return
-            (straight--check-call "git" "rev-parse" "-q" "--verify"
-                                  (format "%s^{commit}" commit)))))))
+(cl-defun straight-vc-git-commit-present-p (_local-repo commit)
+  "Return non-nil if LOCAL-REPO has COMMIT present locally."
+  (straight--check-call "git" "rev-parse" "-q" "--verify"
+                        (format "%s^{commit}" commit)))
 
 (defun straight-vc-git-get-commit (_local-repo)
   "Return the current commit for the current local repository.
