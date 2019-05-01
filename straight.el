@@ -1203,8 +1203,8 @@ repository directory and delegates to the relevant
       (let ((straight--default-directory (straight--repos-dir local-repo)))
         (straight-vc 'push-to-remote type recipe)))))
 
-(defun straight-vc-check-out-commit (type local-repo commit)
-  "Using VC backend TYPE, in LOCAL-REPO, check out COMMIT.
+(defun straight-vc-check-out-commit (recipe commit)
+  "Normalize the repo for RECIPE and check out COMMIT.
 TYPE is a symbol like symbol `git', etc. LOCAL-REPO is a string
 naming a local package repository. The interpretation of COMMIT
 is defined by the backend, but it should be compatible with
@@ -1213,8 +1213,10 @@ is defined by the backend, but it should be compatible with
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
 `straight-vc-TYPE-check-out-commit'."
-  (let ((straight--default-directory (straight--repos-dir local-repo)))
-    (straight-vc 'check-out-commit type local-repo commit)))
+  (straight--with-plist recipe
+      (local-repo type)
+      (let ((straight--default-directory (straight--repos-dir local-repo)))
+        (straight-vc 'check-out-commit type recipe commit))))
 
 (defun straight-vc-commit-present-p (recipe commit)
   "Check in RECIPE's repo if COMMIT can be checked out without fetching it.
@@ -2113,17 +2115,20 @@ If RECIPE does not configure a fork, do nothing."
   "Using straight.el-style RECIPE, push to primary remote, if necessary."
   (straight-vc-git--ensure-head-pushed recipe))
 
-(cl-defun straight-vc-git-check-out-commit (local-repo commit)
-  "In LOCAL-REPO, check out COMMIT.
-LOCAL-REPO is a string naming a local package repository. COMMIT
-is a 40-character string identifying a Git commit."
-  (straight-register-repo-modification local-repo)
-  (cl-block nil
-    (while t
-      (and (straight-vc-git--ensure-nothing-in-progress local-repo)
-           (straight-vc-git--ensure-worktree local-repo)
-           (straight--get-call "git" "reset" "--hard" commit)
-           (cl-return)))))
+(cl-defun straight-vc-git-check-out-commit (recipe commit)
+  "In RECIPE's repo, normalize and check out COMMIT.
+RECIPE is a straight recipe definition. COMMIT is a 40-character
+string identifying a Git commit."
+  (straight-vc-git--destructure recipe
+      (local-repo)
+    (straight-register-repo-modification local-repo)
+    (cl-block nil
+      (while t
+        (and (straight-vc-git--ensure-nothing-in-progress local-repo)
+             (straight-vc-git--ensure-worktree local-repo)
+             (straight-vc-git--ensure-local recipe)
+             (straight--get-call "git" "reset" "--hard" commit)
+             (cl-return))))))
 
 (cl-defun straight-vc-git-commit-present-p (_local-repo commit)
   "Return non-nil if LOCAL-REPO has COMMIT present locally."
@@ -5044,15 +5049,13 @@ according to the value of `straight-profiles'."
        (let ((recipe (gethash package straight--recipe-cache)))
          (when (straight--repository-is-available-p recipe)
            (straight--with-plist recipe
-               (type local-repo)
+               (local-repo)
              ;; We can't use `alist-get' here because that uses
              ;; `eq', and our hash-table keys are strings.
              (when-let ((commit (cdr (assoc local-repo versions-alist))))
-               (straight-vc-normalize recipe)
                (unless (straight-vc-commit-present-p recipe commit)
                  (straight-vc-fetch-from-remote recipe))
-               (straight-vc-check-out-commit
-                type local-repo commit)))))))))
+               (straight-vc-check-out-commit recipe commit)))))))))
 
 ;;;; Integration with other packages
 ;;;;; package.el "integration"

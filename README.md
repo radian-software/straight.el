@@ -1761,8 +1761,8 @@ a backend API method. The relevant methods are:
   the local copy.
 * `push-to-remote`: given a recipe, push the current version of the
   repository to its configured remote, if one is specified.
-* `check-out-commit`: given a local repository name and a commit
-  object, attempt to check out that commit.
+* `check-out-commit`: given a recipe and a commit object, attempt to
+  check out that commit in the repository for that recipe.
 * `get-commit`: given a local repository name, return the commit
   object that is currently checked out.
 * `local-repo-name`: given a recipe, return a good name for the local
