@@ -2668,8 +2668,7 @@ UX of this situation.
 ### The interactive version-control operations are confusing
 
 This part of `straight.el` still needs some work; see [#54] about the
-UX of pushing and pulling, and [#58] about commits not being available
-when thawing a lockfile.
+UX of pushing and pulling.
 
 ### How do I pin package versions or use only tagged releases?
 
@@ -2686,6 +2685,14 @@ with Emacs, rather than cloning the upstream repository:
 [Read more.][#user/recipes]
 
 ## News
+### May 1, 2019
+
+`straight-thaw-versions` now fetches in a repository if a commit in
+your lockfile can not be found and normalizes the repository to the
+recipe's default branch. This should ensure that versions you have
+frozen can be quickly restored and that they can also be saved back to
+the version lock file. This addresses issues [#58], [#66], and [#294].
+
 ### March 15, 2019
 
 `straight.el` [now installs a hack for Org by
