@@ -99,6 +99,7 @@ chat][gitter-badge]][gitter]
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
 - [News](#news)
+  * [May 1, 2019](#may-1-2019)
   * [March 15, 2019](#march-15-2019)
   * [December 22, 2018](#december-22-2018)
   * [September 12, 2018](#september-12-2018)
