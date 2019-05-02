@@ -1205,18 +1205,21 @@ repository directory and delegates to the relevant
 
 (defun straight-vc-check-out-commit (recipe commit)
   "Normalize the repo for RECIPE and check out COMMIT.
-TYPE is a symbol like symbol `git', etc. LOCAL-REPO is a string
-naming a local package repository. The interpretation of COMMIT
-is defined by the backend, but it should be compatible with
-`straight-vc-get-commit'.
+
+If RECIPE does not specify a local repository, then no action is
+taken.
+
+The interpretation of COMMIT is defined by the backend, but it
+should be compatible with `straight-vc-get-commit'.
 
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
 `straight-vc-TYPE-check-out-commit'."
   (straight--with-plist recipe
       (local-repo type)
+    (when local-repo
       (let ((straight--default-directory (straight--repos-dir local-repo)))
-        (straight-vc 'check-out-commit type recipe commit))))
+        (straight-vc 'check-out-commit type recipe commit)))))
 
 (defun straight-vc-commit-present-p (recipe commit)
   "Check in RECIPE's repo if COMMIT can be checked out without fetching it.
