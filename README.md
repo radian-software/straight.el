@@ -61,6 +61,10 @@ chat][gitter-badge]][gitter]
     + [Additional arguments to `straight-use-package`](#additional-arguments-to-straight-use-package)
     + [Variants of `straight-use-package`](#variants-of-straight-use-package)
     + [Customizing when packages are built](#customizing-when-packages-are-built)
+      - [Summary of options for package modification detection](#summary-of-options-for-package-modification-detection)
+        * [`find-at-startup`](#find-at-startup)
+        * [`check-on-save`](#check-on-save)
+        * [`watch-files`](#watch-files)
     + [Customizing how packages are built](#customizing-how-packages-are-built)
     + [Customizing how packages are made available](#customizing-how-packages-are-made-available)
     + [Hooks run by `straight-use-package`](#hooks-run-by-straight-use-package)
@@ -1563,6 +1567,37 @@ variable are set during bootstrap.
 On Microsoft Windows, `find(1)` is generally not available, so the
 default value of `straight-check-for-modifications` is instead
 `(check-on-save)`.
+
+##### Summary of options for package modification detection
+###### `find-at-startup`
+
+Save build timestamps and run `find(1)` at startup to detect changes
+
+* Most reliable, never misses changes
+* Requires `find(1)`
+* Slows down startup
+
+###### `check-on-save`
+
+Use `before-save-hook` to detect changes
+
+* No external dependencies
+* No startup delay
+* No additional CPU or memory impact
+* Doesn't catch changes made except via `save-file` inside Emacs
+
+###### `watch-files`
+
+Run filesystem watcher to detect changes
+
+* Requires Python 3 and Watchexec
+* No startup delay
+* Takes a few seconds to build virtualenv the first time
+* Memory and CPU impact of running filesystem watcher
+* Only misses changes if you make them after booting the system but
+  before starting Emacs
+
+---
 
 #### Customizing how packages are built
 
