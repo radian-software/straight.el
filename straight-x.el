@@ -142,6 +142,7 @@
 ;; use of a variable `straight-x-pinned-packages' and the addition of a
 ;; `pinned' profile to `straight-profiles'.
 
+;;;###autoload
 (defvar straight-x-pinned-packages nil
   "List of pinned packages.")
 
