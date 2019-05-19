@@ -2711,12 +2711,12 @@ UX of pushing and pulling.
 This is a planned feature. In the meantime, contributors have proposed
 various workarounds. See [#246] and [#31].
 
-`straight-x.el` now contains an experimental solution. In order to use it you
-will need to add similar snippets to your Emacs configuration.
+`straight-x.el` now contains an experimental solution. In order to use
+it you will need to add similar snippets to your Emacs configuration.
 
-First you need to add a new profile to `straight-profiles` which also needs to
-be the last profile in the list. This should be done before you bootstrap
-`straight.el`.
+First you need to add a new profile to `straight-profiles` which also
+needs to be the last profile in the list. This should be done before
+you bootstrap `straight.el`.
 
     ;; Tell straight.el about the profiles we are going to be using.
     (setq straight-profiles
@@ -2724,8 +2724,8 @@ be the last profile in the list. This should be done before you bootstrap
             ;; Packages which are pinned to a specific commit.
             (pinned . "pinned.el")))
 
-After straight's install procedure you will need to add `straight-x.el` and load
-the required commands.
+After straight's install procedure you will need to add
+`straight-x.el` and load the required commands.
 
     (use-package straight-x
       :straight nil 
@@ -2733,11 +2733,12 @@ the required commands.
       (straight-x-pull-all
        straight-x-freeze-versions))
 
-A variable called `straight-x-pinned-packages` has been defined in `straight-x.el` and
-will contain your list of pinned packages.
+A variable called `straight-x-pinned-packages` has been defined in
+`straight-x.el` and will contain your list of pinned packages.
 
-From now on, you can pin a package to a specific commit like in the following
-example which will pin `org-mode` to the 9.2.3 release version:
+From now on, you can pin a package to a specific commit like in the
+following example which will pin `org-mode` to the 9.2.3 release
+version:
 
     (let ((straight-current-profile 'pinned))
       (straight-use-package 'org-plus-contrib)
@@ -2746,17 +2747,18 @@ example which will pin `org-mode` to the 9.2.3 release version:
       (add-to-list 'straight-x-pinned-packages
                    '("org" . "924308a150ab82014b69c46c04d1ab71e874a2e6")))
 
-If you invoke `straight-x-freeze-versions` it will first write the default
-lockfile and then pinned lockfile which takes precedence over the default one if
-packages are thawed. `straight-x-pull-all` will first invoke `straight-pull-all`
-and then restore all pinned packages.
+If you invoke `straight-x-freeze-versions` it will first write the
+default lockfile and then pinned lockfile which takes precedence over
+the default one if packages are thawed. `straight-x-pull-all` will
+first invoke `straight-pull-all` and then restore all pinned packages.
 
 You might want to assign the following aliases for more convenience:
 
     (defalias 'straight-pull-all #'straight-x-pull-all)
     (defalias 'straight-freeze-versions #'straight-x-freeze-versions)
 
-Please keep in mind that this is only a temporary solution and experimental!
+Please keep in mind that this is only a temporary solution and
+experimental!
 
 ### How can I use the built-in version of a package?
 
