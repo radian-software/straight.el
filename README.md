@@ -2733,11 +2733,8 @@ the required commands.
       (straight-x-pull-all
        straight-x-freeze-versions))
 
-Furthermore, you will need to define a variable called
-`straight-x-pinned-packages`.
-
-    (defvar straight-x-pinned-packages nil
-      "List of pinned packages.")
+A variable called `straight-x-pinned-packages` has been defined in `straight-x.el` and
+will contain your list of pinned packages.
 
 From now on, you can pin a package to a specific commit like in the following
 example which will pin `org-mode` to the 9.2.3 release version:
