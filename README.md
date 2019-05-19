@@ -2727,17 +2727,8 @@ you bootstrap `straight.el`.
 After straight's install procedure you will need to add
 `straight-x.el` and load the required commands.
 
-    (use-package straight-x
-      :straight (:host github
-                 :repo "raxod502/straight.el"
-                 :branch "develop"
-                 :local-repo "straight.el"
-                 :files ("straight-x.el"))
-      :commands (straight-x-pull-all
-                 straight-x-freeze-versions))
-                 
-Please take care that `straight-x.el`'s `:branch` is the same as for
-`straight.el`. By default, this will be `master`.
+    (autoload #'straight-x-pull-all "straight-x")
+    (autoload #'straight-x-freeze-versions "straight-x")
 
 A variable called `straight-x-pinned-packages` has been defined in
 `straight-x.el` and will contain your list of pinned packages.
