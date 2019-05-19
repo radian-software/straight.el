@@ -139,8 +139,8 @@
 
 ;; The following function definitions are alternatives to ones built into
 ;; `straight.el'. They will try to respect pinned packages. This requires the
-;; use of a variable `straight-x-pinned-packages' and the addition of a `pinned'
-;; profile to `straight-profiles'.
+;; use of a variable `straight-x-pinned-packages' and the addition of a
+;; `pinned' profile to `straight-profiles'.
 
 (defvar straight-x-pinned-packages nil
   "List of pinned packages.")
