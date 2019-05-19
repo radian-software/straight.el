@@ -135,6 +135,77 @@
                 (not (y-or-n-p (format "Delete repository %S?" repo))))
       (delete-directory (straight--repos-dir repo) 'recursive 'trash))))
 
+;; Version pinning
+
+;; The following function definitions are alternatives to ones built into
+;; `straight.el'. They will try to respect pinned packages. This requires the
+;; use of a variable `straight-x-pinned-packages' and the addition of a `pinned'
+;; profile to `straight-profiles'.
+
+(defun straight-x-freeze-pinned-versions ()
+  "Write lock file for pinned packages."
+  (interactive)
+  (let ((lockfile-path (straight--versions-lockfile 'pinned)))
+    (with-temp-file lockfile-path
+      (insert
+       (format "(%s)\n:neptune\n"
+               (mapconcat
+                (apply-partially #'format "%S")
+                straight-x-pinned-packages
+                "\n "))))))
+
+(defun straight-x--get-pinned-versions ()
+  "Read pinned version lockfiles and return merged alist of saved versions.
+The alist maps repository names as strings to versions, whose
+interpretations are defined by the relevant VC backend."
+  (let ((versions nil))
+    (dolist (spec '((pinned . "pinned.el")))
+      (cl-destructuring-bind (_profile . versions-lockfile) spec
+        (let ((lockfile-path (straight--versions-file versions-lockfile)))
+          (when-let ((versions-alist (ignore-errors
+                                       (with-temp-buffer
+                                         (insert-file-contents-literally
+                                          lockfile-path)
+                                         (read (current-buffer))))))
+            (dolist (spec versions-alist)
+              (cl-destructuring-bind (local-repo . commit) spec
+                (setq versions (straight--alist-set
+                                local-repo commit versions))))))))
+      versions))
+
+(defun straight-x-thaw-pinned-versions ()
+  "Read pinned version lockfiles and restore package versions to
+those listed."
+  (interactive)
+  (let ((versions-alist (straight-x--get-pinned-versions)))
+    (straight--map-repos-interactively
+     (lambda (package)
+       (let ((recipe (gethash package straight--recipe-cache)))
+         (when (straight--repository-is-available-p recipe)
+           (straight--with-plist recipe
+               (local-repo)
+             ;; We can't use `alist-get' here because that uses
+             ;; `eq', and our hash-table keys are strings.
+             (when-let ((commit (cdr (assoc local-repo versions-alist))))
+               (unless (straight-vc-commit-present-p recipe commit)
+                 (straight-vc-fetch-from-remote recipe))
+               (straight-vc-check-out-commit recipe commit)))))))))
+
+(defun straight-x-pull-all ()
+  "Pull all packages and restore pinned package versions."
+  (interactive)
+  (straight-pull-all)
+  (message "Taking care of pinned versions ...")
+  (straight-x-thaw-pinned-versions)
+  (message "Done!"))
+
+(defun straight-x-freeze-versions ()
+  "Freeze all package versions but respect pinned packages."
+  (interactive)
+  (straight-freeze-versions)
+  (straight-x-freeze-pinned-versions))
+
+
 (provide 'straight-x)
 
 ;;; straight-x.el ends here
