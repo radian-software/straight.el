@@ -2689,7 +2689,7 @@ for dependency resolution."
               ;; just be silly.
               (straight--put plist :package package)
               ;; If no `:type' is specified, use the default.
-              (unless type
+              (unless (plist-member plist :type)
                 (straight--put plist :type straight-default-vc))
               ;; This `unless' allows overriding `:local-repo' in a
               ;; manual recipe specification, and also allows the
