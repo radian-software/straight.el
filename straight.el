@@ -1067,6 +1067,21 @@ For example:
 => (straight-vc-git-check-out-commit ...)"
   (let ((func (intern (format "straight-vc-%S-%S"
                               type method))))
+    (unless (fboundp func)
+      (let ((regexp (format "^straight-vc-%S-[a-z-]+$" type)))
+        ;; Check if *any* methods are defined for this VC backend. If
+        ;; not, there is probably no such backend.
+        (if (cl-block nil
+              (prog1 nil
+                (mapatoms
+                 (lambda (sym)
+                   (when (and
+                          (fboundp sym)
+                          (string-match-p regexp (symbol-name sym)))
+                     (cl-return t))))))
+            (error "VC backend `%S' does not implement method `%S'"
+                   type method)
+          (error "No such VC backend `%S'" type))))
     (apply func args)))
 
 (defun straight-vc-clone (recipe)
@@ -2680,96 +2695,95 @@ for dependency resolution."
           ;; specified manually, then you can specify `:local-repo' to
           ;; override the default value (which is determined according
           ;; to the selected VC backend).
-          (straight--with-plist plist
-              (type)
-            ;; The normalized recipe format will have the package name
-            ;; as a string, not a symbol.
-            (let ((package (symbol-name package)))
-              ;; Note that you can't override `:package'. That would
-              ;; just be silly.
-              (straight--put plist :package package)
-              ;; If no `:type' is specified, use the default.
-              (unless (plist-member plist :type)
-                (straight--put plist :type straight-default-vc))
-              ;; This `unless' allows overriding `:local-repo' in a
-              ;; manual recipe specification, and also allows the
-              ;; attribute to be set to nil to enforce that there is
-              ;; no local repository (rather than a local repository
-              ;; name being automatically generated).
-              (unless (plist-member plist :local-repo)
-                (straight--put
-                 plist :local-repo
-                 (or (straight-vc-local-repo-name plist)
-                     ;; If no sane repository name can be generated,
-                     ;; just use the package name.
-                     package)))
-              ;; This code is here to deal with complications that can
-              ;; arise with manual recipe specifications when multiple
-              ;; packages are versioned in the same repository.
-              ;;
-              ;; Specifically, let's suppose packages `swiper' and
-              ;; `ivy' are both versioned in repository "swiper", and
-              ;; let's suppose that I load both of them in my
-              ;; init-file (`ivy' first and then `swiper'). Now
-              ;; suppose that I discover a bug in `ivy' and fix it in
-              ;; my fork, so that (until my fix is merged) I need to
-              ;; provide an explicit recipe in my init-file's call to
-              ;; `straight-use-package' for `ivy', in order to use my
-              ;; fork. That will cause a conflict, because the recipe
-              ;; for `swiper' is automatically taken from MELPA, and
-              ;; it does not point at my fork, but instead at the
-              ;; official repository. To fix the problem, I would have
-              ;; to specify my fork in the recipe for `swiper' (and
-              ;; also `counsel', a third package versioned in the same
-              ;; repository). That violates DRY and is a pain.
-              ;;
-              ;; Instead, this code makes it so that if a recipe has
-              ;; been automatically retrieved from a recipe repository
-              ;; (for example, MELPA, GNU ELPA, or Emacsmirror), and
-              ;; the `:local-repo' specified in that recipe has
-              ;; already been used for another package, then the
-              ;; configuration for that repository will silently be
-              ;; copied over, and everything should "just work".
-              ;;
-              ;; Note that this weird edge case is totally unrelated
-              ;; to the weird edge cases discussed earlier (in the
-              ;; first comment of this function), and has to be
-              ;; handled in a totally different way. It's surprising
-              ;; how complicated recipe specification turns out to be.
-              (unless recipe-specified-p
-                (straight--with-plist plist
-                    (local-repo)
-                  ;; Here we are checking to see if there is already a
-                  ;; formula with the same `:local-repo'. This is one
-                  ;; of the primary uses of `straight--repo-cache'.
-                  (when-let ((original-recipe (gethash local-repo
-                                                       straight--repo-cache)))
-                    ;; Remove all VC-specific attributes from the
-                    ;; recipe we got from the recipe repositories.
-                    (straight--remq
-                     plist (cons :type
+          ;;
+          ;; The normalized recipe format will have the package name
+          ;; as a string, not a symbol.
+          (let ((package (symbol-name package)))
+            ;; Note that you can't override `:package'. That would
+            ;; just be silly.
+            (straight--put plist :package package)
+            ;; If no `:type' is specified, use the default.
+            (unless (plist-member plist :type)
+              (straight--put plist :type straight-default-vc))
+            ;; This `unless' allows overriding `:local-repo' in a
+            ;; manual recipe specification, and also allows the
+            ;; attribute to be set to nil to enforce that there is no
+            ;; local repository (rather than a local repository name
+            ;; being automatically generated).
+            (unless (plist-member plist :local-repo)
+              (straight--put
+               plist :local-repo
+               (or (straight-vc-local-repo-name plist)
+                   ;; If no sane repository name can be generated,
+                   ;; just use the package name.
+                   package)))
+            ;; This code is here to deal with complications that can
+            ;; arise with manual recipe specifications when multiple
+            ;; packages are versioned in the same repository.
+            ;;
+            ;; Specifically, let's suppose packages `swiper' and `ivy'
+            ;; are both versioned in repository "swiper", and let's
+            ;; suppose that I load both of them in my init-file (`ivy'
+            ;; first and then `swiper'). Now suppose that I discover a
+            ;; bug in `ivy' and fix it in my fork, so that (until my
+            ;; fix is merged) I need to provide an explicit recipe in
+            ;; my init-file's call to `straight-use-package' for
+            ;; `ivy', in order to use my fork. That will cause a
+            ;; conflict, because the recipe for `swiper' is
+            ;; automatically taken from MELPA, and it does not point
+            ;; at my fork, but instead at the official repository. To
+            ;; fix the problem, I would have to specify my fork in the
+            ;; recipe for `swiper' (and also `counsel', a third
+            ;; package versioned in the same repository). That
+            ;; violates DRY and is a pain.
+            ;;
+            ;; Instead, this code makes it so that if a recipe has
+            ;; been automatically retrieved from a recipe repository
+            ;; (for example, MELPA, GNU ELPA, or Emacsmirror), and the
+            ;; `:local-repo' specified in that recipe has already been
+            ;; used for another package, then the configuration for
+            ;; that repository will silently be copied over, and
+            ;; everything should "just work".
+            ;;
+            ;; Note that this weird edge case is totally unrelated to
+            ;; the weird edge cases discussed earlier (in the first
+            ;; comment of this function), and has to be handled in a
+            ;; totally different way. It's surprising how complicated
+            ;; recipe specification turns out to be.
+            (unless recipe-specified-p
+              (straight--with-plist plist
+                  (local-repo)
+                ;; Here we are checking to see if there is already a
+                ;; formula with the same `:local-repo'. This is one of
+                ;; the primary uses of `straight--repo-cache'.
+                (when-let ((original-recipe (gethash local-repo
+                                                     straight--repo-cache)))
+                  ;; Remove all VC-specific attributes from the recipe
+                  ;; we got from the recipe repositories.
+                  (straight--remq
+                   plist (cons :type
+                               (straight-vc-keywords
+                                ;; To determine which keywords to
+                                ;; remove from `plist', we want to use
+                                ;; the VC backend specified for that
+                                ;; same recipe. This is important in
+                                ;; case the recipe repository and the
+                                ;; existing recipe specify different
+                                ;; values for `:type'.
+                                (plist-get plist :type))))
+                  ;; Now copy over all the VC-specific attributes from
+                  ;; the existing recipe.
+                  (dolist (keyword
+                           (cons :type
                                  (straight-vc-keywords
-                                  ;; To determine which keywords to remove
-                                  ;; from `plist', we want to use the VC
-                                  ;; backend specified for that same
-                                  ;; recipe. This is important in case the
-                                  ;; recipe repository and the existing
-                                  ;; recipe specify different values for
-                                  ;; `:type'.
-                                  (plist-get plist :type))))
-                    ;; Now copy over all the VC-specific attributes
-                    ;; from the existing recipe.
-                    (dolist (keyword
-                             (cons :type
-                                   (straight-vc-keywords
-                                    ;; Same logic as above. This time
-                                    ;; we're using the VC backend
-                                    ;; specified by the original recipe.
-                                    (plist-get original-recipe :type))))
-                      (when-let ((value (plist-get original-recipe keyword)))
-                        (straight--put plist keyword value))))))
-              ;; Return the newly normalized recipe.
-              plist))))))
+                                  ;; Same logic as above. This time
+                                  ;; we're using the VC backend
+                                  ;; specified by the original recipe.
+                                  (plist-get original-recipe :type))))
+                    (when-let ((value (plist-get original-recipe keyword)))
+                      (straight--put plist keyword value))))))
+            ;; Return the newly normalized recipe.
+            plist)))))
 
 (defun straight--get-overridden-recipe (package)
   "Given a PACKAGE symbol, check if it has an overridden recipe.
