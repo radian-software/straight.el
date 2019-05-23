@@ -604,6 +604,14 @@ the straight/watcher/ directory itself."
 SEGMENTS are passed to `straight--file'."
   (apply #'straight--file "watcher" segments))
 
+(defun straight--watcher-python ()
+  "Get the path to the filesystem virtualenv's Python executable."
+  (pcase system-type
+    ((or `ms-dos `windows-nt)
+     (straight--watcher-file "virtualenv" "Scripts" "python.exe"))
+    (_
+     (straight--watcher-file "virtualenv" "bin" "python"))))
+
 (defun straight--versions-lockfile (profile)
   "Get the version lockfile for given PROFILE, a symbol."
   (if-let ((filename (alist-get profile straight-profiles)))
@@ -3295,8 +3303,7 @@ straight.el, according to the value of
   "Set up the virtualenv for the filesystem watcher.
 If it fails, signal a warning and return nil."
   (let* ((virtualenv (straight--watcher-dir "virtualenv"))
-         (python (straight--watcher-file
-                  "virtualenv" "bin" "python"))
+         (python (straight--watcher-python))
          (straight-dir (file-name-directory straight--this-file))
          (watcher-dir (expand-file-name "watcher" straight-dir))
          (version-from (expand-file-name "version" watcher-dir))
@@ -3342,7 +3349,7 @@ If it fails, signal a warning and return nil."
       (cl-return-from straight-watcher-start))
     (message "Setting up filesystem watcher...done"))
   (with-current-buffer (straight-watcher--make-process-buffer)
-    (let* ((python (straight--watcher-file "virtualenv" "bin" "python"))
+    (let* ((python (straight--watcher-python))
            (cmd (list
                  python "-m" "straight_watch" "start"
                  (straight--watcher-file "process")
@@ -3369,7 +3376,7 @@ If it fails, signal a warning and return nil."
   "Kill the filesystem watcher, if it is running.
 If there is an unexpected error, signal a warning and return nil."
   (interactive)
-  (let ((python (straight--watcher-file "virtualenv" "bin" "python")))
+  (let ((python (straight--watcher-python)))
     (when (file-executable-p python)
       (straight--warn-call
        python "-m" "straight_watch" "stop"
