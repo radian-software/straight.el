@@ -1073,6 +1073,46 @@ appropriately."
           (`busybox nil)
           (lst lst))))
 
+;;;; Lockfile utility functions
+
+(defun straight--lockfile-read (lockfile)
+  "Read the given LOCKFILE and return an alist.
+LOCKFILE is a filename relative to `straight--versions-dir', as
+in `straight-profiles'. If the lockfile is missing, return nil.
+If it is malformed, raise an error. (An informative error message
+is not guaranteed, but at least there will be an error now
+instead of later.)"
+  (let ((lockfile-path (straight--versions-file lockfile)))
+
+    (when (file-exists-p lockfile-path)
+      (let ((alist (with-temp-buffer
+                     (insert-file-contents-literally lockfile-path)
+                     (read (current-buffer)))))
+        (prog1 alist
+          (unless (listp alist)
+            (error "Malformed lockfile: not a list"))
+          (mapc
+           (lambda (cell)
+             (unless (consp cell)
+               (error "Malformed lockfile: not an alist"))
+             (unless (stringp (car cell))
+               (error "Malformed lockfile: nil local repository")))
+           alist))))))
+
+(defun straight--lockfile-read-all ()
+  "Read version lockfiles and return merged alist of saved versions.
+The alist maps repository names as strings to versions, whose
+interpretations are defined by the relevant VC backend."
+  (let ((versions nil))
+    (dolist (spec straight-profiles)
+      (cl-destructuring-bind (_profile . lockfile) spec
+        (let ((versions-alist (straight--lockfile-read lockfile)))
+          (dolist (spec versions-alist)
+            (cl-destructuring-bind (local-repo . commit) spec
+              (setq versions (straight--alist-set
+                              local-repo commit versions)))))))
+    versions))
+
 ;;;; Version control
 
 (defun straight-vc (method type &rest args)
@@ -1114,27 +1154,18 @@ method, where TYPE is the `:type' specified in RECIPE. If the
 repository already exists, throw an error."
   (straight--with-plist recipe
       (type local-repo)
-    (let ((straight--default-directory (straight--repos-dir))
-          (commit nil))
+    (let ((straight--default-directory (straight--repos-dir)))
       (when (file-exists-p (straight--repos-dir local-repo))
         (error "Repository already exists: %S" local-repo))
       ;; We're reading the lockfiles inline here, instead of caching
       ;; them like we do with the build cache. The reason is that
       ;; reading the lockfiles appears to be much faster than reading
-      ;; the build cache, and also time is not really a concern if
-      ;; we're already going to be cloning a repository.
-      (dolist (spec straight-profiles)
-        (cl-destructuring-bind (_profile . versions-lockfile) spec
-          (let ((lockfile-path (straight--versions-file versions-lockfile)))
-            (when-let ((versions-alist (ignore-errors
-                                         (with-temp-buffer
-                                           (insert-file-contents-literally
-                                            lockfile-path)
-                                           (read (current-buffer))))))
-              (when-let ((frozen-commit
-                          (cdr (assoc local-repo versions-alist))))
-                (setq commit frozen-commit))))))
-      (straight-vc 'clone type recipe commit))))
+      ;; the build cache (and we wouldn't want to engage in premature
+      ;; optimization, now would we?), and also time is not really a
+      ;; concern if we're already going to be cloning a repository.
+      (let ((commit (cdr (assoc
+                          local-repo (straight--lockfile-read-all)))))
+        (straight-vc 'clone type recipe commit)))))
 
 (defun straight-vc-normalize (recipe)
   "Normalize the local repository specified by straight.el-style RECIPE.
@@ -4263,25 +4294,6 @@ This is used to prevent building dependencies twice when
 `straight-rebuild-package' or `straight-rebuild-all' is
 invoked.")
 
-(defun straight--get-versions ()
-  "Read version lockfiles and return merged alist of saved versions.
-The alist maps repository names as strings to versions, whose
-interpretations are defined by the relevant VC backend."
-  (let ((versions nil))
-    (dolist (spec straight-profiles)
-      (cl-destructuring-bind (_profile . versions-lockfile) spec
-        (let ((lockfile-path (straight--versions-file versions-lockfile)))
-          (when-let ((versions-alist (ignore-errors
-                                       (with-temp-buffer
-                                         (insert-file-contents-literally
-                                          lockfile-path)
-                                         (read (current-buffer))))))
-            (dolist (spec versions-alist)
-              (cl-destructuring-bind (local-repo . commit) spec
-                (setq versions (straight--alist-set
-                                local-repo commit versions))))))))
-    versions))
-
 ;;;;; Interactive mapping
 
 (cl-defun straight--map-repos-interactively (func &optional predicate action)
@@ -5204,7 +5216,7 @@ according to the value of `straight-profiles'."
 (defun straight-thaw-versions ()
   "Read version lockfiles and restore package versions to those listed."
   (interactive)
-  (let ((versions-alist (straight--get-versions)))
+  (let ((versions-alist (straight--lockfile-read-all)))
     (straight--map-repos-interactively
      (lambda (package)
        (let ((recipe (gethash package straight--recipe-cache)))
