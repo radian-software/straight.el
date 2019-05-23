@@ -92,6 +92,13 @@ non-nil, evaluate and return BODY. Otherwise return nil."
       "Return the value associated with KEY in ALIST, using `assq'."
       (cdr (assq key alist)))))
 
+;; Not defined before Emacs 25.1
+(eval-and-compile
+  (unless (fboundp 'hash-table-empty-p)
+    (defun hash-table-empty-p (hash-table)
+      "Check whether HASH-TABLE is empty (has 0 elements)."
+      (zerop (hash-table-count hash-table)))))
+
 ;; Not defined before Emacs 25.3
 (eval-and-compile
   (unless (boundp 'inhibit-message)
@@ -4857,6 +4864,29 @@ non-nil if the package should actually be normalized."
   (straight--map-existing-repos-interactively #'straight-normalize-package
                                               predicate))
 
+(defun straight--get-transitive-dependencies (package)
+  "Get the (transitive) dependencies of PACKAGE.
+PACKAGE should be a string naming a package. Return a list of
+strings naming packages which are the dependencies, dependencies
+of dependencies, etc. of PACKAGE. The list includes PACKAGE
+itself. It is in no particular order."
+  (straight-transaction
+    (straight--transaction-exec
+     'build-cache
+     #'straight--load-build-cache)
+    (let ((all-packages (make-hash-table :test #'equal))
+          (unprocessed (make-hash-table :test #'equal)))
+      (puthash package t unprocessed)
+      (while (not (hash-table-empty-p unprocessed))
+        (let* ((cur-package (car (hash-table-keys unprocessed)))
+               (deps (nth 1 (gethash cur-package straight--build-cache))))
+          (puthash cur-package t all-packages)
+          (remhash cur-package unprocessed)
+          (dolist (dep deps)
+            (unless (gethash dep all-packages)
+              (puthash dep t unprocessed)))))
+      (hash-table-keys all-packages))))
+
 ;;;###autoload
 (defun straight-fetch-package (package &optional from-upstream)
   "Try to fetch a PACKAGE from the primary remote.
@@ -4871,6 +4901,29 @@ forked packages)."
     (and (straight-vc-fetch-from-remote recipe)
          (when from-upstream
            (straight-vc-fetch-from-upstream recipe)))))
+
+;;;###autoload
+(defun straight-fetch-package-and-deps (package &optional from-upstream)
+  "Try to fetch a PACKAGE and its (transitive) dependencies.
+PACKAGE, its dependencies, their dependencies, etc. are fetched
+from their primary remotes.
+
+PACKAGE is a string naming a package. Interactively, select
+PACKAGE from the known packages in the current Emacs session
+using `completing-read'. With prefix argument FROM-UPSTREAM,
+fetch not just from primary remote but also from upstream (for
+forked packages)."
+  (interactive (list (straight--select-package
+                      "Fetch package and dependencies" nil 'installed)
+                     current-prefix-arg))
+  (let ((deps (make-hash-table :test #'equal)))
+    (dolist (dep (straight--get-transitive-dependencies package))
+      (puthash dep t deps))
+    (straight--map-existing-repos-interactively
+     (lambda (cur-package)
+       (straight-fetch-package cur-package from-upstream))
+     (lambda (cur-package)
+       (gethash cur-package deps)))))
 
 ;;;###autoload
 (defun straight-fetch-all (&optional from-upstream predicate)
@@ -4907,6 +4960,29 @@ forked packages)."
            (straight-vc-merge-from-upstream recipe)))))
 
 ;;;###autoload
+(defun straight-merge-package-and-deps (package &optional from-upstream)
+  "Try to merge a PACKAGE and its (transitive) dependencies.
+PACKAGE, its dependencies, their dependencies, etc. are merged
+from their primary remotes.
+
+PACKAGE is a string naming a package. Interactively, select
+PACKAGE from the known packages in the current Emacs session
+using `completing-read'. With prefix argument FROM-UPSTREAM,
+merge not just from primary remote but also from upstream (for
+forked packages)."
+  (interactive (list (straight--select-package
+                      "Merge package and dependencies" nil 'installed)
+                     current-prefix-arg))
+  (let ((deps (make-hash-table :test #'equal)))
+    (dolist (dep (straight--get-transitive-dependencies package))
+      (puthash dep t deps))
+    (straight--map-existing-repos-interactively
+     (lambda (cur-package)
+       (straight-merge-package cur-package from-upstream))
+     (lambda (cur-package)
+       (gethash cur-package deps)))))
+
+;;;###autoload
 (defun straight-merge-all (&optional from-upstream predicate)
   "Try to merge all packages from their primary remotes.
 With prefix argument FROM-UPSTREAM, merge not just from primary
@@ -4941,6 +5017,29 @@ packages)."
          (when from-upstream
            (and (straight-vc-fetch-from-upstream recipe)
                 (straight-vc-merge-from-upstream recipe))))))
+
+;;;###autoload
+(defun straight-pull-package-and-deps (package &optional from-upstream)
+  "Try to pull a PACKAGE and its (transitive) dependencies.
+PACKAGE, its dependencies, their dependencies, etc. are pulled
+from their primary remotes.
+
+PACKAGE is a string naming a package. Interactively, select
+PACKAGE from the known packages in the current Emacs session
+using `completing-read'. With prefix argument FROM-UPSTREAM,
+pull not just from primary remote but also from upstream (for
+forked packages)."
+  (interactive (list (straight--select-package
+                      "Pull package and dependencies" nil 'installed)
+                     current-prefix-arg))
+  (let ((deps (make-hash-table :test #'equal)))
+    (dolist (dep (straight--get-transitive-dependencies package))
+      (puthash dep t deps))
+    (straight--map-existing-repos-interactively
+     (lambda (cur-package)
+       (straight-pull-package cur-package from-upstream))
+     (lambda (cur-package)
+       (gethash cur-package deps)))))
 
 ;;;###autoload
 (defun straight-pull-all (&optional from-upstream predicate)

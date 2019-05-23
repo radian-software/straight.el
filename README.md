@@ -351,12 +351,14 @@ interactive workflows to perform bulk operations on your packages.
   straight-normalize-all`.
 
 * To fetch from each package's configured remote, run `M-x
-  straight-fetch-package` or `M-x straight-fetch-all`; to also fetch
-  from the upstream for forked packages, supply a prefix argument.
+  straight-fetch-package-and-deps` or `M-x straight-fetch-all`; to
+  also fetch from the upstream for forked packages, supply a prefix
+  argument.
 
 * To merge changes from each package's configured remote, run `M-x
-  straight-merge-package` or `M-x straight-merge-all`; to also merge
-  from the upstream for forked packages, supply a prefix argument.
+  straight-merge-package-and-deps` or `M-x straight-merge-all`; to
+  also merge from the upstream for forked packages, supply a prefix
+  argument.
 
 * To push all local changes to each package's configured remote, run
   `M-x straight-push-package` or `M-x straight-push-all`.
@@ -2262,17 +2264,28 @@ follows:
 * `M-x straight-fetch-package`: fetch from a package's configured
   remote; with prefix argument, then for forks also fetch from the
   upstream
+* `M-x straight-fetch-package-and-deps`: fetch from the configured
+  remotes of a package and all of its dependencies (including the
+  dependencies of its dependencies); with prefix argment, then for
+  forks also fetch from the upstream
 * `M-x straight-fetch-all`: fetch from all packages' configured
   remotes; with prefix argument, then for forks also fetch from the
   upstreams
 * `M-x straight-merge-package`: merge the latest version fetched from
   a package's configured remote into the local copy; with prefix
   argument, then for forks also merge from the upstream
+* `M-x straight-merge-package-and-deps`: merge the latest versions
+  fetched from the configured remotes of a package and all of its
+  dependencies (including the dependencies of its dependencies); with
+  prefix argment, then for forks also merge from the upstreams
 * `M-x straight-merge-all`: merge the latest versions fetched from
   each package's configured remote into its local copy; with prefix
   argument, then for forks also merge from the upstreams
 * `M-x straight-pull-package`: combination of `M-x
   straight-fetch-package` and `M-x straight-merge-package`
+* `M-x straight-pull-package-and-deps`: combination of `M-x
+  straight-fetch-package-and-deps` and `M-x
+  straight-merge-package-and-deps`
 * `M-x straight-pull-all`: combination of `M-x straight-fetch-all` and
   `M-x straight-merge-all`
 * `M-x straight-push-package`: push a package to its remote, if
