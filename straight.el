@@ -157,10 +157,22 @@ bind this variable to different symbols using `let' over
 different parts of your init-file."
   :type 'symbol)
 
+(defcustom straight-repository-user "raxod502"
+  "String identifying the GitHub user from which to clone straight.el.
+You must set this variable before straight.el is bootstrapped for
+it to have an effect. (It is used in the default recipe for
+straight.el which is registered during bootstrap.)
+
+If you have forked raxod502/straight.el to your-name/straight.el,
+then to use your fork you should set `straight-repository-user'
+to \"your-name\"."
+  :type 'string)
+
 (defcustom straight-repository-branch "master"
   "String identifying the branch of straight.el to clone.
-You can set this variable before straight.el is bootstrapped (and
-should)."
+You must set this variable before straight.el is bootstrapped for
+it to have an effect. (It is used in the default recipe for
+straight.el which is registered during bootstrap.)"
   :type '(choice
           (const :tag "Stable version (master)" "master")
           (const :tag "Development version (develop)" "develop")
@@ -5181,7 +5193,7 @@ according to the value of `straight-profiles'."
               ;;
               ;; The version keyword comes after the versions alist so
               ;; that you can ignore it if you don't need it.
-              "(%s)\n:neptune\n"
+              "(%s)\n:pluto\n"
               (mapconcat
                (apply-partially #'format "%S")
                versions-alist

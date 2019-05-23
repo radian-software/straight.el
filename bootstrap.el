@@ -109,7 +109,8 @@
 
 ;; Then we register (and build) straight.el itself.
 (straight-use-package `(straight :type git :host github
-                                 :repo "raxod502/straight.el"
+                                 :repo ,(format "%s/straight.el"
+                                                straight-repository-user)
                                  :files ("straight*.el")
                                  :branch ,straight-repository-branch))
 

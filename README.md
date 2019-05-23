@@ -2172,7 +2172,7 @@ Here is the default recipe used for `straight.el`, if you don't
 override it:
 
     (straight :type git :host github
-              :repo "raxod502/straight.el"
+              :repo ,(format "%s/straight.el" straight-repository-user)
               :files ("straight*.el")
               :branch ,straight-repository-branch)
 
@@ -2185,6 +2185,10 @@ If all you want to do is change which branch you are installing
 (Although using `straight-recipe-overrides` will work just as well, at
 least until the recipe happens to be changed upstream and your
 init-file isn't updated.)
+
+Similarly, if all you want to do is switch to your own fork of
+`straight.el` on GitHub, simply customize the variable
+`straight-repository-user` to your GitHub username.
 
 There is one minor caveat to the above discussion. If your fork makes
 changes to the way in which recipes are interpreted, then those
@@ -2653,8 +2657,16 @@ switch to that branch with
 
     (setq straight-repository-branch "develop")
 
-and base your pull requests from it. Please try to follow the style of
-the surrounding code and documentation, but anything is welcome.
+and base your pull requests from it. If you have an outstanding pull
+request whose features you would like to use in your configuration,
+there is full support for defining `straight.el` as coming from any
+branch in any fork:
+
+    (setq straight-repository-user "my-github-username")
+    (setq straight-repository-branch "feat/my-cool-feature")
+
+Please try to follow the style of the surrounding code and
+documentation, but anything is welcome.
 
 You can run the linting locally simply by running
 

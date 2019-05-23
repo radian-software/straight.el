@@ -85,7 +85,7 @@
 
   (let (;; This needs to have a default value, just in case the user
         ;; doesn't have any lockfiles.
-        (version :neptune)
+        (version :pluto)
         (straight-profiles (if (boundp 'straight-profiles)
                                straight-profiles
                              '((nil . "default")))))
@@ -170,7 +170,7 @@
           ;; skipping the build phase.)
           (straight-use-package-no-build
            `(straight :type git :host github
-                      :repo "raxod502/straight.el"
+                      :repo ,(format "%s/straight.el" straight-repository-user)
                       :branch ,straight-repository-branch))
           (unless (and (boundp 'bootstrap-version)
                        (integerp bootstrap-version)
