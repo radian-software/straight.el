@@ -189,10 +189,26 @@ First, place the following bootstrap code in your init-file:
 
 <!-- longlines-stop -->
 
-Even if you want to use a particular version or branch of
-`straight.el`, or even your own fork, this code does not need to be
-modified. To learn more, see the documentation on [configuring the
-installation of `straight.el`][#user/overriding/straight.el].
+Here are some variables you may be interested in (some of them must be
+set **before** the bootstrap code runs, if they might affect how
+`straight.el` itself is loaded):
+
+* [`straight-repository-branch`][#user/overriding/straight.el] -- to
+  get the latest version of `straight.el` from the `develop` branch,
+  rather than the default `master` which is updated less frequently
+  but which is ostensibly more stable.
+* [`straight-check-for-modifications`][#user/install/mod-detection] --
+  to configure an alternate way for `straight.el` to check for
+  modifications made to package source code, rather than the default
+  (which is 100% reliable, but has a minor cost to startup time).
+* [`straight-use-package-by-default`][#user/integration/use-package]
+  -- if you use [`use-package`][use-package], then this makes each
+  `use-package` form also invoke `straight.el` to install the package,
+  unless otherwise specified.
+* [`straight-vc-git-default-protocol`][#user/recipes/git] -- by
+  default, `straight.el` clones over HTTPS. If you need packages from
+  private Git repositories in your configuration, then you might want
+  to use SSH instead.
 
 You should remove any code that relates to `package.el`; for example,
 references to `package-initialize`, `package-archives`, and (if you're
@@ -2896,6 +2912,7 @@ option `straight-cache-autoloads`.
   [#comparison/package.el/+straight.el]: #advantages-of-straightel
 [#user]: #user-manual
  [#user/install]: #installing-packages-programmatically
+  [#user/install/mod-detection]: #customizing-when-packages-are-built
   [#user/install/loading]: #customizing-how-packages-are-made-available
   [#user/install/hooks]: #hooks-run-by-straight-use-package
  [#user/recipes]: #the-recipe-format
