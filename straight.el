@@ -646,7 +646,7 @@ SORT has been inverted from `directory-files'. Finally, the . and
                             full match (not sort)))))
 
 (defun straight--symlink-recursively (link-target link-name)
-  "Make a symbolic link to LINK-TARGET, named LINKNAME, recursively.
+  "Make a symbolic link to LINK-TARGET, named LINK-NAME, recursively.
 This means that if the link target is a directory, then a
 corresponding directory is created (called LINK-NAME) and all
 descendants of LINK-TARGET are linked separately into
@@ -667,7 +667,11 @@ be interpreted later as a symlink."
     (make-directory (file-name-directory link-name) 'parents)
     (condition-case _
         (if straight-use-symlinks
-            (make-symbolic-link link-target link-name)
+            (if (executable-find "cmd")
+                (call-process "cmd" nil nil nil "/c" "mklink"
+                              (subst-char-in-string ?/ ?\\ link-name)
+                              (subst-char-in-string ?/ ?\\ link-target))
+              (make-symbolic-link link-target link-name))
           (copy-file link-target link-name)
           (let ((build-dir (straight--build-dir)))
             (when (straight--path-prefix-p build-dir link-name)
@@ -1199,18 +1203,31 @@ repository directory and delegates to the relevant
       (let ((straight--default-directory (straight--repos-dir local-repo)))
         (straight-vc 'push-to-remote type recipe)))))
 
-(defun straight-vc-check-out-commit (type local-repo commit)
-  "Using VC backend TYPE, in LOCAL-REPO, check out COMMIT.
-TYPE is a symbol like symbol `git', etc. LOCAL-REPO is a string
-naming a local package repository. The interpretation of COMMIT
-is defined by the backend, but it should be compatible with
-`straight-vc-get-commit'.
+(defun straight-vc-check-out-commit (recipe commit)
+  "Normalize the repo for RECIPE and check out COMMIT.
+
+If RECIPE does not specify a local repository, then no action is
+taken.
+
+The interpretation of COMMIT is defined by the backend, but it
+should be compatible with `straight-vc-get-commit'.
 
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
 `straight-vc-TYPE-check-out-commit'."
-  (let ((straight--default-directory (straight--repos-dir local-repo)))
-    (straight-vc 'check-out-commit type local-repo commit)))
+  (straight--with-plist recipe
+      (local-repo type)
+    (when local-repo
+      (let ((straight--default-directory (straight--repos-dir local-repo)))
+        (straight-vc 'check-out-commit type recipe commit)))))
+
+(defun straight-vc-commit-present-p (recipe commit)
+  "Check in RECIPE's repo if COMMIT can be checked out without fetching it.
+Return non-nil if the commit is available."
+  (straight--with-plist recipe
+      (local-repo type)
+    (let ((straight--default-directory (straight--repos-dir local-repo)))
+      (straight-vc 'commit-present-p type local-repo commit))))
 
 (defun straight-vc-get-commit (type local-repo)
   "Using VC backend TYPE, in LOCAL-REPO, return current commit.
@@ -1938,6 +1955,45 @@ with the remotes."
                   (straight-vc-git--ensure-head local-repo branch))
              (straight-register-repo-modification local-repo)))))
 
+(defcustom straight-vc-git-default-clone-depth 'full
+  "The default value for `:depth' when `:type' is the symbol `git'.
+
+The value should be the symbol `full' or an integer. If the value
+is `full', clone the whole history of repositories. If the value is
+an integer N, remote repositories are cloned with the option --depth N,
+unless a commit is specified (e.g. by version lockfiles)."
+  :group 'straight
+  :type '(choice integer (const full)))
+
+(cl-defun straight-vc-git--clone-internal
+    (&key depth upstream-remote url repo-dir branch)
+  "Clone a remote repository from URL.
+
+If DEPTH is the symbol `full', clone the whole history of the repository.
+If DEPTH is an integer, clone with the option --depth DEPTH --branch BRANCH.
+If this fails, try again to clone without the option --depth and --branch,
+as a fallback."
+  (cond
+   ((eq depth 'full)
+    ;; Clone the whole history of the repository.
+    (straight--get-call
+     "git" "clone" "--origin" upstream-remote
+     "--no-checkout" url repo-dir))
+   ((integerp depth)
+    ;; Do a shallow clone.
+    (condition-case nil
+        (straight--get-call
+         "git" "clone" "--origin" upstream-remote
+         "--no-checkout" url repo-dir
+         "--depth" (number-to-string depth)
+         "--branch" branch)
+      ;; Fallback for dumb http protocol.
+      (error (straight-vc-git--clone-internal :depth 'full
+                                              :upstream-remote upstream-remote
+                                              :url url
+                                              :repo-dir repo-dir))))
+   (t (error "Invalid value %S of depth for %s" depth url))))
+
 ;;;;;; API
 
 (defun straight-vc-git-clone (recipe commit)
@@ -1948,17 +2004,22 @@ specified in RECIPE instead. If that fails, signal a warning."
   (straight-vc-git--destructure recipe
       (package local-repo branch remote upstream-repo upstream-host
                upstream-remote fork-repo fork-host
-               fork-remote nonrecursive)
+               fork-remote nonrecursive depth)
     (unless upstream-repo
       (error "No `:repo' specified for package `%s'" package))
     (let ((success nil)
           (repo-dir (straight--repos-dir local-repo))
-          (url (straight-vc-git--encode-url upstream-repo upstream-host)))
+          (url (straight-vc-git--encode-url upstream-repo upstream-host))
+          (depth (or (when commit 'full)
+                     depth
+                     straight-vc-git-default-clone-depth)))
       (unwind-protect
           (progn
-            (straight--get-call
-             "git" "clone" "--origin" upstream-remote
-             "--no-checkout" url repo-dir)
+            (straight-vc-git--clone-internal :depth depth
+                                             :upstream-remote upstream-remote
+                                             :url url
+                                             :repo-dir repo-dir
+                                             :branch branch)
             (let ((straight--default-directory nil)
                   (default-directory repo-dir))
               (when fork-repo
@@ -2057,17 +2118,25 @@ If RECIPE does not configure a fork, do nothing."
   "Using straight.el-style RECIPE, push to primary remote, if necessary."
   (straight-vc-git--ensure-head-pushed recipe))
 
-(cl-defun straight-vc-git-check-out-commit (local-repo commit)
-  "In LOCAL-REPO, check out COMMIT.
-LOCAL-REPO is a string naming a local package repository. COMMIT
-is a 40-character string identifying a Git commit."
-  (straight-register-repo-modification local-repo)
-  (cl-block nil
-    (while t
-      (and (straight-vc-git--ensure-nothing-in-progress local-repo)
-           (straight-vc-git--ensure-worktree local-repo)
-           (straight--get-call "git" "checkout" commit)
-           (cl-return)))))
+(cl-defun straight-vc-git-check-out-commit (recipe commit)
+  "In RECIPE's repo, normalize and check out COMMIT.
+RECIPE is a straight recipe definition. COMMIT is a 40-character
+string identifying a Git commit."
+  (straight-vc-git--destructure recipe
+      (local-repo)
+    (straight-register-repo-modification local-repo)
+    (cl-block nil
+      (while t
+        (and (straight-vc-git--ensure-nothing-in-progress local-repo)
+             (straight-vc-git--ensure-worktree local-repo)
+             (straight-vc-git--ensure-local recipe)
+             (straight--get-call "git" "reset" "--hard" commit)
+             (cl-return))))))
+
+(cl-defun straight-vc-git-commit-present-p (_local-repo commit)
+  "Return non-nil if LOCAL-REPO has COMMIT present locally."
+  (straight--check-call "git" "rev-parse" "-q" "--verify"
+                        (format "%s^{commit}" commit)))
 
 (defun straight-vc-git-get-commit (_local-repo)
   "Return the current commit for the current local repository.
@@ -2095,7 +2164,7 @@ then returned."
 
 (defun straight-vc-git-keywords ()
   "Return a list of keywords used by the VC backend for Git."
-  '(:repo :host :branch :remote :nonrecursive :upstream :fork))
+  '(:repo :host :branch :remote :nonrecursive :upstream :fork :depth))
 
 ;;;; Fetching repositories
 
@@ -2505,7 +2574,7 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
 
 ;;;;; Recipe conversion
 
-(defcustom straight-built-in-pseudo-packages '(emacs)
+(defcustom straight-built-in-pseudo-packages '(emacs python)
   "List of built-in packages that aren't real packages.
 If any of these are specified as dependencies, straight.el will
 just skip them instead of looking for a recipe.
@@ -4966,7 +5035,7 @@ according to the value of `straight-profiles'."
               ;;
               ;; The version keyword comes after the versions alist so
               ;; that you can ignore it if you don't need it.
-              "(%s)\n:saturn\n"
+              "(%s)\n:neptune\n"
               (mapconcat
                (apply-partially #'format "%S")
                versions-alist
@@ -4983,12 +5052,13 @@ according to the value of `straight-profiles'."
        (let ((recipe (gethash package straight--recipe-cache)))
          (when (straight--repository-is-available-p recipe)
            (straight--with-plist recipe
-               (type local-repo)
+               (local-repo)
              ;; We can't use `alist-get' here because that uses
              ;; `eq', and our hash-table keys are strings.
              (when-let ((commit (cdr (assoc local-repo versions-alist))))
-               (straight-vc-check-out-commit
-                type local-repo commit)))))))))
+               (unless (straight-vc-commit-present-p recipe commit)
+                 (straight-vc-fetch-from-remote recipe))
+               (straight-vc-check-out-commit recipe commit)))))))))
 
 ;;;; Integration with other packages
 ;;;;; package.el "integration"

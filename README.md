@@ -99,6 +99,7 @@ chat][gitter-badge]][gitter]
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
 - [News](#news)
+  * [May 1, 2019](#may-1-2019)
   * [March 15, 2019](#march-15-2019)
   * [December 22, 2018](#december-22-2018)
   * [September 12, 2018](#september-12-2018)
@@ -1743,6 +1744,9 @@ a backend API method. The relevant methods are:
 
 * `clone`: given a recipe and a commit object, clone the repository
   and attempt to check out the given commit.
+* `commit-present-p`: given a recipe and a commit object, return
+  whether the commit can be checked out offline, i.e., without
+  fetching from the remote.
 * `normalize`: given a recipe, "normalize" the repository (this
   generally means reverting it to a standard state, such as a clean
   working directory, but does not entail checking out any particular
@@ -1758,8 +1762,8 @@ a backend API method. The relevant methods are:
   the local copy.
 * `push-to-remote`: given a recipe, push the current version of the
   repository to its configured remote, if one is specified.
-* `check-out-commit`: given a local repository name and a commit
-  object, attempt to check out that commit.
+* `check-out-commit`: given a recipe and a commit object, attempt to
+  check out that commit in the repository for that recipe.
 * `get-commit`: given a local repository name, return the commit
   object that is currently checked out.
 * `local-repo-name`: given a recipe, return a good name for the local
@@ -1799,6 +1803,11 @@ These are the keywords meaningful for the `git` backend:
   you can use the `fetch-from-upstream` method to operate on the
   upstream instead. The allowed keywords are `:repo`, `:host`,
   `:branch`, and `:remote`.
+* `:depth`: either the symbol `full` or an integer. If `full`, then
+  the repository is cloned with its whole history. If an integer `N`,
+  then the repository is cloned with the option `--depth N`, unless a
+  commit is specified (e.g. by version lockfiles). The default value
+  is `full`.
 
 This section tells you how the `git` backend, specifically, implements
 the version-control backend API:
@@ -1808,6 +1817,8 @@ the version-control backend API:
   your revision lockfile, or the `:branch` (from the `:fork`
   configuration, if given), or `origin/HEAD`. If a `:fork` is
   specified, also fetches from the upstream.
+* `commit-present-p`: checks if the commit SHA is among the revisions
+  that are present locally.
 * `normalize`: verifies that remote URLs are set correctly, that no
   merge is in progress, that the worktree is clean, and that the
   primary `:branch` (from the `:fork` configuration, if given) is
@@ -1828,7 +1839,8 @@ the version-control backend API:
   remote if necessary, and then pushes if necessary. This operation
   acts on the fork, if the package is forked.
 * `check-out-commit`: verifies that no merge is in progress and that
-  the worktree is clean, then checks out the specified commit.
+  the worktree is clean, then resets the worktree to the specified
+  commit.
 * `get-commit`: returns HEAD as a 40-character string.
 * `local-repo-name`: if `:host` is non-nil, then `:repo` will be of
   the form "username/repository", and "repository" is used. Otherwise,
@@ -1861,6 +1873,11 @@ You can customize the following user options:
   will quietly do fast-forward, to suppress asking for instructions on
   each package with updates, unless they're not trivial. Set to nil if
   you'd prefer to inspect all changes.
+* `straight-vc-git-default-clone-depth`: the default value for the
+  `:depth` keyword. It can be either the symbol `full` or an integer,
+  and defaults to `full`. Setting this variable to a small integer will
+  reduce the size of repositories. Note that this variable does *not*
+  affect packages whose versions are locked.
 
 ##### Deprecated `:upstream` keyword
 
@@ -2230,11 +2247,9 @@ make sure to check out the specified revisions of each package when
 cloning them for the first time.
 
 To install the versions of the packages specified in your version
-lockfiles, run `M-x straight-thaw-versions`. You may need to run `M-x
-straight-fetch-all` first to ensure that you have those versions
-available. Thawing will interactively check for local changes before
-checking out the relevant revisions, so don't worry about things
-getting overwritten.
+lockfiles, run `M-x straight-thaw-versions`. Thawing will
+interactively check for local changes before checking out the relevant
+revisions, so don't worry about things getting overwritten.
 
 #### The profile system
 
@@ -2628,7 +2643,7 @@ problem:
 
 * (Preferable) Fix `lsp-mode` to declare a dependency on `flymake`.
 * (Workaround) Manually invoke `(straight-use-package 'flymake)`
-  before `(straight-use-package 'flymake)`.
+  before `(straight-use-package 'company-lsp)`.
 
 If you test this yourself, you might find it difficult to reproduce
 the problem. That is because there is only an issue when Flymake is
@@ -2654,8 +2669,7 @@ UX of this situation.
 ### The interactive version-control operations are confusing
 
 This part of `straight.el` still needs some work; see [#54] about the
-UX of pushing and pulling, and [#58] about commits not being available
-when thawing a lockfile.
+UX of pushing and pulling.
 
 ### How do I pin package versions or use only tagged releases?
 
@@ -2672,6 +2686,14 @@ with Emacs, rather than cloning the upstream repository:
 [Read more.][#user/recipes]
 
 ## News
+### May 1, 2019
+
+`straight-thaw-versions` now fetches in a repository if a commit in
+your lockfile can not be found and normalizes the repository to the
+recipe's default branch. This should ensure that versions you have
+frozen can be quickly restored and that they can also be saved back to
+the version lock file. This addresses issues [#58], [#66], and [#294].
+
 ### March 15, 2019
 
 `straight.el` [now installs a hack for Org by
