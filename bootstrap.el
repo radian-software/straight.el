@@ -97,10 +97,15 @@
                                    :local-repo "elpa"
                                    :no-build t)))
 
-(straight-use-recipes '(emacsmirror :type git :host github
-                                    :repo "emacsmirror/epkgs"
-                                    :nonrecursive t
-                                    :no-build t))
+(if straight-recipes-emacsmirror-use-mirror
+    (straight-use-recipes
+     '(emacsmirror-mirror :type git :host github
+                          :repo "emacs-straight/emacsmirror-mirror"
+                          :no-build t))
+  (straight-use-recipes '(emacsmirror :type git :host github
+                                      :repo "emacsmirror/epkgs"
+                                      :nonrecursive t
+                                      :no-build t)))
 
 ;; Then we register (and build) straight.el itself.
 (straight-use-package `(straight :type git :host github

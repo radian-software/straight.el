@@ -2551,6 +2551,39 @@ ELPA, return a MELPA-style recipe. Otherwise, return nil."
 
 ;;;;;; Emacsmirror
 
+(defcustom straight-recipes-emacsmirror-use-mirror nil
+  "Non-nil means to retrieve Emacsmirror packages via a mirror.
+There is no disadvantage to doing this, and cloning the mirror is
+much faster than cloning the official Emacsmirror."
+  :type 'boolean)
+
+;;;;;;; Emacsmirror mirror
+
+(defun straight-recipes-emacsmirror-mirror-retrieve (package)
+  "Look up a PACKAGE recipe in the Emacsmirror mirror.
+PACKAGE should be a symbol. If the package is available from
+Emacsmirror, return a MELPA-style recipe; otherwise return nil."
+  (cl-block nil
+    (dolist (org '("mirror" "attic"))
+      (with-temp-buffer
+        (insert-file-contents-literally org)
+        (when (re-search-forward (format "^%S$" package) nil 'noerror)
+          (cl-return
+           `(,package :type git :host github
+                      :repo ,(format "emacs%s/%S" org package))))))))
+
+(defun straight-recipes-emacsmirror-mirror-list ()
+  "Return a list of recipes available in Emacsmirror, as a list of strings."
+  (let ((packages nil))
+    (dolist (org '("mirror" "attic"))
+      (with-temp-buffer
+        (insert-file-contents-literally org)
+        (setq packages (nconc (split-string (buffer-string) "\n" 'omit-nulls)
+                              packages))))
+    packages))
+
+;;;;;;; Emacsmirror source
+
 (defun straight-recipes-emacsmirror-retrieve (package)
   "Look up a PACKAGE recipe in Emacsmirror.
 PACKAGE should be a symbol. If the package is available from

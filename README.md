@@ -103,6 +103,7 @@ chat][gitter-badge]][gitter]
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
 - [News](#news)
+  * [May 22, 2019](#may-22-2019)
   * [May 1, 2019](#may-1-2019)
   * [March 15, 2019](#march-15-2019)
   * [December 22, 2018](#december-22-2018)
@@ -2039,6 +2040,22 @@ You can customize the following user options:
 
       (org-elpa melpa gnu-elpa emacsmirror)
 
+* `straight-recipes-emacsmirror-use-mirror`: Yes, there is also a
+  mirror for Emacsmirror. This is because the [epkgs] repository
+  contains a (frequently updated) SQLite database in it, which means
+  the Git repository takes *forever* to clone (see [#356]). My
+  solution to this problem is to generate a new repository which
+  contains the information that `straight.el` needs but which is much
+  smaller. By default, `straight.el` uses the official [epkgs]
+  repository to find packages on Emacsmirror, but you can tell it to
+  use my mirror by configuring the value of this variable to non-nil.
+  You must do any customization of this variable *before* the
+  `straight.el` [bootstrap][#quickstart]. Note that setting the value
+  of this user option to non-nil causes the default value of
+  `straight-recipe-repositories` to shift to:
+
+      (org-elpa melpa gnu-elpa-mirror emacsmirror-mirror)
+
 ##### Defining new recipe repositories
 
 To define a new recipe repository called `NAME`, you should do the
@@ -2767,6 +2784,14 @@ with Emacs, rather than cloning the upstream repository:
 [Read more.][#user/recipes]
 
 ## News
+### May 22, 2019
+
+I now maintain a mirror of Emacsmirror. (Bear with me here.) The
+advantage of using my mirror is that cloning it is several orders of
+magnitude faster than cloning the official Emacsmirror. You can tell
+`straight.el` to do so by customizing the user option
+`straight-emacsmirror-use-mirror` to non-nil.
+
 ### May 1, 2019
 
 `straight-thaw-versions` now fetches in a repository if a commit in
@@ -2913,6 +2938,7 @@ option `straight-cache-autoloads`.
 [#246]: https://github.com/raxod502/straight.el/issues/246
 [#323]: https://github.com/raxod502/straight.el/issues/323
 [#355]: https://github.com/raxod502/straight.el/issues/355
+[#356]: https://github.com/raxod502/straight.el/issues/356
 [#357]: https://github.com/raxod502/straight.el/issues/357
 
 [auto-compile]: https://github.com/tarsius/auto-compile
@@ -2924,6 +2950,7 @@ option `straight-cache-autoloads`.
 [emacsmirror]: https://emacsmirror.net/
 [emacswiki]: https://www.emacswiki.org/
 [epkg]: https://github.com/emacscollective/epkg
+[epkgs]: https://github.com/emacsmirror/epkgs
 [gitter]: https://gitter.im/raxod502/straight.el
 [gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg
 [gnu-elpa]: https://elpa.gnu.org/
