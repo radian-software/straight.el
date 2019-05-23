@@ -122,7 +122,7 @@ chat][gitter-badge]][gitter]
 ## Features
 
 * Install Emacs packages listed on [MELPA], [GNU ELPA][gnu-elpa], or
-  [EmacsMirror], or provide your own recipes.
+  [Emacsmirror], or provide your own recipes.
 * Packages are cloned as Git (or other) repositories, not as opaque
   tarballs.
 * Make changes to a package simply by editing its source code, no
@@ -159,7 +159,7 @@ chat][gitter-badge]][gitter]
 * No support whatsoever for `package.el`.
 * Edit packages by editing their code, no extra steps required. Allow
   for manual version control operations.
-* Compatibility with MELPA, GNU ELPA, and EmacsMirror.
+* Compatibility with MELPA, GNU ELPA, and Emacsmirror.
 * Trivial to quickly try out a package without permanently installing
   it.
 * Good for reproducing an issue with `emacs -Q`.
@@ -227,7 +227,7 @@ And adding this to your init-file, *before* the bootstrap snippet:
 ### Install packages
 
 Out of the box, you can install any package listed on [MELPA], [GNU
-ELPA][gnu-elpa], or [EmacsMirror], which is to say any package in
+ELPA][gnu-elpa], or [Emacsmirror], which is to say any package in
 existence. (Although MELPA is used as a package listing, packages are
 installed by cloning their Git repositories rather than by downloading
 tarballs like `package.el` does.) To install a package temporarily
@@ -774,7 +774,7 @@ alternatives to `straight.el`:
   can pull packages from (`package.el`, every known VCS, distro
   package managers, `go get`(!!)).
 * [Borg]: assimilates packages as Git submodules into `.emacs.d`,
-  relying on [EmacsMirror].
+  relying on [Emacsmirror].
 * "Screw package managers! I'll just handle it all myself!"
 
 ### TL;DR
@@ -859,7 +859,7 @@ And here is a brief list of the main reasons you might not want to use
 * `straight.el` allows you to check out any Git revision of any
   package. `package.el` only allows you to install the latest version,
   and there is no way to downgrade.
-* `straight.el` supports EmacsMirror, while `package.el` does not.
+* `straight.el` supports Emacsmirror, while `package.el` does not.
 * `straight.el` uses your init-file as the sole source of truth for
   package operations. `package.el` loads every package you ever
   installed at startup, even if some of those packages are no longer
@@ -944,7 +944,7 @@ And here is a brief list of the main reasons you might not want to use
   `package.el` can install these packages, while `straight.el` cannot.
   However, since `package.el` has no version-control support, this is
   more or less equivalent to installing those packages from the
-  [EmacsMirror], which `straight.el` can do by default.
+  [Emacsmirror], which `straight.el` can do by default.
 
 ### Comparison to Quelpa
 
@@ -957,9 +957,9 @@ And here is a brief list of the main reasons you might not want to use
 #### Advantages of `straight.el`
 
 * `straight.el` has out-of-the-box compatibility with MELPA, GNU ELPA,
-  and EmacsMirror, while Quelpa only has support for MELPA. To use GNU
-  ELPA, you must drop down to `package.el`. [EmacsMirror] is not
-  supported by default, although it is easy to specify an EmacsMirror
+  and Emacsmirror, while Quelpa only has support for MELPA. To use GNU
+  ELPA, you must drop down to `package.el`. [Emacsmirror] is not
+  supported by default, although it is easy to specify an Emacsmirror
   repository in a recipe. While Quelpa allows you to specify custom
   recipe folders, it does not have support for cloning these folders
   automatically from version control, nor for generating the recipes
@@ -1068,11 +1068,11 @@ offer corrections for this section.
 
 #### Advantages of `straight.el`
 
-* `straight.el` has out-of-the-box compatibility with EmacsMirror,
+* `straight.el` has out-of-the-box compatibility with Emacsmirror,
   while Cask only supports `package.el`-compliant repositories.
-  However, it is easy to specify an EmacsMirror repository in a
+  However, it is easy to specify an Emacsmirror repository in a
   recipe. Cask does not support custom package sources. `straight.el`
-  supports MELPA, GNU ELPA, and EmacsMirror, and allows you to add any
+  supports MELPA, GNU ELPA, and Emacsmirror, and allows you to add any
   other sources you would like.
 * `straight.el` has integrated support for selecting particular Git
   revisions of packages. This process is more manual in Cask, as it
@@ -1229,12 +1229,12 @@ offer corrections for this section.
 
 #### Advantages of `straight.el`
 
-* `straight.el` supports MELPA, GNU ELPA, EmacsMirror, and custom
-  recipe sources. Borg only supports EmacsMirror and custom recipe
-  sources. However, as the EmacsMirror is a near-complete superset of
+* `straight.el` supports MELPA, GNU ELPA, Emacsmirror, and custom
+  recipe sources. Borg only supports Emacsmirror and custom recipe
+  sources. However, as the Emacsmirror is a near-complete superset of
   both GNU ELPA and MELPA, this does not necessarily mean you have
   access to more packages: it just means you benefit from the recipe
-  maintenance efforts of the MELPA team and the EmacsMirror team,
+  maintenance efforts of the MELPA team and the Emacsmirror team,
   rather than only the latter.
 * Borg, even when combined with related tools, do not allow for the
   kind of massive interactive repository management provided by
@@ -1831,7 +1831,7 @@ These are the keywords meaningful for the `git` backend:
 * `:remote`: the name to use for the Git remote. If the package is
   forked, this name is used for the upstream remote.
 * `:nonrecursive`: if non-nil, then submodules are not cloned. This is
-  particularly important for the EmacsMirror recipe repository, which
+  particularly important for the Emacsmirror recipe repository, which
   contains every known Emacs package in existence as submodules.
 * `:fork`: a plist which specifies settings for a fork, if desired.
   This causes the `fetch-from-remote` method to operate on the fork;
@@ -1939,7 +1939,7 @@ place of `straight-vc-git-default-remote-name`.
 
 If you only provide a symbol (package name) to `straight-use-package`,
 then the recipe is looked up automatically. By default, [MELPA], [GNU
-ELPA][gnu-elpa], and [EmacsMirror] are searched for recipes, in that
+ELPA][gnu-elpa], and [Emacsmirror] are searched for recipes, in that
 order. This means that one or more of them may need to be cloned.
 Recipe repositories are actually just the same as ordinary packages,
 except that their recipes specify `:no-build`, so they are not

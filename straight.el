@@ -15,7 +15,7 @@
 ;; clones packages into your ~/.emacs.d and handles byte-compilation,
 ;; autoload generation, and load path management. Dependency
 ;; management, powerful tools for managing your packages in bulk, and
-;; out-of-the-box compatibility with MELPA, GNU ELPA, and EmacsMirror
+;; out-of-the-box compatibility with MELPA, GNU ELPA, and Emacsmirror
 ;; are also included.
 
 ;; straight.el improves on other package managers in several ways.
@@ -2549,7 +2549,7 @@ ELPA, return a MELPA-style recipe. Otherwise, return nil."
   "Return the current version of the GNU ELPA retriever."
   1)
 
-;;;;;; EmacsMirror
+;;;;;; Emacsmirror
 
 (defun straight-recipes-emacsmirror-retrieve (package)
   "Look up a PACKAGE recipe in Emacsmirror.
@@ -2578,7 +2578,7 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
              `(,package :type git :repo ,repo))))))
 
 (defun straight-recipes-emacsmirror-list ()
-  "Return a list of recipes available in EmacsMirror, as a list of strings."
+  "Return a list of recipes available in Emacsmirror, as a list of strings."
   (append
    (straight--directory-files "mirror")
    (straight--directory-files "attic")))
