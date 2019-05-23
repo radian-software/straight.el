@@ -144,24 +144,21 @@
        `(progn
           ;; Pass relevant variables into the child Emacs, if they
           ;; have been set.
-          ,@(cl-mapcan (lambda (variable)
-                         (when (boundp variable)
-                           `((setq ,variable ',(symbol-value variable)))))
-                       '(bootstrap-version
-                         straight-arrow
-                         straight-current-profile
-                         straight-default-vc
-                         straight-profiles
-                         straight-recipe-overrides
-                         straight-recipe-repositories
-                         straight-recipes-gnu-elpa-url
-                         straight-repository-branch
-                         straight-vc-git-default-branch
-                         straight-vc-git-default-protocol
-                         straight-vc-git-force-protocol
-                         straight-vc-git-primary-remote
-                         straight-vc-git-upstream-remote
-                         user-emacs-directory)))
+          ,@(let* ((vars nil)
+                   (regexps '("bootstrap-version"
+                              "straight-[a-z-]+"
+                              "user-emacs-directory"))
+                   (regexp (format "^\\(%s\\)$"
+                                   (mapconcat #'identity regexps "\\|"))))
+              (mapatoms
+               (lambda (sym)
+                 (when (and (boundp sym)
+                            (string-match-p regexp (symbol-name sym))
+                            (not (string-match-p "--" (symbol-name sym))))
+                   (push sym vars))))
+              (mapcar (lambda (var)
+                        `(setq ,var ',(symbol-value var)))
+                      vars)))
        (current-buffer))
       (goto-char (point-max))
       (print
