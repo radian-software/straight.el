@@ -71,12 +71,6 @@
 ;; have to explicitly clear the caches.
 (straight--reset-caches)
 
-;; Treat the first init as a transaction.
-(unless (and after-init-time (not (bound-and-true-p straight-treat-as-init)))
-  (add-hook 'after-init-hook #'straight-finalize-transaction)
-  (straight-begin-transaction)
-  (straight-mark-transaction-as-init))
-
 ;; We start by registering the default recipe repositories. This is
 ;; done first so that any dependencies of straight.el can be looked up
 ;; correctly.

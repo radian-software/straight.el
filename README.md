@@ -83,7 +83,7 @@ chat][gitter-badge]][gitter]
     + [Version control operations](#version-control-operations)
   * [Lockfile management](#lockfile-management)
     + [The profile system](#the-profile-system)
-  * [The transaction system](#the-transaction-system)
+  * [Packages and the init-file](#packages-and-the-init-file)
   * [Using `straight.el` to reproduce bugs](#using-straightel-to-reproduce-bugs)
   * [Integration with other packages](#integration-with-other-packages)
     + [Integration with `use-package`](#integration-with-use-package-1)
@@ -103,6 +103,7 @@ chat][gitter-badge]][gitter]
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
 - [News](#news)
+  * [May 24, 2019](#may-24-2019)
   * [May 22, 2019](#may-22-2019)
   * [May 1, 2019](#may-1-2019)
   * [March 15, 2019](#march-15-2019)
@@ -114,7 +115,6 @@ chat][gitter-badge]][gitter]
   * [June 21, 2018](#june-21-2018)
   * [June 5, 2018](#june-5-2018)
   * [May 31, 2018](#may-31-2018)
-  * [April 21, 2018](#april-21-2018)
 
 <!-- tocstop -->
 
@@ -412,9 +412,7 @@ which are just packages themselves (albeit with the build step
 disabled).
 
 `straight.el` determines which packages are installed solely by how
-and when `straight-use-package` is invoked in your init-file, so some
-optimizations and validation operations require you to provide
-additional contextual information by declaring "transaction" blocks.
+and when `straight-use-package` is invoked in your init-file.
 
 ### What is a package?
 
@@ -729,48 +727,20 @@ This creates some interesting challenges which other package managers
 do not have to deal with.
 
 `straight.el` solves these problems using a concept called
-*transactions*. Transactions are a way of grouping calls to
-`straight-use-package`. They are actually used in many contexts to
-support various optimizations, but perhaps their most important use is
-in defining the packages that are loaded by your init-file.
+*transactions*. The operation of the transaction system is mostly
+transparent to the user, at least in recent versions of `straight.el`.
+Basically, it provides a way for `straight.el` to keep track of what
+happens within a single user operation (e.g. evaluate a buffer of
+`straight-use-package` calls, or load the init-file).
 
-During initial Emacs init, `after-init-hook` is used to determine when
-your init-file has finished loading. Thus `straight.el` can tell the
-difference between packages loaded by your init-file, and packages
-installed interactively.
-
-However, you may want to add packages to your init-file without
-restarting Emacs. How can this be done? You need simply re-evaluate
-your whole init-file within a single transaction. Practically, this is
-done by having your function to reload your init-file wrap the `load`
-call in a `straight-transaction` block. This allows `straight.el` to
-tell exactly which packages are now referenced by your init-file.
-
-So what is the use of this? Well, an operation like `M-x
-straight-freeze-versions` requires an exact knowledge of what packages
-are required by your init-file, so that it does not write
-interactively installed packages into your lockfiles. The
-`straight-freeze-versions` function uses the information it gains from
-the transaction system in order to prompt you to reload your init-file
-if you have installed packages since the last time your init-file was
-loaded (and `straight.el` therefore was able to determine which
-packages were actually part of your init-file).
-
-Finally, a note on the use of transactions for optimizations. There
-are a number of setup and tear-down operations associated with package
-management. For example, to keep track of when packages need to be
-rebuilt, `straight.el` keeps a persistent build cache. Normally, this
-cache needs to be read and written after every package install. But
-that is very slow: much better is to load it at the first package
-install, and to save it at the last package install. The question then
-is how to identify the last package install. This is not possible in
-general (although in the special case of initial Emacs init,
-`after-init-hook` can be used), so `straight.el` falls back on the
-transaction system. By wrapping the entire operation in a transaction,
-`straight.el` can safely optimize the loading and saving of the build
-cache, significantly improving performance. For this reason, reloading
-your init-file is likely to be rather slow if you do not wrap the call
-in a transaction using `straight-transaction`.
+`straight.el` uses the transaction system to keep track of what
+packages you request in your init-file. If you invoke
+`straight-use-package` interactively, then this invalidates that
+information, since you have now requested a package that is not in
+your init-file. For this reason, if you have invoked
+`straight-use-package` interactively, running `M-x
+straight-freeze-versions` will prompt you to first reload your
+init-file.
 
 ## Comparison to other package managers
 
@@ -2100,9 +2070,9 @@ following things:
   change the logic, this version value must be changed. If this
   function is defined, then `straight.el` automatically and
   transparently caches calls to `straight-recipes-NAME-retrieve`
-  within a single [transaction][#user/transactions], using your
-  version value (and detection of modifications to the recipe
-  repository) to decide when to invalidate the cache.
+  persistently, using your version value (and its detection of
+  modifications to the recipe repository) to decide when to invalidate
+  the cache.
 * Call `straight-use-recipes` with the recipe for your recipe
   repository. Make sure to include `:no-build` in the recipe, unless
   you also want to use the recipe repository as an executable Emacs
@@ -2241,16 +2211,15 @@ allow you to select a particular package to check or rebuild.
 
 Finally, you may use `M-x straight-prune-build` in order to tell
 `straight.el` to forget about any packages which were not registered
-since the last init transaction (see [the transaction
-system][#user/transactions]). This may improve performance, although
-only slightly, and will clean up stale entries in the `build`
-directory. You can call this function in your init-file if you really
-wish your filesystem to be as clean as possible, although it's not
-particularly recommended as the performance implications are
-uninvestigated. If you do call it in your init-file, be sure to only
-call it on a fully successful init; otherwise, an error during init
-will result in some packages' build information being discarded, and
-they will need to be rebuilt next time.
+since the last time you loaded your init-file. This may improve
+performance, although only slightly, and will clean up stale entries
+in the `build` directory. You can call this function in your init-file
+if you really wish your filesystem to be as clean as possible,
+although it's not particularly recommended as the performance
+implications are uninvestigated. If you do call it in your init-file,
+be sure to only call it on a fully successful init; otherwise, an
+error during init will result in some packages' build information
+being discarded, and they will need to be rebuilt next time.
 
 If you have enabled [autoloads caching][#user/install/loading], it is
 advisable to call `straight-prune-build` occasionally, since otherwise
@@ -2385,7 +2354,7 @@ Similarly, when using `M-x straight-thaw-versions`, if different
 lockfiles specify revisions for the same local repository, the last
 one in `straight-profiles` will take precedence.
 
-### The transaction system
+### Packages and the init-file
 
 Package managers like `package.el` store mutable state outside your
 init-file, including the set of packages that are installed.
@@ -2406,77 +2375,15 @@ of your init-file, and not just part of a temporary
 simple: *reload your entire init-file*. That way, `straight.el` will
 see whether or not that package is registered during your init-file.
 
-`straight.el` can tell when you have started to load your init-file by
-when its bootstrap code is invoked. When Emacs is first started, it
-can tell when the init-file is done loaded using `after-init-hook`.
-But unfortunately there is no way to tell when a *re-init* has
-finished. This is where the transaction system comes in.
-
-You can use the `straight-transaction` macro to wrap a block of code
-in a single transaction. This allows `straight.el` to perform various
-optimizations, and also to analyze the results of that block of code
-on your package management state as a single operation. In particular,
-if you call `straight-mark-transaction-as-init` within the transaction
-body, then `straight.el` considers that block of code as having the
-effect of reloading your init-file. Importantly, the transaction block
-tells `straight.el` when your init-file has *finished* loading. This
-allows it to correctly identify whether your package management state
-perfectly reflects your init-file, or whether you need to reload your
-init-file. (This information is used by `M-x
-straight-freeze-versions`.)
-
-Here is an example of a properly implemented interactive function to
-reload the init-file:
-
-    (defun radian-reload-init ()
-      "Reload init.el."
-      (interactive)
-      (straight-transaction
-        (straight-mark-transaction-as-init)
-        (message "Reloading init.el...")
-        (load user-init-file nil 'nomessage)
-        (message "Reloading init.el... done.")))
-
-The transaction system is also used for performing various
-optimizations. The details of these optimizations are relegated to the
-[developer manual][#dev/transactions], but the user-facing impact is
-as follows: any time you are evaluating more than one
-`straight-use-package` form, the operation will be faster if you wrap
-it in a `straight-transaction` block. If the operation happens to
-correspond to a reloading of the init-file, then you should call
-`straight-mark-transaction-as-init`: this will not increase
-performance further, but it will allow the `straight-freeze-versions`
-function to know that the resulting package management state is a
-clean reflection of the state of your init-file.
-
-Here is an example of an `eval-buffer` function that correctly takes
-advantage of the transaction system for performance, and also marks
-the transaction as an init-file reloading when appropriate:
-
-    (defun radian-eval-buffer ()
-      "Evaluate the current buffer as Elisp code."
-      (interactive)
-      (message "Evaluating %s..." (buffer-name))
-      (straight-transaction
-        (if (null buffer-file-name)
-            (eval-buffer)
-          (when (string= buffer-file-name user-init-file)
-            (straight-mark-transaction-as-init))
-          (load-file buffer-file-name)))
-      (message "Evaluating %s... done." (buffer-name)))
-
-There is one final user-facing note about the transaction system,
-which is important when you want to load your init-file after Emacs
-init has already completed, but before `straight.el` has been loaded
-(so you cannot just wrap the call in `straight-transaction`). To cover
-this edge case (which arises, for example, when you wish to profile
-your init-file using something like `esup`), you should use the
-following pattern:
-
-    (unwind-protect
-        (let ((straight-treat-as-init t))
-          "load your init-file here")
-      (straight-finalize-transaction))
+One might ask how `straight.el` determines that you have finished
+loading your init-file. The answer is simple: `run-with-idle-timer` is
+used to execute code only after the current interactive operation has
+finished. The implementation of this concept is part of the
+*transaction system* of `straight.el`, and it is also used to amortize
+certain performance costs when many calls to `straight-use-package`
+are made sequentially. However, since the transaction system (at least
+in recent versions of `straight.el`) operates transparently, its
+details are relegated to the [developer manual][#dev/transactions].
 
 ### Using `straight.el` to reproduce bugs
 
@@ -2825,6 +2732,19 @@ with Emacs, rather than cloning the upstream repository:
 [Read more.][#user/recipes]
 
 ## News
+### May 24, 2019
+
+I have completely rewritten the transaction system. The practical
+impact of this is that you no longer have to care about it. Simply
+remove all references to the following functions and variables from
+your configuration, and everything should "just work":
+
+* `straight-transaction`
+* `straight-begin-transaction`
+* `straight-finalize-transaction`
+* `straight-mark-transaction-as-init`
+* `straight-treat-as-init`
+
 ### May 22, 2019
 
 I now maintain a mirror of Emacsmirror. (Bear with me here.) The
@@ -2919,12 +2839,6 @@ repository management commands. Also, manually invoking
 
 Autoloads caching is now enabled by default.
 
-### April 21, 2018
-
-There is now experimental support for caching autoloads in a single
-file, which should improve performance at startup. See the new user
-option `straight-cache-autoloads`.
-
 [#principles]: #guiding-principles
 [#quickstart]: #getting-started
 [#faq]: #faq
@@ -2952,7 +2866,6 @@ option `straight-cache-autoloads`.
   [#user/interactive/vc]: #version-control-operations
  [#user/lockfiles]: #lockfile-management
   [#user/lockfiles/profiles]: #the-profile-system
- [#user/transactions]: #the-transaction-system
  [#user/integration]: #integration-with-other-packages
   [#user/integration/use-package]: #integration-with-use-package-1
   [#user/integration/org]: #integration-with-org
