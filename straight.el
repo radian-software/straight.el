@@ -963,15 +963,31 @@ cdrs are their END-FUNCs.
 
 If nil, no transaction is not live.")
 
+(defun straight--transaction-finalize-on-idle ()
+  "Schedule to finalize the current transaction on Emacs idle.
+This means that `straight--transaction-finalize' will be invoked
+using an idle timer."
+  (run-with-idle-timer
+   0 nil #'straight--transaction-finalize))
+
 (defun straight--transaction-finalize ()
   "Finalize the current transaction.
 This means clearing `straight--transaction-alist' and executing
 the functions recorded in it."
-  (let ((alist straight--transaction-alist))
-    (setq straight--transaction-alist nil)
-    (dolist (end-func (mapcar #'cdr alist))
-      (when end-func
-        (funcall end-func)))))
+  ;; If we're inside a recursive edit, then don't finalize the
+  ;; transaction yet. Instead, arrange to schedule another idle timer
+  ;; once the user exits the recursive edit via one of the functions
+  ;; listed below.
+  (if (zerop (recursion-depth))
+      (let ((alist straight--transaction-alist))
+        (setq straight--transaction-alist nil)
+        (dolist (func '(exit-recursive-edit abort-recursive-edit top-level))
+          (advice-remove func #'straight--transaction-finalize-on-idle))
+        (dolist (end-func (mapcar #'cdr alist))
+          (when end-func
+            (funcall end-func))))
+    (dolist (func '(exit-recursive-edit abort-recursive-edit top-level))
+      (advice-add func :before #'straight--transaction-finalize-on-idle))))
 
 (cl-defun straight--transaction-exec (id &key now later manual)
   "Execute functions within a transaction.
@@ -987,9 +1003,11 @@ future `straight--transaction-exec' calls.
 
 If MANUAL is non-nil, do not arrange for finalizing the
 transaction. In this case, the caller must do this itself."
+  ;; If `straight--transaction-alist' is non-nil, then we've already
+  ;; started a transaction, but haven't yet finalized it. Don't
+  ;; schedule more idle timers.
   (unless (or manual straight--transaction-alist)
-    (run-with-idle-timer
-     0 nil #'straight--transaction-finalize))
+    (straight--transaction-finalize-on-idle))
   (unless (assq id straight--transaction-alist)
     ;; Push to start of list. At the end, we'll read forward, thus in
     ;; reverse order.
