@@ -4665,14 +4665,14 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
                                (and table (gethash 'version table))
                                (funcall func))))
                  (remhash (intern package) straight--recipe-lookup-cache)))
-             (run-hook-with-args
-              'straight-use-package-pre-build-functions package)
              (unless no-build
                ;; Multi-file packages will need to be on the
                ;; `load-path' in order to byte-compile properly. So we
                ;; do this before `straight--build-package'.
                (straight--add-package-to-load-path recipe))
              (when (and modified (not no-build))
+               (run-hook-with-args
+                'straight-use-package-pre-build-functions package)
                (straight--build-package recipe cause))
              ;; We need to do this even if the package wasn't built,
              ;; so we can keep track of modifications.
