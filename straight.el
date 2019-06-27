@@ -3956,7 +3956,8 @@ this run of straight.el)."
                  ;; really need is the dependency alist. If it's
                  ;; missing or malformed, we just assume the package
                  ;; has no dependencies.
-                 (re-search-forward "^;; Package-Requires: ")
+                 (let ((case-fold-search t))
+                   (re-search-forward "^;; Package-Requires: "))
                  (when (looking-at "(")
                    (straight--process-dependencies
                     (read (current-buffer)))))))))
