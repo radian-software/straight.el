@@ -2226,18 +2226,20 @@ If RECIPE does not configure a fork, do nothing."
 
 (cl-defun straight-vc-git-check-out-commit (recipe commit)
   "In RECIPE's repo, normalize and check out COMMIT.
-RECIPE is a straight recipe definition. COMMIT is a 40-character
+RECIPE is a straight.el-style recipe. COMMIT is a 40-character
 string identifying a Git commit."
   (straight-vc-git--destructure recipe
       (local-repo)
-    (straight-register-repo-modification local-repo)
     (cl-block nil
       (while t
-        (and (straight-vc-git--ensure-nothing-in-progress local-repo)
-             (straight-vc-git--ensure-worktree local-repo)
-             (straight-vc-git--ensure-local recipe)
-             (straight--get-call "git" "reset" "--hard" commit)
-             (cl-return))))))
+        (or (and (straight-vc-git--ensure-nothing-in-progress local-repo)
+                 (straight-vc-git--ensure-worktree local-repo)
+                 (straight-vc-git--ensure-local recipe)
+                 (or (equal
+                      commit (straight--get-call "git" "rev-parse" "HEAD"))
+                     (straight--get-call "git" "reset" "--hard" commit))
+                 (cl-return))
+            (straight-register-repo-modification local-repo))))))
 
 (cl-defun straight-vc-git-commit-present-p (_local-repo commit)
   "Return non-nil if LOCAL-REPO has COMMIT present locally."
