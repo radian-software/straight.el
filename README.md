@@ -61,6 +61,7 @@ chat][gitter-badge]][gitter]
     + [Additional arguments to `straight-use-package`](#additional-arguments-to-straight-use-package)
     + [Variants of `straight-use-package`](#variants-of-straight-use-package)
     + [Customizing when packages are built](#customizing-when-packages-are-built)
+      - [Custom or manual modification detection](#custom-or-manual-modification-detection)
       - [Summary of options for package modification detection](#summary-of-options-for-package-modification-detection)
         * [`find-at-startup`](#find-at-startup)
         * [`check-on-save`](#check-on-save)
@@ -1556,6 +1557,25 @@ variable are set during bootstrap.
 On Microsoft Windows, `find(1)` is generally not available, so the
 default value of `straight-check-for-modifications` is instead
 `(check-on-save)`.
+
+##### Custom or manual modification detection
+
+You can also use the low-level functions for modification detection
+directly.
+
+The function `straight-register-repo-modification` takes a string
+(e.g. `"straight.el"`) corresponding to the name of a local
+repository, and marks all packages from that local repository to be
+rebuilt at next Emacs startup. This function silently ignores local
+repositories which contain slashes, a limitation which might be
+removed in future.
+
+The function `straight-register-file-modification` takes no arguments
+and checks if the file visited by the current buffer (if any) is
+contained by any local repository. If so, it delegates to
+`straight-register-repo-modification`. The `check-on-save` value for
+`straight-check-for-modifications` just adds
+`straight-register-file-modification` to `before-save-hook`.
 
 ##### Summary of options for package modification detection
 ###### `find-at-startup`
