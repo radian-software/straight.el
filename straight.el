@@ -1,4 +1,4 @@
-;;; straight.el --- Next-generation package manager. -*- lexical-binding: t -*-
+;;; straight.el --- Next-generation package manager -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2017-2018 Radon Rosborough and contributors
 
