@@ -104,6 +104,7 @@ chat][gitter-badge]][gitter]
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
 - [News](#news)
+  * [July 6, 2019](#july-6-2019)
   * [May 24, 2019](#may-24-2019)
   * [May 22, 2019](#may-22-2019)
   * [May 1, 2019](#may-1-2019)
@@ -112,10 +113,6 @@ chat][gitter-badge]][gitter]
   * [September 12, 2018](#september-12-2018)
   * [July 19, 2018](#july-19-2018)
   * [July 12, 2018](#july-12-2018)
-  * [June 24, 2018](#june-24-2018)
-  * [June 21, 2018](#june-21-2018)
-  * [June 5, 2018](#june-5-2018)
-  * [May 31, 2018](#may-31-2018)
 
 <!-- tocstop -->
 
@@ -2752,6 +2749,11 @@ with Emacs, rather than cloning the upstream repository:
 [Read more.][#user/recipes]
 
 ## News
+### July 6, 2019
+
+The default value of the user option `straight-emacsmirror-use-mirror`
+is now non-nil.
+
 ### May 24, 2019
 
 I have completely rewritten the transaction system. The practical
@@ -2831,33 +2833,6 @@ You can tell `straight.el` to use it by customizing the user option
 packages such as AUCTeX correctly, which was previously impossible.
 Note that the user option must be customized *before* the
 `straight.el` [bootstrap][#quickstart].
-
-### June 24, 2018
-
-You can now use the [`watchexec`][watchexec] utility to detect
-modifications to package files and trigger rebuilds when appropriate.
-This produces a faster startup time than using `find(1)`, yet is more
-robust than live modification detection via `before-save-hook`.
-Customize `straight-check-for-modifications` to try it out.
-
-### June 21, 2018
-
-There is an improved API for `straight-check-for-modifications`. You
-may now specify a list of symbols instead of just a single symbol. See
-the docstring for more information.
-
-### June 5, 2018
-
-Live modification checking is significantly improved. It no longer
-misses modifications if you have multiple Emacs sessions or use the
-repository management commands. Also, manually invoking
-`straight-check-package` or `straight-check-all` can still use
-`find(1)` to catch missed modifications, if you customize
-`straight-check-for-modifications` to `live-with-find`.
-
-### May 31, 2018
-
-Autoloads caching is now enabled by default.
 
 [#principles]: #guiding-principles
 [#quickstart]: #getting-started

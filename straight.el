@@ -2639,7 +2639,7 @@ ELPA, return a MELPA-style recipe. Otherwise, return nil."
 
 ;;;;;; Emacsmirror
 
-(defcustom straight-recipes-emacsmirror-use-mirror nil
+(defcustom straight-recipes-emacsmirror-use-mirror t
   "Non-nil means to retrieve Emacsmirror packages via a mirror.
 There is no disadvantage to doing this, and cloning the mirror is
 much faster than cloning the official Emacsmirror."
