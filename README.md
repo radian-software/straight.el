@@ -61,6 +61,10 @@ chat][gitter-badge]][gitter]
     + [Additional arguments to `straight-use-package`](#additional-arguments-to-straight-use-package)
     + [Variants of `straight-use-package`](#variants-of-straight-use-package)
     + [Customizing when packages are built](#customizing-when-packages-are-built)
+      - [Summary of options for package modification detection](#summary-of-options-for-package-modification-detection)
+        * [`find-at-startup`](#find-at-startup)
+        * [`check-on-save`](#check-on-save)
+        * [`watch-files`](#watch-files)
     + [Customizing how packages are built](#customizing-how-packages-are-built)
     + [Customizing how packages are made available](#customizing-how-packages-are-made-available)
     + [Hooks run by `straight-use-package`](#hooks-run-by-straight-use-package)
@@ -79,7 +83,7 @@ chat][gitter-badge]][gitter]
     + [Version control operations](#version-control-operations)
   * [Lockfile management](#lockfile-management)
     + [The profile system](#the-profile-system)
-  * [The transaction system](#the-transaction-system)
+  * [Packages and the init-file](#packages-and-the-init-file)
   * [Using `straight.el` to reproduce bugs](#using-straightel-to-reproduce-bugs)
   * [Integration with other packages](#integration-with-other-packages)
     + [Integration with `use-package`](#integration-with-use-package-1)
@@ -99,6 +103,8 @@ chat][gitter-badge]][gitter]
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
 - [News](#news)
+  * [May 24, 2019](#may-24-2019)
+  * [May 22, 2019](#may-22-2019)
   * [May 1, 2019](#may-1-2019)
   * [March 15, 2019](#march-15-2019)
   * [December 22, 2018](#december-22-2018)
@@ -109,7 +115,6 @@ chat][gitter-badge]][gitter]
   * [June 21, 2018](#june-21-2018)
   * [June 5, 2018](#june-5-2018)
   * [May 31, 2018](#may-31-2018)
-  * [April 21, 2018](#april-21-2018)
 
 <!-- tocstop -->
 
@@ -118,7 +123,7 @@ chat][gitter-badge]][gitter]
 ## Features
 
 * Install Emacs packages listed on [MELPA], [GNU ELPA][gnu-elpa], or
-  [EmacsMirror], or provide your own recipes.
+  [Emacsmirror], or provide your own recipes.
 * Packages are cloned as Git (or other) repositories, not as opaque
   tarballs.
 * Make changes to a package simply by editing its source code, no
@@ -155,7 +160,7 @@ chat][gitter-badge]][gitter]
 * No support whatsoever for `package.el`.
 * Edit packages by editing their code, no extra steps required. Allow
   for manual version control operations.
-* Compatibility with MELPA, GNU ELPA, and EmacsMirror.
+* Compatibility with MELPA, GNU ELPA, and Emacsmirror.
 * Trivial to quickly try out a package without permanently installing
   it.
 * Good for reproducing an issue with `emacs -Q`.
@@ -184,10 +189,26 @@ First, place the following bootstrap code in your init-file:
 
 <!-- longlines-stop -->
 
-Even if you want to use a particular version or branch of
-`straight.el`, or even your own fork, this code does not need to be
-modified. To learn more, see the documentation on [configuring the
-installation of `straight.el`][#user/overriding/straight.el].
+Here are some variables you may be interested in (some of them must be
+set **before** the bootstrap code runs, if they might affect how
+`straight.el` itself is loaded):
+
+* [`straight-repository-branch`][#user/overriding/straight.el] -- to
+  get the latest version of `straight.el` from the `develop` branch,
+  rather than the default `master` which is updated less frequently
+  but which is ostensibly more stable.
+* [`straight-check-for-modifications`][#user/install/mod-detection] --
+  to configure an alternate way for `straight.el` to check for
+  modifications made to package source code, rather than the default
+  (which is 100% reliable, but has a minor cost to startup time).
+* [`straight-use-package-by-default`][#user/integration/use-package]
+  -- if you use [`use-package`][use-package], then this makes each
+  `use-package` form also invoke `straight.el` to install the package,
+  unless otherwise specified.
+* [`straight-vc-git-default-protocol`][#user/recipes/git] -- by
+  default, `straight.el` clones over HTTPS. If you need packages from
+  private Git repositories in your configuration, then you might want
+  to use SSH instead.
 
 You should remove any code that relates to `package.el`; for example,
 references to `package-initialize`, `package-archives`, and (if you're
@@ -223,7 +244,7 @@ And adding this to your init-file, *before* the bootstrap snippet:
 ### Install packages
 
 Out of the box, you can install any package listed on [MELPA], [GNU
-ELPA][gnu-elpa], or [EmacsMirror], which is to say any package in
+ELPA][gnu-elpa], or [Emacsmirror], which is to say any package in
 existence. (Although MELPA is used as a package listing, packages are
 installed by cloning their Git repositories rather than by downloading
 tarballs like `package.el` does.) To install a package temporarily
@@ -330,12 +351,14 @@ interactive workflows to perform bulk operations on your packages.
   straight-normalize-all`.
 
 * To fetch from each package's configured remote, run `M-x
-  straight-fetch-package` or `M-x straight-fetch-all`; to also fetch
-  from the upstream for forked packages, supply a prefix argument.
+  straight-fetch-package-and-deps` or `M-x straight-fetch-all`; to
+  also fetch from the upstream for forked packages, supply a prefix
+  argument.
 
 * To merge changes from each package's configured remote, run `M-x
-  straight-merge-package` or `M-x straight-merge-all`; to also merge
-  from the upstream for forked packages, supply a prefix argument.
+  straight-merge-package-and-deps` or `M-x straight-merge-all`; to
+  also merge from the upstream for forked packages, supply a prefix
+  argument.
 
 * To push all local changes to each package's configured remote, run
   `M-x straight-push-package` or `M-x straight-push-all`.
@@ -389,9 +412,7 @@ which are just packages themselves (albeit with the build step
 disabled).
 
 `straight.el` determines which packages are installed solely by how
-and when `straight-use-package` is invoked in your init-file, so some
-optimizations and validation operations require you to provide
-additional contextual information by declaring "transaction" blocks.
+and when `straight-use-package` is invoked in your init-file.
 
 ### What is a package?
 
@@ -706,48 +727,20 @@ This creates some interesting challenges which other package managers
 do not have to deal with.
 
 `straight.el` solves these problems using a concept called
-*transactions*. Transactions are a way of grouping calls to
-`straight-use-package`. They are actually used in many contexts to
-support various optimizations, but perhaps their most important use is
-in defining the packages that are loaded by your init-file.
+*transactions*. The operation of the transaction system is mostly
+transparent to the user, at least in recent versions of `straight.el`.
+Basically, it provides a way for `straight.el` to keep track of what
+happens within a single user operation (e.g. evaluate a buffer of
+`straight-use-package` calls, or load the init-file).
 
-During initial Emacs init, `after-init-hook` is used to determine when
-your init-file has finished loading. Thus `straight.el` can tell the
-difference between packages loaded by your init-file, and packages
-installed interactively.
-
-However, you may want to add packages to your init-file without
-restarting Emacs. How can this be done? You need simply re-evaluate
-your whole init-file within a single transaction. Practically, this is
-done by having your function to reload your init-file wrap the `load`
-call in a `straight-transaction` block. This allows `straight.el` to
-tell exactly which packages are now referenced by your init-file.
-
-So what is the use of this? Well, an operation like `M-x
-straight-freeze-versions` requires an exact knowledge of what packages
-are required by your init-file, so that it does not write
-interactively installed packages into your lockfiles. The
-`straight-freeze-versions` function uses the information it gains from
-the transaction system in order to prompt you to reload your init-file
-if you have installed packages since the last time your init-file was
-loaded (and `straight.el` therefore was able to determine which
-packages were actually part of your init-file).
-
-Finally, a note on the use of transactions for optimizations. There
-are a number of setup and tear-down operations associated with package
-management. For example, to keep track of when packages need to be
-rebuilt, `straight.el` keeps a persistent build cache. Normally, this
-cache needs to be read and written after every package install. But
-that is very slow: much better is to load it at the first package
-install, and to save it at the last package install. The question then
-is how to identify the last package install. This is not possible in
-general (although in the special case of initial Emacs init,
-`after-init-hook` can be used), so `straight.el` falls back on the
-transaction system. By wrapping the entire operation in a transaction,
-`straight.el` can safely optimize the loading and saving of the build
-cache, significantly improving performance. For this reason, reloading
-your init-file is likely to be rather slow if you do not wrap the call
-in a transaction using `straight-transaction`.
+`straight.el` uses the transaction system to keep track of what
+packages you request in your init-file. If you invoke
+`straight-use-package` interactively, then this invalidates that
+information, since you have now requested a package that is not in
+your init-file. For this reason, if you have invoked
+`straight-use-package` interactively, running `M-x
+straight-freeze-versions` will prompt you to first reload your
+init-file.
 
 ## Comparison to other package managers
 
@@ -770,7 +763,7 @@ alternatives to `straight.el`:
   can pull packages from (`package.el`, every known VCS, distro
   package managers, `go get`(!!)).
 * [Borg]: assimilates packages as Git submodules into `.emacs.d`,
-  relying on [EmacsMirror].
+  relying on [Emacsmirror].
 * "Screw package managers! I'll just handle it all myself!"
 
 ### TL;DR
@@ -855,7 +848,7 @@ And here is a brief list of the main reasons you might not want to use
 * `straight.el` allows you to check out any Git revision of any
   package. `package.el` only allows you to install the latest version,
   and there is no way to downgrade.
-* `straight.el` supports EmacsMirror, while `package.el` does not.
+* `straight.el` supports Emacsmirror, while `package.el` does not.
 * `straight.el` uses your init-file as the sole source of truth for
   package operations. `package.el` loads every package you ever
   installed at startup, even if some of those packages are no longer
@@ -940,7 +933,7 @@ And here is a brief list of the main reasons you might not want to use
   `package.el` can install these packages, while `straight.el` cannot.
   However, since `package.el` has no version-control support, this is
   more or less equivalent to installing those packages from the
-  [EmacsMirror], which `straight.el` can do by default.
+  [Emacsmirror], which `straight.el` can do by default.
 
 ### Comparison to Quelpa
 
@@ -953,9 +946,9 @@ And here is a brief list of the main reasons you might not want to use
 #### Advantages of `straight.el`
 
 * `straight.el` has out-of-the-box compatibility with MELPA, GNU ELPA,
-  and EmacsMirror, while Quelpa only has support for MELPA. To use GNU
-  ELPA, you must drop down to `package.el`. [EmacsMirror] is not
-  supported by default, although it is easy to specify an EmacsMirror
+  and Emacsmirror, while Quelpa only has support for MELPA. To use GNU
+  ELPA, you must drop down to `package.el`. [Emacsmirror] is not
+  supported by default, although it is easy to specify an Emacsmirror
   repository in a recipe. While Quelpa allows you to specify custom
   recipe folders, it does not have support for cloning these folders
   automatically from version control, nor for generating the recipes
@@ -1064,11 +1057,11 @@ offer corrections for this section.
 
 #### Advantages of `straight.el`
 
-* `straight.el` has out-of-the-box compatibility with EmacsMirror,
+* `straight.el` has out-of-the-box compatibility with Emacsmirror,
   while Cask only supports `package.el`-compliant repositories.
-  However, it is easy to specify an EmacsMirror repository in a
+  However, it is easy to specify an Emacsmirror repository in a
   recipe. Cask does not support custom package sources. `straight.el`
-  supports MELPA, GNU ELPA, and EmacsMirror, and allows you to add any
+  supports MELPA, GNU ELPA, and Emacsmirror, and allows you to add any
   other sources you would like.
 * `straight.el` has integrated support for selecting particular Git
   revisions of packages. This process is more manual in Cask, as it
@@ -1225,12 +1218,12 @@ offer corrections for this section.
 
 #### Advantages of `straight.el`
 
-* `straight.el` supports MELPA, GNU ELPA, EmacsMirror, and custom
-  recipe sources. Borg only supports EmacsMirror and custom recipe
-  sources. However, as the EmacsMirror is a near-complete superset of
+* `straight.el` supports MELPA, GNU ELPA, Emacsmirror, and custom
+  recipe sources. Borg only supports Emacsmirror and custom recipe
+  sources. However, as the Emacsmirror is a near-complete superset of
   both GNU ELPA and MELPA, this does not necessarily mean you have
   access to more packages: it just means you benefit from the recipe
-  maintenance efforts of the MELPA team and the EmacsMirror team,
+  maintenance efforts of the MELPA team and the Emacsmirror team,
   rather than only the latter.
 * Borg, even when combined with related tools, do not allow for the
   kind of massive interactive repository management provided by
@@ -1564,6 +1557,37 @@ On Microsoft Windows, `find(1)` is generally not available, so the
 default value of `straight-check-for-modifications` is instead
 `(check-on-save)`.
 
+##### Summary of options for package modification detection
+###### `find-at-startup`
+
+Save build timestamps and run `find(1)` at startup to detect changes
+
+* Most reliable, never misses changes
+* Requires `find(1)`
+* Slows down startup
+
+###### `check-on-save`
+
+Use `before-save-hook` to detect changes
+
+* No external dependencies
+* No startup delay
+* No additional CPU or memory impact
+* Doesn't catch changes made except via `save-file` inside Emacs
+
+###### `watch-files`
+
+Run filesystem watcher to detect changes
+
+* Requires Python 3 and Watchexec
+* No startup delay
+* Takes a few seconds to build virtualenv the first time
+* Memory and CPU impact of running filesystem watcher
+* Only misses changes if you make them after booting the system but
+  before starting Emacs
+
+---
+
 #### Customizing how packages are built
 
 By specifying a non-nil value for the `:no-build` attribute in a
@@ -1796,7 +1820,7 @@ These are the keywords meaningful for the `git` backend:
 * `:remote`: the name to use for the Git remote. If the package is
   forked, this name is used for the upstream remote.
 * `:nonrecursive`: if non-nil, then submodules are not cloned. This is
-  particularly important for the EmacsMirror recipe repository, which
+  particularly important for the Emacsmirror recipe repository, which
   contains every known Emacs package in existence as submodules.
 * `:fork`: a plist which specifies settings for a fork, if desired.
   This causes the `fetch-from-remote` method to operate on the fork;
@@ -1904,7 +1928,7 @@ place of `straight-vc-git-default-remote-name`.
 
 If you only provide a symbol (package name) to `straight-use-package`,
 then the recipe is looked up automatically. By default, [MELPA], [GNU
-ELPA][gnu-elpa], and [EmacsMirror] are searched for recipes, in that
+ELPA][gnu-elpa], and [Emacsmirror] are searched for recipes, in that
 order. This means that one or more of them may need to be cloned.
 Recipe repositories are actually just the same as ordinary packages,
 except that their recipes specify `:no-build`, so they are not
@@ -2004,6 +2028,22 @@ You can customize the following user options:
 
       (org-elpa melpa gnu-elpa emacsmirror)
 
+* `straight-recipes-emacsmirror-use-mirror`: Yes, there is also a
+  mirror for Emacsmirror. This is because the [epkgs] repository
+  contains a (frequently updated) SQLite database in it, which means
+  the Git repository takes *forever* to clone (see [#356]). My
+  solution to this problem is to generate a new repository which
+  contains the information that `straight.el` needs but which is much
+  smaller. By default, `straight.el` uses the official [epkgs]
+  repository to find packages on Emacsmirror, but you can tell it to
+  use my mirror by configuring the value of this variable to non-nil.
+  You must do any customization of this variable *before* the
+  `straight.el` [bootstrap][#quickstart]. Note that setting the value
+  of this user option to non-nil causes the default value of
+  `straight-recipe-repositories` to shift to:
+
+      (org-elpa melpa gnu-elpa-mirror emacsmirror-mirror)
+
 ##### Defining new recipe repositories
 
 To define a new recipe repository called `NAME`, you should do the
@@ -2030,9 +2070,9 @@ following things:
   change the logic, this version value must be changed. If this
   function is defined, then `straight.el` automatically and
   transparently caches calls to `straight-recipes-NAME-retrieve`
-  within a single [transaction][#user/transactions], using your
-  version value (and detection of modifications to the recipe
-  repository) to decide when to invalidate the cache.
+  persistently, using your version value (and its detection of
+  modifications to the recipe repository) to decide when to invalidate
+  the cache.
 * Call `straight-use-recipes` with the recipe for your recipe
   repository. Make sure to include `:no-build` in the recipe, unless
   you also want to use the recipe repository as an executable Emacs
@@ -2102,7 +2142,7 @@ Here is the default recipe used for `straight.el`, if you don't
 override it:
 
     (straight :type git :host github
-              :repo "raxod502/straight.el"
+              :repo ,(format "%s/straight.el" straight-repository-user)
               :files ("straight*.el")
               :branch ,straight-repository-branch)
 
@@ -2115,6 +2155,10 @@ If all you want to do is change which branch you are installing
 (Although using `straight-recipe-overrides` will work just as well, at
 least until the recipe happens to be changed upstream and your
 init-file isn't updated.)
+
+Similarly, if all you want to do is switch to your own fork of
+`straight.el` on GitHub, simply customize the variable
+`straight-repository-user` to your GitHub username.
 
 There is one minor caveat to the above discussion. If your fork makes
 changes to the way in which recipes are interpreted, then those
@@ -2167,16 +2211,15 @@ allow you to select a particular package to check or rebuild.
 
 Finally, you may use `M-x straight-prune-build` in order to tell
 `straight.el` to forget about any packages which were not registered
-since the last init transaction (see [the transaction
-system][#user/transactions]). This may improve performance, although
-only slightly, and will clean up stale entries in the `build`
-directory. You can call this function in your init-file if you really
-wish your filesystem to be as clean as possible, although it's not
-particularly recommended as the performance implications are
-uninvestigated. If you do call it in your init-file, be sure to only
-call it on a fully successful init; otherwise, an error during init
-will result in some packages' build information being discarded, and
-they will need to be rebuilt next time.
+since the last time you loaded your init-file. This may improve
+performance, although only slightly, and will clean up stale entries
+in the `build` directory. You can call this function in your init-file
+if you really wish your filesystem to be as clean as possible,
+although it's not particularly recommended as the performance
+implications are uninvestigated. If you do call it in your init-file,
+be sure to only call it on a fully successful init; otherwise, an
+error during init will result in some packages' build information
+being discarded, and they will need to be rebuilt next time.
 
 If you have enabled [autoloads caching][#user/install/loading], it is
 advisable to call `straight-prune-build` occasionally, since otherwise
@@ -2194,17 +2237,28 @@ follows:
 * `M-x straight-fetch-package`: fetch from a package's configured
   remote; with prefix argument, then for forks also fetch from the
   upstream
+* `M-x straight-fetch-package-and-deps`: fetch from the configured
+  remotes of a package and all of its dependencies (including the
+  dependencies of its dependencies); with prefix argment, then for
+  forks also fetch from the upstream
 * `M-x straight-fetch-all`: fetch from all packages' configured
   remotes; with prefix argument, then for forks also fetch from the
   upstreams
 * `M-x straight-merge-package`: merge the latest version fetched from
   a package's configured remote into the local copy; with prefix
   argument, then for forks also merge from the upstream
+* `M-x straight-merge-package-and-deps`: merge the latest versions
+  fetched from the configured remotes of a package and all of its
+  dependencies (including the dependencies of its dependencies); with
+  prefix argment, then for forks also merge from the upstreams
 * `M-x straight-merge-all`: merge the latest versions fetched from
   each package's configured remote into its local copy; with prefix
   argument, then for forks also merge from the upstreams
 * `M-x straight-pull-package`: combination of `M-x
   straight-fetch-package` and `M-x straight-merge-package`
+* `M-x straight-pull-package-and-deps`: combination of `M-x
+  straight-fetch-package-and-deps` and `M-x
+  straight-merge-package-and-deps`
 * `M-x straight-pull-all`: combination of `M-x straight-fetch-all` and
   `M-x straight-merge-all`
 * `M-x straight-push-package`: push a package to its remote, if
@@ -2300,7 +2354,7 @@ Similarly, when using `M-x straight-thaw-versions`, if different
 lockfiles specify revisions for the same local repository, the last
 one in `straight-profiles` will take precedence.
 
-### The transaction system
+### Packages and the init-file
 
 Package managers like `package.el` store mutable state outside your
 init-file, including the set of packages that are installed.
@@ -2321,77 +2375,15 @@ of your init-file, and not just part of a temporary
 simple: *reload your entire init-file*. That way, `straight.el` will
 see whether or not that package is registered during your init-file.
 
-`straight.el` can tell when you have started to load your init-file by
-when its bootstrap code is invoked. When Emacs is first started, it
-can tell when the init-file is done loaded using `after-init-hook`.
-But unfortunately there is no way to tell when a *re-init* has
-finished. This is where the transaction system comes in.
-
-You can use the `straight-transaction` macro to wrap a block of code
-in a single transaction. This allows `straight.el` to perform various
-optimizations, and also to analyze the results of that block of code
-on your package management state as a single operation. In particular,
-if you call `straight-mark-transaction-as-init` within the transaction
-body, then `straight.el` considers that block of code as having the
-effect of reloading your init-file. Importantly, the transaction block
-tells `straight.el` when your init-file has *finished* loading. This
-allows it to correctly identify whether your package management state
-perfectly reflects your init-file, or whether you need to reload your
-init-file. (This information is used by `M-x
-straight-freeze-versions`.)
-
-Here is an example of a properly implemented interactive function to
-reload the init-file:
-
-    (defun radian-reload-init ()
-      "Reload init.el."
-      (interactive)
-      (straight-transaction
-        (straight-mark-transaction-as-init)
-        (message "Reloading init.el...")
-        (load user-init-file nil 'nomessage)
-        (message "Reloading init.el... done.")))
-
-The transaction system is also used for performing various
-optimizations. The details of these optimizations are relegated to the
-[developer manual][#dev/transactions], but the user-facing impact is
-as follows: any time you are evaluating more than one
-`straight-use-package` form, the operation will be faster if you wrap
-it in a `straight-transaction` block. If the operation happens to
-correspond to a reloading of the init-file, then you should call
-`straight-mark-transaction-as-init`: this will not increase
-performance further, but it will allow the `straight-freeze-versions`
-function to know that the resulting package management state is a
-clean reflection of the state of your init-file.
-
-Here is an example of an `eval-buffer` function that correctly takes
-advantage of the transaction system for performance, and also marks
-the transaction as an init-file reloading when appropriate:
-
-    (defun radian-eval-buffer ()
-      "Evaluate the current buffer as Elisp code."
-      (interactive)
-      (message "Evaluating %s..." (buffer-name))
-      (straight-transaction
-        (if (null buffer-file-name)
-            (eval-buffer)
-          (when (string= buffer-file-name user-init-file)
-            (straight-mark-transaction-as-init))
-          (load-file buffer-file-name)))
-      (message "Evaluating %s... done." (buffer-name)))
-
-There is one final user-facing note about the transaction system,
-which is important when you want to load your init-file after Emacs
-init has already completed, but before `straight.el` has been loaded
-(so you cannot just wrap the call in `straight-transaction`). To cover
-this edge case (which arises, for example, when you wish to profile
-your init-file using something like `esup`), you should use the
-following pattern:
-
-    (unwind-protect
-        (let ((straight-treat-as-init t))
-          "load your init-file here")
-      (straight-finalize-transaction))
+One might ask how `straight.el` determines that you have finished
+loading your init-file. The answer is simple: `run-with-idle-timer` is
+used to execute code only after the current interactive operation has
+finished. The implementation of this concept is part of the
+*transaction system* of `straight.el`, and it is also used to amortize
+certain performance costs when many calls to `straight-use-package`
+are made sequentially. However, since the transaction system (at least
+in recent versions of `straight.el`) operates transparently, its
+details are relegated to the [developer manual][#dev/transactions].
 
 ### Using `straight.el` to reproduce bugs
 
@@ -2572,8 +2564,16 @@ switch to that branch with
 
     (setq straight-repository-branch "develop")
 
-and base your pull requests from it. Please try to follow the style of
-the surrounding code and documentation, but anything is welcome.
+and base your pull requests from it. If you have an outstanding pull
+request whose features you would like to use in your configuration,
+there is full support for defining `straight.el` as coming from any
+branch in any fork:
+
+    (setq straight-repository-user "my-github-username")
+    (setq straight-repository-branch "feat/my-cool-feature")
+
+Please try to follow the style of the surrounding code and
+documentation, but anything is welcome.
 
 You can run the linting locally simply by running
 
@@ -2676,6 +2676,52 @@ UX of pushing and pulling.
 This is a planned feature. In the meantime, contributors have proposed
 various workarounds. See [#246] and [#31].
 
+`straight-x.el` now contains an experimental solution. In order to use
+it you will need to add similar snippets to your Emacs configuration.
+
+First you need to add a new profile to `straight-profiles` which also
+needs to be the last profile in the list. This should be done before
+you bootstrap `straight.el`.
+
+    ;; Tell straight.el about the profiles we are going to be using.
+    (setq straight-profiles
+          '((nil . "default.el")
+            ;; Packages which are pinned to a specific commit.
+            (pinned . "pinned.el")))
+
+After straight's install procedure you will need to add
+`straight-x.el` and load the required commands.
+
+    (autoload #'straight-x-pull-all "straight-x")
+    (autoload #'straight-x-freeze-versions "straight-x")
+
+A variable called `straight-x-pinned-packages` has been defined in
+`straight-x.el` and will contain your list of pinned packages.
+
+From now on, you can pin a package to a specific commit like in the
+following example which will pin `org-mode` to the 9.2.3 release
+version:
+
+    (let ((straight-current-profile 'pinned))
+      (straight-use-package 'org-plus-contrib)
+      (straight-use-package 'org)
+      ;; Pin org-mode version.
+      (add-to-list 'straight-x-pinned-packages
+                   '("org" . "924308a150ab82014b69c46c04d1ab71e874a2e6")))
+
+If you invoke `straight-x-freeze-versions` it will first write the
+default lockfile and then pinned lockfile which takes precedence over
+the default one if packages are thawed. `straight-x-pull-all` will
+first invoke `straight-pull-all` and then restore all pinned packages.
+
+You might want to assign the following aliases for more convenience:
+
+    (defalias 'straight-pull-all #'straight-x-pull-all)
+    (defalias 'straight-freeze-versions #'straight-x-freeze-versions)
+
+Please keep in mind that this is only a temporary solution and
+experimental!
+
 ### How can I use the built-in version of a package?
 
 To tell `straight.el` that you want to use the version of Org shipped
@@ -2686,6 +2732,27 @@ with Emacs, rather than cloning the upstream repository:
 [Read more.][#user/recipes]
 
 ## News
+### May 24, 2019
+
+I have completely rewritten the transaction system. The practical
+impact of this is that you no longer have to care about it. Simply
+remove all references to the following functions and variables from
+your configuration, and everything should "just work":
+
+* `straight-transaction`
+* `straight-begin-transaction`
+* `straight-finalize-transaction`
+* `straight-mark-transaction-as-init`
+* `straight-treat-as-init`
+
+### May 22, 2019
+
+I now maintain a mirror of Emacsmirror. (Bear with me here.) The
+advantage of using my mirror is that cloning it is several orders of
+magnitude faster than cloning the official Emacsmirror. You can tell
+`straight.el` to do so by customizing the user option
+`straight-emacsmirror-use-mirror` to non-nil.
+
 ### May 1, 2019
 
 `straight-thaw-versions` now fetches in a repository if a commit in
@@ -2772,12 +2839,6 @@ repository management commands. Also, manually invoking
 
 Autoloads caching is now enabled by default.
 
-### April 21, 2018
-
-There is now experimental support for caching autoloads in a single
-file, which should improve performance at startup. See the new user
-option `straight-cache-autoloads`.
-
 [#principles]: #guiding-principles
 [#quickstart]: #getting-started
 [#faq]: #faq
@@ -2790,6 +2851,7 @@ option `straight-cache-autoloads`.
   [#comparison/package.el/+straight.el]: #advantages-of-straightel
 [#user]: #user-manual
  [#user/install]: #installing-packages-programmatically
+  [#user/install/mod-detection]: #customizing-when-packages-are-built
   [#user/install/loading]: #customizing-how-packages-are-made-available
   [#user/install/hooks]: #hooks-run-by-straight-use-package
  [#user/recipes]: #the-recipe-format
@@ -2804,7 +2866,6 @@ option `straight-cache-autoloads`.
   [#user/interactive/vc]: #version-control-operations
  [#user/lockfiles]: #lockfile-management
   [#user/lockfiles/profiles]: #the-profile-system
- [#user/transactions]: #the-transaction-system
  [#user/integration]: #integration-with-other-packages
   [#user/integration/use-package]: #integration-with-use-package-1
   [#user/integration/org]: #integration-with-org
@@ -2832,6 +2893,7 @@ option `straight-cache-autoloads`.
 [#246]: https://github.com/raxod502/straight.el/issues/246
 [#323]: https://github.com/raxod502/straight.el/issues/323
 [#355]: https://github.com/raxod502/straight.el/issues/355
+[#356]: https://github.com/raxod502/straight.el/issues/356
 [#357]: https://github.com/raxod502/straight.el/issues/357
 
 [auto-compile]: https://github.com/tarsius/auto-compile
@@ -2843,6 +2905,7 @@ option `straight-cache-autoloads`.
 [emacsmirror]: https://emacsmirror.net/
 [emacswiki]: https://www.emacswiki.org/
 [epkg]: https://github.com/emacscollective/epkg
+[epkgs]: https://github.com/emacsmirror/epkgs
 [gitter]: https://gitter.im/raxod502/straight.el
 [gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg
 [gnu-elpa]: https://elpa.gnu.org/

@@ -85,7 +85,7 @@
 
   (let (;; This needs to have a default value, just in case the user
         ;; doesn't have any lockfiles.
-        (version :neptune)
+        (version :pluto)
         (straight-profiles (if (boundp 'straight-profiles)
                                straight-profiles
                              '((nil . "default")))))
@@ -144,24 +144,21 @@
        `(progn
           ;; Pass relevant variables into the child Emacs, if they
           ;; have been set.
-          ,@(cl-mapcan (lambda (variable)
-                         (when (boundp variable)
-                           `((setq ,variable ',(symbol-value variable)))))
-                       '(bootstrap-version
-                         straight-arrow
-                         straight-current-profile
-                         straight-default-vc
-                         straight-profiles
-                         straight-recipe-overrides
-                         straight-recipe-repositories
-                         straight-recipes-gnu-elpa-url
-                         straight-repository-branch
-                         straight-vc-git-default-branch
-                         straight-vc-git-default-protocol
-                         straight-vc-git-force-protocol
-                         straight-vc-git-primary-remote
-                         straight-vc-git-upstream-remote
-                         user-emacs-directory)))
+          ,@(let* ((vars nil)
+                   (regexps '("bootstrap-version"
+                              "straight-[a-z-]+"
+                              "user-emacs-directory"))
+                   (regexp (format "^\\(%s\\)$"
+                                   (mapconcat #'identity regexps "\\|"))))
+              (mapatoms
+               (lambda (sym)
+                 (when (and (boundp sym)
+                            (string-match-p regexp (symbol-name sym))
+                            (not (string-match-p "--" (symbol-name sym))))
+                   (push sym vars))))
+              (mapcar (lambda (var)
+                        `(setq ,var ',(symbol-value var)))
+                      vars)))
        (current-buffer))
       (goto-char (point-max))
       (print
@@ -173,7 +170,7 @@
           ;; skipping the build phase.)
           (straight-use-package-no-build
            `(straight :type git :host github
-                      :repo "raxod502/straight.el"
+                      :repo ,(format "%s/straight.el" straight-repository-user)
                       :branch ,straight-repository-branch))
           (unless (and (boundp 'bootstrap-version)
                        (integerp bootstrap-version)
@@ -188,7 +185,7 @@
                    ;; `user-emacs-directory'.
                    (link-target (concat "repos/" local-repo "/bootstrap.el"))
                    (link-name (concat user-emacs-directory
-                                     "straight/bootstrap.el")))
+                                      "straight/bootstrap.el")))
               (ignore-errors
                 ;; If it's a directory, the linking will fail. Just let
                 ;; the user deal with it in that case, since they are
