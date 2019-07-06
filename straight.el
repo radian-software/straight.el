@@ -5274,6 +5274,9 @@ advices are put on `package--ensure-init-file' and
 modifying the init-file."
   :type 'boolean)
 
+(defvaralias 'straight-ಠ_ಠ 'straight-enable-package-integration
+  "The alias expresses how I feel about package.el sometimes.")
+
 ;;;;;; Mode variables
 
 (defvar straight-package--last-enable-at-startup t
@@ -5321,6 +5324,9 @@ is loaded, according to the value of
                      #'straight-package-advice-ensure-init-file)
       (advice-remove #'package--save-selected-packages
                      #'straight-package-advice-save-selected-packages))))
+
+(defalias 'straight-ಠ_ಠ-mode #'straight-package-neutering-mode
+  "The alias expresses how I feel about package.el sometimes.")
 
 ;;;;; use-package integration
 
