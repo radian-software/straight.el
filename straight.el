@@ -630,7 +630,7 @@ copying files, which is slower and less space-efficient.
 All operating systems support symlinks; however, on Microsoft
 Windows you may need additional system configuration (see
 variable `straight-use-symlinks')."
-  (not (memq system-type '(ms-dos windows-nt cygwin))))
+  (not (memq system-type '(ms-dos windows-nt))))
 
 (defcustom straight-use-symlinks (straight--symlinks-are-usable-p)
   "Whether to use symlinks for building packages.
