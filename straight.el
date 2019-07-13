@@ -5266,6 +5266,9 @@ according to the value of `straight-profiles'."
 ;;;; Integration with other packages
 ;;;;; package.el "integration"
 
+(defvaralias 'straight-ಠ_ಠ 'straight-enable-package-integration
+  "The alias expresses how I feel about package.el sometimes.")
+
 (defcustom straight-enable-package-integration t
   "Whether to enable \"integration\" with package.el.
 This means that `package-enable-at-startup' is disabled, and
@@ -5273,9 +5276,6 @@ advices are put on `package--ensure-init-file' and
 `package--save-selected-packages' to prevent package.el from
 modifying the init-file."
   :type 'boolean)
-
-(defvaralias 'straight-ಠ_ಠ 'straight-enable-package-integration
-  "The alias expresses how I feel about package.el sometimes.")
 
 ;;;;;; Mode variables
 
