@@ -54,11 +54,6 @@
               nil 'nomessage 'nosuffix)
         (setq emacs-version-changed nil))
       (when emacs-version-changed
-        ;; Sometimes when switching between different Emacs versions,
-        ;; we get an odd error message "Cannot overwrite file". This
-        ;; is solved by deleting the .elc file before trying to
-        ;; recompile.
-        (delete-file (concat straight.el "c"))
         ;; Don't use the optional LOAD argument for
         ;; `byte-compile-file' because it emits a message.
         (byte-compile-file straight.el)
