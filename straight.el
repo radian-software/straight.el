@@ -966,9 +966,12 @@ If nil, no transaction is not live.")
 (defun straight--transaction-finalize-on-idle ()
   "Schedule to finalize the current transaction on Emacs idle.
 This means that `straight--transaction-finalize' will be invoked
-using an idle timer."
-  (run-with-idle-timer
-   0 nil #'straight--transaction-finalize))
+using an idle timer. In batch mode, the transaction is finalized
+using `kill-emacs-hook' rather than an idle timer (because idle
+timers are not run in batch mode)."
+  (if noninteractive
+      (add-hook 'kill-emacs-hook #'straight--transaction-finalize)
+    (run-with-idle-timer 0 nil #'straight--transaction-finalize)))
 
 (defun straight--transaction-finalize ()
   "Finalize the current transaction.
