@@ -54,12 +54,15 @@
               nil 'nomessage 'nosuffix)
         (setq emacs-version-changed nil))
       (when emacs-version-changed
-        ;; Don't use the optional LOAD argument for
-        ;; `byte-compile-file' because it emits a message.
-        (byte-compile-file straight.el)
-        (load (expand-file-name (concat straight.el "c")
-                                default-directory)
-              nil 'nomessage 'nosuffix)))))
+        ;; In safe mode, sacrifice performance for safety.
+        (if (bound-and-true-p straight-safe-mode)
+            (load straight.el nil 'nomessage 'nosuffix)
+          ;; Don't use the optional LOAD argument for
+          ;; `byte-compile-file' because it emits a message.
+          (byte-compile-file straight.el)
+          (load (expand-file-name (concat straight.el "c")
+                                  default-directory)
+                nil 'nomessage 'nosuffix))))))
 
 ;; This assures the byte-compiler that we know what we are doing when
 ;; we reference functions and variables from straight.el below. It

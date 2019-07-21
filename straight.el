@@ -207,6 +207,25 @@ profile (nil) will suffice without additional setup."
                 (alist :key-type symbol :value-type
                        (plist :key-type symbol :value-type sexp))))
 
+(defcustom straight-safe-mode nil
+  "Non-nil means avoid doing anything that modifies the filesystem.
+In safe mode, package modifications will still be detected
+according to `straight-check-for-modifications'. However, if a
+package needs to be cloned, built, or rebuilt, straight.el
+instead generates an error. The build cache will not be written
+back to disk, nor will the filesystem watcher be started (if
+enabled).
+
+As one example of a use case for safe mode, suppose you want to
+byte-compile your Emacs configuration asynchronously in the
+background. To avoid multiple Emacs processes modifying the
+filesystem concurrently via straight.el, you might want to enable
+safe mode for the background Emacs process.
+
+Safe mode is not guaranteed to be as performant as normal
+operation."
+  :type 'boolean)
+
 ;;;; Utility functions
 ;;;;; Association lists
 
@@ -1168,6 +1187,9 @@ passed to the method.
 For example:
    (straight-vc \\='check-out-commit \\='git ...)
 => (straight-vc-git-check-out-commit ...)"
+  (when (and straight-safe-mode
+             (not (memq method '(local-repo-name keywords))))
+    (error "VC operation `%S %S' not allowed in safe mode" type method))
   (let ((func (intern (format "straight-vc-%S-%S"
                               type method))))
     (unless (fboundp func)
@@ -3252,41 +3274,42 @@ empty values (all packages will be rebuilt, with no caching)."
   "Write data from memory into build-cache.el.
 This uses the values of `straight--build-cache' and
 `straight--eagerly-checked-packages'."
-  (with-temp-buffer
-    ;; Prevent mangling of the form being printed in the case that
-    ;; this function was called by an `eval-expression' invocation of
-    ;; `straight-use-package'.
-    (let ((print-level nil)
-          (print-length nil))
-      ;; The version of the build cache.
-      (print straight--build-cache-version (current-buffer))
-      ;; Record the current Emacs version. If a different version of
-      ;; Emacs is used, we have to rebuild all the packages (because
-      ;; byte-compiled files cannot necessarily still be loaded).
-      (print emacs-version (current-buffer))
-      ;; The actual build cache.
-      (print straight--build-cache (current-buffer))
-      ;; The autoloads cache.
-      (print straight--autoloads-cache (current-buffer))
-      ;; The recipe lookup cache.
-      (print straight--recipe-lookup-cache (current-buffer))
-      ;; Which packages should be checked eagerly next init.
-      (print (hash-table-keys straight--profile-cache) (current-buffer))
-      ;; Whether packages were built using symlinks or copying.
-      (print straight-use-symlinks (current-buffer)))
-    (unless (and straight--build-cache-text
-                 (string= (buffer-string) straight--build-cache-text))
-      (write-region nil nil (straight--build-cache-file) nil 0))
-    (when (or (straight--modifications 'check-on-save)
-              (straight--modifications 'watch-files))
-      ;; We've imported data from `straight--modified-dir' into the
-      ;; build cache when loading it. Now that we've written the build
-      ;; cache back to disk, there's no more need for that data (and
-      ;; indeed, it would produce spurious package rebuilds on
-      ;; subsequent inits).
-      (condition-case _
-          (delete-directory (straight--modified-dir) 'recursive)
-        (file-error)))))
+  (unless straight-safe-mode
+    (with-temp-buffer
+      ;; Prevent mangling of the form being printed in the case that
+      ;; this function was called by an `eval-expression' invocation
+      ;; of `straight-use-package'.
+      (let ((print-level nil)
+            (print-length nil))
+        ;; The version of the build cache.
+        (print straight--build-cache-version (current-buffer))
+        ;; Record the current Emacs version. If a different version of
+        ;; Emacs is used, we have to rebuild all the packages (because
+        ;; byte-compiled files cannot necessarily still be loaded).
+        (print emacs-version (current-buffer))
+        ;; The actual build cache.
+        (print straight--build-cache (current-buffer))
+        ;; The autoloads cache.
+        (print straight--autoloads-cache (current-buffer))
+        ;; The recipe lookup cache.
+        (print straight--recipe-lookup-cache (current-buffer))
+        ;; Which packages should be checked eagerly next init.
+        (print (hash-table-keys straight--profile-cache) (current-buffer))
+        ;; Whether packages were built using symlinks or copying.
+        (print straight-use-symlinks (current-buffer)))
+      (unless (and straight--build-cache-text
+                   (string= (buffer-string) straight--build-cache-text))
+        (write-region nil nil (straight--build-cache-file) nil 0))
+      (when (or (straight--modifications 'check-on-save)
+                (straight--modifications 'watch-files))
+        ;; We've imported data from `straight--modified-dir' into the
+        ;; build cache when loading it. Now that we've written the
+        ;; build cache back to disk, there's no more need for that
+        ;; data (and indeed, it would produce spurious package
+        ;; rebuilds on subsequent inits).
+        (condition-case _
+            (delete-directory (straight--modified-dir) 'recursive)
+          (file-error))))))
 
 (cl-defun straight--make-build-cache-available (&key nosave)
   "Make the build cache available until the end of the current transaction.
@@ -3302,10 +3325,11 @@ you ought not to make any changes to it.)"
 (defun straight-register-repo-modification (local-repo)
   "Register a modification of the given LOCAL-REPO, a string.
 Always return nil, for convenience of usage."
-  (ignore
-   (unless (string-match-p "/" local-repo)
-     (make-directory (straight--modified-dir) 'parents)
-     (with-temp-file (straight--modified-file local-repo)))))
+  (unless straight-safe-mode
+    (prog1 nil
+      (unless (string-match-p "/" local-repo)
+        (make-directory (straight--modified-dir) 'parents)
+        (with-temp-file (straight--modified-file local-repo))))))
 
 (defun straight-register-file-modification ()
   "Register a modification of the current file.
@@ -3376,53 +3400,55 @@ This includes the case hwere it doesn't yet exist."
   "Start the filesystem watcher, killing any previous instance.
 If it fails, signal a warning and return nil."
   (interactive)
-  (unless (executable-find "python3")
-    (straight--warn
-     "Cannot start filesystem watcher without 'python3' installed")
-    (cl-return-from straight-watcher-start))
-  (unless (executable-find "watchexec")
-    (straight--warn
-     "Cannot start filesystem watcher without 'watchexec' installed")
-    (cl-return-from straight-watcher-start))
-  (when (straight-watcher--virtualenv-outdated)
-    (message "Setting up filesystem watcher...")
-    (unless (straight-watcher--virtualenv-setup)
-      (message "Setting up filesystem watcher...failed")
+  (unless straight-safe-mode
+    (unless (executable-find "python3")
+      (straight--warn
+       "Cannot start filesystem watcher without 'python3' installed")
       (cl-return-from straight-watcher-start))
-    (message "Setting up filesystem watcher...done"))
-  (with-current-buffer (straight-watcher--make-process-buffer)
-    (let* ((python (straight--watcher-python))
-           (cmd (list
-                 python "-m" "straight_watch" "start"
-                 (straight--watcher-file "process")
-                 (straight--repos-dir)
-                 (straight--modified-dir)))
-           (sh (concat
-                "exec nohup "
-                (mapconcat #'shell-quote-argument cmd " "))))
-      ;; Put the 'nohup.out' file in the ~/.emacs.d/straight/watcher/
-      ;; directory.
-      (setq default-directory (straight--watcher-dir))
-      ;; Clear it out, since nohup(1) doesn't overwrite it.
-      (condition-case _
-          (delete-file (straight--watcher-file "nohup.out"))
-        (file-missing))
-      (let ((inhibit-read-only t))
-        (insert "$ " sh "\n\n"))
-      (start-file-process-shell-command
-       "straight-watcher" straight-watcher-process-buffer sh)
-      (set-process-query-on-exit-flag
-       (get-buffer-process (current-buffer)) nil))))
+    (unless (executable-find "watchexec")
+      (straight--warn
+       "Cannot start filesystem watcher without 'watchexec' installed")
+      (cl-return-from straight-watcher-start))
+    (when (straight-watcher--virtualenv-outdated)
+      (message "Setting up filesystem watcher...")
+      (unless (straight-watcher--virtualenv-setup)
+        (message "Setting up filesystem watcher...failed")
+        (cl-return-from straight-watcher-start))
+      (message "Setting up filesystem watcher...done"))
+    (with-current-buffer (straight-watcher--make-process-buffer)
+      (let* ((python (straight--watcher-python))
+             (cmd (list
+                   python "-m" "straight_watch" "start"
+                   (straight--watcher-file "process")
+                   (straight--repos-dir)
+                   (straight--modified-dir)))
+             (sh (concat
+                  "exec nohup "
+                  (mapconcat #'shell-quote-argument cmd " "))))
+        ;; Put the 'nohup.out' file in the ~/.emacs.d/straight/watcher/
+        ;; directory.
+        (setq default-directory (straight--watcher-dir))
+        ;; Clear it out, since nohup(1) doesn't overwrite it.
+        (condition-case _
+            (delete-file (straight--watcher-file "nohup.out"))
+          (file-missing))
+        (let ((inhibit-read-only t))
+          (insert "$ " sh "\n\n"))
+        (start-file-process-shell-command
+         "straight-watcher" straight-watcher-process-buffer sh)
+        (set-process-query-on-exit-flag
+         (get-buffer-process (current-buffer)) nil)))))
 
 (defun straight-watcher-stop ()
   "Kill the filesystem watcher, if it is running.
 If there is an unexpected error, signal a warning and return nil."
   (interactive)
-  (let ((python (straight--watcher-python)))
-    (when (file-executable-p python)
-      (straight--warn-call
-       python "-m" "straight_watch" "stop"
-       (straight--watcher-file "process")))))
+  (unless straight-safe-mode
+    (let ((python (straight--watcher-python)))
+      (when (file-executable-p python)
+        (straight--warn-call
+         python "-m" "straight_watch" "stop"
+         (straight--watcher-file "process"))))))
 
 ;;;;; Bulk checking
 
@@ -4147,6 +4173,8 @@ RECIPE is a straight.el-style plist. CAUSE is a string indicating
 the reason this package is being built."
   (straight--with-plist recipe
       (package)
+    (when straight-safe-mode
+      (error "Building %s not allowed in safe mode" package))
     (let ((task (concat cause (when cause straight-arrow)
                         (format "Building %s" package))))
       (straight--with-progress task

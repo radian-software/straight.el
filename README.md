@@ -2539,6 +2539,15 @@ See [the Hydra wiki][hydra-wiki-straight-entry].
   hide this buffer by default, consider adding a leading space to the
   name.
 
+* You can prevent `straight.el` from making any modifications to the
+  filesystem (though it may still read) by customizing the user option
+  `straight-safe-mode` to non-nil. This may be useful for running
+  tasks automatically in batch mode, to avoid multiple concurrent
+  Emacs processes all making changes to the filesystem. For an example
+  of how this feature may be used to safely implement asynchronous
+  byte-compilation of the init-file on successful startup, see
+  [Radian].
+
 ## Developer manual
 
 This section tells you about all the interesting implementation
