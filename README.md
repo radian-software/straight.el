@@ -100,6 +100,7 @@ chat][gitter-badge]][gitter]
   * [My init time got slower](#my-init-time-got-slower)
   * [How do I update MELPA et al.?](#how-do-i-update-melpa-et-al)
   * [The wrong version of my package was loaded](#the-wrong-version-of-my-package-was-loaded)
+  * [I get "could not read username/password" errors](#i-get-could-not-read-usernamepassword-errors)
   * [The interactive version-control operations are confusing](#the-interactive-version-control-operations-are-confusing)
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
@@ -2692,6 +2693,20 @@ more fun problems you can encounter with Org.
 See [this issue][#236] for discussion about ways of mitigating the bad
 UX of this situation.
 
+### I get "could not read username/password" errors
+
+This is because `straight.el` is not currently able to detect when SSH
+or Git asks for your username and/or password/passphrase and then pipe
+that prompt through to the minibuffer ([#334]).
+
+To work around the problem, set up [git-credential-cache] if you use
+HTTPS, and [ssh-agent] if you use SSH. That way, you won't be prompted
+for your username/password. When setting up ssh-agent, be careful to
+make sure that the relevant environment variables get set in Emacs.
+This might be tricky since starting Emacs from the desktop (rather
+than from the command line) sometimes results in it not inheriting any
+environment variables from your shell.
+
 ### The interactive version-control operations are confusing
 
 This part of `straight.el` still needs some work; see [#54] about the
@@ -2896,6 +2911,7 @@ Note that the user option must be customized *before* the
 [#236]: https://github.com/raxod502/straight.el/issues/236
 [#246]: https://github.com/raxod502/straight.el/issues/246
 [#323]: https://github.com/raxod502/straight.el/issues/323
+[#334]: https://github.com/raxod502/straight.el/issues/334
 [#355]: https://github.com/raxod502/straight.el/issues/355
 [#356]: https://github.com/raxod502/straight.el/issues/356
 [#357]: https://github.com/raxod502/straight.el/issues/357
@@ -2910,6 +2926,7 @@ Note that the user option must be customized *before* the
 [emacswiki]: https://www.emacswiki.org/
 [epkg]: https://github.com/emacscollective/epkg
 [epkgs]: https://github.com/emacsmirror/epkgs
+[git-credential-cache]: https://git-scm.com/docs/git-credential-cache
 [gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg
 [gitter]: https://gitter.im/raxod502/straight.el
 [gnu-elpa-mirror-tool]: https://github.com/raxod502/gnu-elpa-mirror
@@ -2931,6 +2948,7 @@ Note that the user option must be customized *before* the
 [quelpa]: https://github.com/quelpa/quelpa
 [radian]: https://github.com/raxod502/radian
 [spacemacs]: http://spacemacs.org/
+[ssh-agent]: https://www.ssh.com/ssh/agent
 [symlinks-creators]: https://blogs.windows.com/buildingapps/2016/12/02/symlinks-windows-10/
 [symlinks-microsoft]: https://msdn.microsoft.com/en-us/library/bb530410.aspx#vistauac_topic8
 [symlinks-perforce]: https://community.perforce.com/s/article/3472
