@@ -88,7 +88,9 @@
         (version :pluto)
         (straight-profiles (if (boundp 'straight-profiles)
                                straight-profiles
-                             '((nil . "default")))))
+                             '((nil . "default"))))
+        (straight-install-dir (or (bound-and-true-p straight-base-dir)
+                                  user-emacs-directory)))
     ;; The only permissible error here is for a lockfile to be absent
     ;; entirely. Anything else triggers an abort so that we don't
     ;; accidentally do something the user doesn't expect (like if they
@@ -96,7 +98,7 @@
     ;; the recipe specification, and forgot to update which repository
     ;; their init-file downloaded install.el from).
     (dolist (lockfile-name (mapcar #'cdr straight-profiles))
-      (let ((lockfile-path (concat user-emacs-directory
+      (let ((lockfile-path (concat straight-install-dir
                                    "straight/versions/"
                                    lockfile-name)))
         (when (file-exists-p lockfile-path)
@@ -184,7 +186,7 @@
                    ;; (for some silly reason) move your
                    ;; `user-emacs-directory'.
                    (link-target (concat "repos/" local-repo "/bootstrap.el"))
-                   (link-name (concat user-emacs-directory
+                   (link-name (concat straight-install-dir
                                       "straight/bootstrap.el")))
               (ignore-errors
                 ;; If it's a directory, the linking will fail. Just let
