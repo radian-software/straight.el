@@ -85,7 +85,7 @@
 
   (let (;; This needs to have a default value, just in case the user
         ;; doesn't have any lockfiles.
-        (version :pluto)
+        (version :alpha)
         (straight-profiles (if (boundp 'straight-profiles)
                                straight-profiles
                              '((nil . "default"))))
