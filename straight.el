@@ -479,6 +479,10 @@ The warning message is obtained by passing MESSAGE and ARGS to
 
 ;;;;; Paths
 
+(defcustom straight-base-dir user-emacs-directory
+  "Parent path of straight directory. Defaults to `user-emacs-directory'."
+  :type 'string)
+
 (defvar straight--this-file
   (file-truename (or load-file-name buffer-file-name))
   "Absolute real path to this file, straight.el.")
@@ -496,7 +500,7 @@ SEGMENTS, return the `user-emacs-directory' itself.
 
 \(straight--dir \"straight\" \"build\" \"esup\")
 => \"~/.emacs.d/straight/build/esup/\""
-  (let ((dir user-emacs-directory))
+  (let ((dir straight-base-dir))
     (while segments
       (setq dir (expand-file-name
                  (file-name-as-directory (car segments)) dir))
@@ -5261,7 +5265,7 @@ according to the value of `straight-profiles'."
               ;; keyword will be updated. It tells install.el which
               ;; version of straight.el to use to interpret the recipe
               ;; that must be used to clone straight.el itself. I'm
-              ;; using planets in the Solar System, for diversity (and
+              ;; using the Greek alphabet, for diversity (and
               ;; because using consecutive integers would make it
               ;; confusing when somebody else made a fork of the
               ;; project and needed to fork the version sequence as
@@ -5269,7 +5273,7 @@ according to the value of `straight-profiles'."
               ;;
               ;; The version keyword comes after the versions alist so
               ;; that you can ignore it if you don't need it.
-              "(%s)\n:pluto\n"
+              "(%s)\n:alpha\n"
               (mapconcat
                (apply-partially #'format "%S")
                versions-alist
