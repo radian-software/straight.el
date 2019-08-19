@@ -86,7 +86,7 @@
   (let ((version nil)
         (straight-profiles (if (boundp 'straight-profiles)
                                straight-profiles
-                             '((nil . "default"))))
+                             '((nil . "default.el"))))
         (straight-install-dir (or (bound-and-true-p straight-base-dir)
                                   user-emacs-directory)))
     ;; The only permissible error here is for a lockfile to be absent
