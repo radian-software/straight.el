@@ -83,9 +83,7 @@
   (defvar url-http-end-of-headers)
   (defvar url-http-response-status)
 
-  (let (;; This needs to have a default value, just in case the user
-        ;; doesn't have any lockfiles.
-        (version :alpha)
+  (let ((version nil)
         (straight-profiles (if (boundp 'straight-profiles)
                                straight-profiles
                              '((nil . "default"))))
@@ -123,6 +121,9 @@
             ;; are ignored by default by the debugger).
             (end-of-file
              (error "Malformed version lockfile: %S" lockfile-name))))))
+    (unless version
+      ;; If no lockfile present, use latest version.
+      (setq version :alpha))
     (with-current-buffer
         (url-retrieve-synchronously
          (format
