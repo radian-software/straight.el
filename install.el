@@ -57,6 +57,12 @@
 ;; expected to update their bootstrap snippet. We still create the
 ;; symlink, though, for backwards compatibility (this script should
 ;; work for all versions of straight.el, present and past).
+;;
+;; IMPORTANT: When referring to newly introduced variables in
+;; straight.el, *always* use `bound-and-true-p' so as to avoid
+;; regressions with old versions of straight.el that did not define
+;; those variables; see
+;; <https://github.com/raxod502/straight.el/issues/407>.
 
 ;; We have to wrap everything in a single form so that this file can
 ;; be evaluated with `eval-print-last-sexp', rather than
@@ -173,8 +179,13 @@
           ;; skipping the build phase.)
           (straight-use-package-no-build
            `(straight :type git :host github
-                      :repo ,(format "%s/straight.el" straight-repository-user)
-                      :branch ,straight-repository-branch))
+                      :repo ,(format
+                              "%s/straight.el"
+                              (or (bound-and-true-p straight-repository-user)
+                                  "raxod502"))
+                      :branch ,(or (bound-and-true-p
+                                    straight-repository-branch)
+                                   "master")))
           (unless (and (boundp 'bootstrap-version)
                        (integerp bootstrap-version)
                        (>= bootstrap-version 3))
@@ -200,7 +211,7 @@
               ;; argument just makes it fail silently in the case of an
               ;; existing file. That's why we have to `delete-file'
               ;; above.
-              (if straight-use-symlinks
+              (if (bound-and-true-p straight-use-symlinks)
                   (if (executable-find "cmd")
                       (call-process "cmd" nil nil nil "/c" "mklink"
                                     (subst-char-in-string ?/ ?\\ link-name)
