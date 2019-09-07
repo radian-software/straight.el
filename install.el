@@ -89,6 +89,11 @@
   (defvar url-http-end-of-headers)
   (defvar url-http-response-status)
 
+  ;; for windows os
+  (defun straight--windows-os-p ()
+  "Check if the current operating system is Windows."
+    (memq system-type '(ms-dos windows-nt cygwin)))
+
   (let ((version nil)
         (straight-profiles (if (boundp 'straight-profiles)
                                straight-profiles
@@ -212,7 +217,7 @@
               ;; existing file. That's why we have to `delete-file'
               ;; above.
               (if (bound-and-true-p straight-use-symlinks)
-                  (if (executable-find "cmd")
+                  (if (straight--windows-os-p)
                       (call-process "cmd" nil nil nil "/c" "mklink"
                                     (subst-char-in-string ?/ ?\\ link-name)
                                     (subst-char-in-string ?/ ?\\ link-target))
@@ -234,7 +239,7 @@
                              (expand-file-name
                               invocation-name invocation-directory))
                             (runemacs-binary-path
-                             (when (memq system-type '(windows-nt ms-dos))
+                             (when (straight--windows-os-p)
                                (expand-file-name
                                 "runemacs.exe" invocation-directory))))
                         (if (and runemacs-binary-path

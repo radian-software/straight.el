@@ -1,6 +1,6 @@
 ;;; straight.el --- Next-generation package manager -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017-2018 Radon Rosborough and contributors
+;; Copyright (C) 2017-2019 Radon Rosborough and contributors
 
 ;; Author: Radon Rosborough <radon.neon@gmail.com>
 ;; Created: 1 Jan 2017
@@ -477,6 +477,12 @@ The warning message is obtained by passing MESSAGE and ARGS to
           (backward-char)))
       (insert (make-string (- n num-existing) ?\n)))))
 
+;;;;; Windows OS detection
+
+(defun straight--windows-os-p ()
+  "Check if the current operating system is Windows."
+  (memq system-type '(ms-dos windows-nt cygwin)))
+
 ;;;;; Paths
 
 (defcustom straight-base-dir user-emacs-directory
@@ -616,11 +622,9 @@ SEGMENTS are passed to `straight--file'."
 
 (defun straight--watcher-python ()
   "Get the path to the filesystem virtualenv's Python executable."
-  (pcase system-type
-    ((or `ms-dos `windows-nt)
-     (straight--watcher-file "virtualenv" "Scripts" "python.exe"))
-    (_
-     (straight--watcher-file "virtualenv" "bin" "python"))))
+  (if (straight--windows-os-p)
+      (straight--watcher-file "virtualenv" "Scripts" "python.exe")
+    (straight--watcher-file "virtualenv" "bin" "python")))
 
 (defun straight--versions-lockfile (profile)
   "Get the version lockfile for given PROFILE, a symbol."
@@ -653,7 +657,7 @@ copying files, which is slower and less space-efficient.
 All operating systems support symlinks; however, on Microsoft
 Windows you may need additional system configuration (see
 variable `straight-use-symlinks')."
-  (not (memq system-type '(ms-dos windows-nt))))
+  (not (straight--windows-os-p)))
 
 (defcustom straight-use-symlinks (straight--symlinks-are-usable-p)
   "Whether to use symlinks for building packages.
@@ -704,7 +708,7 @@ be interpreted later as a symlink."
     (make-directory (file-name-directory link-name) 'parents)
     (condition-case _
         (if straight-use-symlinks
-            (if (executable-find "cmd")
+            (if (straight--windows-os-p)
                 (call-process "cmd" nil nil nil "/c" "mklink"
                               (subst-char-in-string ?/ ?\\ link-name)
                               (subst-char-in-string ?/ ?\\ link-target))
@@ -3067,7 +3071,7 @@ of one of the packages using the local repository."
   "Determine the best default value of `straight-check-for-modifications'.
 This uses find(1) for all checking on most platforms, and
 `before-save-hook' on Microsoft Windows."
-  (if (memq system-type '(ms-dos windows-nt cygwin))
+  (if (straight--windows-os-p)
       (list 'check-on-save)
     (list 'find-at-startup 'find-when-checking)))
 
