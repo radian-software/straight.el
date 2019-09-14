@@ -1675,8 +1675,13 @@ since otherwise this cache file may grow quite large over time.
 
 #### Hooks run by `straight-use-package`
 
-Currently, `straight-use-package` supports one hook:
+Currently, `straight-use-package` supports two hooks:
 
+* `straight-use-package-prepare-functions`: The functions in this hook
+  are run just before a package would be built, even if the package
+  does not actually need to be rebuilt. They are passed the name of
+  the package being (maybe) built as a string, and should take and
+  ignore any additional arguments.
 * `straight-use-package-pre-build-functions`: The functions in this
   hook are run just before building a package (and only if the package
   needs to be built). They are passed the name of the package being
@@ -2516,7 +2521,7 @@ See [#211] for discussion.
 By default, `straight.el` installs a hack (namely, defining the
 functions `org-git-version` and `org-release` itself) whenever you ask
 it to install Org. This functionality is implemented using
-[`straight-use-package-pre-build-functions`][#user/install/hooks]. You
+[`straight-use-package-prepare-functions`][#user/install/hooks]. You
 can disable it by setting the value of the variable `straight-fix-org`
 to nil.
 

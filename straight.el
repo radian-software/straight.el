@@ -4629,6 +4629,15 @@ action, just return it)."
 
 ;;;;; Package registration
 
+(defcustom straight-use-package-prepare-functions nil
+  "Abnormal hook run before a package is (maybe) built.
+Unlike `straight-use-package-pre-build-functions', the functions
+in this hook are called even if the package does not need to be
+rebuilt. Each hook function is called with the name of the
+package as a string. For forward compatibility, it should accept
+and ignore additional arguments."
+  :type 'hook)
+
 (defcustom straight-use-package-pre-build-functions nil
   "Abnormal hook run before building a package.
 Each hook function is called with the name of the package as a
@@ -4801,6 +4810,8 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
                ;; `load-path' in order to byte-compile properly. So we
                ;; do this before `straight--build-package'.
                (straight--add-package-to-load-path recipe))
+             (run-hook-with-args
+              'straight-use-package-prepare-functions package)
              (when (and modified (not no-build))
                (run-hook-with-args
                 'straight-use-package-pre-build-functions package)
@@ -5766,9 +5777,9 @@ Inserted by installing org-mode or when a release is made."
     (provide 'org-version)))
 
 (if straight-fix-org
-    (add-hook 'straight-use-package-pre-build-functions
+    (add-hook 'straight-use-package-prepare-functions
               #'straight--fix-org-function)
-  (remove-hook 'straight-use-package-pre-build-functions
+  (remove-hook 'straight-use-package-prepare-functions
                #'straight--fix-org-function))
 
 ;;;; Closing remarks
