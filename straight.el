@@ -351,12 +351,6 @@ that may contain `straight--not-present' as a value."
 
 ;;;;; Strings
 
-(defun straight--capitalize (str)
-  "Capitalize only the first character of STR."
-  (if (string-empty-p str)
-      str
-    (concat (upcase (substring str 0 1)) (substring str 1))))
-
 (defun straight--split-and-trim (string &optional indent max-lines)
   "Split the STRING on newlines, returning a list.
 Remove any blank lines at the beginning or end. If INDENT is
@@ -778,75 +772,6 @@ against the wrong repositories.
 If you set this globally to something other than nil, you may be
 eaten by a grue.")
 
-(defun straight--process-filter (proc string)
-  "Process filter for processes spawned by straight.el.
-Outputs to the process buffer, but directs username and
-passphrase prompts to the minibuffer, like Magit. See the Emacs
-docs for information on PROC and STRING."
-  ;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Filter-Functions.html
-  (cl-block nil
-    (condition-case _
-        (when-let ((buf (process-buffer proc)))
-          (with-current-buffer buf
-            (save-excursion
-              (goto-char (point-max))
-              (let ((case-fold-search t)
-                    (inhibit-read-only t))
-                ;; Here is the part where we try to emulate a very
-                ;; small part of the behavior of a real terminal
-                ;; emulator, and handle carriage returns correctly.
-                ;; (In other words, don't spew a bunch of garbage
-                ;; during a 'git clone' because of the progress bar
-                ;; messages.)
-                (let ((parts (split-string string "\r")))
-                  (insert (car parts))
-                  (dolist (part (cdr parts))
-                    (delete-region (point-at-bol) (point-at-eol))
-                    (insert part)))
-                (let ((prompt (thing-at-point 'line)))
-                  (when (string-match "username.*: $" prompt)
-                    (let ((username (read-string (thing-at-point 'line))))
-                      (insert username "\n")
-                      (ignore-errors
-                        (process-send-string proc (concat username "\n")))
-                      (cl-return))))
-                (let ((prompt (thing-at-point 'line)))
-                  (when (string-match
-                         "\\(password\\|passphrase\\).*: $" prompt)
-                    (let ((password (read-passwd prompt)))
-                      (insert (make-string
-                               (length password)
-                               (or (bound-and-true-p read-hide-char) ?*)))
-                      (ignore-errors
-                        (process-send-string proc (concat password "\n")))
-                      (clear-string password)
-                      (cl-return))))))))
-      (quit
-       (ignore-errors
-         (set-process-filter proc nil)
-         (interrupt-process proc))))))
-
-(defun straight--process-sentinel (proc event)
-  "Process sentinel for processes spawned by straight.el.
-Prints a nicely formatted message when the process terminates,
-but otherwise keeps quiet. Also updates
-`straight--process-return-code' and
-`straight--process-output-end'. See
-<https://www.gnu.org/software/emacs/manual/html_node/elisp/Sentinels.html>
-for documentation on PROC and EVENT."
-  (unless straight--process-return-code
-    (when-let ((buf (process-buffer proc)))
-      (with-current-buffer buf
-        (save-excursion
-          (goto-char (point-max))
-          (let ((inhibit-read-only t))
-            (setq straight--process-output-end (point-marker))
-            (straight--ensure-blank-lines 2)
-            (insert "[" (straight--capitalize (string-trim event)) "]\n")))
-        ;; Do this at the end so we can wait for it to be set in
-        ;; `straight--process-run'.
-        (setq straight--process-return-code (process-exit-status proc))))))
-
 (defun straight--process-run (program &rest args)
   "Run executable PROGRAM with given ARGS.
 Output is logged to `straight-process-buffer' unless
@@ -878,42 +803,24 @@ The return value of this function is undefined."
                     (point-marker)))
             (condition-case e
                 (let* ((default-directory directory)
-                       ;; Can't use `make-process' as we still support
-                       ;; Emacs 24.5 which does not have it.
-                       (proc (apply
-                              #'start-process
-                              "straight-process"
-                              (unless straight--process-inhibit-output
-                                (current-buffer))
-                              program args)))
-                  ;; This is safe as process output is not accepted
-                  ;; during execution of Lisp code.
-                  (set-process-filter proc #'straight--process-filter)
-                  (set-process-sentinel proc #'straight--process-sentinel)
-                  (unwind-protect
-                      (progn
-                        ;; We wait for the process to terminate. We
-                        ;; can't just check `process-live-p' as that
-                        ;; may return nil before the filter/sentinel
-                        ;; functions have run. But, based on empirical
-                        ;; experiments, we do seem to be able to
-                        ;; expect that the filter function has
-                        ;; consumed all process output if we know that
-                        ;; the sentinel has finished running. So
-                        ;; that's what we wait for. NB: using
-                        ;; `sit-for' introduces extreme performance
-                        ;; regressions.
-                        (while (null straight--process-return-code)
-                          (accept-process-output)))
-                    (ignore-errors
-                      (interrupt-process proc))))
+                       (return (apply
+                                #'call-process
+                                program nil
+                                (unless straight--process-inhibit-output t)
+                                (get-buffer-window)
+                                args)))
+                  (unless straight--process-inhibit-output
+                    (setq straight--process-output-end
+                          (point-marker)))
+                  (setq straight--process-return-code return)
+                  (unless straight--process-inhibit-output
+                    (straight--ensure-blank-lines 2)
+                    (insert (format "[Return code: %S]\n" return))))
               (file-missing
                (setq straight--process-output-beginning nil)
-               (unless straight--process-inhibit-output
-                 (straight--ensure-blank-lines 2)
-                 (insert
-                  (format
-                   "[File error while %s]\n" (downcase (cadr e)))))))))))))
+               (straight--ensure-blank-lines 2)
+               (insert
+                (format "[File error while %s]\n" (downcase (cadr e))))))))))))
 
 (defun straight--process-run-p ()
   "Return non-nil if the last process was run successfully.

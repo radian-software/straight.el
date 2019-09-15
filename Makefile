@@ -36,8 +36,7 @@ longlines:
 	        | sed '/[<]!-- toc -->/,/<!-- tocstop -->/d' \
 	        | sed '/[l]onglines-start/,/longlines-stop/d' \
 	        | grep -E '.{80}' \
-	        | grep -E -v '\[.+\]: #' \
-	        | grep -E -v 'https?://' \
+	        | grep -E -v '\[.+\]: (#|http)' \
 	        | sed "s/^/$$file:long line: /" \
 	        | grep . && exit 1 || true ;\
 	done
