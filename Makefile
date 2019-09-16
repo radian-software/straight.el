@@ -1,9 +1,12 @@
+SHELL := bash
+
 EMACS ?= emacs
 
 # The order is important for compilation.
 for_compile := straight.el bootstrap.el install.el straight-x.el
 for_checkdoc := straight.el
 for_longlines := $(wildcard *.el *.md *.yml) Makefile
+for_checkindent := $(wildcard *.el)
 
 .PHONY: all
 all: compile checkdoc toc longlines
@@ -41,6 +44,24 @@ longlines:
 	        | grep . && exit 1 || true ;\
 	done
 
+.PHONY: checkindent
+checkindent:
+	@echo "[checkindent] $(for_checkindent)"
+	@tmpdir="$$(mktemp -d)"; for file in $(for_checkindent); do \
+	    $(EMACS) -Q --batch \
+	        --eval "(setq inhibit-message t)" \
+	        --eval "(load (expand-file-name \"indent.el\"  ) nil t)" \
+	        --eval "(load (expand-file-name \"straight.el\") nil t)" \
+	        --eval "(find-file \"$$file\")" \
+	        --eval "(indent-region (point-min) (point-max))" \
+	        --eval "(write-file \"$$tmpdir/$$file\")"; \
+	    (diff <(cat          "$$file" | nl -v1 -ba | \
+                           sed "s/\t/: /" | sed "s/^ */$$file:/") \
+	          <(cat "$$tmpdir/$$file" | nl -v1 -ba | \
+                           sed "s/\t/: /" | sed "s/^ */$$file:/") \
+	         && exit 1 || true) | grep -F ">" | grep -o "[a-z].*"; \
+	done
+
 .PHONY: toc
 toc: README.md
 	@echo "[toc] $^"
@@ -56,7 +77,7 @@ clean:
 	@rm -f *.elc
 
 # Make sure to test with a package that supports Emacs 24.4 here.
-travis: compile checkdoc longlines
+travis: compile checkdoc longlines checkindent
 	mkdir -p ~/.emacs.d/straight/repos/
 	ln -s $(PWD) ~/.emacs.d/straight/repos/
 	$(EMACS) --batch -l ~/.emacs.d/straight/repos/straight.el/bootstrap.el \
