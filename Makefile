@@ -58,8 +58,8 @@ checkindent:
 	    (diff <(cat          "$$file" | nl -v1 -ba | \
                            sed "s/\t/: /" | sed "s/^ */$$file:/") \
 	          <(cat "$$tmpdir/$$file" | nl -v1 -ba | \
-                           sed "s/\t/: /" | sed "s/^ */$$file:/") \
-	         && exit 1 || true) | grep -F ">" | grep -o "[a-z].*"; \
+                           sed "s/\t/: /" | sed "s/^ */$$file:/") ) \
+	        | grep -F ">" | grep -o "[a-z].*" | grep . && exit 1 || true; \
 	done
 
 .PHONY: toc
