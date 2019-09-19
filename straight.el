@@ -4538,6 +4538,20 @@ action, just return it)."
                (message "Copied \"%S\" to kill ring" recipe))
         (_ recipe)))))
 
+;;;;; Jump to package website
+
+;;;###autoload
+(defun straight-visit-package-website ()
+  "Interactively select a recipe, and visit the package's website."
+  (interactive)
+  (let* ((melpa-recipe (straight-get-recipe))
+         (recipe (straight--convert-recipe melpa-recipe)))
+    (straight--with-plist recipe (host repo)
+      (pcase host
+        (`github (browse-url (format "https://github.com/%s" repo)))
+        (`gitlab (browse-url (format "https://gitlab.com/%s" repo)))
+        (_ (browse-url (format "%s" repo)))))))
+
 ;;;;; Package registration
 
 (defcustom straight-use-package-prepare-functions nil
