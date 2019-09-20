@@ -112,7 +112,7 @@ They are still logged to the *Messages* buffer.")))
 (defvar package--builtins)
 
 ;; `magit'
-(declare-function magit-status-internal "magit-status")
+(declare-function magit-status-setup-buffer "magit-status")
 
 ;; `package'
 (defvar package-selected-packages)
@@ -1609,7 +1609,7 @@ prompt. Return non-nil if Magit was installed. DIRECTORY is as in
         (straight-use-package 'magit)
       (cl-return-from straight--magit-status)))
   (prog1 t
-    (magit-status-internal directory)))
+    (magit-status-setup-buffer directory)))
 
 (defun straight-vc-git--popup-raw (prompt actions)
   "Same as `straight--popup-raw', but specialized for vc-git methods.
