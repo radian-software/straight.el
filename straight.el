@@ -1,4 +1,4 @@
-;;; straight.el --- Next-generation package manager. -*- lexical-binding: t -*-
+;;; straight.el --- Next-generation package manager -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2017-2018 Radon Rosborough and contributors
 
@@ -206,6 +206,25 @@ profile (nil) will suffice without additional setup."
   :type '(alist :key-type symbol :value-type
                 (alist :key-type symbol :value-type
                        (plist :key-type symbol :value-type sexp))))
+
+(defcustom straight-safe-mode nil
+  "Non-nil means avoid doing anything that modifies the filesystem.
+In safe mode, package modifications will still be detected
+according to `straight-check-for-modifications'. However, if a
+package needs to be cloned, built, or rebuilt, straight.el
+instead generates an error. The build cache will not be written
+back to disk, nor will the filesystem watcher be started (if
+enabled).
+
+As one example of a use case for safe mode, suppose you want to
+byte-compile your Emacs configuration asynchronously in the
+background. To avoid multiple Emacs processes modifying the
+filesystem concurrently via straight.el, you might want to enable
+safe mode for the background Emacs process.
+
+Safe mode is not guaranteed to be as performant as normal
+operation."
+  :type 'boolean)
 
 ;;;; Utility functions
 ;;;;; Association lists
@@ -460,6 +479,10 @@ The warning message is obtained by passing MESSAGE and ARGS to
 
 ;;;;; Paths
 
+(defcustom straight-base-dir user-emacs-directory
+  "Parent path of straight directory. Defaults to `user-emacs-directory'."
+  :type 'string)
+
 (defvar straight--this-file
   (file-truename (or load-file-name buffer-file-name))
   "Absolute real path to this file, straight.el.")
@@ -477,7 +500,7 @@ SEGMENTS, return the `user-emacs-directory' itself.
 
 \(straight--dir \"straight\" \"build\" \"esup\")
 => \"~/.emacs.d/straight/build/esup/\""
-  (let ((dir user-emacs-directory))
+  (let ((dir straight-base-dir))
     (while segments
       (setq dir (expand-file-name
                  (file-name-as-directory (car segments)) dir))
@@ -630,7 +653,7 @@ copying files, which is slower and less space-efficient.
 All operating systems support symlinks; however, on Microsoft
 Windows you may need additional system configuration (see
 variable `straight-use-symlinks')."
-  (not (memq system-type '(ms-dos windows-nt cygwin))))
+  (not (memq system-type '(ms-dos windows-nt))))
 
 (defcustom straight-use-symlinks (straight--symlinks-are-usable-p)
   "Whether to use symlinks for building packages.
@@ -966,9 +989,12 @@ If nil, no transaction is not live.")
 (defun straight--transaction-finalize-on-idle ()
   "Schedule to finalize the current transaction on Emacs idle.
 This means that `straight--transaction-finalize' will be invoked
-using an idle timer."
-  (run-with-idle-timer
-   0 nil #'straight--transaction-finalize))
+using an idle timer. In batch mode, the transaction is finalized
+using `kill-emacs-hook' rather than an idle timer (because idle
+timers are not run in batch mode)."
+  (if noninteractive
+      (add-hook 'kill-emacs-hook #'straight--transaction-finalize)
+    (run-with-idle-timer 0 nil #'straight--transaction-finalize)))
 
 (defun straight--transaction-finalize ()
   "Finalize the current transaction.
@@ -1165,6 +1191,9 @@ passed to the method.
 For example:
    (straight-vc \\='check-out-commit \\='git ...)
 => (straight-vc-git-check-out-commit ...)"
+  (when (and straight-safe-mode
+             (not (memq method '(local-repo-name keywords))))
+    (error "VC operation `%S %S' not allowed in safe mode" type method))
   (let ((func (intern (format "straight-vc-%S-%S"
                               type method))))
     (unless (fboundp func)
@@ -2226,18 +2255,20 @@ If RECIPE does not configure a fork, do nothing."
 
 (cl-defun straight-vc-git-check-out-commit (recipe commit)
   "In RECIPE's repo, normalize and check out COMMIT.
-RECIPE is a straight recipe definition. COMMIT is a 40-character
+RECIPE is a straight.el-style recipe. COMMIT is a 40-character
 string identifying a Git commit."
   (straight-vc-git--destructure recipe
       (local-repo)
-    (straight-register-repo-modification local-repo)
     (cl-block nil
       (while t
-        (and (straight-vc-git--ensure-nothing-in-progress local-repo)
-             (straight-vc-git--ensure-worktree local-repo)
-             (straight-vc-git--ensure-local recipe)
-             (straight--get-call "git" "reset" "--hard" commit)
-             (cl-return))))))
+        (or (and (straight-vc-git--ensure-nothing-in-progress local-repo)
+                 (straight-vc-git--ensure-worktree local-repo)
+                 (straight-vc-git--ensure-local recipe)
+                 (or (equal
+                      commit (straight--get-call "git" "rev-parse" "HEAD"))
+                     (straight--get-call "git" "reset" "--hard" commit))
+                 (cl-return))
+            (straight-register-repo-modification local-repo))))))
 
 (cl-defun straight-vc-git-commit-present-p (_local-repo commit)
   "Return non-nil if LOCAL-REPO has COMMIT present locally."
@@ -2637,7 +2668,7 @@ ELPA, return a MELPA-style recipe. Otherwise, return nil."
 
 ;;;;;; Emacsmirror
 
-(defcustom straight-recipes-emacsmirror-use-mirror nil
+(defcustom straight-recipes-emacsmirror-use-mirror t
   "Non-nil means to retrieve Emacsmirror packages via a mirror.
 There is no disadvantage to doing this, and cloning the mirror is
 much faster than cloning the official Emacsmirror."
@@ -3247,41 +3278,42 @@ empty values (all packages will be rebuilt, with no caching)."
   "Write data from memory into build-cache.el.
 This uses the values of `straight--build-cache' and
 `straight--eagerly-checked-packages'."
-  (with-temp-buffer
-    ;; Prevent mangling of the form being printed in the case that
-    ;; this function was called by an `eval-expression' invocation of
-    ;; `straight-use-package'.
-    (let ((print-level nil)
-          (print-length nil))
-      ;; The version of the build cache.
-      (print straight--build-cache-version (current-buffer))
-      ;; Record the current Emacs version. If a different version of
-      ;; Emacs is used, we have to rebuild all the packages (because
-      ;; byte-compiled files cannot necessarily still be loaded).
-      (print emacs-version (current-buffer))
-      ;; The actual build cache.
-      (print straight--build-cache (current-buffer))
-      ;; The autoloads cache.
-      (print straight--autoloads-cache (current-buffer))
-      ;; The recipe lookup cache.
-      (print straight--recipe-lookup-cache (current-buffer))
-      ;; Which packages should be checked eagerly next init.
-      (print (hash-table-keys straight--profile-cache) (current-buffer))
-      ;; Whether packages were built using symlinks or copying.
-      (print straight-use-symlinks (current-buffer)))
-    (unless (and straight--build-cache-text
-                 (string= (buffer-string) straight--build-cache-text))
-      (write-region nil nil (straight--build-cache-file) nil 0))
-    (when (or (straight--modifications 'check-on-save)
-              (straight--modifications 'watch-files))
-      ;; We've imported data from `straight--modified-dir' into the
-      ;; build cache when loading it. Now that we've written the build
-      ;; cache back to disk, there's no more need for that data (and
-      ;; indeed, it would produce spurious package rebuilds on
-      ;; subsequent inits).
-      (condition-case _
-          (delete-directory (straight--modified-dir) 'recursive)
-        (file-error)))))
+  (unless straight-safe-mode
+    (with-temp-buffer
+      ;; Prevent mangling of the form being printed in the case that
+      ;; this function was called by an `eval-expression' invocation
+      ;; of `straight-use-package'.
+      (let ((print-level nil)
+            (print-length nil))
+        ;; The version of the build cache.
+        (print straight--build-cache-version (current-buffer))
+        ;; Record the current Emacs version. If a different version of
+        ;; Emacs is used, we have to rebuild all the packages (because
+        ;; byte-compiled files cannot necessarily still be loaded).
+        (print emacs-version (current-buffer))
+        ;; The actual build cache.
+        (print straight--build-cache (current-buffer))
+        ;; The autoloads cache.
+        (print straight--autoloads-cache (current-buffer))
+        ;; The recipe lookup cache.
+        (print straight--recipe-lookup-cache (current-buffer))
+        ;; Which packages should be checked eagerly next init.
+        (print (hash-table-keys straight--profile-cache) (current-buffer))
+        ;; Whether packages were built using symlinks or copying.
+        (print straight-use-symlinks (current-buffer)))
+      (unless (and straight--build-cache-text
+                   (string= (buffer-string) straight--build-cache-text))
+        (write-region nil nil (straight--build-cache-file) nil 0))
+      (when (or (straight--modifications 'check-on-save)
+                (straight--modifications 'watch-files))
+        ;; We've imported data from `straight--modified-dir' into the
+        ;; build cache when loading it. Now that we've written the
+        ;; build cache back to disk, there's no more need for that
+        ;; data (and indeed, it would produce spurious package
+        ;; rebuilds on subsequent inits).
+        (condition-case _
+            (delete-directory (straight--modified-dir) 'recursive)
+          (file-error))))))
 
 (cl-defun straight--make-build-cache-available (&key nosave)
   "Make the build cache available until the end of the current transaction.
@@ -3297,10 +3329,11 @@ you ought not to make any changes to it.)"
 (defun straight-register-repo-modification (local-repo)
   "Register a modification of the given LOCAL-REPO, a string.
 Always return nil, for convenience of usage."
-  (ignore
-   (unless (string-match-p "/" local-repo)
-     (make-directory (straight--modified-dir) 'parents)
-     (with-temp-file (straight--modified-file local-repo)))))
+  (unless straight-safe-mode
+    (prog1 nil
+      (unless (string-match-p "/" local-repo)
+        (make-directory (straight--modified-dir) 'parents)
+        (with-temp-file (straight--modified-file local-repo))))))
 
 (defun straight-register-file-modification ()
   "Register a modification of the current file.
@@ -3371,53 +3404,55 @@ This includes the case hwere it doesn't yet exist."
   "Start the filesystem watcher, killing any previous instance.
 If it fails, signal a warning and return nil."
   (interactive)
-  (unless (executable-find "python3")
-    (straight--warn
-     "Cannot start filesystem watcher without 'python3' installed")
-    (cl-return-from straight-watcher-start))
-  (unless (executable-find "watchexec")
-    (straight--warn
-     "Cannot start filesystem watcher without 'watchexec' installed")
-    (cl-return-from straight-watcher-start))
-  (when (straight-watcher--virtualenv-outdated)
-    (message "Setting up filesystem watcher...")
-    (unless (straight-watcher--virtualenv-setup)
-      (message "Setting up filesystem watcher...failed")
+  (unless straight-safe-mode
+    (unless (executable-find "python3")
+      (straight--warn
+       "Cannot start filesystem watcher without 'python3' installed")
       (cl-return-from straight-watcher-start))
-    (message "Setting up filesystem watcher...done"))
-  (with-current-buffer (straight-watcher--make-process-buffer)
-    (let* ((python (straight--watcher-python))
-           (cmd (list
-                 python "-m" "straight_watch" "start"
-                 (straight--watcher-file "process")
-                 (straight--repos-dir)
-                 (straight--modified-dir)))
-           (sh (concat
-                "exec nohup "
-                (mapconcat #'shell-quote-argument cmd " "))))
-      ;; Put the 'nohup.out' file in the ~/.emacs.d/straight/watcher/
-      ;; directory.
-      (setq default-directory (straight--watcher-dir))
-      ;; Clear it out, since nohup(1) doesn't overwrite it.
-      (condition-case _
-          (delete-file (straight--watcher-file "nohup.out"))
-        (file-missing))
-      (let ((inhibit-read-only t))
-        (insert "$ " sh "\n\n"))
-      (start-file-process-shell-command
-       "straight-watcher" straight-watcher-process-buffer sh)
-      (set-process-query-on-exit-flag
-       (get-buffer-process (current-buffer)) nil))))
+    (unless (executable-find "watchexec")
+      (straight--warn
+       "Cannot start filesystem watcher without 'watchexec' installed")
+      (cl-return-from straight-watcher-start))
+    (when (straight-watcher--virtualenv-outdated)
+      (message "Setting up filesystem watcher...")
+      (unless (straight-watcher--virtualenv-setup)
+        (message "Setting up filesystem watcher...failed")
+        (cl-return-from straight-watcher-start))
+      (message "Setting up filesystem watcher...done"))
+    (with-current-buffer (straight-watcher--make-process-buffer)
+      (let* ((python (straight--watcher-python))
+             (cmd (list
+                   python "-m" "straight_watch" "start"
+                   (straight--watcher-file "process")
+                   (straight--repos-dir)
+                   (straight--modified-dir)))
+             (sh (concat
+                  "exec nohup "
+                  (mapconcat #'shell-quote-argument cmd " "))))
+        ;; Put the 'nohup.out' file in the ~/.emacs.d/straight/watcher/
+        ;; directory.
+        (setq default-directory (straight--watcher-dir))
+        ;; Clear it out, since nohup(1) doesn't overwrite it.
+        (condition-case _
+            (delete-file (straight--watcher-file "nohup.out"))
+          (file-missing))
+        (let ((inhibit-read-only t))
+          (insert "$ " sh "\n\n"))
+        (start-file-process-shell-command
+         "straight-watcher" straight-watcher-process-buffer sh)
+        (set-process-query-on-exit-flag
+         (get-buffer-process (current-buffer)) nil)))))
 
 (defun straight-watcher-stop ()
   "Kill the filesystem watcher, if it is running.
 If there is an unexpected error, signal a warning and return nil."
   (interactive)
-  (let ((python (straight--watcher-python)))
-    (when (file-executable-p python)
-      (straight--warn-call
-       python "-m" "straight_watch" "stop"
-       (straight--watcher-file "process")))))
+  (unless straight-safe-mode
+    (let ((python (straight--watcher-python)))
+      (when (file-executable-p python)
+        (straight--warn-call
+         python "-m" "straight_watch" "stop"
+         (straight--watcher-file "process"))))))
 
 ;;;;; Bulk checking
 
@@ -3956,7 +3991,8 @@ this run of straight.el)."
                  ;; really need is the dependency alist. If it's
                  ;; missing or malformed, we just assume the package
                  ;; has no dependencies.
-                 (re-search-forward "^;; Package-Requires: ")
+                 (let ((case-fold-search t))
+                   (re-search-forward "^;; Package-Requires: "))
                  (when (looking-at "(")
                    (straight--process-dependencies
                     (read (current-buffer)))))))))
@@ -4141,6 +4177,8 @@ RECIPE is a straight.el-style plist. CAUSE is a string indicating
 the reason this package is being built."
   (straight--with-plist recipe
       (package)
+    (when straight-safe-mode
+      (error "Building %s not allowed in safe mode" package))
     (let ((task (concat cause (when cause straight-arrow)
                         (format "Building %s" package))))
       (straight--with-progress task
@@ -5227,7 +5265,7 @@ according to the value of `straight-profiles'."
               ;; keyword will be updated. It tells install.el which
               ;; version of straight.el to use to interpret the recipe
               ;; that must be used to clone straight.el itself. I'm
-              ;; using planets in the Solar System, for diversity (and
+              ;; using the Greek alphabet, for diversity (and
               ;; because using consecutive integers would make it
               ;; confusing when somebody else made a fork of the
               ;; project and needed to fork the version sequence as
@@ -5235,7 +5273,7 @@ according to the value of `straight-profiles'."
               ;;
               ;; The version keyword comes after the versions alist so
               ;; that you can ignore it if you don't need it.
-              "(%s)\n:pluto\n"
+              "(%s)\n:alpha\n"
               (mapconcat
                (apply-partially #'format "%S")
                versions-alist
@@ -5262,6 +5300,9 @@ according to the value of `straight-profiles'."
 
 ;;;; Integration with other packages
 ;;;;; package.el "integration"
+
+(defvaralias 'straight-ಠ_ಠ 'straight-enable-package-integration
+  "The alias expresses how I feel about package.el sometimes.")
 
 (defcustom straight-enable-package-integration t
   "Whether to enable \"integration\" with package.el.
@@ -5318,6 +5359,9 @@ is loaded, according to the value of
                      #'straight-package-advice-ensure-init-file)
       (advice-remove #'package--save-selected-packages
                      #'straight-package-advice-save-selected-packages))))
+
+(defalias 'straight-ಠ_ಠ-mode #'straight-package-neutering-mode
+  "The alias expresses how I feel about package.el sometimes.")
 
 ;;;;; use-package integration
 

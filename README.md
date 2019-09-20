@@ -61,6 +61,7 @@ chat][gitter-badge]][gitter]
     + [Additional arguments to `straight-use-package`](#additional-arguments-to-straight-use-package)
     + [Variants of `straight-use-package`](#variants-of-straight-use-package)
     + [Customizing when packages are built](#customizing-when-packages-are-built)
+      - [Custom or manual modification detection](#custom-or-manual-modification-detection)
       - [Summary of options for package modification detection](#summary-of-options-for-package-modification-detection)
         * [`find-at-startup`](#find-at-startup)
         * [`check-on-save`](#check-on-save)
@@ -99,10 +100,12 @@ chat][gitter-badge]][gitter]
   * [My init time got slower](#my-init-time-got-slower)
   * [How do I update MELPA et al.?](#how-do-i-update-melpa-et-al)
   * [The wrong version of my package was loaded](#the-wrong-version-of-my-package-was-loaded)
+  * [I get "could not read username/password" errors](#i-get-could-not-read-usernamepassword-errors)
   * [The interactive version-control operations are confusing](#the-interactive-version-control-operations-are-confusing)
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
 - [News](#news)
+  * [July 6, 2019](#july-6-2019)
   * [May 24, 2019](#may-24-2019)
   * [May 22, 2019](#may-22-2019)
   * [May 1, 2019](#may-1-2019)
@@ -111,10 +114,6 @@ chat][gitter-badge]][gitter]
   * [September 12, 2018](#september-12-2018)
   * [July 19, 2018](#july-19-2018)
   * [July 12, 2018](#july-12-2018)
-  * [June 24, 2018](#june-24-2018)
-  * [June 21, 2018](#june-21-2018)
-  * [June 5, 2018](#june-5-2018)
-  * [May 31, 2018](#may-31-2018)
 
 <!-- tocstop -->
 
@@ -1557,6 +1556,25 @@ On Microsoft Windows, `find(1)` is generally not available, so the
 default value of `straight-check-for-modifications` is instead
 `(check-on-save)`.
 
+##### Custom or manual modification detection
+
+You can also use the low-level functions for modification detection
+directly.
+
+The function `straight-register-repo-modification` takes a string
+(e.g. `"straight.el"`) corresponding to the name of a local
+repository, and marks all packages from that local repository to be
+rebuilt at next Emacs startup. This function silently ignores local
+repositories which contain slashes, a limitation which might be
+removed in future.
+
+The function `straight-register-file-modification` takes no arguments
+and checks if the file visited by the current buffer (if any) is
+contained by any local repository. If so, it delegates to
+`straight-register-repo-modification`. The `check-on-save` value for
+`straight-check-for-modifications` just adds
+`straight-register-file-modification` to `before-save-hook`.
+
 ##### Summary of options for package modification detection
 ###### `find-at-startup`
 
@@ -2522,6 +2540,15 @@ See [the Hydra wiki][hydra-wiki-straight-entry].
   hide this buffer by default, consider adding a leading space to the
   name.
 
+* You can prevent `straight.el` from making any modifications to the
+  filesystem (though it may still read) by customizing the user option
+  `straight-safe-mode` to non-nil. This may be useful for running
+  tasks automatically in batch mode, to avoid multiple concurrent
+  Emacs processes all making changes to the filesystem. For an example
+  of how this feature may be used to safely implement asynchronous
+  byte-compilation of the init-file on successful startup, see
+  [Radian].
+
 ## Developer manual
 
 This section tells you about all the interesting implementation
@@ -2666,6 +2693,20 @@ more fun problems you can encounter with Org.
 See [this issue][#236] for discussion about ways of mitigating the bad
 UX of this situation.
 
+### I get "could not read username/password" errors
+
+This is because `straight.el` is not currently able to detect when SSH
+or Git asks for your username and/or password/passphrase and then pipe
+that prompt through to the minibuffer ([#334]).
+
+To work around the problem, set up [git-credential-cache] if you use
+HTTPS, and [ssh-agent] if you use SSH. That way, you won't be prompted
+for your username/password. When setting up ssh-agent, be careful to
+make sure that the relevant environment variables get set in Emacs.
+This might be tricky since starting Emacs from the desktop (rather
+than from the command line) sometimes results in it not inheriting any
+environment variables from your shell.
+
 ### The interactive version-control operations are confusing
 
 This part of `straight.el` still needs some work; see [#54] about the
@@ -2732,6 +2773,11 @@ with Emacs, rather than cloning the upstream repository:
 [Read more.][#user/recipes]
 
 ## News
+### July 6, 2019
+
+The default value of the user option `straight-emacsmirror-use-mirror`
+is now non-nil.
+
 ### May 24, 2019
 
 I have completely rewritten the transaction system. The practical
@@ -2812,33 +2858,6 @@ packages such as AUCTeX correctly, which was previously impossible.
 Note that the user option must be customized *before* the
 `straight.el` [bootstrap][#quickstart].
 
-### June 24, 2018
-
-You can now use the [`watchexec`][watchexec] utility to detect
-modifications to package files and trigger rebuilds when appropriate.
-This produces a faster startup time than using `find(1)`, yet is more
-robust than live modification detection via `before-save-hook`.
-Customize `straight-check-for-modifications` to try it out.
-
-### June 21, 2018
-
-There is an improved API for `straight-check-for-modifications`. You
-may now specify a list of symbols instead of just a single symbol. See
-the docstring for more information.
-
-### June 5, 2018
-
-Live modification checking is significantly improved. It no longer
-misses modifications if you have multiple Emacs sessions or use the
-repository management commands. Also, manually invoking
-`straight-check-package` or `straight-check-all` can still use
-`find(1)` to catch missed modifications, if you customize
-`straight-check-for-modifications` to `live-with-find`.
-
-### May 31, 2018
-
-Autoloads caching is now enabled by default.
-
 [#principles]: #guiding-principles
 [#quickstart]: #getting-started
 [#faq]: #faq
@@ -2892,6 +2911,7 @@ Autoloads caching is now enabled by default.
 [#236]: https://github.com/raxod502/straight.el/issues/236
 [#246]: https://github.com/raxod502/straight.el/issues/246
 [#323]: https://github.com/raxod502/straight.el/issues/323
+[#334]: https://github.com/raxod502/straight.el/issues/334
 [#355]: https://github.com/raxod502/straight.el/issues/355
 [#356]: https://github.com/raxod502/straight.el/issues/356
 [#357]: https://github.com/raxod502/straight.el/issues/357
@@ -2906,27 +2926,29 @@ Autoloads caching is now enabled by default.
 [emacswiki]: https://www.emacswiki.org/
 [epkg]: https://github.com/emacscollective/epkg
 [epkgs]: https://github.com/emacsmirror/epkgs
-[gitter]: https://gitter.im/raxod502/straight.el
+[git-credential-cache]: https://git-scm.com/docs/git-credential-cache
 [gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg
-[gnu-elpa]: https://elpa.gnu.org/
-[gnu-elpa-mirror]: https://github.com/emacs-straight
+[gitter]: https://gitter.im/raxod502/straight.el
 [gnu-elpa-mirror-tool]: https://github.com/raxod502/gnu-elpa-mirror
+[gnu-elpa-mirror]: https://github.com/emacs-straight
+[gnu-elpa]: https://elpa.gnu.org/
 [homebrew]: https://brew.sh/
-[hydra]: https://github.com/abo-abo/hydra
 [hydra-wiki-straight-entry]: https://github.com/abo-abo/hydra/wiki/straight.el
+[hydra]: https://github.com/abo-abo/hydra
 [issues]: https://github.com/raxod502/straight.el/issues
 [magit]: https://magit.vc/
 [markdown-toc]: https://github.com/jonschlinkert/markdown-toc
 [melpa-recipe-format]: https://github.com/melpa/melpa#recipe-format
 [melpa]: http://melpa.org/#/
-[package.el]: https://www.gnu.org/software/emacs/manual/html_node/emacs/Packages.html
 [package.el-format]: https://www.gnu.org/software/emacs/manual/html_node/elisp/Packaging-Basics.html
+[package.el]: https://www.gnu.org/software/emacs/manual/html_node/emacs/Packages.html
 [prelude]: https://github.com/bbatsov/prelude
 [property-lists]: https://www.gnu.org/software/emacs/manual/html_node/elisp/Property-Lists.html
 [python]: https://www.python.org/
-[radian]: https://github.com/raxod502/radian
 [quelpa]: https://github.com/quelpa/quelpa
+[radian]: https://github.com/raxod502/radian
 [spacemacs]: http://spacemacs.org/
+[ssh-agent]: https://www.ssh.com/ssh/agent
 [symlinks-creators]: https://blogs.windows.com/buildingapps/2016/12/02/symlinks-windows-10/
 [symlinks-microsoft]: https://msdn.microsoft.com/en-us/library/bb530410.aspx#vistauac_topic8
 [symlinks-perforce]: https://community.perforce.com/s/article/3472
