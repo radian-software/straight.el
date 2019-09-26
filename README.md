@@ -77,6 +77,7 @@ chat][gitter-badge]][gitter]
     + [Updating recipe repositories](#updating-recipe-repositories)
     + [Customizing recipe repositories](#customizing-recipe-repositories)
       - [GNU ELPA](#gnu-elpa)
+      - [Emacsmirror](#emacsmirror)
       - [Defining new recipe repositories](#defining-new-recipe-repositories)
   * [Overriding recipes](#overriding-recipes)
     + [Overriding the recipe for `straight.el`](#overriding-the-recipe-for-straightel)
@@ -2050,6 +2051,10 @@ You can customize the following user options:
   `straight-recipe-repositories` to shift to:
 
       (org-elpa melpa gnu-elpa emacsmirror)
+
+##### Emacsmirror
+
+You can customize the following user option:
 
 * `straight-recipes-emacsmirror-use-mirror`: Yes, there is also a
   mirror for Emacsmirror. This is because the [epkgs] repository
