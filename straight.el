@@ -4131,7 +4131,8 @@ repository."
                         (straight--repos-dir local-repo)
                         (straight--build-dir package)
                         flavor))
-          (when (string-match-p ".texi\\(nfo\\)?$" repo-file)
+          (when (or (string-match-p ".info$" repo-file)
+                    (string-match-p ".texi\\(nfo\\)?$" repo-file))
             (let ((texi repo-file)
                   (info
                    (concat (file-name-sans-extension build-file) ".info")))
