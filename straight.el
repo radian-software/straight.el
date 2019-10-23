@@ -2631,7 +2631,15 @@ ELPA, return a MELPA-style recipe. Otherwise, return nil."
   (when (file-exists-p (symbol-name package))
     `(,package :type git
                :host github
-               :repo ,(format "emacs-straight/%S" package))))
+               :repo ,(format "emacs-straight/%S" package)
+               ;; Kinda weird, but in fact this is how package.el
+               ;; works. So if we want to replicate the build process,
+               ;; we should trust that the gnu-elpa-mirror put the
+               ;; correct files into the repository, and then just
+               ;; link *everything*. As an FYI, if we don't do this,
+               ;; then AUCTeX suffers problems with style files, see
+               ;; <https://github.com/raxod502/straight.el/issues/423>.
+               :files ("*" (:exclude ".git")))))
 
 (defun straight-recipes-gnu-elpa-mirror-list ()
   "Return a list of recipe names available in the GNU ELPA mirror.
@@ -2640,7 +2648,7 @@ This is a list of strings."
 
 (defun straight-recipes-gnu-elpa-mirror-version ()
   "Return the current version of the GNU ELPA mirror retriever."
-  1)
+  2)
 
 ;;;;;;; GNU ELPA source
 
