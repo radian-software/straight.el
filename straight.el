@@ -2111,7 +2111,13 @@ unless a commit is specified (e.g. by version lockfiles)."
 If DEPTH is the symbol `full', clone the whole history of the repository.
 If DEPTH is an integer, clone with the option --depth DEPTH --branch BRANCH.
 If this fails, try again to clone without the option --depth and --branch,
-as a fallback."
+as a fallback.
+
+UPSTREAM-REMOTE is the name of the remote to use for the upstream
+\(e.g. \"origin\"; see `straight-vc-git-default-remote-name').
+URL and REPO-DIR are the positional arguments passed to
+git-clone(1), and BRANCH is the name of the default
+branch (although it won't be checked out as per --no-checkout)."
   (cond
    ((eq depth 'full)
     ;; Clone the whole history of the repository.
