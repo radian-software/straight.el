@@ -681,10 +681,11 @@ DIRECTORY, MATCH, and FULL are as in `directory-files', but their
 order has been changed. Also, DIRECTORY defaults to
 `default-directory' if omitted. The meaning of the last argument
 SORT has been inverted from `directory-files'. Finally, the . and
-.. entries are never returned."
-  (delete "." (delete ".." (directory-files
-                            (or directory default-directory)
-                            full match (not sort)))))
+.. entries are never returned, and .git is removed from the
+results if present."
+  (delete ".git" (delete "." (delete ".." (directory-files
+                                           (or directory default-directory)
+                                           full match (not sort))))))
 
 (defun straight--symlink-recursively (link-target link-name)
   "Make a symbolic link to LINK-TARGET, named LINK-NAME, recursively.
