@@ -4131,15 +4131,18 @@ repository."
                         (straight--repos-dir local-repo)
                         (straight--build-dir package)
                         flavor))
-          (when (or (string-match-p ".info$" repo-file)
-                    (string-match-p ".texi\\(nfo\\)?$" repo-file))
+          (cond
+           ((string-match-p ".info$" repo-file)
+            ;; info file has already been symlinked so no more action needed.
+            (push build-file infos))
+           ((string-match-p ".texi\\(nfo\\)?$" repo-file)
             (let ((texi repo-file)
                   (info
                    (concat (file-name-sans-extension build-file) ".info")))
               (push info infos)
               (unless (file-exists-p info)
                 (let ((default-directory (file-name-directory texi)))
-                  (straight--call "makeinfo" texi "-o" info))))))
+                  (straight--call "makeinfo" texi "-o" info)))))))
         (let ((dir (straight--build-file package "dir")))
           (unless (file-exists-p dir)
             (dolist (info infos)
