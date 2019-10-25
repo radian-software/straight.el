@@ -4132,8 +4132,7 @@ repository."
                         (straight--build-dir package)
                         flavor))
           (cond
-           ((string-match-p ".info$" repo-file)
-            ;; info file has already been symlinked so no more action needed.
+           ((string-match-p ".info$" build-file)
             (push build-file infos))
            ((string-match-p ".texi\\(nfo\\)?$" repo-file)
             (let ((texi repo-file)
