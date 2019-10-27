@@ -2506,6 +2506,13 @@ all of these "features" by setting `package-enable-at-startup` to nil
 and enabling some advices. You can override this behavior by
 customizing `straight-enable-package-integration`, however.
 
+To help avoid you shooting yourself in the foot by using both
+`:ensure` and `:straight` at the same time in a `use-package` form
+(which would cause the same package to be installed twice using two
+different package managers), `straight.el` will helpfully disable
+`:ensure` whenever you include `:straight` in a `use-package` form.
+See [#425].
+
 #### Integration with Org
 
 Org expects you to run `make` in its source repository before you run
@@ -2925,6 +2932,7 @@ Note that the user option must be customized *before* the
 [#355]: https://github.com/raxod502/straight.el/issues/355
 [#356]: https://github.com/raxod502/straight.el/issues/356
 [#357]: https://github.com/raxod502/straight.el/issues/357
+[#425]: https://github.com/raxod502/straight.el/issues/425
 
 [auto-compile]: https://github.com/tarsius/auto-compile
 [borg]: https://github.com/emacscollective/borg

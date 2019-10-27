@@ -126,6 +126,7 @@ They are still logged to the *Messages* buffer.")))
 (defvar use-package-pre-ensure-function)
 (declare-function use-package-as-symbol "use-package")
 (declare-function use-package-error "use-package")
+(declare-function use-package-handler/:ensure "use-package")
 (declare-function use-package-normalize/:ensure "use-package")
 (declare-function use-package-only-one "use-package")
 (declare-function use-package-process-keywords "use-package")
@@ -5559,6 +5560,13 @@ documentation."
   "Handler for `:straight' in `use-package' forms.
 NAME, KEYWORD, ARGS, REST, and STATE are explained by the
 `use-package' documentation."
+  ;; Disable `:ensure' when `:straight' is present. This part only
+  ;; works when `:straight' is processed before `:ensure'. See below
+  ;; for the other case.
+  ;;
+  ;; See <https://github.com/raxod502/straight.el/issues/425>.
+  (when args
+    (straight--remq rest '(:ensure)))
   (let ((body (use-package-process-keywords name rest state)))
     (mapc (lambda (arg)
             (push `(straight-use-package
@@ -5571,6 +5579,19 @@ NAME, KEYWORD, ARGS, REST, and STATE are explained by the
                   body))
           args)
     body))
+
+(defun straight-use-package--ensure-handler-advice
+    (handler name keyword args rest state)
+  "Advice for `:ensure' handler in `use-package' forms.
+HANDLER is the original handler function. NAME, KEYWORD, ARGS,
+REST, and STATE are explained by the `use-package' documentation.
+
+Disables `:ensure' when `:straight' is present. This part only
+works when `:ensure' is processed before `:straight'. See above
+for the other case."
+  (if (plist-get rest :straight)
+      (use-package-process-keywords name rest state)
+    (funcall handler name keyword args rest state)))
 
 ;;;;;; Mode definition
 
@@ -5616,6 +5637,8 @@ is loaded, according to the value of
          (setq use-package-keywords (remq :straight use-package-keywords)))
        (fmakunbound 'use-package-normalize/:straight)
        (fmakunbound 'use-package-handler/:straight)
+       (advice-remove #'use-package-handler/:ensure
+                      #'straight-use-package--ensure-handler-advice)
        (when (and (boundp 'use-package-defaults)
                   (listp use-package-defaults))
          (setq use-package-defaults
@@ -5660,6 +5683,8 @@ is loaded, according to the value of
            #'straight-use-package--straight-normalizer)
          (defalias 'use-package-handler/:straight
            #'straight-use-package--straight-handler)
+         (advice-add #'use-package-handler/:ensure :around
+                     #'straight-use-package--ensure-handler-advice)
          (when (and (boundp 'use-package-defaults)
                     (listp use-package-defaults))
            (setq use-package-defaults (straight--alist-set
