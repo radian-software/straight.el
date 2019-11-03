@@ -934,7 +934,7 @@ FUNC.
 ACTIONS later in the list take precedence over earlier ones with
 regard to keybindings."
   (when noninteractive
-    (error prompt))
+    (error (format "Cannot display prompt in batch mode: %s" prompt)))
   (unless (assoc "C-g" actions)
     (setq actions (append actions '(("C-g" "Cancel" keyboard-quit)))))
   (let ((keymap (make-sparse-keymap))
