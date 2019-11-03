@@ -408,6 +408,13 @@ function with the quoted name of the argument, or use t."
 
 ;;;;; Messaging
 
+(defun straight--output (&rest args)
+  (if noninteractive
+      (progn
+          (princ (apply #'format args))
+          (terpri))
+    (apply #'message args)))
+
 (defmacro straight--with-progress (task &rest body)
   "Displaying TASK as a progress indicator, eval and return BODY.
 Display \"TASK...\", eval BODY, display \"TASK...done\", and
@@ -429,10 +436,10 @@ also `straight--progress-begin' and `straight--progress-end'."
                              ,task-sym)))
        (prog2
            (when ,task-car-sym
-             (message "%s..." ,task-car-sym))
+             (straight--output "%s..." ,task-car-sym))
            (progn
              ,@body)
-         (when ,task-cdr-sym
+         (when (and ,task-cdr-sym (not noninteractive))
            (message "%s...done" ,task-cdr-sym))))))
 
 (defun straight--progress-begin (message)
@@ -926,6 +933,8 @@ FUNC.
 
 ACTIONS later in the list take precedence over earlier ones with
 regard to keybindings."
+  (when noninteractive
+    (error prompt))
   (unless (assoc "C-g" actions)
     (setq actions (append actions '(("C-g" "Cancel" keyboard-quit)))))
   (let ((keymap (make-sparse-keymap))
