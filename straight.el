@@ -409,12 +409,14 @@ function with the quoted name of the argument, or use t."
 
 ;;;;; Messaging
 
-(defun straight--output (&rest args)
+(defun straight--output (string &rest objects)
+  "Same as `message' (which see for STRING and OBJECTS) normally.
+However, in batch mode, print to stdout instead of stderr."
   (if noninteractive
       (progn
-          (princ (apply #'format args))
-          (terpri))
-    (apply #'message args)))
+        (princ (apply #'format string objects))
+        (terpri))
+    (apply #'message string objects)))
 
 (defmacro straight--with-progress (task &rest body)
   "Displaying TASK as a progress indicator, eval and return BODY.
