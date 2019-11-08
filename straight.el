@@ -208,6 +208,36 @@ profile (nil) will suffice without additional setup."
                 (alist :key-type symbol :value-type
                        (plist :key-type symbol :value-type sexp))))
 
+(defcustom straight-allow-recipe-inheritance t
+  "Non-nil allows partially overriding recipes.
+If you override a recipe, every component that is not explicitly
+overriden will be searched for in original recipe. If found, that
+value will be added to the overriden recipe. This allows you to
+only override the recipe components you are interested in,
+instead of being required to override them all. The supported
+components are the ones listed by `straight-vc-git-keywords' and
+`:files'. Note that enabling this feature has the side effect
+that all recipe repos (i.e. melpa, elpa) will always be cloned,
+even if you explicitly specify all your recipes.
+
+The `:fork' keyword is handled specially. If its value is a
+string instead of a list, then it is assigned as the `:repo' of
+the fork. Also the fork recipe will inherit its `:host' component
+from the default recipe.
+
+For example, the following are all equivalent with recipe
+inheritance enabled.
+
+\\='(package :host \\='gitlab :repo \"other-user/repo\"
+          :fork (:host \\='gitlab :repo \"my-user/repo\"))
+
+\\='(package :fork (:host \\='gitlab :repo \"my-user/repo\"))
+
+\\='(package :fork (:repo \"my-user/repo\"))
+
+\\='(package :fork \"my-user/repo\")"
+  :type 'boolean)
+
 (defcustom straight-safe-mode nil
   "Non-nil means avoid doing anything that modifies the filesystem.
 In safe mode, package modifications will still be detected
@@ -2912,6 +2942,26 @@ for dependency resolution."
           ;; override the default value (which is determined according
           ;; to the selected VC backend).
           ;;
+          (when straight-allow-recipe-inheritance
+            ;; To keep overridden recipes simple, Some keywords can be
+            ;; inherited from the original recipe. This is done by
+            ;; looking in original and finding all keywords that are
+            ;; not present in the override and adding them there.
+            (let ((fork (plist-get plist :fork)))
+              (when (stringp fork)
+                (straight--put plist :fork `(:repo ,fork))))
+            (let* ((default (cdr (straight-recipes-retrieve package)))
+                   (keywords (straight-vc-keywords (or (plist-get default :type) 'git))))
+              (dolist (keyword (cons :files keywords))
+                (if (eq keyword :fork)
+                    (dolist (keyword keywords)
+                      (let ((fork-plist (plist-get plist :fork))
+                            (value (plist-get default keyword)))
+                        (when (and value fork-plist (not (plist-member fork-plist keyword)))
+                          (straight--put plist :fork (plist-put fork-plist keyword value)))))
+                  (let ((value (plist-get default keyword)))
+                    (when (and value (not (plist-member plist keyword)))
+                      (straight--put plist keyword value)))))))
           ;; The normalized recipe format will have the package name
           ;; as a string, not a symbol.
           (let ((package (symbol-name package)))
