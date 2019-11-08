@@ -2359,6 +2359,30 @@ cloned."
     (setq straight--echo-area-dirty t)))
 
 ;;;; Recipe handling
+;;;;; Built-in packages
+
+(defvar straight--cached-built-in-packages nil
+  "Hash table mapping package names to booleans.
+All packages that are built in are mapped to non-nil. The value
+of this variable is computed the first time
+`straight--package-built-in-p' is called.")
+
+(defun straight--package-built-in-p (package)
+  "Given PACKAGE symbol, return non-nil if it's built in to Emacs.
+The return value of this function might change between different
+versions of Emacs for the same package.
+
+If a package is built in, then the package won't be listed in GNU
+ELPA (Mirror) and it won't be an error if no recipe can be found
+for it."
+  (unless straight--cached-built-in-packages
+    (require 'finder-inf)
+    (let ((table (make-hash-table)))
+      (dolist (cell package--builtins)
+        (puthash (car cell) t table))
+      (setq straight--cached-built-in-packages table)))
+  (gethash package straight--cached-built-in-packages))
+
 ;;;;; Declaration of caches
 
 (defvar straight--recipe-cache (make-hash-table :test #'equal)
@@ -2646,24 +2670,31 @@ does such a good job of discouraging contributions anyway."
 (defun straight-recipes-gnu-elpa-mirror-retrieve (package)
   "Look up a PACKAGE recipe in the GNU ELPA mirror.
 PACKAGE should be a symbol. If the package is maintained in GNU
-ELPA, return a MELPA-style recipe. Otherwise, return nil."
-  (when (file-exists-p (symbol-name package))
-    `(,package :type git
-               :host github
-               :repo ,(format "emacs-straight/%S" package)
-               ;; Kinda weird, but in fact this is how package.el
-               ;; works. So if we want to replicate the build process,
-               ;; we should trust that the gnu-elpa-mirror put the
-               ;; correct files into the repository, and then just
-               ;; link *everything*. As an FYI, if we don't do this,
-               ;; then AUCTeX suffers problems with style files, see
-               ;; <https://github.com/raxod502/straight.el/issues/423>.
-               :files ("*" (:exclude ".git")))))
+ELPA (and should be retrieved from there, which isn't the case if
+the package is built in to Emacs), return a MELPA-style recipe.
+Otherwise, return nil."
+  (unless (straight--package-built-in-p package)
+    (when (file-exists-p (symbol-name package))
+      `(,package :type git
+                 :host github
+                 :repo ,(format "emacs-straight/%S" package)
+                 ;; Kinda weird, but in fact this is how package.el
+                 ;; works. So if we want to replicate the build
+                 ;; process, we should trust that the gnu-elpa-mirror
+                 ;; put the correct files into the repository, and
+                 ;; then just link *everything*. As an FYI, if we
+                 ;; don't do this, then AUCTeX suffers problems with
+                 ;; style files, see
+                 ;; <https://github.com/raxod502/straight.el/issues/423>.
+                 :files ("*" (:exclude ".git"))))))
 
 (defun straight-recipes-gnu-elpa-mirror-list ()
   "Return a list of recipe names available in the GNU ELPA mirror.
 This is a list of strings."
-  (straight--directory-files))
+  (cl-remove-if
+   (lambda (package)
+     (straight--package-built-in-p (intern package)))
+   (straight--directory-files)))
 
 (defun straight-recipes-gnu-elpa-mirror-version ()
   "Return the current version of the GNU ELPA mirror retriever."
@@ -2679,19 +2710,25 @@ This is a list of strings."
 (defun straight-recipes-gnu-elpa-retrieve (package)
   "Look up a PACKAGE recipe in GNU ELPA.
 PACKAGE should be a symbol. If the package is maintained in GNU
-ELPA, return a MELPA-style recipe. Otherwise, return nil."
-  (when (file-exists-p (expand-file-name (symbol-name package) "packages/"))
-    ;; All the packages in GNU ELPA are just subdirectories of the
-    ;; same repository.
-    `(,package :type git
-               :repo ,straight-recipes-gnu-elpa-url
-               :files (,(format "packages/%s/*.el"
-                                (symbol-name package)))
-               :local-repo "elpa")))
+ELPA (and should be retrieved from there, which isn't the case if
+the package is built in to Emacs), return a MELPA-style recipe.
+Otherwise, return nil."
+  (unless (straight--package-built-in-p package)
+    (when (file-exists-p (expand-file-name (symbol-name package) "packages/"))
+      ;; All the packages in GNU ELPA are just subdirectories of the
+      ;; same repository.
+      `(,package :type git
+                 :repo ,straight-recipes-gnu-elpa-url
+                 :files (,(format "packages/%s/*.el"
+                                  (symbol-name package)))
+                 :local-repo "elpa"))))
 
 (defun straight-recipes-gnu-elpa-list ()
   "Return a list of recipe names available in GNU ELPA, as a list of strings."
-  (straight--directory-files "packages/"))
+  (cl-remove-if
+   (lambda (package)
+     (straight--package-built-in-p (intern package)))
+   (straight--directory-files "packages/")))
 
 (defun straight-recipes-gnu-elpa-version ()
   "Return the current version of the GNU ELPA retriever."
@@ -2855,19 +2892,17 @@ for dependency resolution."
                      ;; Second argument is the sources list, defaults
                      ;; to all known sources.
                      melpa-style-recipe nil cause)
-                    (progn
-                      ;; Check if the package is considered as
-                      ;; "built-in". If so, it's not an issue if we
-                      ;; can't find it in any recipe repositories.
-                      (require 'finder-inf)
-                      (if (assq melpa-style-recipe package--builtins)
-                          (cl-return-from straight--convert-recipe
-                            `(:type built-in :package
-                                    ,(symbol-name melpa-style-recipe)))
-                        (error (concat "Could not find package %S "
-                                       "in recipe repositories: %S")
-                               melpa-style-recipe
-                               straight-recipe-repositories)))))))
+                    ;; Check if the package is considered as
+                    ;; "built-in". If so, it's not an issue if we
+                    ;; can't find it in any recipe repositories.
+                    (if (straight--package-built-in-p melpa-style-recipe)
+                        (cl-return-from straight--convert-recipe
+                          `(:type built-in :package
+                                  ,(symbol-name melpa-style-recipe)))
+                      (error (concat "Could not find package %S "
+                                     "in recipe repositories: %S")
+                             melpa-style-recipe
+                             straight-recipe-repositories))))))
         ;; MELPA-style recipe format is a list whose car is the
         ;; package name as a symbol, and whose cdr is a plist.
         (cl-destructuring-bind (package . plist) full-melpa-style-recipe
