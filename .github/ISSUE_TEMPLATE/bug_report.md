@@ -2,7 +2,7 @@
 name: Bug report
 about: I think I have found something wrong with straight.el
 title: ''
-labels: ''
+labels: bug
 assignees: ''
 
 ---
