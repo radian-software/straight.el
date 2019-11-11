@@ -4121,7 +4121,10 @@ modifies the build folder, not the original repository."
         ;; (for example, adding to `recentf') when visiting the
         ;; autoload file.
         (let ((find-file-hook nil)
-              (write-file-functions nil))
+              (write-file-functions nil)
+              ;; Apparently fixes a bug in Emacs 27, see
+              ;; <https://github.com/raxod502/straight.el/issues/434>.
+              (debug-on-error nil))
           ;; Actually generate the autoload file.
           (update-directory-autoloads
            (straight--build-dir package)))
