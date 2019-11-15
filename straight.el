@@ -720,9 +720,10 @@ be interpreted later as a symlink."
     (condition-case _
         (if straight-use-symlinks
             (if (straight--windows-os-p)
-                (call-process "cmd" nil nil nil "/c" "mklink"
-                              (subst-char-in-string ?/ ?\\ link-name)
-                              (subst-char-in-string ?/ ?\\ link-target))
+                (straight--get-call
+                 "cmd" "/c" "mklink"
+                 (subst-char-in-string ?/ ?\\ link-name)
+                 (subst-char-in-string ?/ ?\\ link-target))
               (make-symbolic-link link-target link-name))
           (copy-file link-target link-name)
           (let ((build-dir (straight--build-dir)))
@@ -3602,13 +3603,7 @@ modified since their last builds.")
                 args-primaries))
     (with-temp-buffer
       (let ((default-directory (straight--repos-dir)))
-        (let ((return (apply #'call-process "find" nil '(t t) nil args)))
-          ;; find(1) always returns zero unless there was some kind of
-          ;; error.
-          (unless (= 0 return)
-            (error "Command failed: find %s:\n%s"
-                   (mapconcat #'shell-quote-argument args " ")
-                   (buffer-string))))
+        (apply #'straight--get-call "find" args)
         (maphash (lambda (local-repo _)
                    (goto-char (point-min))
                    (puthash
@@ -3694,22 +3689,14 @@ last time."
                         (setq mtime-or-file
                               (straight--make-mtime last-mtime)))
                       (let* ((default-directory
-                               (straight--repos-dir local-repo))
-                             ;; This find(1) command ignores the .git
-                             ;; directory, and prints the names of any
-                             ;; files or directories with a newer
-                             ;; mtime than the one specified.
-                             (args `("." "-name" ".git" "-prune"
-                                     "-o" ,newer-or-newermt ,mtime-or-file
-                                     "-print"))
-                             (return (apply #'call-process "find"
-                                            nil '(t t) nil args)))
-                        (unless (= 0 return)
-                          (error "Command failed: find %s:\n%s"
-                                 (string-join
-                                  (mapcar #'shell-quote-argument args)
-                                  " ")
-                                 (buffer-string)))
+                               (straight--repos-dir local-repo)))
+                        ;; This find(1) command ignores the .git
+                        ;; directory, and prints the names of any
+                        ;; files or directories with a newer mtime
+                        ;; than the one specified.
+                        (straight--get-call
+                         "find" "." "-name" ".git" "-prune"
+                         "-o" newer-or-newermt mtime-or-file "-print")
                         ;; If anything was printed, the package has
                         ;; (maybe) been modified.
                         (> (buffer-size) 0)))))))))))
