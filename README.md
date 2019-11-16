@@ -2624,15 +2624,14 @@ this easily by installing [Docker] and running
 
     $ make docker
 
-Then you will be in a shell with the `straight.el` source code, and
-you'll be able to run
+Then you will be in a shell with the `straight.el` source code, and to
+test your commits you'll be able to run
+
+    $ make lint
+
+or to see what other targets are available
 
     $ make help
-
-to see what targets are available. To test your commits, you'll want
-to run
-
-    $ make compile checkdoc longlines checkindent toc
 
 If you don't want to install Docker, you can simply skip the `make
 docker` step, and everything will work the same! However, you'll then

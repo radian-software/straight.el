@@ -20,6 +20,9 @@ help: ## Show this message
 		sed 's/%/LANG/'			| \
 		column -t -s'|' >&2
 
+.PHONY: lint
+lint: compile checkdoc longlines checkindent ## Run all the linters
+
 .PHONY: compile
 compile: ## Byte-compile
 	@for file in $(for_compile); do \
