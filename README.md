@@ -2619,13 +2619,30 @@ branch in any fork:
 Please try to follow the style of the surrounding code and
 documentation, but anything is welcome.
 
-You can run the linting locally simply by running
+We require that the linting pass on all new commits. You can check
+this easily by installing [Docker] and running
 
-    $ make
+    $ make docker
 
-(although first you should make sure there is a suitable `emacs`
-binary on your path, and you have installed
-[`markdown-toc`][markdown-toc]).
+Then you will be in a shell with the `straight.el` source code, and
+you'll be able to run
+
+    $ make help
+
+to see what targets are available. To test your commits, you'll want
+to run
+
+    $ make compile checkdoc longlines checkindent toc
+
+If you don't want to install Docker, you can simply skip the `make
+docker` step, and everything will work the same! However, you'll then
+have to make sure you have the relevant dependencies installed
+locally.
+
+When you create a pull request, it will be [tested
+automatically][circleci-build] on [CircleCI] and the status will be
+reported. Please make sure the CI build is passing before asking for
+review.
 
 ## FAQ
 ### My init time got slower
@@ -2937,7 +2954,10 @@ Note that the user option must be customized *before* the
 [auto-compile]: https://github.com/tarsius/auto-compile
 [borg]: https://github.com/emacscollective/borg
 [cask]: https://github.com/cask/cask
+[circleci]: https://circleci.com/
+[circleci-build]: https://circleci.com/gh/raxod502/straight.el
 [develop]: https://github.com/raxod502/straight.el/tree/develop
+[docker]: https://www.docker.com/
 [el-get]: https://github.com/dimitri/el-get
 [emacs]: https://www.gnu.org/software/emacs/
 [emacsmirror]: https://emacsmirror.net/
