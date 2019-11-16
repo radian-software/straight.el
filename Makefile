@@ -21,7 +21,7 @@ help: ## Show this message
 		column -t -s'|' >&2
 
 .PHONY: lint
-lint: compile checkdoc longlines checkindent ## Run all the linters
+lint: compile checkdoc longlines checkindent toc ## Run all the linters
 
 .PHONY: compile
 compile: ## Byte-compile
