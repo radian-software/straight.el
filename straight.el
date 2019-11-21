@@ -4094,7 +4094,10 @@ modifies the build folder, not the original repository."
           ;; good reason, so I just copied them here. It's a shame
           ;; that Emacs activates so many random features even when
           ;; you are accessing files programmatically.
-          (noninteractive t)
+          ;;
+          ;; Note: we used to bind `noninteractive', like package.el,
+          ;; but apparently that code was a bug in package.el. Sigh.
+          ;; See <https://github.com/raxod502/straight.el/issues/431>.
           (backup-inhibited t)
           (version-control 'never)
           ;; Tell Emacs to shut up.
