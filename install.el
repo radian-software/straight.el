@@ -74,7 +74,7 @@
   ;; Any errors in this Emacs go directly to the user's init-file and
   ;; abort init. Errors in the child Emacs spawned below create a
   ;; non-zero exit code, and are re-thrown.
-  (let ((min-version "24.4"))
+  (let ((min-version "24.5"))
     (when (version< emacs-version min-version)
       (error (concat "straight.el requires at least Emacs %s, "
                      "but you are running Emacs %s")

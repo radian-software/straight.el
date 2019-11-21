@@ -6,7 +6,7 @@
 ;; Created: 1 Jan 2017
 ;; Homepage: https://github.com/raxod502/straight.el
 ;; Keywords: extensions
-;; Package-Requires: ((emacs "24.4"))
+;; Package-Requires: ((emacs "24.5"))
 ;; Version: prerelease
 
 ;;; Commentary:
