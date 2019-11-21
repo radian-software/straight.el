@@ -167,7 +167,7 @@ chat][gitter-badge]][gitter]
 
 ## Getting started
 
-> **Note: `straight.el` supports a minimum version of Emacs 24.4, and
+> **Note: `straight.el` supports a minimum version of Emacs 24.5, and
 > works on macOS, Windows, and most flavors of Linux.**
 
 First, place the following bootstrap code in your init-file:
