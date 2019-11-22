@@ -1428,6 +1428,24 @@ will be looked up by default (see the section on [recipe
 lookup][#user/lookup]). You can see the default recipe for a package
 by invoking [`M-x straight-get-recipe`][#user/interactive].
 
+If `straight-allow-recipe-inheritance` is non-nil, then you only need
+to specify the components of the recpie that you want to override. All
+other components will still be looked up in the default recipe. In the
+example above, we are only interested in changing the `:fork`
+component. Therefore if `straight-allow-recipe-inheritance` is set,
+the recipe could be simplifed as follows:
+
+    (straight-use-package
+     '(el-patch :fork (:repo "your-name/el-patch")))
+
+or even simpler:
+
+    (straight-use-package
+     '(el-patch :fork "your-name/el-patch"))
+
+The `:files` keyword and all version control keywords support
+inheritance.
+
 To learn more, see the section on [the recipe format][#user/recipes].
 
 #### Additional arguments to `straight-use-package`
