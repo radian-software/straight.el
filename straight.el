@@ -2952,14 +2952,17 @@ for dependency resolution."
               (when (stringp fork)
                 (straight--put plist :fork `(:repo ,fork))))
             (let* ((default (cdr (straight-recipes-retrieve package)))
-                   (keywords (straight-vc-keywords (or (plist-get default :type) 'git))))
+                   (keywords (straight-vc-keywords
+                              (or (plist-get default :type) 'git))))
               (dolist (keyword (cons :files keywords))
                 (if (eq keyword :fork)
                     (dolist (keyword keywords)
                       (let ((fork-plist (plist-get plist :fork))
                             (value (plist-get default keyword)))
-                        (when (and value fork-plist (not (plist-member fork-plist keyword)))
-                          (straight--put plist :fork (plist-put fork-plist keyword value)))))
+                        (when (and value fork-plist
+                                   (not (plist-member fork-plist keyword)))
+                          (straight--put
+                           plist :fork (plist-put fork-plist keyword value)))))
                   (let ((value (plist-get default keyword)))
                     (when (and value (not (plist-member plist keyword)))
                       (straight--put plist keyword value)))))))
