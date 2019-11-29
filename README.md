@@ -1,3 +1,5 @@
+Just testing out CircleCI!
+
 **straight.el**: next-generation, purely functional package manager
 for the [Emacs] hacker.
 
