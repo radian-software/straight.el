@@ -491,7 +491,7 @@ The warning message is obtained by passing MESSAGE and ARGS to
 
 (defun straight--windows-os-p ()
   "Check if the current operating system is Windows."
-  (memq system-type '(ms-dos windows-nt cygwin)))
+  (memq system-type '(ms-dos windows-nt)))
 
 ;;;;; Paths
 
