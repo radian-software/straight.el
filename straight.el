@@ -3576,9 +3576,8 @@ modified since their last builds.")
                     (setq args-primaries
                           (append (list "-o"
                                         "-path"
-                                        (format
-                                         "%s/*" (straight--repos-dir
-                                                 local-repo))
+                                        (expand-file-name
+                                         "*" (straight--repos-dir local-repo))
                                         newer-or-newermt
                                         mtime-or-file
                                         "-print")
@@ -3601,19 +3600,18 @@ modified since their last builds.")
                 args-paths
                 (list "-name" ".git" "-prune")
                 args-primaries))
-    (with-temp-buffer
-      (let ((default-directory (straight--repos-dir)))
-        (apply #'straight--get-call "find" args)
-        (maphash (lambda (local-repo _)
-                   (goto-char (point-min))
-                   (puthash
-                    local-repo (re-search-forward
-                                (format "^%s/"
-                                        (regexp-quote
-                                         (straight--repos-dir local-repo)))
-                                nil 'noerror)
-                    straight--cached-package-modifications))
-                 repos)))))
+    (let* ((default-directory (straight--repos-dir))
+           (results (apply #'straight--get-call "find" args)))
+      (maphash (lambda (local-repo _)
+                 (puthash
+                  local-repo (string-match-p
+                              (concat "^"
+                                      (regexp-quote
+                                       (file-name-as-directory
+                                        (straight--repos-dir local-repo))))
+                              results)
+                  straight--cached-package-modifications))
+               repos))))
 
 (defun straight--uncache-package-modifications ()
   "Reset `straight--cached-package-modifications'."
