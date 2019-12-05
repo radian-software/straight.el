@@ -4259,7 +4259,7 @@ repository."
 (defun straight--format-timestamp (&optional timestamp)
   "Format an Elisp TIMESTAMP for the operating system.
 See `format-time-string' for the format of TIMESTAMP."
-  (format-time-string "%F %T" timestamp))
+  (format-time-string "%F %T.%6N" timestamp))
 
 (defun straight--declare-successful-build (recipe)
   "Update `straight--build-cache' to reflect a successful build of RECIPE.
