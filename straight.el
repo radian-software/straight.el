@@ -4210,7 +4210,13 @@ formatted string does not include millisecond precision because
 this is not supported by find(1) commands on all operating
 systems (thanks, Apple). Therefore, to avoid spurious rebuilds,
 the time is rounded up to the next second."
-  (format-time-string "%F %T" (time-add timestamp 1)))
+  (format-time-string
+   "%F %T" (time-add
+            ;; Default is needed for Emacs 24.5 due to bad design.
+            (or timestamp (current-time))
+            ;; This format instead of just the integer 1 is needed for
+            ;; Emacs 24.5 due to bad design.
+            '(0 1))))
 
 (defun straight--declare-successful-build (recipe)
   "Update `straight--build-cache' to reflect a successful build of RECIPE.
