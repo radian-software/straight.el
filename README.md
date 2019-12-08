@@ -2584,6 +2584,11 @@ See [the Hydra wiki][hydra-wiki-straight-entry].
   byte-compilation of the init-file on successful startup, see
   [Radian].
 
+* The use of the find(1) command by `straight.el` may not be
+  compatible with your platform's default version. You can install GNU
+  find and customize the variable `straight-find-executable` to point to
+  it.
+
 ## Developer manual
 
 This section tells you about all the interesting implementation
