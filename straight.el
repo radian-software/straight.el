@@ -1158,6 +1158,10 @@ This uses -newermt if possible, and -newer otherwise."
       `(newermt)
     nil))
 
+(defcustom straight-find-executable "find"
+  "Executable path of find command used by straight.el."
+  :type 'string)
+
 (defcustom straight-find-flavor (straight--determine-find-flavor)
   "What options the available find(1) binary supports.
 This is a list of symbols. If `newermt' is in the list, then
@@ -3654,7 +3658,8 @@ modified since their last builds.")
                 (list "-name" ".git" "-prune")
                 args-primaries))
     (let* ((default-directory (straight--repos-dir))
-           (results (apply #'straight--get-call "find" args)))
+           (results (apply #'straight--get-call
+                           straight-find-executable args)))
       (maphash (lambda (local-repo _)
                  (puthash
                   local-repo (string-match-p
@@ -3746,7 +3751,7 @@ last time."
                         ;; files or directories with a newer mtime
                         ;; than the one specified.
                         (straight--get-call
-                         "find" "." "-name" ".git" "-prune"
+                         straight-find-executable "." "-name" ".git" "-prune"
                          "-o" newer-or-newermt mtime-or-file "-print")
                         ;; If anything was printed, the package has
                         ;; (maybe) been modified.
