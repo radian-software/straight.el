@@ -168,7 +168,8 @@ chat][gitter-badge]][gitter]
 ## Getting started
 
 > **Note: `straight.el` supports a minimum version of Emacs 24.5, and
-> works on macOS, Windows, and most flavors of Linux.**
+> works on macOS, Windows, and most flavors of Linux. You must install
+> [Git] in order to use `straight.el`.**
 
 First, place the following bootstrap code in your init-file:
 
@@ -2981,6 +2982,7 @@ Note that the user option must be customized *before* the
 [emacswiki]: https://www.emacswiki.org/
 [epkg]: https://github.com/emacscollective/epkg
 [epkgs]: https://github.com/emacsmirror/epkgs
+[git]: https://git-scm.com/
 [git-credential-cache]: https://git-scm.com/docs/git-credential-cache
 [gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg
 [gitter]: https://gitter.im/raxod502/straight.el
