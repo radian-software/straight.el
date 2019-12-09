@@ -1159,7 +1159,7 @@ This uses -newermt if possible, and -newer otherwise."
     nil))
 
 (defcustom straight-find-executable "find"
-  "Executable path of find command used by straight."
+  "Executable path of find command used by straight.el."
   :type 'string)
 
 (defcustom straight-find-flavor (straight--determine-find-flavor)
