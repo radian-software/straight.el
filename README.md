@@ -1514,7 +1514,9 @@ packages are then rebuilt when they are requested via
 `straight-use-package`. Normally, `straight.el` will try to detect
 what sort of `find(1)` program is installed, and issue the appropriate
 command. If it makes a mistake, then you can manually customize
-`straight-find-flavor`.
+`straight-find-flavor`. Alternately, you can install GNU find and
+customize the variable `straight-find-executable` to point to it.
+
 
 For about 100 packages on an SSD, calling `find(1)` to detect
 modifications takes about 500ms. You can save this time by customizing
@@ -2583,11 +2585,6 @@ See [the Hydra wiki][hydra-wiki-straight-entry].
   of how this feature may be used to safely implement asynchronous
   byte-compilation of the init-file on successful startup, see
   [Radian].
-
-* The use of the find(1) command by `straight.el` may not be
-  compatible with your platform's default version. You can install GNU
-  find and customize the variable `straight-find-executable` to point to
-  it.
 
 ## Developer manual
 
