@@ -2733,7 +2733,7 @@ This is a list of strings."
 
 (defun straight-recipes-gnu-elpa-mirror-version ()
   "Return the current version of the GNU ELPA mirror retriever."
-  2)
+  3)
 
 ;;;;;;; GNU ELPA source
 
@@ -2767,7 +2767,7 @@ Otherwise, return nil."
 
 (defun straight-recipes-gnu-elpa-version ()
   "Return the current version of the GNU ELPA retriever."
-  1)
+  2)
 
 ;;;;;; Emacsmirror
 
