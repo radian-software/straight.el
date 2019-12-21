@@ -175,7 +175,7 @@ interpretations are defined by the relevant VC backend."
               (cl-destructuring-bind (local-repo . commit) spec
                 (setq versions (straight--alist-set
                                 local-repo commit versions))))))))
-      versions))
+    versions))
 
 (defun straight-x-thaw-pinned-versions ()
   "Read pinned version lockfiles and restore package versions to

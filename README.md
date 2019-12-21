@@ -77,6 +77,7 @@ chat][gitter-badge]][gitter]
     + [Updating recipe repositories](#updating-recipe-repositories)
     + [Customizing recipe repositories](#customizing-recipe-repositories)
       - [GNU ELPA](#gnu-elpa)
+      - [Emacsmirror](#emacsmirror)
       - [Defining new recipe repositories](#defining-new-recipe-repositories)
   * [Overriding recipes](#overriding-recipes)
     + [Overriding the recipe for `straight.el`](#overriding-the-recipe-for-straightel)
@@ -1675,8 +1676,13 @@ since otherwise this cache file may grow quite large over time.
 
 #### Hooks run by `straight-use-package`
 
-Currently, `straight-use-package` supports one hook:
+Currently, `straight-use-package` supports two hooks:
 
+* `straight-use-package-prepare-functions`: The functions in this hook
+  are run just before a package would be built, even if the package
+  does not actually need to be rebuilt. They are passed the name of
+  the package being (maybe) built as a string, and should take and
+  ignore any additional arguments.
 * `straight-use-package-pre-build-functions`: The functions in this
   hook are run just before building a package (and only if the package
   needs to be built). They are passed the name of the package being
@@ -2045,6 +2051,10 @@ You can customize the following user options:
   `straight-recipe-repositories` to shift to:
 
       (org-elpa melpa gnu-elpa emacsmirror)
+
+##### Emacsmirror
+
+You can customize the following user option:
 
 * `straight-recipes-emacsmirror-use-mirror`: Yes, there is also a
   mirror for Emacsmirror. This is because the [epkgs] repository
@@ -2496,6 +2506,13 @@ all of these "features" by setting `package-enable-at-startup` to nil
 and enabling some advices. You can override this behavior by
 customizing `straight-enable-package-integration`, however.
 
+To help avoid you shooting yourself in the foot by using both
+`:ensure` and `:straight` at the same time in a `use-package` form
+(which would cause the same package to be installed twice using two
+different package managers), `straight.el` will helpfully disable
+`:ensure` whenever you include `:straight` in a `use-package` form.
+See [#425].
+
 #### Integration with Org
 
 Org expects you to run `make` in its source repository before you run
@@ -2516,7 +2533,7 @@ See [#211] for discussion.
 By default, `straight.el` installs a hack (namely, defining the
 functions `org-git-version` and `org-release` itself) whenever you ask
 it to install Org. This functionality is implemented using
-[`straight-use-package-pre-build-functions`][#user/install/hooks]. You
+[`straight-use-package-prepare-functions`][#user/install/hooks]. You
 can disable it by setting the value of the variable `straight-fix-org`
 to nil.
 
@@ -2602,13 +2619,29 @@ branch in any fork:
 Please try to follow the style of the surrounding code and
 documentation, but anything is welcome.
 
-You can run the linting locally simply by running
+We require that the linting pass on all new commits. You can check
+this easily by installing [Docker] and running
 
-    $ make
+    $ make docker
 
-(although first you should make sure there is a suitable `emacs`
-binary on your path, and you have installed
-[`markdown-toc`][markdown-toc]).
+Then you will be in a shell with the `straight.el` source code, and to
+test your commits you'll be able to run
+
+    $ make lint
+
+or to see what other targets are available
+
+    $ make help
+
+If you don't want to install Docker, you can simply skip the `make
+docker` step, and everything will work the same! However, you'll then
+have to make sure you have the relevant dependencies installed
+locally.
+
+When you create a pull request, it will be [tested
+automatically][circleci-build] on [CircleCI] and the status will be
+reported. Please make sure the CI build is passing before asking for
+review.
 
 ## FAQ
 ### My init time got slower
@@ -2915,11 +2948,15 @@ Note that the user option must be customized *before* the
 [#355]: https://github.com/raxod502/straight.el/issues/355
 [#356]: https://github.com/raxod502/straight.el/issues/356
 [#357]: https://github.com/raxod502/straight.el/issues/357
+[#425]: https://github.com/raxod502/straight.el/issues/425
 
 [auto-compile]: https://github.com/tarsius/auto-compile
 [borg]: https://github.com/emacscollective/borg
 [cask]: https://github.com/cask/cask
+[circleci]: https://circleci.com/
+[circleci-build]: https://circleci.com/gh/raxod502/straight.el
 [develop]: https://github.com/raxod502/straight.el/tree/develop
+[docker]: https://www.docker.com/
 [el-get]: https://github.com/dimitri/el-get
 [emacs]: https://www.gnu.org/software/emacs/
 [emacsmirror]: https://emacsmirror.net/

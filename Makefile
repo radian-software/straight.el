@@ -1,15 +1,30 @@
+VERSION ?=
+CMD ?=
+
 EMACS ?= emacs
+
+SHELL := bash
 
 # The order is important for compilation.
 for_compile := straight.el bootstrap.el install.el straight-x.el
 for_checkdoc := straight.el
-for_longlines := $(wildcard *.el *.md *.yml) Makefile
+for_longlines := $(wildcard *.el *.md *.yml scripts/*.bash) Makefile
+for_checkindent := $(wildcard *.el)
 
-.PHONY: all
-all: compile checkdoc toc longlines
+.PHONY: help
+help: ## Show this message
+	@echo "usage:" >&2
+	@grep -h "[#]# " $(MAKEFILE_LIST)	| \
+		sed 's/^/  make /'		| \
+		sed 's/:[^#]*[#]# /|/'		| \
+		sed 's/%/LANG/'			| \
+		column -t -s'|' >&2
+
+.PHONY: lint
+lint: compile checkdoc longlines checkindent toc ## Run all the linters
 
 .PHONY: compile
-compile:
+compile: ## Byte-compile
 	@for file in $(for_compile); do \
 	    echo "[compile] $$file" ;\
 	    $(EMACS) -Q --batch -L . -f batch-byte-compile $$file 2>&1 \
@@ -18,7 +33,7 @@ compile:
 	done
 
 .PHONY: checkdoc
-checkdoc:
+checkdoc: ## Check docstring style
 	@for file in $(for_checkdoc); do \
 	    echo "[checkdoc] $$file" ;\
 	    $(EMACS) -Q --batch \
@@ -29,20 +44,38 @@ checkdoc:
 	done
 
 .PHONY: longlines
-longlines:
-	@echo "[longlines] $(for_longlines)"
+longlines: ## Check for long lines
 	@for file in $(for_longlines); do \
+	    echo "[longlines] $$file"; \
 	    cat "$$file" \
 	        | sed '/[<]!-- toc -->/,/<!-- tocstop -->/d' \
 	        | sed '/[l]onglines-start/,/longlines-stop/d' \
 	        | grep -E '.{80}' \
 	        | grep -E -v '\[.+\]: (#|http)' \
-	        | sed "s/^/$$file:long line: /" \
+	        | sed "s#^#$$file:long line: #" \
 	        | grep . && exit 1 || true ;\
 	done
 
+.PHONY: checkindent
+checkindent: ## Ensure that indentation is correct
+	@tmpdir="$$(mktemp -d)"; for file in $(for_checkindent); do \
+	    echo "[checkindent] $$file"; \
+	    $(EMACS) -Q --batch \
+	        --eval "(setq inhibit-message t)" \
+	        --eval "(load (expand-file-name \"indent.el\"  ) nil t)" \
+	        --eval "(load (expand-file-name \"straight.el\") nil t)" \
+	        --eval "(find-file \"$$file\")" \
+	        --eval "(indent-region (point-min) (point-max))" \
+	        --eval "(write-file \"$$tmpdir/$$file\")"; \
+	    (diff <(cat          "$$file" | nl -v1 -ba | \
+                           sed "s/\t/: /" | sed "s/^ */$$file:/") \
+	          <(cat "$$tmpdir/$$file" | nl -v1 -ba | \
+                           sed "s/\t/: /" | sed "s/^ */$$file:/") ) \
+	        | grep -F ">" | grep -o "[a-z].*" | grep . && exit 1 || true; \
+	done
+
 .PHONY: toc
-toc: README.md
+toc: README.md ## Update table of contents in README
 	@echo "[toc] $^"
 	@if command -v markdown-toc >/dev/null; then \
 	    markdown-toc -i $^ ; \
@@ -51,14 +84,14 @@ toc: README.md
 	fi
 
 .PHONY: clean
-clean:
+clean: ## Remove build artifacts
 	@echo "[clean]" *.elc
 	@rm -f *.elc
 
-# Make sure to test with a package that supports Emacs 24.4 here.
-travis: compile checkdoc longlines
-	mkdir -p ~/.emacs.d/straight/repos/
-	ln -s $(PWD) ~/.emacs.d/straight/repos/
-	$(EMACS) --batch -l ~/.emacs.d/straight/repos/straight.el/bootstrap.el \
-		--eval "(straight-use-package 'use-package)" \
-		--eval "(use-package clojure-mode :straight t)"
+.PHONY: smoke
+smoke: ## Run smoke test (for CI use only)
+	@scripts/smoke-test.bash
+
+.PHONY: docker
+docker: ## Start a Docker shell; e.g. make docker VERSION=25.3
+	@scripts/docker.bash "$(VERSION)" "$(CMD)"

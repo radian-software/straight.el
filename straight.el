@@ -112,7 +112,7 @@ They are still logged to the *Messages* buffer.")))
 (defvar package--builtins)
 
 ;; `magit'
-(declare-function magit-status-internal "magit-status")
+(declare-function magit-status-setup-buffer "magit-status")
 
 ;; `package'
 (defvar package-selected-packages)
@@ -126,6 +126,7 @@ They are still logged to the *Messages* buffer.")))
 (defvar use-package-pre-ensure-function)
 (declare-function use-package-as-symbol "use-package")
 (declare-function use-package-error "use-package")
+(declare-function use-package-handler/:ensure "use-package")
 (declare-function use-package-normalize/:ensure "use-package")
 (declare-function use-package-only-one "use-package")
 (declare-function use-package-process-keywords "use-package")
@@ -408,6 +409,15 @@ function with the quoted name of the argument, or use t."
 
 ;;;;; Messaging
 
+(defun straight--output (string &rest objects)
+  "Same as `message' (which see for STRING and OBJECTS) normally.
+However, in batch mode, print to stdout instead of stderr."
+  (if noninteractive
+      (progn
+        (princ (apply #'format string objects))
+        (terpri))
+    (apply #'message string objects)))
+
 (defmacro straight--with-progress (task &rest body)
   "Displaying TASK as a progress indicator, eval and return BODY.
 Display \"TASK...\", eval BODY, display \"TASK...done\", and
@@ -429,10 +439,10 @@ also `straight--progress-begin' and `straight--progress-end'."
                              ,task-sym)))
        (prog2
            (when ,task-car-sym
-             (message "%s..." ,task-car-sym))
+             (straight--output "%s..." ,task-car-sym))
            (progn
              ,@body)
-         (when ,task-cdr-sym
+         (when (and ,task-cdr-sym (not noninteractive))
            (message "%s...done" ,task-cdr-sym))))))
 
 (defun straight--progress-begin (message)
@@ -681,10 +691,11 @@ DIRECTORY, MATCH, and FULL are as in `directory-files', but their
 order has been changed. Also, DIRECTORY defaults to
 `default-directory' if omitted. The meaning of the last argument
 SORT has been inverted from `directory-files'. Finally, the . and
-.. entries are never returned."
-  (delete "." (delete ".." (directory-files
-                            (or directory default-directory)
-                            full match (not sort)))))
+.. entries are never returned, and .git is removed from the
+results if present."
+  (delete ".git" (delete "." (delete ".." (directory-files
+                                           (or directory default-directory)
+                                           full match (not sort))))))
 
 (defun straight--symlink-recursively (link-target link-name)
   "Make a symbolic link to LINK-TARGET, named LINK-NAME, recursively.
@@ -709,9 +720,10 @@ be interpreted later as a symlink."
     (condition-case _
         (if straight-use-symlinks
             (if (straight--windows-os-p)
-                (call-process "cmd" nil nil nil "/c" "mklink"
-                              (subst-char-in-string ?/ ?\\ link-name)
-                              (subst-char-in-string ?/ ?\\ link-target))
+                (straight--get-call
+                 "cmd" "/c" "mklink"
+                 (subst-char-in-string ?/ ?\\ link-name)
+                 (subst-char-in-string ?/ ?\\ link-target))
               (make-symbolic-link link-target link-name))
           (copy-file link-target link-name)
           (let ((build-dir (straight--build-dir)))
@@ -930,6 +942,8 @@ FUNC.
 
 ACTIONS later in the list take precedence over earlier ones with
 regard to keybindings."
+  (when noninteractive
+    (error (format "Cannot display prompt in batch mode: %s" prompt)))
   (unless (assoc "C-g" actions)
     (setq actions (append actions '(("C-g" "Cancel" keyboard-quit)))))
   (let ((keymap (make-sparse-keymap))
@@ -1609,7 +1623,7 @@ prompt. Return non-nil if Magit was installed. DIRECTORY is as in
         (straight-use-package 'magit)
       (cl-return-from straight--magit-status)))
   (prog1 t
-    (magit-status-internal directory)))
+    (magit-status-setup-buffer directory)))
 
 (defun straight-vc-git--popup-raw (prompt actions)
   "Same as `straight--popup-raw', but specialized for vc-git methods.
@@ -2111,7 +2125,13 @@ unless a commit is specified (e.g. by version lockfiles)."
 If DEPTH is the symbol `full', clone the whole history of the repository.
 If DEPTH is an integer, clone with the option --depth DEPTH --branch BRANCH.
 If this fails, try again to clone without the option --depth and --branch,
-as a fallback."
+as a fallback.
+
+UPSTREAM-REMOTE is the name of the remote to use for the upstream
+\(e.g. \"origin\"; see `straight-vc-git-default-remote-name').
+URL and REPO-DIR are the positional arguments passed to
+git-clone(1), and BRANCH is the name of the default
+branch (although it won't be checked out as per --no-checkout)."
   (cond
    ((eq depth 'full)
     ;; Clone the whole history of the repository.
@@ -2340,6 +2360,30 @@ cloned."
     (setq straight--echo-area-dirty t)))
 
 ;;;; Recipe handling
+;;;;; Built-in packages
+
+(defvar straight--cached-built-in-packages nil
+  "Hash table mapping package names to booleans.
+All packages that are built in are mapped to non-nil. The value
+of this variable is computed the first time
+`straight--package-built-in-p' is called.")
+
+(defun straight--package-built-in-p (package)
+  "Given PACKAGE symbol, return non-nil if it's built in to Emacs.
+The return value of this function might change between different
+versions of Emacs for the same package.
+
+If a package is built in, then the package won't be listed in GNU
+ELPA (Mirror) and it won't be an error if no recipe can be found
+for it."
+  (unless straight--cached-built-in-packages
+    (require 'finder-inf)
+    (let ((table (make-hash-table)))
+      (dolist (cell package--builtins)
+        (puthash (car cell) t table))
+      (setq straight--cached-built-in-packages table)))
+  (gethash package straight--cached-built-in-packages))
+
 ;;;;; Declaration of caches
 
 (defvar straight--recipe-cache (make-hash-table :test #'equal)
@@ -2627,20 +2671,35 @@ does such a good job of discouraging contributions anyway."
 (defun straight-recipes-gnu-elpa-mirror-retrieve (package)
   "Look up a PACKAGE recipe in the GNU ELPA mirror.
 PACKAGE should be a symbol. If the package is maintained in GNU
-ELPA, return a MELPA-style recipe. Otherwise, return nil."
-  (when (file-exists-p (symbol-name package))
-    `(,package :type git
-               :host github
-               :repo ,(format "emacs-straight/%S" package))))
+ELPA (and should be retrieved from there, which isn't the case if
+the package is built in to Emacs), return a MELPA-style recipe.
+Otherwise, return nil."
+  (unless (straight--package-built-in-p package)
+    (when (file-exists-p (symbol-name package))
+      `(,package :type git
+                 :host github
+                 :repo ,(format "emacs-straight/%S" package)
+                 ;; Kinda weird, but in fact this is how package.el
+                 ;; works. So if we want to replicate the build
+                 ;; process, we should trust that the gnu-elpa-mirror
+                 ;; put the correct files into the repository, and
+                 ;; then just link *everything*. As an FYI, if we
+                 ;; don't do this, then AUCTeX suffers problems with
+                 ;; style files, see
+                 ;; <https://github.com/raxod502/straight.el/issues/423>.
+                 :files ("*" (:exclude ".git"))))))
 
 (defun straight-recipes-gnu-elpa-mirror-list ()
   "Return a list of recipe names available in the GNU ELPA mirror.
 This is a list of strings."
-  (straight--directory-files))
+  (cl-remove-if
+   (lambda (package)
+     (straight--package-built-in-p (intern package)))
+   (straight--directory-files)))
 
 (defun straight-recipes-gnu-elpa-mirror-version ()
   "Return the current version of the GNU ELPA mirror retriever."
-  1)
+  2)
 
 ;;;;;;; GNU ELPA source
 
@@ -2652,19 +2711,25 @@ This is a list of strings."
 (defun straight-recipes-gnu-elpa-retrieve (package)
   "Look up a PACKAGE recipe in GNU ELPA.
 PACKAGE should be a symbol. If the package is maintained in GNU
-ELPA, return a MELPA-style recipe. Otherwise, return nil."
-  (when (file-exists-p (expand-file-name (symbol-name package) "packages/"))
-    ;; All the packages in GNU ELPA are just subdirectories of the
-    ;; same repository.
-    `(,package :type git
-               :repo ,straight-recipes-gnu-elpa-url
-               :files (,(format "packages/%s/*.el"
-                                (symbol-name package)))
-               :local-repo "elpa")))
+ELPA (and should be retrieved from there, which isn't the case if
+the package is built in to Emacs), return a MELPA-style recipe.
+Otherwise, return nil."
+  (unless (straight--package-built-in-p package)
+    (when (file-exists-p (expand-file-name (symbol-name package) "packages/"))
+      ;; All the packages in GNU ELPA are just subdirectories of the
+      ;; same repository.
+      `(,package :type git
+                 :repo ,straight-recipes-gnu-elpa-url
+                 :files (,(format "packages/%s/*.el"
+                                  (symbol-name package)))
+                 :local-repo "elpa"))))
 
 (defun straight-recipes-gnu-elpa-list ()
   "Return a list of recipe names available in GNU ELPA, as a list of strings."
-  (straight--directory-files "packages/"))
+  (cl-remove-if
+   (lambda (package)
+     (straight--package-built-in-p (intern package)))
+   (straight--directory-files "packages/")))
 
 (defun straight-recipes-gnu-elpa-version ()
   "Return the current version of the GNU ELPA retriever."
@@ -2688,7 +2753,7 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
     (dolist (org '("mirror" "attic"))
       (with-temp-buffer
         (insert-file-contents-literally org)
-        (when (re-search-forward (format "^%S$" package) nil 'noerror)
+        (when (re-search-forward (format "^%S\r?$" package) nil 'noerror)
           (cl-return
            `(,package :type git :host github
                       :repo ,(format "emacs%s/%S" org package))))))))
@@ -2828,19 +2893,17 @@ for dependency resolution."
                      ;; Second argument is the sources list, defaults
                      ;; to all known sources.
                      melpa-style-recipe nil cause)
-                    (progn
-                      ;; Check if the package is considered as
-                      ;; "built-in". If so, it's not an issue if we
-                      ;; can't find it in any recipe repositories.
-                      (require 'finder-inf)
-                      (if (assq melpa-style-recipe package--builtins)
-                          (cl-return-from straight--convert-recipe
-                            `(:type built-in :package
-                                    ,(symbol-name melpa-style-recipe)))
-                        (error (concat "Could not find package %S "
-                                       "in recipe repositories: %S")
-                               melpa-style-recipe
-                               straight-recipe-repositories)))))))
+                    ;; Check if the package is considered as
+                    ;; "built-in". If so, it's not an issue if we
+                    ;; can't find it in any recipe repositories.
+                    (if (straight--package-built-in-p melpa-style-recipe)
+                        (cl-return-from straight--convert-recipe
+                          `(:type built-in :package
+                                  ,(symbol-name melpa-style-recipe)))
+                      (error (concat "Could not find package %S "
+                                     "in recipe repositories: %S")
+                             melpa-style-recipe
+                             straight-recipe-repositories))))))
         ;; MELPA-style recipe format is a list whose car is the
         ;; package name as a symbol, and whose cdr is a plist.
         (cl-destructuring-bind (package . plist) full-melpa-style-recipe
@@ -3540,13 +3603,7 @@ modified since their last builds.")
                 args-primaries))
     (with-temp-buffer
       (let ((default-directory (straight--repos-dir)))
-        (let ((return (apply #'call-process "find" nil '(t t) nil args)))
-          ;; find(1) always returns zero unless there was some kind of
-          ;; error.
-          (unless (= 0 return)
-            (error "Command failed: find %s:\n%s"
-                   (mapconcat #'shell-quote-argument args " ")
-                   (buffer-string))))
+        (apply #'straight--get-call "find" args)
         (maphash (lambda (local-repo _)
                    (goto-char (point-min))
                    (puthash
@@ -3632,22 +3689,14 @@ last time."
                         (setq mtime-or-file
                               (straight--make-mtime last-mtime)))
                       (let* ((default-directory
-                               (straight--repos-dir local-repo))
-                             ;; This find(1) command ignores the .git
-                             ;; directory, and prints the names of any
-                             ;; files or directories with a newer
-                             ;; mtime than the one specified.
-                             (args `("." "-name" ".git" "-prune"
-                                     "-o" ,newer-or-newermt ,mtime-or-file
-                                     "-print"))
-                             (return (apply #'call-process "find"
-                                            nil '(t t) nil args)))
-                        (unless (= 0 return)
-                          (error "Command failed: find %s:\n%s"
-                                 (string-join
-                                  (mapcar #'shell-quote-argument args)
-                                  " ")
-                                 (buffer-string)))
+                               (straight--repos-dir local-repo)))
+                        ;; This find(1) command ignores the .git
+                        ;; directory, and prints the names of any
+                        ;; files or directories with a newer mtime
+                        ;; than the one specified.
+                        (straight--get-call
+                         "find" "." "-name" ".git" "-prune"
+                         "-o" newer-or-newermt mtime-or-file "-print")
                         ;; If anything was printed, the package has
                         ;; (maybe) been modified.
                         (> (buffer-size) 0)))))))))))
@@ -4059,7 +4108,10 @@ modifies the build folder, not the original repository."
         ;; (for example, adding to `recentf') when visiting the
         ;; autoload file.
         (let ((find-file-hook nil)
-              (write-file-functions nil))
+              (write-file-functions nil)
+              ;; Apparently fixes a bug in Emacs 27, see
+              ;; <https://github.com/raxod502/straight.el/issues/434>.
+              (debug-on-error nil))
           ;; Actually generate the autoload file.
           (update-directory-autoloads
            (straight--build-dir package)))
@@ -4131,14 +4183,17 @@ repository."
                         (straight--repos-dir local-repo)
                         (straight--build-dir package)
                         flavor))
-          (when (string-match-p ".texi\\(nfo\\)?$" repo-file)
+          (cond
+           ((string-match-p "\\.info$" build-file)
+            (push build-file infos))
+           ((string-match-p "\\.texi\\(nfo\\)?$" repo-file)
             (let ((texi repo-file)
                   (info
                    (concat (file-name-sans-extension build-file) ".info")))
               (push info infos)
               (unless (file-exists-p info)
                 (let ((default-directory (file-name-directory texi)))
-                  (straight--call "makeinfo" texi "-o" info))))))
+                  (straight--call "makeinfo" texi "-o" info)))))))
         (let ((dir (straight--build-file package "dir")))
           (unless (file-exists-p dir)
             (dolist (info infos)
@@ -4538,7 +4593,30 @@ action, just return it)."
                (message "Copied \"%S\" to kill ring" recipe))
         (_ recipe)))))
 
+;;;;; Jump to package website
+
+;;;###autoload
+(defun straight-visit-package-website ()
+  "Interactively select a recipe, and visit the package's website."
+  (interactive)
+  (let* ((melpa-recipe (straight-get-recipe))
+         (recipe (straight--convert-recipe melpa-recipe)))
+    (straight--with-plist recipe (host repo)
+      (pcase host
+        (`github (browse-url (format "https://github.com/%s" repo)))
+        (`gitlab (browse-url (format "https://gitlab.com/%s" repo)))
+        (_ (browse-url (format "%s" repo)))))))
+
 ;;;;; Package registration
+
+(defcustom straight-use-package-prepare-functions nil
+  "Abnormal hook run before a package is (maybe) built.
+Unlike `straight-use-package-pre-build-functions', the functions
+in this hook are called even if the package does not need to be
+rebuilt. Each hook function is called with the name of the
+package as a string. For forward compatibility, it should accept
+and ignore additional arguments."
+  :type 'hook)
 
 (defcustom straight-use-package-pre-build-functions nil
   "Abnormal hook run before building a package.
@@ -4712,6 +4790,8 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
                ;; `load-path' in order to byte-compile properly. So we
                ;; do this before `straight--build-package'.
                (straight--add-package-to-load-path recipe))
+             (run-hook-with-args
+              'straight-use-package-prepare-functions package)
              (when (and modified (not no-build))
                (run-hook-with-args
                 'straight-use-package-pre-build-functions package)
@@ -5516,6 +5596,13 @@ documentation."
   "Handler for `:straight' in `use-package' forms.
 NAME, KEYWORD, ARGS, REST, and STATE are explained by the
 `use-package' documentation."
+  ;; Disable `:ensure' when `:straight' is present. This part only
+  ;; works when `:straight' is processed before `:ensure'. See below
+  ;; for the other case.
+  ;;
+  ;; See <https://github.com/raxod502/straight.el/issues/425>.
+  (when args
+    (straight--remq rest '(:ensure)))
   (let ((body (use-package-process-keywords name rest state)))
     (mapc (lambda (arg)
             (push `(straight-use-package
@@ -5528,6 +5615,19 @@ NAME, KEYWORD, ARGS, REST, and STATE are explained by the
                   body))
           args)
     body))
+
+(defun straight-use-package--ensure-handler-advice
+    (handler name keyword args rest state)
+  "Advice for `:ensure' handler in `use-package' forms.
+HANDLER is the original handler function. NAME, KEYWORD, ARGS,
+REST, and STATE are explained by the `use-package' documentation.
+
+Disables `:ensure' when `:straight' is present. This part only
+works when `:ensure' is processed before `:straight'. See above
+for the other case."
+  (if (plist-get rest :straight)
+      (use-package-process-keywords name rest state)
+    (funcall handler name keyword args rest state)))
 
 ;;;;;; Mode definition
 
@@ -5573,6 +5673,8 @@ is loaded, according to the value of
          (setq use-package-keywords (remq :straight use-package-keywords)))
        (fmakunbound 'use-package-normalize/:straight)
        (fmakunbound 'use-package-handler/:straight)
+       (advice-remove #'use-package-handler/:ensure
+                      #'straight-use-package--ensure-handler-advice)
        (when (and (boundp 'use-package-defaults)
                   (listp use-package-defaults))
          (setq use-package-defaults
@@ -5617,6 +5719,8 @@ is loaded, according to the value of
            #'straight-use-package--straight-normalizer)
          (defalias 'use-package-handler/:straight
            #'straight-use-package--straight-handler)
+         (advice-add #'use-package-handler/:ensure :around
+                     #'straight-use-package--ensure-handler-advice)
          (when (and (boundp 'use-package-defaults)
                     (listp use-package-defaults))
            (setq use-package-defaults (straight--alist-set
@@ -5677,9 +5781,9 @@ Inserted by installing org-mode or when a release is made."
     (provide 'org-version)))
 
 (if straight-fix-org
-    (add-hook 'straight-use-package-pre-build-functions
+    (add-hook 'straight-use-package-prepare-functions
               #'straight--fix-org-function)
-  (remove-hook 'straight-use-package-pre-build-functions
+  (remove-hook 'straight-use-package-prepare-functions
                #'straight--fix-org-function))
 
 ;;;; Closing remarks

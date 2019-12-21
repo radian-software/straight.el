@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -e
+set -o pipefail
+
+mkdir -p "$HOME/.emacs.d/straight/repos/"
+ln -s "$PWD" "$HOME/.emacs.d/straight/repos/straight.el"
+
+# We need to test with a package that supports Emacs 24.4 here.
+emacs --batch -l "$HOME/.emacs.d/straight/repos/straight.el/bootstrap.el" \
+      --eval "(straight-use-package 'use-package)"                        \
+      --eval "(use-package clojure-mode :straight t)"
