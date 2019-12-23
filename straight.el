@@ -3687,17 +3687,19 @@ last time."
                         (setq mtime-or-file
                               (straight--make-mtime last-mtime)))
                       (let* ((default-directory
-                               (straight--repos-dir local-repo)))
-                        ;; This find(1) command ignores the .git
-                        ;; directory, and prints the names of any
-                        ;; files or directories with a newer mtime
-                        ;; than the one specified.
-                        (straight--get-call
-                         "find" "." "-name" ".git" "-prune"
-                         "-o" newer-or-newermt mtime-or-file "-print")
+                               (straight--repos-dir local-repo))
+                             ;; This find(1) command ignores the .git
+                             ;; directory, and prints the names of any
+                             ;; files or directories with a newer
+                             ;; mtime than the one specified.
+                             (results (straight--get-call
+                                       "find"
+                                       "." "-name" ".git" "-prune"
+                                       "-o" newer-or-newermt mtime-or-file
+                                       "-print")))
                         ;; If anything was printed, the package has
                         ;; (maybe) been modified.
-                        (> (buffer-size) 0)))))))))))
+                        (not (string-empty-p results))))))))))))
 
 ;;;; Building packages
 ;;;;; Files directive processing
