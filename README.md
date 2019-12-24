@@ -2617,7 +2617,9 @@ branch in any fork:
     (setq straight-repository-branch "feat/my-cool-feature")
 
 Please try to follow the style of the surrounding code and
-documentation, but anything is welcome.
+documentation, but anything is welcome. All text, including comments
+and docstrings, should be formatted using Emacs' `M-x fill-paragraph`
+command (bound to `M-q` by default).
 
 We require that the linting pass on all new commits. You can check
 this easily by installing [Docker] and running
