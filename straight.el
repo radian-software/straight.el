@@ -1089,57 +1089,6 @@ transaction. In this case, the caller must do this itself."
     (when now
       (funcall now))))
 
-(defun straight-begin-transaction ()
-  "Deprecated no-op. Transactions are now handled transparently.
-To update your code, simply remove all references to
-`straight-transaction', `straight-begin-transaction',
-`straight-finalize-transaction',
-`straight-mark-transaction-as-init', and
-`straight-treat-as-init'. Everything will work as it did before."
-  (message "straight.el: `straight-begin-transaction' is no longer needed"))
-
-(defun straight-finalize-transaction ()
-  "Deprecated no-op. Transactions are now handled transparently.
-To update your code, simply remove all references to
-`straight-transaction', `straight-begin-transaction',
-`straight-finalize-transaction',
-`straight-mark-transaction-as-init', and
-`straight-treat-as-init'. Everything will work as it did before."
-  (message "straight.el: `straight-finalize-transaction' is no longer needed"))
-
-(defmacro straight-transaction (&rest body)
-  "Deprecated `progn' alias. Transactions are now handled transparently.
-To update your code, simply remove all references to
-`straight-transaction', `straight-begin-transaction',
-`straight-finalize-transaction',
-`straight-mark-transaction-as-init', and
-`straight-treat-as-init'. Everything will work as it did before.
-
-As in `progn', execute BODY and return the value of its last
-form, or nil."
-  `(progn
-     (message "straight.el: `straight-transaction' is no longer needed")
-     ,@(or body '(nil))))
-
-(defun straight-mark-transaction-as-init ()
-  "Deprecated no-op. Transactions are now handled transparently.
-To update your code, simply remove all references to
-`straight-transaction', `straight-begin-transaction',
-`straight-finalize-transaction',
-`straight-mark-transaction-as-init', and
-`straight-treat-as-init'. Everything will work as it did before."
-  (message
-   "straight.el: `straight-mark-transaction-as-init' is no longer needed"))
-
-(defvar straight-treat-as-init nil
-  "Deprecated variable with no effect on anything.
-Transactions are now handled transparently. To update your code,
-simply remove all references to `straight-transaction',
-`straight-begin-transaction', `straight-finalize-transaction',
-`straight-mark-transaction-as-init', and
-`straight-treat-as-init'. Everything will work as it did
-before.")
-
 (defun straight-interactive-transaction ()
   "Start a recursive edit within a transaction."
   (interactive)
