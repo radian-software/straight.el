@@ -1034,15 +1034,18 @@ cdrs are their END-FUNCs.
 
 If nil, no transaction is not live.")
 
-(defun straight--transaction-finalize-on-idle ()
-  "Schedule to finalize the current transaction on Emacs idle.
+(defun straight--transaction-finalize-at-top-level ()
+  "Schedule to finalize the current transaction when appropriate.
 This means that `straight--transaction-finalize' will be invoked
-using an idle timer. In batch mode, the transaction is finalized
-using `kill-emacs-hook' rather than an idle timer (because idle
-timers are not run in batch mode)."
+on `post-command-hook', and it will wait until control is
+returned to the top level before actually finalizing the
+transaction and removing itself from the hook again. In batch
+mode, the transaction is finalized using `kill-emacs-hook' rather
+than `post-command-hook' (because idle timers are not run in
+batch mode)."
   (if noninteractive
       (add-hook 'kill-emacs-hook #'straight--transaction-finalize)
-    (run-with-idle-timer 0 nil #'straight--transaction-finalize)))
+    (add-hook 'post-command-hook #'straight--transaction-finalize)))
 
 (defun straight--transaction-finalize ()
   "Finalize the current transaction.
@@ -1052,16 +1055,13 @@ the functions recorded in it."
   ;; transaction yet. Instead, arrange to schedule another idle timer
   ;; once the user exits the recursive edit via one of the functions
   ;; listed below.
-  (if (zerop (recursion-depth))
-      (let ((alist straight--transaction-alist))
-        (setq straight--transaction-alist nil)
-        (dolist (func '(exit-recursive-edit abort-recursive-edit top-level))
-          (advice-remove func #'straight--transaction-finalize-on-idle))
-        (dolist (end-func (mapcar #'cdr alist))
-          (when end-func
-            (funcall end-func))))
-    (dolist (func '(exit-recursive-edit abort-recursive-edit top-level))
-      (advice-add func :before #'straight--transaction-finalize-on-idle))))
+  (when (zerop (recursion-depth))
+    (let ((alist straight--transaction-alist))
+      (setq straight--transaction-alist nil)
+      (remove-hook 'post-command-hook #'straight--transaction-finalize)
+      (dolist (end-func (mapcar #'cdr alist))
+        (when end-func
+          (funcall end-func))))))
 
 (cl-defun straight--transaction-exec (id &key now later manual)
   "Execute functions within a transaction.
@@ -1081,7 +1081,7 @@ transaction. In this case, the caller must do this itself."
   ;; started a transaction, but haven't yet finalized it. Don't
   ;; schedule more idle timers.
   (unless (or manual straight--transaction-alist)
-    (straight--transaction-finalize-on-idle))
+    (straight--transaction-finalize-at-top-level))
   (unless (assq id straight--transaction-alist)
     ;; Push to start of list. At the end, we'll read forward, thus in
     ;; reverse order.
