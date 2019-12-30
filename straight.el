@@ -472,22 +472,22 @@ also `straight--progress-begin' and `straight--progress-end'."
              (straight--output "%s..." ,task-car-sym))
            (progn
              ,@body)
-         (when (and ,task-cdr-sym (not noninteractive))
-           (message "%s...done" ,task-cdr-sym))))))
+         (when ,task-cdr-sym
+           (straight--output "%s...done" ,task-cdr-sym))))))
 
 (defun straight--progress-begin (message)
   "Display a MESSAGE indicating ongoing progress.
 The MESSAGE is postpended with \"...\" and then passed to
 `message'. See also `straight--with-progress' and
 `straight--progress-end'."
-  (message "%s..." message))
+  (straight--output "%s..." message))
 
 (defun straight--progress-end (message)
   "Display a MESSAGE indicating completed progress.
 The MESSAGE is postpended with \"...done\" and then passed to
 `message'. See also `straight--with-progress' and
 `straight--progress-begin'."
-  (message "%s...done" message))
+  (straight--output "%s...done" message))
 
 (defvar straight--echo-area-dirty nil
   "Non-nil if a progress message has been wiped from the echo area.
@@ -3278,7 +3278,7 @@ empty values (all packages will be rebuilt, with no caching)."
                    (symbolp version)
                    (or (eq version straight--build-cache-version)
                        (prog1 (setq malformed nil)
-                         (message
+                         (straight--output
                           (concat
                            "Rebuilding all packages due to "
                            "build cache schema change"))))
@@ -3287,7 +3287,7 @@ empty values (all packages will be rebuilt, with no caching)."
                    (stringp last-emacs-version)
                    (or (string= last-emacs-version emacs-version)
                        (prog1 (setq malformed nil)
-                         (message
+                         (straight--output
                           (concat
                            "Rebuilding all packages due to "
                            "change in Emacs version"))))
@@ -3305,7 +3305,8 @@ empty values (all packages will be rebuilt, with no caching)."
                    (eq use-symlinks straight-use-symlinks))
             ;; If anything is wrong, abort and use the default values.
             (when malformed
-              (message "Rebuilding all packages due to malformed build cache"))
+              (straight--output
+               "Rebuilding all packages due to malformed build cache"))
             (setq needs-immediate-save t)
             (error "Malformed or outdated build cache"))
           ;; Otherwise, we can load from disk.
@@ -3487,11 +3488,11 @@ If it fails, signal a warning and return nil."
        "Cannot start filesystem watcher without 'watchexec' installed")
       (cl-return-from straight-watcher-start))
     (when (straight-watcher--virtualenv-outdated)
-      (message "Setting up filesystem watcher...")
+      (straight--output "Setting up filesystem watcher...")
       (unless (straight-watcher--virtualenv-setup)
-        (message "Setting up filesystem watcher...failed")
+        (straight--output "Setting up filesystem watcher...failed")
         (cl-return-from straight-watcher-start))
-      (message "Setting up filesystem watcher...done"))
+      (straight--output "Setting up filesystem watcher...done"))
     (with-current-buffer (straight-watcher--make-process-buffer)
       (let* ((python (straight--watcher-python))
              (cmd (list
@@ -3980,7 +3981,8 @@ See `straight-symlink-emulation-mode'."
              (with-temp-buffer
                (insert-file-contents-literally link-record)
                (buffer-string)))
-          (message "Broken symlink, you are not editing the real file"))))))
+          (straight--output
+           "Broken symlink, you are not editing the real file"))))))
 
 (define-minor-mode straight-symlink-emulation-mode
   "Minor mode for emulating symlinks in the software layer.
@@ -4610,7 +4612,7 @@ action, just return it)."
       (pcase action
         (`insert (insert (format "%S" recipe)))
         (`copy (kill-new (format "%S" recipe))
-               (message "Copied \"%S\" to kill ring" recipe))
+               (straight--output "Copied \"%S\" to kill ring" recipe))
         (_ recipe)))))
 
 ;;;;; Jump to package website
@@ -4847,7 +4849,7 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
              ;; In interactive use, tell the user how to install
              ;; packages permanently.
              (when (and interactive (not already-registered))
-               (message
+               (straight--output
                 (concat "If you want to keep %s, put "
                         "(straight-use-package %s%S) "
                         "in your init-file.")
@@ -5290,9 +5292,9 @@ If not, prompt the user to reload the init-file."
     (cl-return-from straight--ensure-profile-cache-valid t))
   (unless (y-or-n-p "Caches are outdated, reload init-file? ")
     (cl-return-from straight--ensure-profile-cache-valid nil))
-  (message "Reloading %S..." user-init-file)
+  (straight--output "Reloading %S..." user-init-file)
   (load user-init-file nil 'nomessage)
-  (message "Reloading %S...done" user-init-file)
+  (straight--output "Reloading %S...done" user-init-file)
   (when straight--profile-cache-valid
     (cl-return-from straight--ensure-profile-cache-valid t))
   (error "Caches are still outdated; something is seriously wrong"))
@@ -5382,7 +5384,7 @@ according to the value of `straight-profiles'."
                (apply-partially #'format "%S")
                versions-alist
                "\n "))))
-          (message "Wrote %s" lockfile-path))))))
+          (straight--output "Wrote %s" lockfile-path))))))
 
 ;;;###autoload
 (defun straight-thaw-versions ()
