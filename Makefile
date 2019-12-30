@@ -45,16 +45,7 @@ checkdoc: ## Check docstring style
 
 .PHONY: longlines
 longlines: ## Check for long lines
-	@for file in $(for_longlines); do \
-	    echo "[longlines] $$file"; \
-	    cat "$$file" \
-	        | sed '/[<]!-- toc -->/,/<!-- tocstop -->/d' \
-	        | sed '/[l]onglines-start/,/longlines-stop/d' \
-	        | grep -E '.{80}' \
-	        | grep -E -v '\[.+\]: (#|http)' \
-	        | sed "s#^#$$file:long line: #" \
-	        | grep . && exit 1 || true ;\
-	done
+	@scripts/check-line-length.bash
 
 .PHONY: checkindent
 checkindent: ## Ensure that indentation is correct
