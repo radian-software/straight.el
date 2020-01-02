@@ -99,7 +99,9 @@
                                straight-profiles
                              '((nil . "default.el"))))
         (straight-install-dir (or (bound-and-true-p straight-base-dir)
-                                  user-emacs-directory)))
+                                  user-emacs-directory))
+        (print-length nil)
+        (print-level nil))
     ;; The only permissible error here is for a lockfile to be absent
     ;; entirely. Anything else triggers an abort so that we don't
     ;; accidentally do something the user doesn't expect (like if they
