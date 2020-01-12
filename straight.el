@@ -1608,6 +1608,18 @@ prompt. Return non-nil if Magit was installed. DIRECTORY is as in
   (prog1 t
     (magit-status-setup-buffer directory)))
 
+(defun straight--recursive-edit ()
+  "Start a new recursive edit session.
+Make sure that other packages such as `server.el' don't cause us
+to loose our session."
+  ;; Don't mess up recursive straight.el operations. The wonderful
+  ;; thing about using our own variable is that since it's not
+  ;; buffer-local, a recursive binding to nil is actually able to
+  ;; undo the effects of the ambient binding.
+  (cl-letf (((symbol-function 'top-level) #'ignore)
+            (straight--default-directory nil))
+    (recursive-edit)))
+
 (defun straight-vc-git--popup-raw (prompt actions)
   "Same as `straight--popup-raw', but specialized for vc-git methods.
 Two additional actions are inserted at the end of the list: \"e\"
@@ -1621,14 +1633,12 @@ edit. Otherwise, PROMPT and ACTIONS are as for
     '(("e" "Dired and open recursive edit"
        (lambda ()
          (dired (or straight--default-directory default-directory))
-         (let ((straight--default-directory nil))
-           (recursive-edit))))
+         (straight--recursive-edit)))
       ("g" "Magit and open recursive edit"
        (lambda ()
          (when (straight--magit-status
                 (or straight--default-directory default-directory))
-           (let ((straight--default-directory nil))
-             (recursive-edit)))))))))
+           (straight--recursive-edit))))))))
 
 (defmacro straight-vc-git--popup (prompt &rest actions)
   "Same as `straight--popup', but specialized for vc-git methods.
@@ -1642,17 +1652,11 @@ edit. Otherwise, PROMPT and ACTIONS are as for
      ,@actions
      ("e" "Dired and open recursive edit"
       (dired (or straight--default-directory default-directory))
-      ;; Don't mess up recursive straight.el operations. The wonderful
-      ;; thing about using our own variable is that since it's not
-      ;; buffer-local, a recursive binding to nil is actually able to
-      ;; undo the effects of the ambient binding.
-      (let ((straight--default-directory nil))
-        (recursive-edit)))
+      (straight--recursive-edit))
      ("g" "Magit and open recursive edit"
       (when (straight--magit-status
              (or straight--default-directory default-directory))
-        (let ((straight--default-directory nil))
-          (recursive-edit))))))
+        (straight--recursive-edit)))))
 
 (defun straight-vc-git--encode-url (repo host &optional protocol)
   "Generate a URL from a REPO depending on the value of HOST and PROTOCOL.
@@ -4537,7 +4541,7 @@ The default value is \"Processing\"."
                          (cl-return-from loop))
                         ("e" "Dired and open recursive edit"
                          (dired (straight--repos-dir local-repo))
-                         (recursive-edit))
+                         (straight--recursive-edit))
                         ("C-g" (concat "Stop immediately and do not process "
                                        "more repositories")
                          (keyboard-quit))))))
