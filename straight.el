@@ -2737,13 +2737,18 @@ much faster than cloning the official Emacsmirror."
 PACKAGE should be a symbol. If the package is available from
 Emacsmirror, return a MELPA-style recipe; otherwise return nil."
   (cl-block nil
-    (dolist (org '("mirror" "attic"))
-      (with-temp-buffer
-        (insert-file-contents-literally org)
-        (when (re-search-forward (format "^%S\r?$" package) nil 'noerror)
-          (cl-return
-           `(,package :type git :host github
-                      :repo ,(format "emacs%s/%S" org package))))))))
+    (let ((mirror-package (intern
+                           (replace-regexp-in-string
+                            "\\+" "-plus" (symbol-name package)
+                            'fixedcase 'literal))))
+      (dolist (org '("mirror" "attic"))
+        (with-temp-buffer
+          (insert-file-contents-literally org)
+          (when (re-search-forward
+                 (format "^%S\r?$" mirror-package) nil 'noerror)
+            (cl-return
+             `(,package :type git :host github
+                        :repo ,(format "emacs%s/%S" org mirror-package)))))))))
 
 (defun straight-recipes-emacsmirror-mirror-list ()
   "Return a list of recipes available in Emacsmirror, as a list of strings."
@@ -2751,9 +2756,17 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
     (dolist (org '("mirror" "attic"))
       (with-temp-buffer
         (insert-file-contents-literally org)
-        (setq packages (nconc (split-string (buffer-string) "\n" 'omit-nulls)
+        (setq packages (nconc (mapcar
+                               (lambda (package)
+                                 (replace-regexp-in-string
+                                  "-plus\\b" "+" package 'fixedcase 'literal))
+                               (split-string (buffer-string) "\n" 'omit-nulls))
                               packages))))
     packages))
+
+(defun straight-recipes-emacsmirror-mirror-version ()
+  "Return the current version of the Emacsmirror mirror retriever."
+  2)
 
 ;;;;;;; Emacsmirror source
 
@@ -2791,7 +2804,7 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
 
 (defun straight-recipes-emacsmirror-version ()
   "Return the current version of the Emacsmirror retriever."
-  1)
+  2)
 
 ;;;;; Recipe conversion
 
