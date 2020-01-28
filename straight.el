@@ -1011,8 +1011,8 @@ on `post-command-hook', and it will wait until control is
 returned to the top level before actually finalizing the
 transaction and removing itself from the hook again. In batch
 mode, the transaction is finalized using `kill-emacs-hook' rather
-than `post-command-hook' (because idle timers are not run in
-batch mode)."
+than `post-command-hook' (because the latter is not run in batch
+mode)."
   (if noninteractive
       (add-hook 'kill-emacs-hook #'straight--transaction-finalize)
     (add-hook 'post-command-hook #'straight--transaction-finalize)))
