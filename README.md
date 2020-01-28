@@ -2537,6 +2537,10 @@ it to install Org. This functionality is implemented using
 can disable it by setting the value of the variable `straight-fix-org`
 to nil.
 
+Please be careful with setting `straight-vc-git-default-clone-depth`,
+which may break some packages' installing processes such as `elfeed`
+that depend on `org`.
+
 #### Integration with Hydra
 
 See [the Hydra wiki][hydra-wiki-straight-entry].
