@@ -1402,6 +1402,12 @@ This method simply delegates to the relevant
 
 ;;;;; Built-in packages
 
+(defun straight-vc-built-in-get-commit (_local-repo)
+  "Get the currently checked-out commit object, given LOCAL-REPO name string.
+For built-in packages, this is always nil because there cannot
+actually be a local repository."
+  nil)
+
 (defun straight-vc-built-in-local-repo-name (_recipe)
   "Generate a repository name from straight.el-style RECIPE.
 For built-in packages, this is always nil."
@@ -5373,11 +5379,10 @@ according to the value of `straight-profiles'."
                  (package local-repo type)
                (when (and local-repo
                           (memq profile
-                                (gethash package straight--profile-cache)))
-                 (push (cons local-repo
-                             (or (cdr (assoc local-repo versions-alist))
-                                 (straight-vc-get-commit type local-repo)))
-                       versions-alist)))))
+                                (gethash package straight--profile-cache))
+                          (not (assoc local-repo versions-alist)))
+                 (when-let ((commit (straight-vc-get-commit type local-repo)))
+                   (push (cons local-repo commit) versions-alist))))))
           (setq versions-alist
                 (cl-sort versions-alist #'string-lessp :key #'car))
           (make-directory (file-name-directory lockfile-path) 'parents)

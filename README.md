@@ -1835,7 +1835,8 @@ a backend API method. The relevant methods are:
 * `check-out-commit`: given a recipe and a commit object, attempt to
   check out that commit in the repository for that recipe.
 * `get-commit`: given a local repository name, return the commit
-  object that is currently checked out.
+  object that is currently checked out, or nil if the local repository
+  should not be included in a lockfile.
 * `local-repo-name`: given a recipe, return a good name for the local
   repository, or nil.
 * `keywords`: return a list of keywords which are meaningful for this
