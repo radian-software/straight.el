@@ -3607,7 +3607,7 @@ modified since their last builds.")
                           (append (list "-o"
                                         "-path"
                                         (expand-file-name
-                                         "*" (straight--repos-dir local-repo))
+                                         (if (eq system-type 'windows-nt) "'*'" "*") (straight--repos-dir local-repo))
                                         newer-or-newermt
                                         mtime-or-file
                                         "-print")
