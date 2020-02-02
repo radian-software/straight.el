@@ -3607,7 +3607,9 @@ modified since their last builds.")
                           (append (list "-o"
                                         "-path"
                                         (expand-file-name
-                                         (if (eq system-type 'windows-nt) "'*'" "*") (straight--repos-dir local-repo))
+                                         ;; https://github.com/raxod502/straight.el/issues/393
+                                         (if (eq system-type 'windows-nt) "'*'" "*")
+                                         (straight--repos-dir local-repo))
                                         newer-or-newermt
                                         mtime-or-file
                                         "-print")
