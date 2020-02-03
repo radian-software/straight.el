@@ -3608,7 +3608,9 @@ modified since their last builds.")
                                         "-path"
                                         (expand-file-name
                                          ;; https://github.com/raxod502/straight.el/issues/393
-                                         (if (eq system-type 'windows-nt) "'*'" "*")
+                                         (if (eq system-type 'windows-nt)
+                                             "'*'"
+                                           "*")
                                          (straight--repos-dir local-repo))
                                         newer-or-newermt
                                         mtime-or-file
