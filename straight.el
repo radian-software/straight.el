@@ -3595,9 +3595,10 @@ modified since their last builds.")
                   ;; for any files that are in a given local
                   ;; repository *and* have a new enough mtime.
                   ;;
-                  ;; See the following issue for an explanation
-                  ;; about quotation:
-                  ;; https://github.com/raxod502/straight.el/issues/393
+                  ;; See the following issue for an explanation about
+                  ;; why an extra pair of single quotes is used on
+                  ;; Windows:
+                  ;; <https://github.com/raxod502/straight.el/issues/393>
                   (let ((newer-or-newermt nil)
                         (mtime-or-file nil))
                     (if (straight--find-supports 'newermt)
