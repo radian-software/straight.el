@@ -14,23 +14,27 @@ WATCHEXEC_VARS = [
     "WATCHEXEC_META_CHANGED_PATH",
 ]
 
+
 def die(message):
     print(message, file=sys.stderr)
     sys.exit(1)
 
+
 def usage():
-    return (
-        "usage: python -m straight_watch_callback <repos-dir> <modified-dir>")
+    return "usage: python -m straight_watch_callback <repos-dir> <modified-dir>"
+
 
 def path_contains(parent, child):
     parent = pathlib.Path(parent).resolve()
     child = pathlib.Path(child).resolve()
     return parent in child.parents
 
+
 def path_strip(parent, child):
     parent = pathlib.Path(parent).parts
     child = pathlib.Path(child).parts
     return child[len(parent)]
+
 
 def main(args):
     if len(args) != 2:
@@ -66,6 +70,7 @@ def main(args):
             print("--> mark for rebuild: {}".format(repo), file=sys.stderr)
             with open(modified_dir / repo, "w"):
                 pass
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])

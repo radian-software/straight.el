@@ -8,6 +8,7 @@ find=(
     -name "*.egg-info" -o
     -name "*.elc" -o
     -name "*.png" -o
+    -name "*.py" -o  # Black uses longer lines
     -name .git -o
     -name .github -o
     -name __pycache__

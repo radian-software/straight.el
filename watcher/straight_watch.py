@@ -10,6 +10,7 @@ import sys
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CALLBACK_SCRIPT = os.path.join(SCRIPT_DIR, "straight_watch_callback.py")
 
+
 def kill_previous_watcher(pid_file):
     try:
         with open(pid_file, "r") as f:
@@ -33,6 +34,7 @@ def kill_previous_watcher(pid_file):
     os.kill(pid, signal.SIGUSR1)
     os.remove(pid_file)
 
+
 def write_process_data(pid_file):
     pid = os.getpid()
     create_time = psutil.Process(pid).create_time()
@@ -40,6 +42,7 @@ def write_process_data(pid_file):
     with open(pid_file, "w") as f:
         print(pid, file=f)
         print(create_time, file=f)
+
 
 def start_watch(repos_dir, modified_dir):
     callback_cmd = [CALLBACK_SCRIPT, repos_dir, modified_dir]
@@ -49,18 +52,22 @@ def start_watch(repos_dir, modified_dir):
     print("$ " + cmd_sh, file=sys.stderr)
     subprocess.run(cmd, cwd=repos_dir, check=True)
 
+
 def handle_interrupt(signum, frame):
     sys.exit(0)
+
 
 def die(message):
     print(message, file=sys.stderr)
     sys.exit(1)
+
 
 def usage():
     return """\
 usage: python -m straight_watch start <pid-file> <repos-dir> <modified-dir>
        python -m straight_watch stop <pid-file>\
 """
+
 
 def main(args):
     if not args:
@@ -86,6 +93,7 @@ def main(args):
     # We should never get here. Normal exit is getting signalled with
     # SIGUSR1.
     sys.exit(1)
+
 
 if __name__ == "__main__":
     signal.signal(signal.SIGUSR1, handle_interrupt)
