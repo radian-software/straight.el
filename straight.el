@@ -3519,7 +3519,9 @@ If it fails, signal a warning and return nil."
     (with-current-buffer (straight-watcher--make-process-buffer)
       (let* ((python (straight--watcher-python))
              (cmd (list
-                   python "-m" "straight_watch" "start"
+                   ;; Need to disable buffering, otherwise we don't
+                   ;; get some important stuff printed.
+                   python "-u" "-m" "straight_watch" "start"
                    (straight--watcher-file "process")
                    (straight--repos-dir)
                    (straight--modified-dir)))
