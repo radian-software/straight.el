@@ -4087,7 +4087,7 @@ this run of straight.el)."
                  ;; missing or malformed, we just assume the package
                  ;; has no dependencies.
                  (let ((case-fold-search t))
-                   (re-search-forward "^;; Package-Requires: "))
+                   (re-search-forward "^;; *Package-Requires *:"))
                  (when (looking-at "(")
                    (straight--process-dependencies
                     (read (current-buffer)))))))))
