@@ -4088,7 +4088,7 @@ this run of straight.el)."
                  ;; has no dependencies.
                  (let ((case-fold-search t))
                    (re-search-forward "^;; *Package-Requires *:"))
-                 (when (looking-at "(")
+                 (when (looking-at " *(")
                    (straight--process-dependencies
                     (read (current-buffer)))))))))
     (straight--insert 1 package dependencies straight--build-cache)))
