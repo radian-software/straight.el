@@ -112,10 +112,6 @@ chat][gitter-badge]][gitter]
   * [May 22, 2019](#may-22-2019)
   * [May 1, 2019](#may-1-2019)
   * [March 15, 2019](#march-15-2019)
-  * [December 22, 2018](#december-22-2018)
-  * [September 12, 2018](#september-12-2018)
-  * [July 19, 2018](#july-19-2018)
-  * [July 12, 2018](#july-12-2018)
 
 <!-- tocstop -->
 
@@ -2893,49 +2889,6 @@ default][#user/integration/org], so Org should work out of the box
 with no compile warnings. If you have code to work around the problem
 in your init-file, you can safely remove it. To avoid installing the
 hack, customize the variable `straight-fix-org`.
-
-### December 22, 2018
-
-The default value of the user option
-`straight-recipes-gnu-elpa-use-mirror` is now non-nil.
-
-### September 12, 2018
-
-`straight.el` now supports specifying configuration for your fork of a
-package via the new `:fork` keyword. The previously supported
-`:upstream` keyword is now deprecated, but still works for backwards
-compatibility. To support this change, the user options
-`straight-vc-git-primary-remote` and `straight-vc-git-upstream-remote`
-are deprecated (but still work for backwards compatibility), as they
-have been superseded by the new user options
-`straight-vc-git-default-remote-name` and
-`straight-vc-git-default-fork-name`. Your usage should be updated.
-
-### July 19, 2018
-
-`straight.el` now automatically caches the recipes it looks up in
-recipe repositories. This should lead to a reduction in
-`straight.el`-related startup time of as much as 50% if you also use
-live modification detection, as disk IO and usage of external
-processes are reduced significantly.
-
-No changes to user configuration are necessary; however, if you define
-a custom recipe repository (call it `NAME`) then caching is not
-enabled by default. To enable caching, define a
-`straight-recipes-NAME-version` function which returns a non-nil value
-indicating the current version of the logic in
-`straight-recipes-NAME-retrieve`. This version value needs to be
-changed each time you change the logic, so that the recipe lookup
-cache for that recipe repository may automatically be invalidated.
-
-### July 12, 2018
-
-I now maintain a [full mirror of GNU ELPA on GitHub][gnu-elpa-mirror].
-You can tell `straight.el` to use it by customizing the user option
-`straight-recipes-gnu-elpa-use-mirror`, and this will allow you to use
-packages such as AUCTeX correctly, which was previously impossible.
-Note that the user option must be customized *before* the
-`straight.el` [bootstrap][#quickstart].
 
 [#principles]: #guiding-principles
 [#quickstart]: #getting-started
