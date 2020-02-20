@@ -3523,7 +3523,9 @@ If it fails, signal a warning and return nil."
     (with-current-buffer (straight-watcher--make-process-buffer)
       (let* ((python (straight--watcher-python))
              (cmd (list
-                   python "-m" "straight_watch" "start"
+                   ;; Need to disable buffering, otherwise we don't
+                   ;; get some important stuff printed.
+                   python "-u" "-m" "straight_watch" "start"
                    (straight--watcher-file "process")
                    (straight--repos-dir)
                    (straight--modified-dir)))
@@ -3598,6 +3600,11 @@ modified since their last builds.")
                   ;; directories from being traversed and then checks
                   ;; for any files that are in a given local
                   ;; repository *and* have a new enough mtime.
+                  ;;
+                  ;; See the following issue for an explanation about
+                  ;; why an extra pair of single quotes is used on
+                  ;; Windows:
+                  ;; <https://github.com/raxod502/straight.el/issues/393>
                   (let ((newer-or-newermt nil)
                         (mtime-or-file nil))
                     (if (straight--find-supports 'newermt)
@@ -3611,7 +3618,10 @@ modified since their last builds.")
                           (append (list "-o"
                                         "-path"
                                         (expand-file-name
-                                         "*" (straight--repos-dir local-repo))
+                                         (if (eq system-type 'windows-nt)
+                                             "'*'"
+                                           "*")
+                                         (straight--repos-dir local-repo))
                                         newer-or-newermt
                                         mtime-or-file
                                         "-print")
@@ -4081,7 +4091,7 @@ this run of straight.el)."
                  ;; missing or malformed, we just assume the package
                  ;; has no dependencies.
                  (let ((case-fold-search t))
-                   (re-search-forward "^;; Package-Requires: "))
+                   (re-search-forward "^;; *Package-Requires *: *"))
                  (when (looking-at "(")
                    (straight--process-dependencies
                     (read (current-buffer)))))))))
