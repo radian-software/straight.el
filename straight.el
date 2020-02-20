@@ -530,7 +530,8 @@ The warning message is obtained by passing MESSAGE and ARGS to
   :type 'string)
 
 (defcustom straight-build-subdirectory "build"
-  "Name of the subdirectory of the straight directory used to store built packages. Defaults to \"build\"."
+  "Name of the subdirectory of the straight directory used to
+  store built packages. Defaults to \"build\"."
   :type 'string)
 
 (defvar straight--this-file
