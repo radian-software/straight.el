@@ -526,7 +526,14 @@ The warning message is obtained by passing MESSAGE and ARGS to
 ;;;;; Paths
 
 (defcustom straight-base-dir user-emacs-directory
-  "Parent path of straight directory. Defaults to `user-emacs-directory'."
+  "Directory in which the straight/ subdirectory is created.
+Defaults to `user-emacs-directory'."
+  :type 'string)
+
+(defcustom straight-build-dir "build"
+  "Name of the directory into which packages are built.
+Relative to the straight/ subdirectory of `straight-base-dir'.
+Defaults to \"build\"."
   :type 'string)
 
 (defvar straight--this-file
@@ -578,12 +585,12 @@ SEGMENTS are passed to `straight--emacs-file'."
   "Get a subdirectory of the straight/build/ directory.
 SEGMENTS are passed to `straight--dir'. With no SEGMENTS, return
 the straight/build/ directory itself."
-  (apply #'straight--dir "build" segments))
+  (apply #'straight--dir straight-build-dir segments))
 
 (defun straight--build-file (&rest segments)
   "Get a file in the straight/build/ directory.
 SEGMENTS are passed to `straight--file'."
-  (apply #'straight--file "build" segments))
+  (apply #'straight--file straight-build-dir segments))
 
 (defun straight--autoloads-file (package)
   "Get the filename of the autoloads file for PACKAGE.
@@ -4070,16 +4077,16 @@ this run of straight.el)."
                (with-temp-buffer
                  ;; Bypass `find-file-hook'.
                  (insert-file-contents-literally
-                  (straight--file
-                   "build" package
+                  (straight--build-file
+                   package
                    (format "%s-pkg.el" package)))
                  (straight--process-dependencies
                   (eval (nth 4 (read (current-buffer)))))))
              (ignore-errors
                (with-temp-buffer
                  (insert-file-contents-literally
-                  (straight--file
-                   "build" package
+                  (straight--build-file
+                   package
                    (format "%s.el" package)))
                  ;; Who cares if the rest of the header is
                  ;; well-formed? Maybe package.el does, but all we
