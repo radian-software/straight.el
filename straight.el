@@ -3248,7 +3248,7 @@ third entry is the straight.el-normalized recipe plist for the
 package. This information is used to determine whether or not a
 package needs to be rebuilt.
 
-The value of this variable is persisted in the file named in 
+The value of this variable is persisted in file pointed to in
 `straight-build-cache-file'.")
 
 (defvar straight--autoloads-cache nil
