@@ -536,6 +536,11 @@ Relative to the straight/ subdirectory of `straight-base-dir'.
 Defaults to \"build\"."
   :type 'string)
 
+(defcustom straight-build-subdirectory "build"
+  "Name of the subdirectory of the straight directory used to
+  store built packages. Defaults to \"build\"."
+  :type 'string)
+
 (defvar straight--this-file
   (file-truename (or load-file-name buffer-file-name))
   "Absolute real path to this file, straight.el.")
