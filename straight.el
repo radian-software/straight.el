@@ -536,9 +536,10 @@ Relative to the straight/ subdirectory of `straight-base-dir'.
 Defaults to \"build\"."
   :type 'string)
 
-(defcustom straight-build-subdirectory "build"
-  "Name of the subdirectory of the straight directory used to
-  store built packages. Defaults to \"build\"."
+(defcustom straight-build-cache-file "build-cache.el"
+  "Name of the file storing the build cache.
+Relative to the straight/ subdirectory of `straight-base-dir'.
+Defaults to \"build-cache.el\"."
   :type 'string)
 
 (defvar straight--this-file
@@ -604,7 +605,7 @@ PACKAGE should be a string."
 
 (defun straight--build-cache-file ()
   "Get the file containing straight.el's build cache."
-  (straight--file "build-cache.el"))
+  (straight--file straight-build-cache-file))
 
 (defun straight--links-dir (&rest segments)
   "Get a subdirectory of straight/links/.
@@ -3247,8 +3248,8 @@ third entry is the straight.el-normalized recipe plist for the
 package. This information is used to determine whether or not a
 package needs to be rebuilt.
 
-The value of this variable is persisted in the file
-build-cache.el.")
+The value of this variable is persisted in the file named in 
+`straight-build-cache-file'.")
 
 (defvar straight--autoloads-cache nil
   "Hash table keeping track of autoloads extracted from packages, or nil.
@@ -3384,9 +3385,12 @@ empty values (all packages will be rebuilt, with no caching)."
       (straight--save-build-cache))))
 
 (defun straight--save-build-cache ()
-  "Write data from memory into build-cache.el.
+  "Write data from memory into the build cache file.
 This uses the values of `straight--build-cache' and
-`straight--eagerly-checked-packages'."
+`straight--eagerly-checked-packages'.
+
+The name of the cache file is stored in
+`straight-build-cache-file'."
   (unless straight-safe-mode
     (with-temp-buffer
       ;; Prevent mangling of the form being printed in the case that
