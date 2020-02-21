@@ -526,7 +526,14 @@ The warning message is obtained by passing MESSAGE and ARGS to
 ;;;;; Paths
 
 (defcustom straight-base-dir user-emacs-directory
-  "Parent path of straight directory. Defaults to `user-emacs-directory'."
+  "Directory in which the straight/ subdirectory is created.
+Defaults to `user-emacs-directory'."
+  :type 'string)
+
+(defcustom straight-build-dir "build"
+  "Name of the directory into which packages are built.
+Relative to the straight/ subdirectory of `straight-base-dir'.
+Defaults to \"build\"."
   :type 'string)
 
 (defcustom straight-build-subdirectory "build"
@@ -583,12 +590,20 @@ SEGMENTS are passed to `straight--emacs-file'."
   "Get a subdirectory of the straight/build/ directory.
 SEGMENTS are passed to `straight--dir'. With no SEGMENTS, return
 the straight/build/ directory itself."
+<<<<<<< HEAD
   (apply #'straight--dir straight-build-subdirectory segments))
+=======
+  (apply #'straight--dir straight-build-dir segments))
+>>>>>>> cc3324b4ab53e1dce9bbacc038f3a026c7b54da5
 
 (defun straight--build-file (&rest segments)
   "Get a file in the straight/build/ directory.
 SEGMENTS are passed to `straight--file'."
+<<<<<<< HEAD
   (apply #'straight--file straight-build-subdirectory segments))
+=======
+  (apply #'straight--file straight-build-dir segments))
+>>>>>>> cc3324b4ab53e1dce9bbacc038f3a026c7b54da5
 
 (defun straight--autoloads-file (package)
   "Get the filename of the autoloads file for PACKAGE.
