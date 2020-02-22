@@ -533,14 +533,25 @@ Defaults to `user-emacs-directory'."
 (defcustom straight-build-dir "build"
   "Name of the directory into which packages are built.
 Relative to the straight/ subdirectory of `straight-base-dir'.
-Defaults to \"build\"."
+Defaults to \"build\".
+
+By default, this variable also affects the name of the build
+cache file, set the variable `straight-build-cache-fixed-name'
+to override this."
   :type 'string)
 
-(defcustom straight-build-cache-file "build-cache.el"
-  "Name of the file storing the build cache.
-Relative to the straight/ subdirectory of `straight-base-dir'.
-Defaults to \"build-cache.el\"."
-  :type 'string)
+(defcustom straight-build-cache-fixed-name nil
+  "Name of the build cache file.
+If it is `nil', uses the default name, namely
+\"`straight-build-dir'-cache.el\".
+
+If it is not `nil', it has to be a string which is used as the
+name of the cache file.
+
+In both cases, the path is relative to the \"straight/\"
+subdirectory of `straight-base-dir'."
+  :type '(choice (const :tag "Default location" nil)
+                 (string :tag "Fixed location")))
 
 (defvar straight--this-file
   (file-truename (or load-file-name buffer-file-name))
@@ -605,7 +616,9 @@ PACKAGE should be a string."
 
 (defun straight--build-cache-file ()
   "Get the file containing straight.el's build cache."
-  (straight--file straight-build-cache-file))
+  (straight--file
+   (or straight-build-cache-fixed-name
+       (concat straight-build-dir "-cache.el"))))
 
 (defun straight--links-dir (&rest segments)
   "Get a subdirectory of straight/links/.
