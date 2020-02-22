@@ -542,10 +542,10 @@ to override this."
 
 (defcustom straight-build-cache-fixed-name nil
   "Name of the build cache file.
-If it is `nil', uses the default name, namely
+If it is nil, uses the default name, namely
 \"`straight-build-dir'-cache.el\".
 
-If it is not `nil', it has to be a string which is used as the
+If it is not nil, it has to be a string which is used as the
 name of the cache file.
 
 In both cases, the path is relative to the \"straight/\"
