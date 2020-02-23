@@ -533,8 +533,25 @@ Defaults to `user-emacs-directory'."
 (defcustom straight-build-dir "build"
   "Name of the directory into which packages are built.
 Relative to the straight/ subdirectory of `straight-base-dir'.
-Defaults to \"build\"."
+Defaults to \"build\".
+
+By default, this variable also affects the name of the build
+cache file, set the variable `straight-build-cache-fixed-name'
+to override this."
   :type 'string)
+
+(defcustom straight-build-cache-fixed-name nil
+  "Name of the build cache file.
+If it is nil, uses the default name, namely
+\"`straight-build-dir'-cache.el\".
+
+If it is not nil, it has to be a string which is used as the
+name of the cache file.
+
+In both cases, the path is relative to the \"straight/\"
+subdirectory of `straight-base-dir'."
+  :type '(choice (const :tag "Default location" nil)
+                 (string :tag "Fixed location")))
 
 (defvar straight--this-file
   (file-truename (or load-file-name buffer-file-name))
@@ -599,7 +616,9 @@ PACKAGE should be a string."
 
 (defun straight--build-cache-file ()
   "Get the file containing straight.el's build cache."
-  (straight--file "build-cache.el"))
+  (straight--file
+   (or straight-build-cache-fixed-name
+       (concat straight-build-dir "-cache.el"))))
 
 (defun straight--links-dir (&rest segments)
   "Get a subdirectory of straight/links/.
@@ -3242,8 +3261,8 @@ third entry is the straight.el-normalized recipe plist for the
 package. This information is used to determine whether or not a
 package needs to be rebuilt.
 
-The value of this variable is persisted in the file
-build-cache.el.")
+The value of this variable is persisted in file pointed to in
+`straight-build-cache-file'.")
 
 (defvar straight--autoloads-cache nil
   "Hash table keeping track of autoloads extracted from packages, or nil.
@@ -3379,9 +3398,12 @@ empty values (all packages will be rebuilt, with no caching)."
       (straight--save-build-cache))))
 
 (defun straight--save-build-cache ()
-  "Write data from memory into build-cache.el.
+  "Write data from memory into the build cache file.
 This uses the values of `straight--build-cache' and
-`straight--eagerly-checked-packages'."
+`straight--eagerly-checked-packages'.
+
+The name of the cache file is stored in
+`straight-build-cache-file'."
   (unless straight-safe-mode
     (with-temp-buffer
       ;; Prevent mangling of the form being printed in the case that
