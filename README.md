@@ -3,7 +3,7 @@ for the [Emacs] hacker.
 
 **Please check out the [FAQ][#faq] and [news][#news] :)**
 
-[![Build status][travis-badge]][travis-build] [![Gitter
+[![Build status][circleci-badge]][circleci-build] [![Gitter
 chat][gitter-badge]][gitter]
 
 <!-- longlines-start -->
@@ -880,8 +880,8 @@ And here is a brief list of the main reasons you might not want to use
   packages, or to override upstream package configuration, without
   forking the upstream. `package.el` has no such concept.
 * `straight.el` is developed openly on GitHub, using a modern [issue
-  tracker][issues] and continuous integration from [Travis
-  CI][travis-build]. It welcomes contributions of any type.
+  tracker][issues] and continuous integration from [CircleCI
+  ][circleci-build]. It welcomes contributions of any type.
   `straight.el` is licensed under the permissive MIT license and does
   not require a copyright assignment. `straight.el` is developed
   actively and has explicit support for installing development
@@ -2953,6 +2953,7 @@ hack, customize the variable `straight-fix-org`.
 [borg]: https://github.com/emacscollective/borg
 [cask]: https://github.com/cask/cask
 [circleci]: https://circleci.com/
+[circleci-badge]: https://circleci.com/gh/raxod502/straight.el/tree/develop.svg?style=svg
 [circleci-build]: https://circleci.com/gh/raxod502/straight.el
 [develop]: https://github.com/raxod502/straight.el/tree/develop
 [docker]: https://www.docker.com/
@@ -2991,7 +2992,5 @@ hack, customize the variable `straight-fix-org`.
 [symlinks-microsoft]: https://msdn.microsoft.com/en-us/library/bb530410.aspx#vistauac_topic8
 [symlinks-perforce]: https://community.perforce.com/s/article/3472
 [symlinks-stackoverflow]: https://stackoverflow.com/a/29065060/3538165
-[travis-badge]: https://travis-ci.org/raxod502/straight.el.svg?branch=develop
-[travis-build]: https://travis-ci.org/raxod502/straight.el
 [use-package]: https://github.com/jwiegley/use-package
 [watchexec]: https://github.com/mattgreen/watchexec
