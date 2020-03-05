@@ -80,6 +80,11 @@
                      "but you are running Emacs %s")
              min-version emacs-version)))
 
+  (when (boundp 'straight-repository-branch)
+    (unless (stringp straight-repository-branch)
+      (error "The `straight-repository-branch' must be a string (was: %S)"
+             straight-repository-branch)))
+
   ;; Load some libraries.
   (require 'cl-lib)
   (require 'url-http)
