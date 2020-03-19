@@ -2775,9 +2775,9 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
                             'fixedcase 'literal))))
       (dolist (org '("mirror" "attic"))
         (with-temp-buffer
-          (insert-file-contents-literally org)
+          (insert-file-contents org)
           (when (re-search-forward
-                 (format "^%S\r?$" mirror-package) nil 'noerror)
+                 (format "^%S$" mirror-package) nil 'noerror)
             (cl-return
              `(,package :type git :host github
                         :repo ,(format "emacs%s/%S" org mirror-package)))))))))
@@ -2787,7 +2787,7 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
   (let ((packages nil))
     (dolist (org '("mirror" "attic"))
       (with-temp-buffer
-        (insert-file-contents-literally org)
+        (insert-file-contents org)
         (setq packages (nconc (mapcar
                                (lambda (package)
                                  (replace-regexp-in-string
