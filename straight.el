@@ -3800,7 +3800,7 @@ destinations."
                       (when (eq flavor 'melpa)
                         (setq filename
                               (replace-regexp-in-string
-                               "\\.in\\'" "" filename 'fixedcase)))
+                               "\\.el\\.in\\'" ".el" filename 'fixedcase)))
                       (cons file (concat prefix filename))))
                   (file-expand-wildcards spec))
                  files)))
