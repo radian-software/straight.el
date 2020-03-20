@@ -3278,8 +3278,9 @@ generated at the end of an init from the keys of
 `straight--profile-cache'.")
 
 ;; See http://stormlightarchive.wikia.com/wiki/Calendar for the
-;; schema.
-(defvar straight--build-cache-version :kak
+;; schema. After that we will switch to animal names starting with
+;; sequential letters of the English alphabet.
+(defvar straight--build-cache-version :tanat
   "The current version of the build cache format.
 When the format on disk changes, this value is changed, so that
 straight.el knows to regenerate the whole cache.")
