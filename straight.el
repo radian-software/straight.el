@@ -3211,6 +3211,15 @@ only covers modifications made within ~/.emacs.d/straight/repos,
 so if you wish to use these features you should move all of your
 local repositories into that directory.
 
+PERFORMANCE IMPLICATIONS: `at-startup' means straight.el will run
+a command during startup, which can be fairly slow, especially if
+you do not have an SSD. Disable this to improve startup time.
+However, you will still want to have package modifications
+detected. Therefore add either `check-on-save', which has no
+overhead but also does not catch modifications made outside of
+emacs, or `watch-files', which is more robust but has an external
+dependency (watchexec) and takes up memory / file descriptors.
+
 For backwards compatibility, the value of this variable may also
 be a symbol, which is translated into a corresponding list as
 follows:
