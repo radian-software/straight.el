@@ -3217,7 +3217,7 @@ you do not have an SSD. Disable this to improve startup time.
 However, you will still want to have package modifications
 detected. Therefore add either `check-on-save', which has no
 overhead but also does not catch modifications made outside of
-emacs, or `watch-files', which is more robust but has an external
+Emacs, or `watch-files', which is more robust but has an external
 dependency (watchexec) and takes up memory / file descriptors.
 
 For backwards compatibility, the value of this variable may also
