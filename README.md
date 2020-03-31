@@ -111,7 +111,6 @@ chat][gitter-badge]][gitter]
   * [May 24, 2019](#may-24-2019)
   * [May 22, 2019](#may-22-2019)
   * [May 1, 2019](#may-1-2019)
-  * [March 15, 2019](#march-15-2019)
 
 <!-- tocstop -->
 
@@ -2881,14 +2880,6 @@ your lockfile can not be found and normalizes the repository to the
 recipe's default branch. This should ensure that versions you have
 frozen can be quickly restored and that they can also be saved back to
 the version lock file. This addresses issues [#58], [#66], and [#294].
-
-### March 15, 2019
-
-`straight.el` [now installs a hack for Org by
-default][#user/integration/org], so Org should work out of the box
-with no compile warnings. If you have code to work around the problem
-in your init-file, you can safely remove it. To avoid installing the
-hack, customize the variable `straight-fix-org`.
 
 [#principles]: #guiding-principles
 [#quickstart]: #getting-started
