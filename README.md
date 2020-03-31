@@ -112,10 +112,6 @@ chat][gitter-badge]][gitter]
   * [May 22, 2019](#may-22-2019)
   * [May 1, 2019](#may-1-2019)
   * [March 15, 2019](#march-15-2019)
-  * [December 22, 2018](#december-22-2018)
-  * [September 12, 2018](#september-12-2018)
-  * [July 19, 2018](#july-19-2018)
-  * [July 12, 2018](#july-12-2018)
 
 <!-- tocstop -->
 
@@ -169,7 +165,8 @@ chat][gitter-badge]][gitter]
 ## Getting started
 
 > **Note: `straight.el` supports a minimum version of Emacs 24.5, and
-> works on macOS, Windows, and most flavors of Linux.**
+> works on macOS, Windows, and most flavors of Linux. You must install
+> [Git] in order to use `straight.el`.**
 
 First, place the following bootstrap code in your init-file:
 
@@ -1429,6 +1426,24 @@ will be looked up by default (see the section on [recipe
 lookup][#user/lookup]). You can see the default recipe for a package
 by invoking [`M-x straight-get-recipe`][#user/interactive].
 
+If `straight-allow-recipe-inheritance` is non-nil, then you only need
+to specify the components of the recpie that you want to override. All
+other components will still be looked up in the default recipe. In the
+example above, we are only interested in changing the `:fork`
+component. Therefore if `straight-allow-recipe-inheritance` is set,
+the recipe could be simplifed as follows:
+
+    (straight-use-package
+     '(el-patch :fork (:repo "your-name/el-patch")))
+
+or even simpler:
+
+    (straight-use-package
+     '(el-patch :fork "your-name/el-patch"))
+
+The `:files` keyword and all version control keywords support
+inheritance.
+
 To learn more, see the section on [the recipe format][#user/recipes].
 
 #### Additional arguments to `straight-use-package`
@@ -1497,7 +1512,9 @@ packages are then rebuilt when they are requested via
 `straight-use-package`. Normally, `straight.el` will try to detect
 what sort of `find(1)` program is installed, and issue the appropriate
 command. If it makes a mistake, then you can manually customize
-`straight-find-flavor`.
+`straight-find-flavor`. Alternately, you can install GNU find and
+customize the variable `straight-find-executable` to point to it.
+
 
 For about 100 packages on an SSD, calling `find(1)` to detect
 modifications takes about 500ms. You can save this time by customizing
@@ -1814,7 +1831,8 @@ a backend API method. The relevant methods are:
 * `check-out-commit`: given a recipe and a commit object, attempt to
   check out that commit in the repository for that recipe.
 * `get-commit`: given a local repository name, return the commit
-  object that is currently checked out.
+  object that is currently checked out, or nil if the local repository
+  should not be included in a lockfile.
 * `local-repo-name`: given a recipe, return a good name for the local
   repository, or nil.
 * `keywords`: return a list of keywords which are meaningful for this
@@ -2872,49 +2890,6 @@ with no compile warnings. If you have code to work around the problem
 in your init-file, you can safely remove it. To avoid installing the
 hack, customize the variable `straight-fix-org`.
 
-### December 22, 2018
-
-The default value of the user option
-`straight-recipes-gnu-elpa-use-mirror` is now non-nil.
-
-### September 12, 2018
-
-`straight.el` now supports specifying configuration for your fork of a
-package via the new `:fork` keyword. The previously supported
-`:upstream` keyword is now deprecated, but still works for backwards
-compatibility. To support this change, the user options
-`straight-vc-git-primary-remote` and `straight-vc-git-upstream-remote`
-are deprecated (but still work for backwards compatibility), as they
-have been superseded by the new user options
-`straight-vc-git-default-remote-name` and
-`straight-vc-git-default-fork-name`. Your usage should be updated.
-
-### July 19, 2018
-
-`straight.el` now automatically caches the recipes it looks up in
-recipe repositories. This should lead to a reduction in
-`straight.el`-related startup time of as much as 50% if you also use
-live modification detection, as disk IO and usage of external
-processes are reduced significantly.
-
-No changes to user configuration are necessary; however, if you define
-a custom recipe repository (call it `NAME`) then caching is not
-enabled by default. To enable caching, define a
-`straight-recipes-NAME-version` function which returns a non-nil value
-indicating the current version of the logic in
-`straight-recipes-NAME-retrieve`. This version value needs to be
-changed each time you change the logic, so that the recipe lookup
-cache for that recipe repository may automatically be invalidated.
-
-### July 12, 2018
-
-I now maintain a [full mirror of GNU ELPA on GitHub][gnu-elpa-mirror].
-You can tell `straight.el` to use it by customizing the user option
-`straight-recipes-gnu-elpa-use-mirror`, and this will allow you to use
-packages such as AUCTeX correctly, which was previously impossible.
-Note that the user option must be customized *before* the
-`straight.el` [bootstrap][#quickstart].
-
 [#principles]: #guiding-principles
 [#quickstart]: #getting-started
 [#faq]: #faq
@@ -2988,6 +2963,7 @@ Note that the user option must be customized *before* the
 [epkg]: https://github.com/emacscollective/epkg
 [epkgs]: https://github.com/emacsmirror/epkgs
 [forge]: https://github.com/magit/forge
+[git]: https://git-scm.com/
 [git-credential-cache]: https://git-scm.com/docs/git-credential-cache
 [gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg
 [gitter]: https://gitter.im/raxod502/straight.el

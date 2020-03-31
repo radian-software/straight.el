@@ -208,6 +208,36 @@ profile (nil) will suffice without additional setup."
                 (alist :key-type symbol :value-type
                        (plist :key-type symbol :value-type sexp))))
 
+(defcustom straight-allow-recipe-inheritance t
+  "Non-nil allows partially overriding recipes.
+If you override a recipe, every component that is not explicitly
+overriden will be searched for in original recipe. If found, that
+value will be added to the overriden recipe. This allows you to
+only override the recipe components you are interested in,
+instead of being required to override them all. The supported
+components are the ones listed by `straight-vc-git-keywords' and
+`:files'. Note that enabling this feature has the side effect
+that all recipe repos (i.e. melpa, elpa) will always be cloned,
+even if you explicitly specify all your recipes.
+
+The `:fork' keyword is handled specially. If its value is a
+string instead of a list, then it is assigned as the `:repo' of
+the fork. Also the fork recipe will inherit its `:host' component
+from the default recipe.
+
+For example, the following are all equivalent with recipe
+inheritance enabled.
+
+\\='(package :host \\='gitlab :repo \"other-user/repo\"
+          :fork (:host \\='gitlab :repo \"my-user/repo\"))
+
+\\='(package :fork (:host \\='gitlab :repo \"my-user/repo\"))
+
+\\='(package :fork (:repo \"my-user/repo\"))
+
+\\='(package :fork \"my-user/repo\")"
+  :type 'boolean)
+
 (defcustom straight-safe-mode nil
   "Non-nil means avoid doing anything that modifies the filesystem.
 In safe mode, package modifications will still be detected
@@ -442,22 +472,22 @@ also `straight--progress-begin' and `straight--progress-end'."
              (straight--output "%s..." ,task-car-sym))
            (progn
              ,@body)
-         (when (and ,task-cdr-sym (not noninteractive))
-           (message "%s...done" ,task-cdr-sym))))))
+         (when ,task-cdr-sym
+           (straight--output "%s...done" ,task-cdr-sym))))))
 
 (defun straight--progress-begin (message)
   "Display a MESSAGE indicating ongoing progress.
 The MESSAGE is postpended with \"...\" and then passed to
 `message'. See also `straight--with-progress' and
 `straight--progress-end'."
-  (message "%s..." message))
+  (straight--output "%s..." message))
 
 (defun straight--progress-end (message)
   "Display a MESSAGE indicating completed progress.
 The MESSAGE is postpended with \"...done\" and then passed to
 `message'. See also `straight--with-progress' and
 `straight--progress-begin'."
-  (message "%s...done" message))
+  (straight--output "%s...done" message))
 
 (defvar straight--echo-area-dirty nil
   "Non-nil if a progress message has been wiped from the echo area.
@@ -1059,57 +1089,6 @@ transaction. In this case, the caller must do this itself."
     (when now
       (funcall now))))
 
-(defun straight-begin-transaction ()
-  "Deprecated no-op. Transactions are now handled transparently.
-To update your code, simply remove all references to
-`straight-transaction', `straight-begin-transaction',
-`straight-finalize-transaction',
-`straight-mark-transaction-as-init', and
-`straight-treat-as-init'. Everything will work as it did before."
-  (message "straight.el: `straight-begin-transaction' is no longer needed"))
-
-(defun straight-finalize-transaction ()
-  "Deprecated no-op. Transactions are now handled transparently.
-To update your code, simply remove all references to
-`straight-transaction', `straight-begin-transaction',
-`straight-finalize-transaction',
-`straight-mark-transaction-as-init', and
-`straight-treat-as-init'. Everything will work as it did before."
-  (message "straight.el: `straight-finalize-transaction' is no longer needed"))
-
-(defmacro straight-transaction (&rest body)
-  "Deprecated `progn' alias. Transactions are now handled transparently.
-To update your code, simply remove all references to
-`straight-transaction', `straight-begin-transaction',
-`straight-finalize-transaction',
-`straight-mark-transaction-as-init', and
-`straight-treat-as-init'. Everything will work as it did before.
-
-As in `progn', execute BODY and return the value of its last
-form, or nil."
-  `(progn
-     (message "straight.el: `straight-transaction' is no longer needed")
-     ,@(or body '(nil))))
-
-(defun straight-mark-transaction-as-init ()
-  "Deprecated no-op. Transactions are now handled transparently.
-To update your code, simply remove all references to
-`straight-transaction', `straight-begin-transaction',
-`straight-finalize-transaction',
-`straight-mark-transaction-as-init', and
-`straight-treat-as-init'. Everything will work as it did before."
-  (message
-   "straight.el: `straight-mark-transaction-as-init' is no longer needed"))
-
-(defvar straight-treat-as-init nil
-  "Deprecated variable with no effect on anything.
-Transactions are now handled transparently. To update your code,
-simply remove all references to `straight-transaction',
-`straight-begin-transaction', `straight-finalize-transaction',
-`straight-mark-transaction-as-init', and
-`straight-treat-as-init'. Everything will work as it did
-before.")
-
 (defun straight-interactive-transaction ()
   "Start a recursive edit within a transaction."
   (interactive)
@@ -1127,6 +1106,10 @@ This uses -newermt if possible, and -newer otherwise."
        "find" "/dev/null" "-newermt" "2018-01-01 12:00:00")
       `(newermt)
     nil))
+
+(defcustom straight-find-executable "find"
+  "Executable path of find command used by straight.el."
+  :type 'string)
 
 (defcustom straight-find-flavor (straight--determine-find-flavor)
   "What options the available find(1) binary supports.
@@ -1418,6 +1401,12 @@ This method simply delegates to the relevant
   (straight-vc 'keywords type))
 
 ;;;;; Built-in packages
+
+(defun straight-vc-built-in-get-commit (_local-repo)
+  "Get the currently checked-out commit object, given LOCAL-REPO name string.
+For built-in packages, this is always nil because there cannot
+actually be a local repository."
+  nil)
 
 (defun straight-vc-built-in-local-repo-name (_recipe)
   "Generate a repository name from straight.el-style RECIPE.
@@ -2930,6 +2919,29 @@ for dependency resolution."
           ;; override the default value (which is determined according
           ;; to the selected VC backend).
           ;;
+          (when straight-allow-recipe-inheritance
+            ;; To keep overridden recipes simple, Some keywords can be
+            ;; inherited from the original recipe. This is done by
+            ;; looking in original and finding all keywords that are
+            ;; not present in the override and adding them there.
+            (let ((fork (plist-get plist :fork)))
+              (when (stringp fork)
+                (straight--put plist :fork `(:repo ,fork))))
+            (let* ((default (cdr (straight-recipes-retrieve package)))
+                   (keywords (straight-vc-keywords
+                              (or (plist-get default :type) 'git))))
+              (dolist (keyword (cons :files keywords))
+                (if (eq keyword :fork)
+                    (dolist (keyword keywords)
+                      (let ((fork-plist (plist-get plist :fork))
+                            (value (plist-get default keyword)))
+                        (when (and value fork-plist
+                                   (not (plist-member fork-plist keyword)))
+                          (straight--put
+                           plist :fork (plist-put fork-plist keyword value)))))
+                  (let ((value (plist-get default keyword)))
+                    (when (and value (not (plist-member plist keyword)))
+                      (straight--put plist keyword value)))))))
           ;; The normalized recipe format will have the package name
           ;; as a string, not a symbol.
           (let ((package (symbol-name package)))
@@ -3289,7 +3301,7 @@ empty values (all packages will be rebuilt, with no caching)."
                    (symbolp version)
                    (or (eq version straight--build-cache-version)
                        (prog1 (setq malformed nil)
-                         (message
+                         (straight--output
                           (concat
                            "Rebuilding all packages due to "
                            "build cache schema change"))))
@@ -3298,7 +3310,7 @@ empty values (all packages will be rebuilt, with no caching)."
                    (stringp last-emacs-version)
                    (or (string= last-emacs-version emacs-version)
                        (prog1 (setq malformed nil)
-                         (message
+                         (straight--output
                           (concat
                            "Rebuilding all packages due to "
                            "change in Emacs version"))))
@@ -3316,7 +3328,8 @@ empty values (all packages will be rebuilt, with no caching)."
                    (eq use-symlinks straight-use-symlinks))
             ;; If anything is wrong, abort and use the default values.
             (when malformed
-              (message "Rebuilding all packages due to malformed build cache"))
+              (straight--output
+               "Rebuilding all packages due to malformed build cache"))
             (setq needs-immediate-save t)
             (error "Malformed or outdated build cache"))
           ;; Otherwise, we can load from disk.
@@ -3498,15 +3511,17 @@ If it fails, signal a warning and return nil."
        "Cannot start filesystem watcher without 'watchexec' installed")
       (cl-return-from straight-watcher-start))
     (when (straight-watcher--virtualenv-outdated)
-      (message "Setting up filesystem watcher...")
+      (straight--output "Setting up filesystem watcher...")
       (unless (straight-watcher--virtualenv-setup)
-        (message "Setting up filesystem watcher...failed")
+        (straight--output "Setting up filesystem watcher...failed")
         (cl-return-from straight-watcher-start))
-      (message "Setting up filesystem watcher...done"))
+      (straight--output "Setting up filesystem watcher...done"))
     (with-current-buffer (straight-watcher--make-process-buffer)
       (let* ((python (straight--watcher-python))
              (cmd (list
-                   python "-m" "straight_watch" "start"
+                   ;; Need to disable buffering, otherwise we don't
+                   ;; get some important stuff printed.
+                   python "-u" "-m" "straight_watch" "start"
                    (straight--watcher-file "process")
                    (straight--repos-dir)
                    (straight--modified-dir)))
@@ -3626,7 +3641,8 @@ modified since their last builds.")
                 (list "-name" ".git" "-prune")
                 args-primaries))
     (let* ((default-directory (straight--repos-dir))
-           (results (apply #'straight--get-call "find" args)))
+           (results (apply #'straight--get-call
+                           straight-find-executable args)))
       (maphash (lambda (local-repo _)
                  (puthash
                   local-repo (string-match-p
@@ -3718,7 +3734,7 @@ last time."
                              ;; files or directories with a newer
                              ;; mtime than the one specified.
                              (results (straight--get-call
-                                       "find"
+                                       straight-find-executable
                                        "." "-name" ".git" "-prune"
                                        "-o" newer-or-newermt mtime-or-file
                                        "-print")))
@@ -3998,7 +4014,8 @@ See `straight-symlink-emulation-mode'."
              (with-temp-buffer
                (insert-file-contents-literally link-record)
                (buffer-string)))
-          (message "Broken symlink, you are not editing the real file"))))))
+          (straight--output
+           "Broken symlink, you are not editing the real file"))))))
 
 (define-minor-mode straight-symlink-emulation-mode
   "Minor mode for emulating symlinks in the software layer.
@@ -4070,7 +4087,7 @@ this run of straight.el)."
                  ;; missing or malformed, we just assume the package
                  ;; has no dependencies.
                  (let ((case-fold-search t))
-                   (re-search-forward "^;; Package-Requires: "))
+                   (re-search-forward "^;; *Package-Requires *: *"))
                  (when (looking-at "(")
                    (straight--process-dependencies
                     (read (current-buffer)))))))))
@@ -4628,7 +4645,7 @@ action, just return it)."
       (pcase action
         (`insert (insert (format "%S" recipe)))
         (`copy (kill-new (format "%S" recipe))
-               (message "Copied \"%S\" to kill ring" recipe))
+               (straight--output "Copied \"%S\" to kill ring" recipe))
         (_ recipe)))))
 
 ;;;;; Jump to package website
@@ -4865,7 +4882,7 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
              ;; In interactive use, tell the user how to install
              ;; packages permanently.
              (when (and interactive (not already-registered))
-               (message
+               (straight--output
                 (concat "If you want to keep %s, put "
                         "(straight-use-package %s%S) "
                         "in your init-file.")
@@ -5308,9 +5325,9 @@ If not, prompt the user to reload the init-file."
     (cl-return-from straight--ensure-profile-cache-valid t))
   (unless (y-or-n-p "Caches are outdated, reload init-file? ")
     (cl-return-from straight--ensure-profile-cache-valid nil))
-  (message "Reloading %S..." user-init-file)
+  (straight--output "Reloading %S..." user-init-file)
   (load user-init-file nil 'nomessage)
-  (message "Reloading %S...done" user-init-file)
+  (straight--output "Reloading %S...done" user-init-file)
   (when straight--profile-cache-valid
     (cl-return-from straight--ensure-profile-cache-valid t))
   (error "Caches are still outdated; something is seriously wrong"))
@@ -5372,11 +5389,10 @@ according to the value of `straight-profiles'."
                  (package local-repo type)
                (when (and local-repo
                           (memq profile
-                                (gethash package straight--profile-cache)))
-                 (push (cons local-repo
-                             (or (cdr (assoc local-repo versions-alist))
-                                 (straight-vc-get-commit type local-repo)))
-                       versions-alist)))))
+                                (gethash package straight--profile-cache))
+                          (not (assoc local-repo versions-alist)))
+                 (when-let ((commit (straight-vc-get-commit type local-repo)))
+                   (push (cons local-repo commit) versions-alist))))))
           (setq versions-alist
                 (cl-sort versions-alist #'string-lessp :key #'car))
           (make-directory (file-name-directory lockfile-path) 'parents)
@@ -5400,7 +5416,7 @@ according to the value of `straight-profiles'."
                (apply-partially #'format "%S")
                versions-alist
                "\n "))))
-          (message "Wrote %s" lockfile-path))))))
+          (straight--output "Wrote %s" lockfile-path))))))
 
 ;;;###autoload
 (defun straight-thaw-versions ()

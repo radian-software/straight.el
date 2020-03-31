@@ -78,6 +78,11 @@
 ;; done first so that any dependencies of straight.el can be looked up
 ;; correctly.
 
+;; This is kind of aggressive but we really don't have a good
+;; mechanism at present for customizing the default recipe
+;; repositories anyway. So don't even try to cater to that use case.
+(setq straight-recipe-repositories nil)
+
 (straight-use-recipes '(org-elpa :local-repo nil))
 
 (straight-use-recipes '(melpa :type git :host github
