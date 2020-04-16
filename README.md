@@ -1650,6 +1650,15 @@ customize the variable `straight-disable-byte-compilation` to effect
 this change on all recipes which do not explicitly specify a
 `:no-byte-compile` attribute.
 
+By specifying a non-nil value for the `:no-native-compile` attribute
+in a package's recipe, you may inhibit native compilation. You can
+also customize the variable `straight-disable-native-compilation` to
+effect this change on all recipes which do not explicitly specify a
+`:no-native-compile` attribute. Native compilation requires
+byte-compilation, so `:no-byte-compile` and
+`straight-disable-byte-compilation` also have the effect of inhibiting
+native compilation.
+
 Usually, `straight.el` uses symbolic links ("symlinks") to make
 package files available from the build directory. This happens when
 `straight-use-symlinks` is non-nil, the default. On Microsoft Windows,

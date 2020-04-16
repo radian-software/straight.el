@@ -3073,7 +3073,8 @@ nil."
 ;;;;; Recipe registration
 
 (defvar straight--build-keywords
-  '(:local-repo :files :flavor :no-autoloads :no-byte-compile)
+  '(:local-repo :files :flavor :no-autoloads :no-byte-compile
+                :no-native-compile)
   "Keywords that affect how a package is built locally.
 If the values for any of these keywords change, then package
 needs to be rebuilt. See also `straight-vc-keywords'.")
@@ -4252,6 +4253,35 @@ repository."
          (straight--build-dir package)
          0 'force)))))
 
+;;;;; Native-compilation
+
+(defcustom straight-disable-native-compilation nil
+  "Non-nil means do not `native-compile' packages by default.
+This can be overridden by the `:no-native-compile' property of an
+individual package recipe."
+  :type 'boolean)
+
+(cl-defun straight--native-compile-package (recipe)
+  "Native-compile files for the symlinked package specified by RECIPE.
+RECIPE should be a straight.el-style plist. Note that this
+function only modifies the build folder, not the original
+repository."
+  (when (and (fboundp 'native-compile-async)
+             (require 'comp)
+             (fboundp 'comp-async-runnings)
+             (not (straight--plist-get recipe :no-byte-compile
+                                       straight-disable-byte-compilation))
+             (not (straight--plist-get recipe :no-native-compile
+                                       straight-disable-native-compilation)))
+    (straight--with-plist recipe
+        (package)
+      (let ((inhibit-message t)
+            (message-log-max nil)
+            (build-dir (straight--build-dir package)))
+        (native-compile-async build-dir 'recursively)
+        (while (not (zerop (comp-async-runnings)))
+          (sleep-for 0.1))))))
+
 (defun straight--compile-package-texinfo (recipe)
   "Compile .texi files into .info files for package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
@@ -4378,6 +4408,7 @@ the reason this package is being built."
             (straight--progress-begin task)))
         (straight--generate-package-autoloads recipe)
         (straight--byte-compile-package recipe)
+        (straight--native-compile-package recipe)
         (straight--compile-package-texinfo recipe))
       ;; We messed up the echo area.
       (setq straight--echo-area-dirty t))))
