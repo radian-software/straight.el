@@ -4261,14 +4261,12 @@ This can be overridden by the `:no-native-compile' property of an
 individual package recipe."
   :type 'boolean)
 
-(cl-defun straight--native-compile-package (recipe)
+(defun straight--native-compile-package (recipe)
   "Native-compile files for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
   (when (and (fboundp 'native-compile-async)
-             (require 'comp)
-             (fboundp 'comp-async-runnings)
              (not (straight--plist-get recipe :no-byte-compile
                                        straight-disable-byte-compilation))
              (not (straight--plist-get recipe :no-native-compile
@@ -4276,11 +4274,36 @@ repository."
     (straight--with-plist recipe
         (package)
       (let ((inhibit-message t)
-            (message-log-max nil)
-            (build-dir (straight--build-dir package)))
-        (native-compile-async build-dir 'recursively)
-        (while (not (zerop (comp-async-runnings)))
-          (sleep-for 0.1))))))
+            (message-log-max nil))
+        (native-compile-async
+         (straight--build-dir package)
+         'recursively)))
+    (straight--wait-for-async-jobs)))
+
+(defun straight--pending-async-jobs ()
+  "How many async compilation jobs are queued or in-progress.
+Returns nil if there are no pending jobs."
+  (when (and (boundp 'comp-files-queue)
+             (fboundp 'comp-async-runnings))
+    (let ((pending (+ (length comp-files-queue)
+                      (comp-async-runnings))))
+      (unless (zerop pending)
+        pending))))
+
+(defvar straight--wait-for-async-jobs t
+  "Whether to block until all async compilation jobs have completed.")
+
+(defun straight--wait-for-async-jobs ()
+  "Block until all async compilation jobs have completed (maybe).
+Blocking can be suppressed by setting `straight--wait-for-async-jobs' to nil."
+  (when (and (fboundp 'comp-async-runnings)
+             straight--wait-for-async-jobs)
+    (let ((inhibit-message t)
+          (message-log-max nil))
+      (while (not (zerop (comp-async-runnings)))
+        (sleep-for 0.1)))))
+
+;;;;; Info compilation
 
 (defun straight--compile-package-texinfo (recipe)
   "Compile .texi files into .info files for package specified by RECIPE.
