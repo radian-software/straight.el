@@ -4214,13 +4214,17 @@ This can be overridden by the `:no-byte-compile' property of an
 individual package recipe."
   :type 'boolean)
 
+(defun straight--byte-compile-package-p (recipe)
+  "Predicate to check whether RECIPE should be byte-compiled."
+  (not (straight--plist-get recipe :no-byte-compile
+                            straight-disable-byte-compilation)))
+
 (cl-defun straight--byte-compile-package (recipe)
   "Byte-compile files for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
-  (when (straight--plist-get recipe :no-byte-compile
-                             straight-disable-byte-compilation)
+  (unless (straight--byte-compile-package-p recipe)
     (cl-return-from straight--byte-compile-package))
   ;; We need to load `bytecomp' so that the `symbol-function'
   ;; assignments below are sure to work. Since we byte-compile this
@@ -4261,16 +4265,19 @@ This can be overridden by the `:no-native-compile' property of an
 individual package recipe."
   :type 'boolean)
 
+(defun straight--native-compile-package-p (recipe)
+  "Predicate to check whether RECIPE should be native-compiled."
+  (and (straight--byte-compile-package-p recipe)
+       (not (straight--plist-get recipe :no-native-compile
+                                 straight-disable-native-compilation))))
+
 (defun straight--native-compile-package (recipe)
   "Native-compile files for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
   (when (and (fboundp 'native-compile-async)
-             (not (straight--plist-get recipe :no-byte-compile
-                                       straight-disable-byte-compilation))
-             (not (straight--plist-get recipe :no-native-compile
-                                       straight-disable-native-compilation)))
+             (straight--native-compile-package-p recipe))
     (straight--with-plist recipe
         (package)
       (let ((inhibit-message t)
