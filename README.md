@@ -217,26 +217,21 @@ loaded more than once.
 
 #### Debugging
 
-On macOS, you may receive an error:
+* Sometimes, in a corporate environment, `url-retrieve-synchronously`
+  may not work and `straight.el` will be unable to download the
+  installation script mentioned in the bootstrap snippet. In this
+  case, you may simply clone this repository into
+  `~/.emacs.d/straight/repos/straight.el` and check out your desired
+  revision/branch. The installation script is just a more convenient
+  way of doing that automatically when necessary (and looking up the
+  correct revision of `straight.el` in your lockfile, if any).
+* On macOS, you may receive an error:
 
-    Could not create connection to raw.githubusercontent.com:443
+      Could not create connection to raw.githubusercontent.com:443
 
-There are two ways to solve this problem. One way is to install a
-version of Emacs that is linked with GnuTLS. The [Homebrew] formula
-for Emacs was recently updated to link with GnuTLS by default, so you
-need only do this:
-
-    $ brew upgrade emacs
-
-The other way is to let Emacs use certificates provided by LibreSSL,
-which you can do by running this command:
-
-    $ brew install gnutls libressl
-
-And adding this to your init-file, *before* the bootstrap snippet:
-
-    (with-eval-after-load 'gnutls
-      (add-to-list 'gnutls-trustfiles "/usr/local/etc/libressl/cert.pem"))
+  This is likely because you are using an ancient version of Emacs
+  which has a broken TLS configuration. Upgrade with `brew upgrade
+  emacs`.
 
 ### Install packages
 
