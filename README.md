@@ -67,6 +67,10 @@ chat][gitter-badge]][gitter]
         * [`check-on-save`](#check-on-save)
         * [`watch-files`](#watch-files)
     + [Customizing how packages are built](#customizing-how-packages-are-built)
+        * [Autoload generation](#autoload-generation)
+        * [Byte compilation](#byte-compilation)
+        * [Native compilation](#native-compilation)
+        * [Symbolic links](#symbolic-links)
     + [Customizing how packages are made available](#customizing-how-packages-are-made-available)
     + [Hooks run by `straight-use-package`](#hooks-run-by-straight-use-package)
   * [The recipe format](#the-recipe-format)
@@ -1629,6 +1633,8 @@ which do not bundle executable Lisp code. (Make sure to use
 [`straight-use-recipes`][#user/lookup/repos] for registering recipe
 repositories.)
 
+##### Autoload generation
+
 By specifying a non-nil value for the `:no-autoloads` attribute in a
 package's recipe, you may prevent any autoloads provided by the
 package from being generated and loaded into Emacs. This is mostly
@@ -1639,12 +1645,34 @@ you *really* know what you're doing). You can also customize the
 variable `straight-disable-autoloads` to effect this change on all
 recipes which do not explicitly specify a `:no-autoloads` attribute.
 
+##### Byte compilation
+
 By specifying a non-nil value for the `:no-byte-compile` attribute in
 a package's recipe, you may inhibit byte-compilation. See [this
 issue][#357] for discussion of why this might be useful. You can also
 customize the variable `straight-disable-byte-compilation` to effect
 this change on all recipes which do not explicitly specify a
 `:no-byte-compile` attribute.
+
+##### Native compilation
+
+Experimental support for native compilation of Emacs Lisp code is
+currently under development in the `feature/native-comp` branch of the
+official Emacs repository (see [gccemacs][gccemacs]). When running on
+this version of Emacs, `straight.el` will perform native compilation
+of packages.
+
+By specifying a non-nil value for the `:no-native-compile` attribute
+in a package's recipe, you may inhibit native compilation. You can
+also customize the variable `straight-disable-native-compilation` to
+effect this change on all recipes which do not explicitly specify a
+`:no-native-compile` attribute.
+
+Native compilation requires byte-compilation, so `:no-byte-compile`
+and `straight-disable-byte-compilation` will also disable native
+compilation.
+
+##### Symbolic links
 
 Usually, `straight.el` uses symbolic links ("symlinks") to make
 package files available from the build directory. This happens when
@@ -2957,6 +2985,7 @@ the version lock file. This addresses issues [#58], [#66], and [#294].
 [epkg]: https://github.com/emacscollective/epkg
 [epkgs]: https://github.com/emacsmirror/epkgs
 [forge]: https://github.com/magit/forge
+[gccemacs]: http://akrl.sdf.org/gccemacs.html
 [git]: https://git-scm.com/
 [git-credential-cache]: https://git-scm.com/docs/git-credential-cache
 [gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg

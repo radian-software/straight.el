@@ -3090,7 +3090,8 @@ nil."
 ;;;;; Recipe registration
 
 (defvar straight--build-keywords
-  '(:local-repo :files :flavor :no-autoloads :no-byte-compile)
+  '(:local-repo :files :flavor :no-autoloads :no-byte-compile
+                :no-native-compile)
   "Keywords that affect how a package is built locally.
 If the values for any of these keywords change, then package
 needs to be rebuilt. See also `straight-vc-keywords'.")
@@ -4230,13 +4231,17 @@ This can be overridden by the `:no-byte-compile' property of an
 individual package recipe."
   :type 'boolean)
 
+(defun straight--byte-compile-package-p (recipe)
+  "Predicate to check whether RECIPE should be byte-compiled."
+  (not (straight--plist-get recipe :no-byte-compile
+                            straight-disable-byte-compilation)))
+
 (cl-defun straight--byte-compile-package (recipe)
   "Byte-compile files for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
-  (when (straight--plist-get recipe :no-byte-compile
-                             straight-disable-byte-compilation)
+  (unless (straight--byte-compile-package-p recipe)
     (cl-return-from straight--byte-compile-package))
   ;; We need to load `bytecomp' so that the `symbol-function'
   ;; assignments below are sure to work. Since we byte-compile this
@@ -4268,6 +4273,59 @@ repository."
         (byte-recompile-directory
          (straight--build-dir package)
          0 'force)))))
+
+;;;;; Native compilation
+
+(defcustom straight-disable-native-compilation nil
+  "Non-nil means do not `native-compile' packages by default.
+This can be overridden by the `:no-native-compile' property of an
+individual package recipe."
+  :type 'boolean)
+
+(defun straight--native-compile-package-p (recipe)
+  "Predicate to check whether RECIPE should be native-compiled."
+  (and (straight--byte-compile-package-p recipe)
+       (not (straight--plist-get recipe :no-native-compile
+                                 straight-disable-native-compilation))))
+
+(defun straight--native-compile-package (recipe)
+  "Native-compile files for the symlinked package specified by RECIPE.
+RECIPE should be a straight.el-style plist. Note that this
+function only modifies the build folder, not the original
+repository."
+  (when (and (fboundp 'native-compile-async)
+             (straight--native-compile-package-p recipe))
+    (straight--with-plist recipe
+        (package)
+      (let ((inhibit-message t)
+            (message-log-max nil))
+        (native-compile-async
+         (straight--build-dir package)
+         'recursively 'late)))
+    (straight--wait-for-async-jobs)))
+
+(defun straight--pending-async-jobs ()
+  "How many async compilation jobs are queued or in-progress."
+  (if (and (boundp 'comp-files-queue)
+           (fboundp 'comp-async-runnings))
+      (+ (length comp-files-queue)
+         (comp-async-runnings))
+    0))
+
+(defvar straight--wait-for-async-jobs t
+  "Whether to block until all async compilation jobs have completed.")
+
+(defun straight--wait-for-async-jobs ()
+  "Block until all async compilation jobs have completed (maybe).
+Blocking can be suppressed by setting `straight--wait-for-async-jobs' to nil."
+  (when (and (fboundp 'comp-async-runnings)
+             straight--wait-for-async-jobs)
+    (let ((inhibit-message t)
+          (message-log-max nil))
+      (while (not (zerop (comp-async-runnings)))
+        (sleep-for 0.1)))))
+
+;;;;; Info compilation
 
 (defun straight--compile-package-texinfo (recipe)
   "Compile .texi files into .info files for package specified by RECIPE.
@@ -4395,6 +4453,7 @@ the reason this package is being built."
             (straight--progress-begin task)))
         (straight--generate-package-autoloads recipe)
         (straight--byte-compile-package recipe)
+        (straight--native-compile-package recipe)
         (straight--compile-package-texinfo recipe))
       ;; We messed up the echo area.
       (setq straight--echo-area-dirty t))))
