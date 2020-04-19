@@ -4257,7 +4257,7 @@ repository."
          (straight--build-dir package)
          0 'force)))))
 
-;;;;; Native-compilation
+;;;;; Native compilation
 
 (defcustom straight-disable-native-compilation nil
   "Non-nil means do not `native-compile' packages by default.
@@ -4290,12 +4290,11 @@ repository."
 (defun straight--pending-async-jobs ()
   "How many async compilation jobs are queued or in-progress.
 Returns nil if there are no pending jobs."
-  (when (and (boundp 'comp-files-queue)
-             (fboundp 'comp-async-runnings))
-    (let ((pending (+ (length comp-files-queue)
-                      (comp-async-runnings))))
-      (unless (zerop pending)
-        pending))))
+  (if (and (boundp 'comp-files-queue)
+           (fboundp 'comp-async-runnings))
+      (+ (length comp-files-queue)
+         (comp-async-runnings))
+    0))
 
 (defvar straight--wait-for-async-jobs t
   "Whether to block until all async compilation jobs have completed.")
