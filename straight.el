@@ -2139,36 +2139,54 @@ unless a commit is specified (e.g. by version lockfiles)."
   :type '(choice integer (const full)))
 
 (cl-defun straight-vc-git--clone-internal
-    (&key depth upstream-remote url repo-dir branch)
+    (&key depth remote url repo-dir branch commit)
   "Clone a remote repository from URL.
 
-If DEPTH is the symbol `full', clone the whole history of the repository.
-If DEPTH is an integer, clone with the option --depth DEPTH --branch BRANCH.
-If this fails, try again to clone without the option --depth and --branch,
-as a fallback.
+If DEPTH is the symbol `full', clone the whole history of the
+repository. If DEPTH is an integer, pass it to the --depth option
+of git-clone to perform a shallow clone. If this fails, try again
+to clone without the option --depth and --branch, as a fallback.
 
-UPSTREAM-REMOTE is the name of the remote to use for the upstream
-\(e.g. \"origin\"; see `straight-vc-git-default-remote-name').
-URL and REPO-DIR are the positional arguments passed to
-git-clone(1), and BRANCH is the name of the default
-branch (although it won't be checked out as per --no-checkout)."
+REMOTE is the name of the remote to use \(e.g. \"origin\"; see
+`straight-vc-git-default-remote-name'). URL and REPO-DIR are the
+positional arguments passed to git-clone(1), and BRANCH is the
+name of the default branch (although it won't be checked out as
+per --no-checkout).
+
+If COMMIT is non-nil and DEPTH is not `full', then try to clone
+only that specific commit from the remote. Fall back to doing a
+clone of everything."
   (cond
    ((eq depth 'full)
     ;; Clone the whole history of the repository.
     (straight--get-call
-     "git" "clone" "--origin" upstream-remote
+     "git" "clone" "--origin" remote
      "--no-checkout" url repo-dir))
    ((integerp depth)
     ;; Do a shallow clone.
     (condition-case nil
-        (straight--get-call
-         "git" "clone" "--origin" upstream-remote
-         "--no-checkout" url repo-dir
-         "--depth" (number-to-string depth)
-         "--branch" branch)
+        (if commit
+            (progn
+              (make-directory repo-dir)
+              (let ((straight--default-directory nil)
+                    (default-directory repo-dir))
+                (straight--get-call
+                 "git" "init")
+                (straight--get-call
+                 "git" "remote" "add" remote url
+                 "--master" branch)
+                (straight--get-call
+                 "git" "fetch" remote commit
+                 "--depth" (number-to-string depth))))
+          (delete-directory repo-dir 'recursive)
+          (straight--get-call
+           "git" "clone" "--origin" remote
+           "--no-checkout" url repo-dir
+           "--depth" (number-to-string depth)
+           "--branch" branch))
       ;; Fallback for dumb http protocol.
       (error (straight-vc-git--clone-internal :depth 'full
-                                              :upstream-remote upstream-remote
+                                              :remote remote
                                               :url url
                                               :repo-dir repo-dir))))
    (t (error "Invalid value %S of depth for %s" depth url))))
@@ -2182,29 +2200,28 @@ out, signal a warning. If COMMIT is nil, check out the branch
 specified in RECIPE instead. If that fails, signal a warning."
   (straight-vc-git--destructure recipe
       (package local-repo branch remote upstream-repo upstream-host
-               upstream-remote fork-repo fork-host
-               fork-remote nonrecursive depth)
+               upstream-remote fork-repo repo host nonrecursive depth)
     (unless upstream-repo
       (error "No `:repo' specified for package `%s'" package))
     (let ((success nil)
           (repo-dir (straight--repos-dir local-repo))
-          (url (straight-vc-git--encode-url upstream-repo upstream-host))
-          (depth (or (when commit 'full)
-                     depth
-                     straight-vc-git-default-clone-depth)))
+          (url (straight-vc-git--encode-url repo host))
+          (depth (or depth straight-vc-git-default-clone-depth)))
       (unwind-protect
           (progn
             (straight-vc-git--clone-internal :depth depth
-                                             :upstream-remote upstream-remote
+                                             :remote remote
                                              :url url
                                              :repo-dir repo-dir
-                                             :branch branch)
+                                             :branch branch
+                                             :commit commit)
             (let ((straight--default-directory nil)
                   (default-directory repo-dir))
               (when fork-repo
-                (let ((url (straight-vc-git--encode-url fork-repo fork-host)))
-                  (straight--get-call "git" "remote" "add" fork-remote url)
-                  (straight--get-call "git" "fetch" fork-remote)))
+                (let ((url (straight-vc-git--encode-url
+                            upstream-repo upstream-host)))
+                  (straight--get-call "git" "remote" "add" upstream-remote url)
+                  (straight--get-call "git" "fetch" upstream-remote)))
               (when commit
                 (unless (straight--check-call "git" "checkout" commit)
                   (straight--warn

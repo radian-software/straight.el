@@ -1866,9 +1866,9 @@ These are the keywords meaningful for the `git` backend:
   `:branch`, and `:remote`.
 * `:depth`: either the symbol `full` or an integer. If `full`, then
   the repository is cloned with its whole history. If an integer `N`,
-  then the repository is cloned with the option `--depth N`, unless a
-  commit is specified (e.g. by version lockfiles). The default value
-  is `full`.
+  then the repository is cloned with the option `--depth N`. This
+  works even when a commit is specified (e.g. by version lockfiles).
+  The default value is `full`.
 
 This section tells you how the `git` backend, specifically, implements
 the version-control backend API:
@@ -1937,8 +1937,8 @@ You can customize the following user options:
 * `straight-vc-git-default-clone-depth`: the default value for the
   `:depth` keyword. It can be either the symbol `full` or an integer,
   and defaults to `full`. Setting this variable to a small integer will
-  reduce the size of repositories. Note that this variable does *not*
-  affect packages whose versions are locked.
+  reduce the size of repositories. This variable affects all packages,
+  even those whose versions are locked.
 
 ##### Deprecated `:upstream` keyword
 
