@@ -4284,7 +4284,7 @@ repository."
             (message-log-max nil))
         (native-compile-async
          (straight--build-dir package)
-         'recursively)))
+         'recursively 'late)))
     (straight--wait-for-async-jobs)))
 
 (defun straight--pending-async-jobs ()
