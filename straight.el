@@ -4288,8 +4288,7 @@ repository."
     (straight--wait-for-async-jobs)))
 
 (defun straight--pending-async-jobs ()
-  "How many async compilation jobs are queued or in-progress.
-Returns nil if there are no pending jobs."
+  "How many async compilation jobs are queued or in-progress."
   (if (and (boundp 'comp-files-queue)
            (fboundp 'comp-async-runnings))
       (+ (length comp-files-queue)
