@@ -107,6 +107,7 @@ chat][gitter-badge]][gitter]
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
 - [News](#news)
+  * [April 19, 2020](#april-19-2020)
   * [July 6, 2019](#july-6-2019)
   * [May 24, 2019](#may-24-2019)
   * [May 22, 2019](#may-22-2019)
@@ -2842,6 +2843,12 @@ with Emacs, rather than cloning the upstream repository:
 [Read more.][#user/recipes]
 
 ## News
+### April 19, 2020
+
+Shallow clones are now compatible with lockfiles, so you can safely
+set `straight-vc-git-default-clone-depth` to `1` and get massive
+savings on network bandwidth and disk space.
+
 ### July 6, 2019
 
 The default value of the user option `straight-emacsmirror-use-mirror`
