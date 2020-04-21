@@ -787,8 +787,8 @@ package managers:
   package that is versioned in something other than Git.
 * Use `straight.el` if you like reproducibility in your Emacs
   configuration, you regularly contribute changes to packages
-  upstream, you think deferred installation is a really great idea, or
-  you are writing an Emacs configuration to be used by others.
+  upstream, or you are writing an Emacs configuration to be used by
+  others.
 
 And here is a brief list of the main reasons you might not want to use
 `straight.el`:
@@ -1226,9 +1226,6 @@ offer corrections for this section.
 * Borg, even when combined with related tools, do not allow for the
   kind of massive interactive repository management provided by
   `straight.el`.
-* `straight.el` supports deferred and conditional installation. This
-  is not supported by Borg, although it could in principle be
-  implemented via lazy cloning of submodules.
 * `straight.el` provides an API designed for other version-control
   backends to be added in future. Borg is inextricably tied to Git.
 * The interface for Git submodules has a number of sharp edges.
@@ -1274,8 +1271,6 @@ offer corrections for this section.
 * `straight.el` allows you to get reproducibility for your
   configuration without needing to keep all of your packages under
   version control.
-* `straight.el` (when used with [`use-package`][use-package])
-  automates the complex process of deferred installation.
 * `straight.el` links packages into a separate build directories.
   Running packages directly from their repositories has a number of
   problems, including:
