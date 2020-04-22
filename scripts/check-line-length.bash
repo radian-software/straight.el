@@ -11,7 +11,8 @@ find=(
     -name "*.py" -o  # Black uses longer lines
     -name .git -o
     -name .github -o
-    -name __pycache__
+    -name __pycache__ -o
+    -name emacsd
     \) -prune -o
     -type f -print
 )

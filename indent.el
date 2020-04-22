@@ -1,6 +1,8 @@
 ;; You can load this file to make sure that forms from other packages
 ;; are indented correctly.
 
+(require 'benchmark)
+
 (put #'if-let 'lisp-indent-function 2)
 (put #'when-let 'lisp-indent-function 1)
 
