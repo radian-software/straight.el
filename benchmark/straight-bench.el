@@ -2,6 +2,12 @@
 
 (require 'cl-lib)
 
+;; Not defined before Emacs 25.1
+(eval-and-compile
+  (unless (fboundp 'make-process)
+    (defun make-process (&rest _)
+      (error "Benchmarking suite does not support Emacs 24"))))
+
 (defvar straight-bench-this-dir
   (file-name-directory
    (expand-file-name
@@ -142,33 +148,32 @@ GRAPHICAL non-nil means start a non-tty frame."
                (current-buffer))))
     (ignore-errors
       (kill-buffer "*straight-bench*"))
-    (benchmark-elapse
-      (let* ((start-time (current-time))
-             (sentinel-triggered nil)
-             (process-environment
-              (cons
-               "TERM=eterm"
-               process-environment)))
-        (make-process
-         :name "straight-bench"
-         :command
-         `("emacs" "-Q" "-l" ,init-file
-           ,@(unless graphical
-               '("-nw")))
-         :noquery t
-         :buffer "*straight-bench*"
-         :connection-type 'pty
-         :sentinel
-         (lambda (proc _)
-           (unless (or (process-live-p proc)
-                       sentinel-triggered)
-             (setq sentinel-triggered t)
-             (funcall
-              callback
-              (float-time
-               (time-subtract
-                (current-time)
-                start-time))))))))))
+    (let* ((start-time (current-time))
+           (sentinel-triggered nil)
+           (process-environment
+            (cons
+             "TERM=eterm"
+             process-environment)))
+      (make-process
+       :name "straight-bench"
+       :command
+       `("emacs" "-Q" "-l" ,init-file
+         ,@(unless graphical
+             '("-nw")))
+       :noquery t
+       :buffer "*straight-bench*"
+       :connection-type 'pty
+       :sentinel
+       (lambda (proc _)
+         (unless (or (process-live-p proc)
+                     sentinel-triggered)
+           (setq sentinel-triggered t)
+           (funcall
+            callback
+            (float-time
+             (time-subtract
+              (current-time)
+              start-time)))))))))
 
 (defvar straight-bench-num-packages nil
   "Default number of packages to install.
