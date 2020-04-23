@@ -2840,6 +2840,11 @@ with Emacs, rather than cloning the upstream repository:
 
     (straight-use-package '(org :type built-in))
 
+Note that `:type` is a keyword for `straight.el`, not for
+`use-package`. If you are using `use-package`, then use:
+
+    (use-package org :straight (:type built-in))
+
 [Read more.][#user/recipes]
 
 ## News
