@@ -153,8 +153,12 @@ a listing from the URL
         (while (process-live-p proc)
           (accept-process-output proc))))))
 
+(defvar straight-bench-num-packages nil
+  "Default number of packages to install.
+Defaults to everything in `straight-bench-package-list'.")
+
 (cl-defun straight-bench-run
-    (&key package-manager install graphical num-packages
+    (&key package-manager install graphical
           inhibit-find shallow &allow-other-keys)
   "Run a single benchmark to see how fast a package manager is.
 This does different things depending on the keyword arguments.
@@ -169,8 +173,7 @@ long startup takes.
 GRAPHICAL non-nil means start a graphical Emacs frame. GRAPHICAL
 nil means start a tty frame.
 
-NUM-PACKAGES is the number of packages to install. Defaults to
-everything in `straight-bench-package-list'.
+NUM-PACKAGES is the number of packages to install.
 
 INHIBIT-FIND nil means do the find(1) command at straight.el
 startup to check for package modifications (the default).
@@ -181,7 +184,7 @@ here since there's no performance impact, so we don't bother.)
 SHALLOW non-nil means tell straight.el to use shallow clones.
 SHALLOW nil means use the default behavior of full clones."
   (let ((packages (cl-subseq straight-bench-package-list
-                             0 num-packages)))
+                             0 straight-bench-num-packages)))
     (pcase package-manager
       (`package
        (straight-bench-time
@@ -236,32 +239,25 @@ SHALLOW nil means use the default behavior of full clones."
         :emacs-dir (expand-file-name "emacsd/base" straight-bench-this-dir)
         :graphical graphical)))))
 
+(defvar straight-bench-install-reps 5
+  "Number of times to install all packages from scratch.")
+
+(defvar straight-bench-startup-reps 100
+  "Number of times to start Emacs with packages already installed.")
+
 (defvar straight-bench-test-plan
-  '(("base Emacs startup"
-     :reps 100)
-    ("package.el (install)"
-     :package-manager package
-     :install t
-     :reps 5)
-    ("straight.el (install)"
+  '(("base Emacs startup")
+    ("package.el"
+     :package-manager package)
+    ("straight.el"
+     :package-manager straight)
+    ("straight.el (no find)"
      :package-manager straight
-     :install t
-     :reps 5)
-    ("straight.el (install, shallow)"
-     :package-manager straight
-     :install t
-     :shallow t
-     :reps 5)
-    ("package.el (startup)"
-     :package-manager package
-     :reps 100)
-    ("straight.el (startup)"
-     :package-manager straight
-     :reps 100)
-    ("straight.el (startup, no find)"
+     :inhibit-find t)
+    ("straight.el (shallow, no find)"
      :package-manager straight
      :inhibit-find t
-     :reps 100))
+     :shallow t))
   "The sequence of tests that will be run by `straight-bench-run-plan'.")
 
 (defun straight-bench-run-plan ()
@@ -270,11 +266,63 @@ SHALLOW nil means use the default behavior of full clones."
     (dolist (elt straight-bench-test-plan)
       (let ((name (car elt))
             (props (cdr elt))
-            (times nil))
-        (dotimes (_ (plist-get props :reps))
-          (push (apply #'straight-bench-run props) times))
-        (push (cons name times) results)))
-    results))
+            (install-times nil)
+            (startup-times nil))
+        (dotimes (_ straight-bench-install-reps)
+          (push
+           (apply #'straight-bench-run (cl-list* :install t props))
+           install-times))
+        (dotimes (_ straight-bench-startup-reps)
+          (push
+           (apply #'straight-bench-run props)
+           startup-times))
+        (push
+         (cons name `(:install ,install-times :startup ,startup-times))
+         results)))
+    (nreverse results)))
+
+(defun straight-bench-average (nums)
+  "Calculate mean of NUMS."
+  (/ (apply #'+ nums) (length nums)))
+
+(defun straight-bench-stddev (nums)
+  "Calculate sample standard deviation of NUMS."
+  (let ((avg (straight-bench-average nums)))
+    (sqrt (/ (apply #'+ (mapcar (lambda (num)
+                                  (let ((dev (- num avg)))
+                                    (* dev dev)))
+                                nums))
+             (1- (length nums))))))
+
+(defun straight-bench-deviation (nums)
+  "Calculate width of 95% confidence interval from sample NUMS."
+  (* 1.960 (/ (straight-bench-stddev nums) (sqrt (length nums)))))
+
+(defun straight-bench-format-results (results)
+  "Format benchmarking results into Markdown.
+RESULTS are as returned from `straight-bench-run-plan'."
+  (let ((name-width
+         (apply #'max (mapcar (lambda (result)
+                                (length (car result)))
+                              results))))
+    (concat
+     "| " (make-string name-width ? ) " "
+     "| Install           | Startup           |\n"
+     "|-" (make-string name-width ?-) "-"
+     "|-------------------|-------------------|\n"
+     (mapconcat
+      (lambda (result)
+        (let ((name (car result))
+              (install-times (plist-get (cdr result) :install))
+              (startup-times (plist-get (cdr result) :startup)))
+          (format "| %s%s | %6.3fs ± %6.3fs | %6.3fs ± %6.3fs |"
+                  name (make-string (- name-width (length name)) ? )
+                  (straight-bench-average install-times)
+                  (straight-bench-deviation install-times)
+                  (straight-bench-average startup-times)
+                  (straight-bench-deviation startup-times))))
+      results
+      "\n"))))
 
 (defun straight-bench-batch ()
   (message "This function is not yet implemented"))
