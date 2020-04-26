@@ -2185,10 +2185,12 @@ clone of everything."
            "--depth" (number-to-string depth)
            "--branch" branch))
       ;; Fallback for dumb http protocol.
-      (error (straight-vc-git--clone-internal :depth 'full
-                                              :remote remote
-                                              :url url
-                                              :repo-dir repo-dir))))
+      (error
+       (delete-directory repo-dir 'recursive)
+       (straight-vc-git--clone-internal :depth 'full
+                                        :remote remote
+                                        :url url
+                                        :repo-dir repo-dir))))
    (t (error "Invalid value %S of depth for %s" depth url))))
 
 ;;;;;; API
