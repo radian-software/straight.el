@@ -1509,7 +1509,6 @@ command. If it makes a mistake, then you can manually customize
 `straight-find-flavor`. Alternately, you can install GNU find and
 customize the variable `straight-find-executable` to point to it.
 
-
 For about 100 packages on an SSD, calling `find(1)` to detect
 modifications takes about 500ms. You can save this time by customizing
 `straight-check-for-modifications`. This is a list of symbols which
