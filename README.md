@@ -2440,7 +2440,7 @@ simple: *reload your entire init-file*. That way, `straight.el` will
 see whether or not that package is registered during your init-file.
 
 One might ask how `straight.el` determines that you have finished
-loading your init-file. The answer is simple: `run-with-idle-timer` is
+loading your init-file. The answer is simple: `post-command-hook` is
 used to execute code only after the current interactive operation has
 finished. The implementation of this concept is part of the
 *transaction system* of `straight.el`, and it is also used to amortize
