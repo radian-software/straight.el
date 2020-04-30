@@ -307,7 +307,7 @@ Asynchronous, returns the results as an argument to CALLBACK."
   (let ((results nil))
     (straight-bench-mapc-async
      (lambda ()
-       (funcall callback results))
+       (funcall callback (nreverse results)))
      (lambda (callback elt)
        (let ((name (car elt))
              (props (cdr elt))
@@ -339,8 +339,7 @@ Asynchronous, returns the results as an argument to CALLBACK."
                (funcall callback))
              (cl-list* :install t props)))
           (make-list straight-bench-install-reps nil))))
-     straight-bench-test-plan)
-    (nreverse results)))
+     straight-bench-test-plan)))
 
 (defun straight-bench-average (nums)
   "Calculate mean of NUMS."
