@@ -2673,34 +2673,10 @@ branch in any fork:
     (setq straight-repository-user "my-github-username")
     (setq straight-repository-branch "feat/my-cool-feature")
 
-Please try to follow the style of the surrounding code and
-documentation, but anything is welcome. All text, including comments
-and docstrings, should be formatted using Emacs' `M-x fill-paragraph`
-command (bound to `M-q` by default).
-
-We require that the linting pass on all new commits. You can check
-this easily by installing [Docker] and running
-
-    $ make docker
-
-Then you will be in a shell with the `straight.el` source code, and to
-test your commits you'll be able to run
-
-    $ make lint
-
-or to see what other targets are available
-
-    $ make help
-
-If you don't want to install Docker, you can simply skip the `make
-docker` step, and everything will work the same! However, you'll then
-have to make sure you have the relevant dependencies installed
-locally.
-
-When you create a pull request, it will be [tested
-automatically][circleci-build] on [CircleCI] and the status will be
-reported. Please make sure the CI build is passing before asking for
-review.
+For additional information, please see [the contributor guide for my
+projects](https://github.com/raxod502/contributor-guide). Note that
+`straight.el` has not yet had an initial release, so you don't have to
+worry about a changelog.
 
 ## FAQ
 ### My init time got slower

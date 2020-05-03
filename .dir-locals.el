@@ -1,1 +1,2 @@
-((nil . ((compile-command . "make lint"))))
+((nil . ((compile-command . "make lint")
+         (fill-column . 70))))
