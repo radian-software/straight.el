@@ -101,9 +101,9 @@ chat][gitter-badge]][gitter]
 - [FAQ](#faq)
   * [My init time got slower](#my-init-time-got-slower)
   * [How do I update MELPA et al.?](#how-do-i-update-melpa-et-al)
+  * [How do I uninstall a package?](#how-do-i-uninstall-a-package)
   * [The wrong version of my package was loaded](#the-wrong-version-of-my-package-was-loaded)
   * [I get "could not read username/password" errors](#i-get-could-not-read-usernamepassword-errors)
-  * [The interactive version-control operations are confusing](#the-interactive-version-control-operations-are-confusing)
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
 - [News](#news)
@@ -2680,6 +2680,23 @@ percentage points). There are some planned changes which will make
 Using [`M-x straight-pull-package`][#user/interactive/vc], like for
 any other package. [Read more.][#user/lookup/update]
 
+### How do I uninstall a package?
+
+My first question is: do you really need to uninstall the package?
+Under `package.el`, every package on disk gets loaded into Emacs,
+whether you asked for it or not. However, under `straight.el`, only
+the packages you explicitly mention in your init-file get loaded into
+Emacs. So the *only* problem with leaving a package on disk is that it
+takes up a little bit of disk space. (But the advantage is if you
+decide you want to use that package again later then you won't have to
+redownload it.)
+
+If you really want to uninstall a package, simply delete its local
+repository from `~/.emacs.d/straight/repos`. To automate the process
+of deleting packages that aren't mentioned by your init-file, you can
+load the `straight-x` library and try out the user-contributed
+function `straight-x-clean-unused-repos`.
+
 ### The wrong version of my package was loaded
 
 To explain this problem, let us consider a concrete example. In [this
@@ -2752,11 +2769,6 @@ make sure that the relevant environment variables get set in Emacs.
 This might be tricky since starting Emacs from the desktop (rather
 than from the command line) sometimes results in it not inheriting any
 environment variables from your shell.
-
-### The interactive version-control operations are confusing
-
-This part of `straight.el` still needs some work; see [#54] about the
-UX of pushing and pulling.
 
 ### How do I pin package versions or use only tagged releases?
 
