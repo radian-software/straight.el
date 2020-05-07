@@ -101,6 +101,7 @@ chat][gitter-badge]][gitter]
 - [FAQ](#faq)
   * [My init time got slower](#my-init-time-got-slower)
   * [How do I update MELPA et al.?](#how-do-i-update-melpa-et-al)
+  * [My `use-package` form isn't working properly](#my-use-package-form-isnt-working-properly)
   * [How do I uninstall a package?](#how-do-i-uninstall-a-package)
   * [The wrong version of my package was loaded](#the-wrong-version-of-my-package-was-loaded)
   * [I get "could not read username/password" errors](#i-get-could-not-read-usernamepassword-errors)
@@ -2679,6 +2680,39 @@ percentage points). There are some planned changes which will make
 
 Using [`M-x straight-pull-package`][#user/interactive/vc], like for
 any other package. [Read more.][#user/lookup/update]
+
+### My `use-package` form isn't working properly
+
+There are a number of common problems you might be encountering. Check
+out the following list to see if there is an easy fix.
+
+* Make sure you're not using `:ensure` or `use-package-always-ensure`.
+  Those are for `package.el` and using them with `straight.el` will
+  produce weird results (namely both `package.el` and `straight.el`
+  will be invoked for the same package).
+* Make sure you know *both* the name of the feature and the name of
+  the package. These are usually the same but not always (packages may
+  provide more than one feature, ...). You give `use-package` the name
+  of a *feature*, not a package (despite the name of the macro). With
+  `straight-use-package-by-default` or with `:straight t`, the default
+  is to try installing a package by the same name as the feature.
+    * If you don't actually need to install a package, then pass
+      `:straight nil` to override `straight-use-package-by-default`.
+    * If the package name is different from the feature name, then
+      pass `:straight <package-name>`.
+* If the package or your configurations aren't being loaded, you
+  probably have something wrong with your usage of `:init` and
+  `:config`. By default, the behavior of `use-package` is unusably
+  inconsistent. You must set either `use-package-always-defer`
+  (override with `:demand t`) or `use-package-always-demand` (override
+  with `:defer t`) to set a default for whether evaluating a
+  `use-package` form will load the package and your configurations.
+    * If you've set a package to be deferred, you then need to make
+      sure there's a way for it to get loaded when needed, for example
+      by means of an autoload (either provided by the package, or set
+      up automatically by `use-package` via `:bind`, or set up
+      manually through `use-package` via `:commands`) or by an
+      explicit `require` in one of your custom commands.
 
 ### How do I uninstall a package?
 
