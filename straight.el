@@ -3105,8 +3105,8 @@ RECIPE should be a straight.el-style recipe plist."
                          (plist-get existing-recipe keyword))
             ;; Same reasoning as with the previous warning.
             (straight--warn
-             (concat "Recipe for %S has been overridden "
-                     "(%S changed from %S to %S)")
+             (concat "Two different recipes given for %S "
+                     "(%S cannot be both %S and %S)")
              package
              keyword
              (plist-get existing-recipe keyword)
