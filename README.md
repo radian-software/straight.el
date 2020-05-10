@@ -100,6 +100,7 @@ chat][gitter-badge]][gitter]
 - [Contributing](#contributing)
 - [FAQ](#faq)
   * [My init time got slower](#my-init-time-got-slower)
+  * ["Could not find package in recipe repositories"](#could-not-find-package-in-recipe-repositories)
   * [How do I update MELPA et al.?](#how-do-i-update-melpa-et-al)
   * [My `use-package` form isn't working properly](#my-use-package-form-isnt-working-properly)
   * [How do I uninstall a package?](#how-do-i-uninstall-a-package)
@@ -2675,6 +2676,13 @@ Even with lazy modification detection, as described above,
 `straight.el` is not quite as fast as `package.el` (by a few
 percentage points). There are some planned changes which will make
 `straight.el` just as fast as `package.el`, if not faster. See [#9].
+
+### "Could not find package in recipe repositories"
+
+Assuming that the package you're trying to install actually exists,
+you need to update your recipe repositories (most likely MELPA,
+possibly Emacsmirror). See the next FAQ entry. This is like running
+`package-refresh-contents` under `package.el`.
 
 ### How do I update MELPA et al.?
 
