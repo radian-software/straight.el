@@ -96,6 +96,7 @@ chat][gitter-badge]][gitter]
     + [Integration with `use-package`](#integration-with-use-package-1)
     + ["Integration" with `package.el`](#integration-with-packageel)
     + [Integration with Org](#integration-with-org)
+    + [Integration with Flycheck](#integration-with-flycheck)
     + [Integration with Hydra](#integration-with-hydra)
   * [Miscellaneous](#miscellaneous)
 - [Developer manual](#developer-manual)
@@ -2596,6 +2597,33 @@ Please be careful with setting `straight-vc-git-default-clone-depth`,
 which may break some packages' installing processes such as `elfeed`
 that depend on `org`.
 
+#### Integration with Flycheck
+
+[Flycheck] sometimes creates temporary files in order to perform
+syntax checking. This is a problem for `straight.el` because creation
+of temporary files will cause `straight.el` to think that you have
+modified a package when you actually have not. (You might ask why
+`straight.el` cannot recognize temporary files and ignore them. The
+answer is that for eager modification checking, all we see is that the
+directory mtime for the repository has been updated, and there's no
+way to disambiguate between temporary file shenanigans versus if you,
+say, deleted a file.)
+
+To work around the problem, a user option `straight-fix-flycheck` is
+provided, disabled by default (for now). You can enable it *before*
+loading `straight.el`, and it will work around the Flycheck problem in
+the following way. When you first visit a buffer, any Flycheck checker
+that involves creation of temporary files will be inhibited
+automatically, although other checkers will still run. (In practice
+this means no byte-compilation errors for Emacs Lisp, but you still
+get Checkdoc errors.) However, after you make a change to the buffer
+(by typing, etc.) then all checkers will be re-enabled. This means
+that `straight.el` won't think the package was modified unless you
+actually modify the buffer of a file inside it, which I think is a
+reasonable compromise.
+
+See [#508] for discussion.
+
 #### Integration with Hydra
 
 See [the Hydra wiki][hydra-wiki-straight-entry].
@@ -2998,6 +3026,7 @@ the version lock file. This addresses issues [#58], [#66], and [#294].
 [#356]: https://github.com/raxod502/straight.el/issues/356
 [#357]: https://github.com/raxod502/straight.el/issues/357
 [#425]: https://github.com/raxod502/straight.el/issues/425
+[#508]: https://github.com/raxod502/straight.el/issues/508
 
 [auto-compile]: https://github.com/tarsius/auto-compile
 [borg]: https://github.com/emacscollective/borg
@@ -3013,6 +3042,7 @@ the version lock file. This addresses issues [#58], [#66], and [#294].
 [emacswiki]: https://www.emacswiki.org/
 [epkg]: https://github.com/emacscollective/epkg
 [epkgs]: https://github.com/emacsmirror/epkgs
+[flycheck]: https://www.flycheck.org/en/latest/
 [forge]: https://github.com/magit/forge
 [gccemacs]: http://akrl.sdf.org/gccemacs.html
 [git]: https://git-scm.com/

@@ -112,6 +112,11 @@ They are still logged to the *Messages* buffer.")))
 ;; `finder-inf'
 (defvar package--builtins)
 
+;; `flycheck'
+(declare-function flycheck-checker-get "flycheck")
+(declare-function flycheck-get-next-checker-for-buffer "flycheck")
+(declare-function flycheck-start-current-syntax-check "flycheck")
+
 ;; `magit'
 (declare-function magit-status-setup-buffer "magit-status")
 
@@ -5937,6 +5942,52 @@ Inserted by installing org-mode or when a release is made."
               #'straight--fix-org-function)
   (remove-hook 'straight-use-package-prepare-functions
                #'straight--fix-org-function))
+
+;;;;; Flycheck integration
+
+(defcustom straight-fix-flycheck nil
+  "If non-nil, install a workaround for a problem with Flycheck.
+See <https://github.com/raxod502/straight.el/issues/508> for
+discussion.
+
+This variable must be set before straight.el is loaded (or
+re-loaded) in order to take effect."
+  :type 'boolean)
+
+(defvar-local straight--flycheck-in-place-disabled t
+  "If non-nil, inhibit in-place checkers in Flycheck.
+This variable is toggled to nil after the first modification in a
+buffer.")
+
+(defun straight--flycheck-in-place-reenable ()
+  "Re-enable in-place checkers in Flycheck."
+  (setq straight--flycheck-in-place-disabled nil))
+
+(defun straight--flycheck-in-place-inhibit (func checker)
+  "Inhibit in-place Elisp checkers in Flycheck from running automatically.
+You can still run them manually, and automatic checking will be
+re-enabled after you modify the buffer.
+
+This is an `:around' advice for
+`flycheck-start-current-syntax-check'. FUNC and CHECKER are as in
+any `:around' advice."
+  (if (and
+       straight--flycheck-in-place-disabled
+       (memq
+        'source-inplace
+        (flycheck-checker-get checker 'command)))
+      (when-let ((next-checker (flycheck-get-next-checker-for-buffer checker)))
+        (flycheck-start-current-syntax-check next-checker))
+    (funcall func checker)))
+
+(if straight-fix-flycheck
+    (progn
+      (add-hook 'first-change-hook #'straight--flycheck-in-place-reenable)
+      (advice-add 'flycheck-start-current-syntax-check :around
+                  #'straight--flycheck-in-place-inhibit))
+  (remove-hook 'first-change-hook #'straight--flycheck-in-place-reenable)
+  (advice-remove 'flycheck-start-current-syntax-check
+                 #'straight--flycheck-in-place-inhibit))
 
 ;;;; Closing remarks
 
