@@ -153,7 +153,7 @@
   (let ((lockfile-path (straight--versions-lockfile 'pinned)))
     (with-temp-file lockfile-path
       (insert
-       (format "(%s)\n:alpha\n"
+       (format "(%s)\n:beta\n"
                (mapconcat
                 (apply-partially #'format "%S")
                 straight-x-pinned-packages
