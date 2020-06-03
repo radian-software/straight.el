@@ -100,6 +100,7 @@ chat][gitter-badge]][gitter]
     + [Integration with Hydra](#integration-with-hydra)
   * [Miscellaneous](#miscellaneous)
 - [Developer manual](#developer-manual)
+  * [Low-level functions](#low-level-functions)
 - [Trivia](#trivia)
   * [Comments and docstrings](#comments-and-docstrings)
 - [Contributing](#contributing)
@@ -2660,7 +2661,14 @@ details and design decisions that power `straight.el` behind the
 scenes. It assumes you have already read the [user manual][#user] and
 the [conceptual overview][#concepts].
 
-Unfortunately, I haven't yet had time to write it. See [#51].
+More to be written here in future. See [#51].
+
+### Low-level functions
+
+* The function `straight-chase-emulated-symlink` is provided in order
+  for external packages to correctly handle the emulated symlinks
+  created by `straight.el` when `straight-use-symlinks` is nil. See,
+  for example, [#520].
 
 ## Trivia
 
@@ -3027,6 +3035,7 @@ the version lock file. This addresses issues [#58], [#66], and [#294].
 [#357]: https://github.com/raxod502/straight.el/issues/357
 [#425]: https://github.com/raxod502/straight.el/issues/425
 [#508]: https://github.com/raxod502/straight.el/issues/508
+[#520]: https://github.com/raxod502/straight.el/issues/520
 
 [auto-compile]: https://github.com/tarsius/auto-compile
 [borg]: https://github.com/emacscollective/borg

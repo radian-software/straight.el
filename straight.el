@@ -4064,23 +4064,41 @@ the build directory, creating a pristine set of symlinks."
         (make-directory (file-name-directory build-file) 'parents)
         (straight--symlink-recursively repo-file build-file)))))
 
+(defvar straight-symlink-emulation-mode)
+
+(defun straight-chase-emulated-symlink (filename)
+  "Check if FILENAME is an emulated symlink.
+Return nil if it's not. Return the link target if it is. Return
+`broken' if it seems like it should be, but it can't be resolved
+to an existing file. See `straight-symlink-emulation-mode'."
+  (when straight-symlink-emulation-mode
+    (let ((build-dir (straight--build-dir)))
+      (when (straight--path-prefix-p build-dir filename)
+        ;; Remove the ~/.emacs.d/straight/build/ part, and get the
+        ;; corresponding path under straight/links/.
+        (let* ((relative-path (substring filename (length build-dir)))
+               (link-record (straight--links-file relative-path)))
+          (if (file-exists-p link-record)
+              (let ((target
+                     (with-temp-buffer
+                       (insert-file-contents-literally link-record)
+                       (buffer-string))))
+                (if (or (string-empty-p target)
+                        (not (file-exists-p target)))
+                    'broken
+                  target))
+            'broken))))))
+
 (defun straight-maybe-emulate-symlink ()
   "If visiting an emulated symlink, visit the link target instead.
 See `straight-symlink-emulation-mode'."
-  (let ((build-dir (straight--build-dir)))
-    (when (and buffer-file-name
-               (straight--path-prefix-p build-dir buffer-file-name))
-      ;; Remove the ~/.emacs.d/straight/build/ part, and get the
-      ;; corresponding path under straight/links/.
-      (let* ((relative-path (substring buffer-file-name (length build-dir)))
-             (link-record (straight--links-file relative-path)))
-        (if (file-exists-p link-record)
-            (find-alternate-file
-             (with-temp-buffer
-               (insert-file-contents-literally link-record)
-               (buffer-string)))
-          (straight--output
-           "Broken symlink, you are not editing the real file"))))))
+  (when buffer-file-name
+    (pcase (straight-chase-emulated-symlink buffer-file-name)
+      (`nil)
+      (`broken
+       (straight--output
+        "Broken symlink, you are not editing the real file"))
+      (target (find-alternate-file target)))))
 
 (define-minor-mode straight-symlink-emulation-mode
   "Minor mode for emulating symlinks in the software layer.
