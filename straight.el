@@ -3387,7 +3387,12 @@ empty values (all packages will be rebuilt, with no caching)."
                    (listp eager-packages)
                    (cl-every #'stringp eager-packages)
                    ;; Symlink setting should not have changed.
-                   (eq use-symlinks straight-use-symlinks))
+                   (or (eq use-symlinks straight-use-symlinks)
+                       (prog1 (setq malformed nil)
+                         (straight--output
+                          (concat
+                           "Rebuilding all packages due to "
+                           "change in `straight-use-symlinks'")))))
             ;; If anything is wrong, abort and use the default values.
             (when malformed
               (straight--output
