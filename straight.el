@@ -2710,6 +2710,19 @@ should not be a major concern since the GNU ELPA build system
 does such a good job of discouraging contributions anyway."
   :type 'boolean)
 
+(defcustom straight-recipes-gnu-elpa-ignored-packages
+  '(cl-generic
+    cl-lib
+    nadvice)
+  "Packages from GNU ELPA that we should pretend don't exist.
+Such packages would break things if they were installed. For
+example, the `cl-lib' package from GNU ELPA is not the
+development version but rather an obsolete forwards-compatibility
+package designed for use with Emacs 24.2 and earlier. See
+<https://github.com/raxod502/straight.el/issues/531> for some
+discussion."
+  :type '(list symbol))
+
 ;;;;;;; GNU ELPA mirror
 
 (defun straight-recipes-gnu-elpa-mirror-retrieve (package)
@@ -2718,7 +2731,7 @@ PACKAGE should be a symbol. If the package is maintained in GNU
 ELPA (and should be retrieved from there, which isn't the case if
 the package is built in to Emacs), return a MELPA-style recipe.
 Otherwise, return nil."
-  (unless (straight--package-built-in-p package)
+  (unless (memq package straight-recipes-gnu-elpa-ignored-packages)
     (when (file-exists-p (symbol-name package))
       `(,package :type git
                  :host github
@@ -2738,7 +2751,7 @@ Otherwise, return nil."
 This is a list of strings."
   (cl-remove-if
    (lambda (package)
-     (straight--package-built-in-p (intern package)))
+     (memq (intern package) straight-recipes-gnu-elpa-ignored-packages))
    (straight--directory-files)))
 
 (defun straight-recipes-gnu-elpa-mirror-version ()
@@ -2758,7 +2771,7 @@ PACKAGE should be a symbol. If the package is maintained in GNU
 ELPA (and should be retrieved from there, which isn't the case if
 the package is built in to Emacs), return a MELPA-style recipe.
 Otherwise, return nil."
-  (unless (straight--package-built-in-p package)
+  (unless (memq package straight-recipes-gnu-elpa-ignored-packages)
     (when (file-exists-p (expand-file-name (symbol-name package) "packages/"))
       ;; All the packages in GNU ELPA are just subdirectories of the
       ;; same repository.
@@ -2772,7 +2785,7 @@ Otherwise, return nil."
   "Return a list of recipe names available in GNU ELPA, as a list of strings."
   (cl-remove-if
    (lambda (package)
-     (straight--package-built-in-p (intern package)))
+     (memq (intern package) straight-recipes-gnu-elpa-ignored-packages))
    (straight--directory-files "packages/")))
 
 (defun straight-recipes-gnu-elpa-version ()
