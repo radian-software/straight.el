@@ -2137,9 +2137,9 @@ with the remotes."
   "The default value for `:depth' when `:type' is the symbol `git'.
 
 The value should be the symbol `full' or an integer. If the value
-is `full', clone the whole history of repositories. If the value is
-an integer N, remote repositories are cloned with the option --depth N,
-unless a commit is specified (e.g. by version lockfiles)."
+is `full', clone the whole history of repositories. If the value
+is an integer N, remote repositories are cloned with the options
+--depth N --single-branch --no-tags."
   :group 'straight
   :type '(choice integer (const full)))
 
@@ -2182,13 +2182,16 @@ clone of everything."
                  "--master" branch)
                 (straight--get-call
                  "git" "fetch" remote commit
-                 "--depth" (number-to-string depth))))
+                 "--depth" (number-to-string depth)
+                 "--no-tags")))
           (delete-directory repo-dir 'recursive)
           (straight--get-call
            "git" "clone" "--origin" remote
            "--no-checkout" url repo-dir
            "--depth" (number-to-string depth)
-           "--branch" branch))
+           "--branch" branch
+           "--single-branch"
+           "--no-tags"))
       ;; Fallback for dumb http protocol.
       (error
        (delete-directory repo-dir 'recursive)
