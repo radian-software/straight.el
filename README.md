@@ -97,7 +97,6 @@ chat][gitter-badge]][gitter]
   * [Integration with other packages](#integration-with-other-packages)
     + [Integration with `use-package`](#integration-with-use-package-1)
     + ["Integration" with `package.el`](#integration-with-packageel)
-    + [Integration with Org](#integration-with-org)
     + [Integration with Flycheck](#integration-with-flycheck)
     + [Integration with Hydra](#integration-with-hydra)
   * [Miscellaneous](#miscellaneous)
@@ -1884,6 +1883,53 @@ meaning in a recipe (unknown keywords are ignored but preserved):
   recipe source. See the docstring of
   `straight-expand-files-directive` for details.
 
+* `:build`
+
+  This specifies system commands and/or elisp to be evaluated before
+  symlinking, generating autoloads, and byte-compiling a package.
+
+  Each command is either an elisp form to be evaluated or a list of
+  strings to be executed in a shell context of the form:
+
+        ("executable" "arg"...)
+
+  Commands are executed in the package's repository directory.
+
+  The `:build` keyword's value may be:
+
+  - A single command
+  - A list of commands
+  - nil, in which case no commands are executed.
+    Note this is not the same as `:no-build` mentioned below.
+    `:no-build` takes precedence over `:build`.
+
+    For example:
+
+        (straight-use-package
+         '( example :type git :host github :repo "user/example.el"
+            :build ("make all")))
+
+        (straight-use-package
+         `( example :type git :host github :repo "user/example.el"
+            :build ,(pcase system-type
+                      (`windows-nt '(message "This might take a while"))
+                      (_ '(("./configure") ("make") ("make" "install"))))))
+
+* `:post-build`
+
+  This specifies system commands and/or elisp to be evaluated after
+  symlinking, generating autoloads, and byte-compiling a package.
+
+  Otherwise, it is identical to the `:build` keyword in terms of the values
+  it accepts and how it is executed.
+
+    For example:
+
+        (straight-use-package
+         '( example :type git :host github :repo "user/example.el"
+            :build (("./pre-build.sh") (message "hi"))
+            :post-build (("./post-build.sh") (message "bye"))))
+
 * `:no-build`
 
   If this is non-nil, then it causes the build step to be skipped
@@ -2176,6 +2222,10 @@ You can customize the following user options:
   reduce the size of repositories. This variable affects all packages,
   even those whose versions are locked.
 
+  Please be careful with setting `straight-vc-git-default-clone-depth`,
+  which may break some packages' installing processes such as `elfeed`
+  that depend on `org`.
+
 ##### Deprecated `:upstream` keyword
 
 `straight.el` previously supported fork configuration in recipes using
@@ -2341,6 +2391,52 @@ following things:
   repository has already been cloned, and that `default-directory` has
   been set to that local repository. This is used for recipe lookup
   during the course of `straight-use-package`.
+
+  If the returned recipe is a backquoted list, it will be evaluated
+  during `straight--convert-recipe`. This is useful for specifying
+  dynamic elements within the recipe such as system-specific
+  build commands. For example, if `straight-recipes-NAME-retrieve`
+  returns:
+
+        '`( package :type git :repo "host/repo"
+            :build ,(pcase system-type
+                      (`berkeley-unix '("gmake"))
+                      (_ '("make")))
+            :files (:defaults))
+
+  The recipe is converted to:
+
+        (package :type git :repo "host/repo"
+                 :build ("make")
+                 :files (:defaults))
+
+  on a `gnu/linux` system, and:
+
+        (package :type git :repo "host/repo"
+                 :build ("gmake")
+                 :files (:defaults))
+
+  on a `berkely-unix` system.
+
+  The recipe could be read from a file in the recipe repository as
+  well. In this case, the quote is *not* included in the recipe, as
+  `straight-recipes-NAME-retrieve` would make use of `read`, which
+  will return the literal Lisp object. For example, considering the
+  following retrieval function:
+
+        (defun straight-recipes-example-retrieve (name)
+          (with-temp-buffer
+            (insert-file-literally "./recipes/example.recipe")
+            (read (buffer-string))))
+
+  The recipe from above could be stored in the file, `example.recipe`, as:
+
+        `( package :type git :repo "host/repo"
+           :build ,(pcase system-type
+                     (`berkeley-unix '("gmake"))
+                     (_ '("make")))
+           :files (:defaults))
+
 * Define a function `straight-recipes-NAME-list`, which takes no
   arguments and returns a list of strings representing packages for
   which recipes are available. It is permissible to return some
@@ -2872,34 +2968,6 @@ To help avoid you shooting yourself in the foot by using both
 different package managers), `straight.el` will helpfully disable
 `:ensure` whenever you include `:straight` in a `use-package` form.
 See [#425].
-
-#### Integration with Org
-
-Org expects you to run `make` in its source repository before you run
-it, but `straight.el` does not yet support running such build systems
-automatically (see [#72]). This presents two problems:
-
-* Byte-compiling Org without running `make` first produces some
-  annoying warnings.
-* Running `make` generates a file `org-version.el` which provides the
-  functions `org-git-version` and `org-release`. Thus the version of
-  Org provided by `straight.el` does not include these functions, but
-  the obsolete version of Org provided by Emacs (see [the
-  FAQ][#faq/package-versions]) does. This can result in the obsolete
-  version getting partially loaded, which is confusing.
-
-See [#211] for discussion.
-
-By default, `straight.el` installs a hack (namely, defining the
-functions `org-git-version` and `org-release` itself) whenever you ask
-it to install Org. This functionality is implemented using
-[`straight-use-package-prepare-functions`][#user/install/hooks]. You
-can disable it by setting the value of the variable `straight-fix-org`
-to nil.
-
-Please be careful with setting `straight-vc-git-default-clone-depth`,
-which may break some packages' installing processes such as `elfeed`
-that depend on `org`.
 
 #### Integration with Flycheck
 

@@ -555,6 +555,12 @@ The warning message is obtained by passing MESSAGE and ARGS to
           (backward-char)))
       (insert (make-string (- n num-existing) ?\n)))))
 
+;;;;; Predicates
+
+(defun straight--quoted-form-p (object)
+  "Return t if OBJECT is quoted or backquoted, else nil."
+  (when (member (car-safe object) '(quote \`)) t))
+
 ;;;;; Windows OS detection
 
 (defun straight--windows-os-p ()
@@ -891,6 +897,8 @@ Output is logged to `straight-process-buffer' unless
 
 The return value of this function is undefined."
   (let ((directory (or straight--default-directory default-directory)))
+    (when (string-match-p "/" program)
+      (setq program (expand-file-name program directory)))
     (prog1 nil
       (with-current-buffer (straight--process-get-buffer)
         (let ((inhibit-read-only t))
@@ -2755,18 +2763,38 @@ Return a list of package names as strings."
 
 ;;;;;; Org
 
+(make-obsolete-variable
+ 'straight-fix-org
+ "No longer necessary, as straight.el supports external build commands."
+ "2020-07-28")
+
 (defun straight-recipes-org-elpa-retrieve (package)
   "Look up a pseudo-PACKAGE recipe in Org ELPA.
 PACKAGE must be either `org' or `org-plus-contrib'. Otherwise
 return nil."
   (pcase package
     (`org
-     '(org :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
-           :local-repo "org"))
+     '`(org :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
+            :local-repo "org"
+            :build ,(let ((make (if (eq system-type 'berkeley-unix)
+                                    "gmake"
+                                  "make"))
+                          (emacs (concat "EMACS="
+                                         invocation-directory
+                                         invocation-name)))
+                      `(,make "oldorg" ,emacs))))
     (`org-plus-contrib
-     '(org-plus-contrib
-       :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
-       :local-repo "org" :files (:defaults "contrib/lisp/*.el")))
+     '`(org-plus-contrib
+        :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
+        :local-repo "org"
+        :files (:defaults "contrib/lisp/*.el")
+        :build ,(let ((make (if (eq system-type 'berkeley-unix)
+                                "gmake"
+                              "make"))
+                      (emacs (concat "EMACS="
+                                     invocation-directory
+                                     invocation-name)))
+                  `(,make "oldorg" ,emacs))))
     (_ nil)))
 
 (defun straight-recipes-org-elpa-list ()
@@ -2775,7 +2803,7 @@ return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  1)
+  2)
 
 ;;;;;; MELPA
 
@@ -3022,12 +3050,14 @@ straight.el to not even bother cloning recipe repositories to
 look for recipes for these packages."
   :type '(repeat symbol))
 
-(defvar straight--build-keywords '(:files
+(defvar straight--build-keywords '(:build
+                                   :files
                                    :flavor
                                    :local-repo
                                    :no-autoloads
                                    :no-byte-compile
-                                   :no-native-compile)
+                                   :no-native-compile
+                                   :post-build)
   "Keywords that affect how a package is built locally.
 If the values for any of these keywords change, then package
 needs to be rebuilt. See also `straight-vc-keywords'.")
@@ -3119,6 +3149,10 @@ for dependency resolution."
                              straight-recipe-repositories))))))
         ;; MELPA-style recipe format is a list whose car is the
         ;; package name as a symbol, and whose cdr is a plist.
+
+        ;; Recipes retrieved from files may be backquoted.
+        (when (straight--quoted-form-p full-melpa-style-recipe)
+          (setq full-melpa-style-recipe (eval full-melpa-style-recipe)))
         (cl-destructuring-bind (package . plist) full-melpa-style-recipe
           ;; Recipes taken from recipe repositories would not normally
           ;; have `:local-repo' specified. But if the recipe was
@@ -3133,11 +3167,16 @@ for dependency resolution."
             ;; not present in the override and adding them there.
             (let* ((sources (plist-get plist :source))
                    (default
-                     (or (cdr (straight-recipes-retrieve package
-                                                         (if (listp sources)
-                                                             sources
-                                                           (list sources))))
-                         plist))
+                     (or
+                      (when-let ((retrieved (straight-recipes-retrieve
+                                             package
+                                             (if (listp sources)
+                                                 sources
+                                               (list sources)))))
+                        ;; Recipes retrieved from files may be backquoted.
+                        (cdr (if (straight--quoted-form-p retrieved)
+                                 (eval retrieved) retrieved)))
+                      plist))
                    (type (or (plist-get default :type) 'git))
                    (keywords
                     (append
@@ -4204,6 +4243,39 @@ other value, the behavior is not specified."
      ;; Keys are strings.
      #'equal)))
 
+;;;;; Running Build Commands
+
+(defun straight--run-build-commands (recipe &optional post)
+  "Run RECIPE's :build or :post-build commands synchronously.
+If POST is non-nil, RECIPE's :post-build commands are run.
+Otherwise, the :build commands are run.
+RECIPE is a straight.el-style plist.
+
+Each command is either an elisp form to be evaluated or a list of
+strings to be executed in a shell context of the form:
+
+  (\"executable\" \"arg\"...)
+
+Commands are exectued in the repository directory.
+
+The keyword's value is expected to be one of the following:
+
+  - A single command
+  - A list of commands
+  - nil, in which case no commands are executed.
+    Note :no-build takes precedence over :build and :post-build."
+  (straight--with-plist recipe (build post-build package local-repo)
+    (when-let ((commands (if post post-build build))
+               (repo (straight--repos-dir (or local-repo package))))
+      (let ((default-directory repo))
+        ;; Allow a single command or a list of commands.
+        (dolist (command (if (cl-every #'listp commands)
+                             commands
+                           (list commands)))
+          (if (cl-every #'stringp command)
+              (apply #'straight--warn-call command)
+            (eval command)))))))
+
 ;;;;; Symlinking
 
 (defun straight--symlink-package (recipe)
@@ -4576,10 +4648,11 @@ recipe in `straight--build-cache' for the package are updated."
 
 (defun straight--build-package (recipe &optional cause)
   "Build the package specified by the RECIPE.
-This includes symlinking the package files into the build
-directory, building dependencies, generating the autoload file,
-byte-compiling, and updating the build cache. It is assumed that
-the package repository has already been cloned.
+This includes running RECIPE's `:build` commands, symlinking the package
+files into the build directory, building dependencies, generating the
+autoload file, byte-compiling, running RECIPE's `:post-build`
+commands, and updating the build cache. It is assumed that the package
+repository has already been cloned.
 
 RECIPE is a straight.el-style plist. CAUSE is a string indicating
 the reason this package is being built."
@@ -4590,6 +4663,7 @@ the reason this package is being built."
     (let ((task (concat cause (when cause straight-arrow)
                         (format "Building %s" package))))
       (straight--with-progress task
+        (straight--run-build-commands recipe)
         (straight--symlink-package recipe)
         ;; The following function call causes the dependency list to
         ;; be written to the build cache. There is no need to save it
@@ -4634,6 +4708,7 @@ the reason this package is being built."
         (straight--byte-compile-package recipe)
         (straight--native-compile-package recipe)
         (straight--compile-package-texinfo recipe)
+        (straight--run-build-commands recipe 'post)
         (run-hook-with-args
          'straight-use-package-post-build-functions package))
       ;; We messed up the echo area.
@@ -6109,63 +6184,6 @@ is loaded, according to the value of
                                        '('(t) straight-use-package-by-default)
                                        use-package-defaults
                                        'symbol))))))))
-
-;;;;; Org integration
-
-(defcustom straight-fix-org t
-  "If non-nil, install a workaround for a problem with Org.
-See <https://github.com/raxod502/straight.el/issues/211> for
-discussion.
-
-This variable must be set before straight.el is loaded in order
-to take effect."
-  :type 'boolean)
-
-(defun straight--fix-org-function (package &rest _)
-  "Pre-build function to fix Org. See `straight-fix-org'.
-PACKAGE is the name of the package being built, as a string.
-
-This function is for use on the hook
-`straight-use-package-pre-build-functions'."
-  (when (member package '("org" "org-plus-contrib"))
-
-    (defun org-git-version ()
-      "The Git version of org-mode.
-Inserted by installing org-mode or when a release is made."
-      (let ((default-directory (straight--repos-dir "org")))
-        (string-trim
-         (with-output-to-string
-           (with-current-buffer standard-output
-             (call-process
-              "git" nil t nil
-              "describe"
-              "--match=release*"
-              "--abbrev=6"
-              "HEAD"))))))
-
-    (defun org-release ()
-      "The release version of org-mode.
-Inserted by installing org-mode or when a release is made."
-      (let ((default-directory (straight--repos-dir "org")))
-        (string-trim
-         (string-remove-prefix
-          "release_"
-          (with-output-to-string
-            (with-current-buffer standard-output
-              (call-process
-               "git" nil t nil
-               "describe"
-               "--match=release*"
-               "--abbrev=0"
-               "HEAD")))))))
-
-    (provide 'org-version)))
-
-(if straight-fix-org
-    (add-hook 'straight-use-package-prepare-functions
-              #'straight--fix-org-function)
-  (remove-hook 'straight-use-package-prepare-functions
-               #'straight--fix-org-function))
 
 ;;;;; Flycheck integration
 
