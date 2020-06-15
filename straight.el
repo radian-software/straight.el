@@ -851,6 +851,8 @@ Output is logged to `straight-process-buffer' unless
 
 The return value of this function is undefined."
   (let ((directory (or straight--default-directory default-directory)))
+    (when (string-match-p "/" program)
+      (setq program (expand-file-name program directory)))
     (prog1 nil
       (with-current-buffer (straight--process-get-buffer)
         (let ((inhibit-read-only t))
@@ -2627,6 +2629,11 @@ Return a list of package names as strings."
 
 ;;;;;; Org
 
+(make-obsolete-variable
+ 'straight-fix-org
+ "No longer necessary, as straight.el supports external build commands."
+ "2020-07-28")
+
 (defun straight-recipes-org-elpa-retrieve (package)
   "Look up a pseudo-PACKAGE recipe in Org ELPA.
 PACKAGE must be either `org' or `org-plus-contrib'. Otherwise
@@ -2634,11 +2641,26 @@ return nil."
   (pcase package
     (`org
      '(org :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
-           :local-repo "org"))
+           :local-repo "org"
+           :build `,(let ((make (if (eq system-name 'berkeley-unix)
+                                    "gmake"
+                                  "make"))
+                          (emacs (concat "EMACS="
+                                         invocation-directory
+                                         invocation-name)))
+                      `(,make "oldorg" ,emacs))))
     (`org-plus-contrib
      '(org-plus-contrib
        :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
-       :local-repo "org" :files (:defaults "contrib/lisp/*.el")))
+       :local-repo "org"
+       :files (:defaults "contrib/lisp/*.el")
+       :build `,(let ((make (if (eq system-name 'berkeley-unix)
+                                "gmake"
+                              "make"))
+                      (emacs (concat "EMACS="
+                                     invocation-directory
+                                     invocation-name)))
+                  `(,make "oldorg" ,emacs))))
     (_ nil)))
 
 (defun straight-recipes-org-elpa-list ()
@@ -2647,7 +2669,7 @@ return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  1)
+  2)
 
 ;;;;;; MELPA
 
@@ -4061,6 +4083,46 @@ other value, the behavior is not specified."
      ;; Keys are strings.
      #'equal)))
 
+;;;;; Running Build Commands
+
+(defun straight--run-build-commands (recipe)
+  "Run RECIPE's :build commands synchronously.
+RECIPE is a straight.el-style plist.
+
+Each command is either an elisp form to be evaluated or a list of
+strings to be executed in a shell context of the form:
+
+  (\"executable\" \"arg\"...)
+
+Commands are exectued in the repository directory.
+
+The :build keyword is expected to be one of the following:
+
+  - A single command
+  - A list of commands
+  - An alist in which each cons cell's car is a system-type symbol
+  (or the symbol default) and cdr is either of the values mentioned above.
+  If an alist is used one of the cons cells must provide a default key.
+  - A backquoted form which evaluates to any of the above.
+  - nil, in which case no commands are executed.
+    Note :no-build takes precedence over :build."
+  (straight--with-plist recipe (build package local-repo)
+    (when build
+      (let ((c (car build)))
+        (when (or (eq c '\`) (eq c 'quote)) (setq build (eval build))))
+      (when-let ((commands (or (alist-get system-type build)
+                               (alist-get 'default build)
+                               build))
+                 (repo (straight--repos-dir (or local-repo package))))
+        (let ((default-directory repo))
+          ;; Allow a single command or a list of commands.
+          (dolist (command (if (cl-every #'listp commands)
+                               commands
+                             `(,commands)))
+            (if (cl-every #'stringp command)
+                (apply #'straight--warn-call command)
+              (eval command))))))))
+
 ;;;;; Symlinking
 
 (defun straight--symlink-package (recipe)
@@ -4423,10 +4485,10 @@ recipe in `straight--build-cache' for the package are updated."
 
 (defun straight--build-package (recipe &optional cause)
   "Build the package specified by the RECIPE.
-This includes symlinking the package files into the build
-directory, building dependencies, generating the autoload file,
-byte-compiling, and updating the build cache. It is assumed that
-the package repository has already been cloned.
+This includes running RECIPE's `:build` commands, symlinking the package
+files into the build directory, building dependencies, generating the
+autoload file, byte-compiling, and updating the build cache. It is
+assumed that the package repository has already been cloned.
 
 RECIPE is a straight.el-style plist. CAUSE is a string indicating
 the reason this package is being built."
@@ -4437,6 +4499,7 @@ the reason this package is being built."
     (let ((task (concat cause (when cause straight-arrow)
                         (format "Building %s" package))))
       (straight--with-progress task
+        (straight--run-build-commands recipe)
         (straight--symlink-package recipe)
         ;; The following function call causes the dependency list to
         ;; be written to the build cache. There is no need to save it
@@ -5925,63 +5988,6 @@ is loaded, according to the value of
                                        '('(t) straight-use-package-by-default)
                                        use-package-defaults
                                        'symbol))))))))
-
-;;;;; Org integration
-
-(defcustom straight-fix-org t
-  "If non-nil, install a workaround for a problem with Org.
-See <https://github.com/raxod502/straight.el/issues/211> for
-discussion.
-
-This variable must be set before straight.el is loaded in order
-to take effect."
-  :type 'boolean)
-
-(defun straight--fix-org-function (package &rest _)
-  "Pre-build function to fix Org. See `straight-fix-org'.
-PACKAGE is the name of the package being built, as a string.
-
-This function is for use on the hook
-`straight-use-package-pre-build-functions'."
-  (when (member package '("org" "org-plus-contrib"))
-
-    (defun org-git-version ()
-      "The Git version of org-mode.
-Inserted by installing org-mode or when a release is made."
-      (let ((default-directory (straight--repos-dir "org")))
-        (string-trim
-         (with-output-to-string
-           (with-current-buffer standard-output
-             (call-process
-              "git" nil t nil
-              "describe"
-              "--match=release*"
-              "--abbrev=6"
-              "HEAD"))))))
-
-    (defun org-release ()
-      "The release version of org-mode.
-Inserted by installing org-mode or when a release is made."
-      (let ((default-directory (straight--repos-dir "org")))
-        (string-trim
-         (string-remove-prefix
-          "release_"
-          (with-output-to-string
-            (with-current-buffer standard-output
-              (call-process
-               "git" nil t nil
-               "describe"
-               "--match=release*"
-               "--abbrev=0"
-               "HEAD")))))))
-
-    (provide 'org-version)))
-
-(if straight-fix-org
-    (add-hook 'straight-use-package-prepare-functions
-              #'straight--fix-org-function)
-  (remove-hook 'straight-use-package-prepare-functions
-               #'straight--fix-org-function))
 
 ;;;;; Flycheck integration
 
