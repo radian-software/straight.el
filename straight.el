@@ -4580,7 +4580,8 @@ RECIPE is a straight.el-style plist."
                        straight--autoloads-cache)))
           ;; Some autoloads files expect to be loaded normally, rather
           ;; than read and evaluated separately. Fool them.
-          (let ((load-file-name (straight--autoloads-file package)))
+          (let ((load-file-name (straight--autoloads-file package))
+                (load-in-progress t))
             ;; car is the feature list, cdr is the autoloads.
             (dolist (form (cdr (gethash package straight--autoloads-cache)))
               (eval form))))
