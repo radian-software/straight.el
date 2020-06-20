@@ -1131,17 +1131,18 @@ transaction. In this case, the caller must do this itself."
 
 ;;;; Feature detection
 
+(defcustom straight-find-executable "find"
+  "Executable path of find command used by straight.el."
+  :type 'string)
+
 (defun straight--determine-find-flavor ()
   "Determine the best default value of `straight-find-flavor'.
 This uses -newermt if possible, and -newer otherwise."
   (if (straight--check-call
-       "find" "/dev/null" "-newermt" "2018-01-01 12:00:00")
+       straight-find-executable
+       "/dev/null" "-newermt" "2018-01-01 12:00:00")
       `(newermt)
     nil))
-
-(defcustom straight-find-executable "find"
-  "Executable path of find command used by straight.el."
-  :type 'string)
 
 (defcustom straight-find-flavor (straight--determine-find-flavor)
   "What options the available find(1) binary supports.
