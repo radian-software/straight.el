@@ -2742,6 +2742,20 @@ you need to update your recipe repositories (most likely MELPA,
 possibly Emacsmirror). See the next FAQ entry. This is like running
 `package-refresh-contents` under `package.el`.
 
+Another possibility is that you are providing `straight.el` with a
+feature name rather than a package name. Features are what you load
+with `require` or `load`, or find in files. For example, `org-agenda`
+and `org-capture` are features. Packages, on the other hand, can
+provide one or more features. They are what are listed on MELPA et al.
+or by `M-x straight-get-recipe`. For example, `org` and
+`org-plus-contrib` are packages.
+
+When you write `(use-package foo ...)`, the `foo` is a *feature*, not
+a package. You can give a different package name `bar` by saying
+`(use-package foo :straight bar)`. And when you write
+`(straight-use-package 'bar)`, the `bar` is a *package*, not a
+feature.
+
 ### How do I update MELPA et al.?
 
 Using [`M-x straight-pull-package`][#user/interactive/vc], like for
