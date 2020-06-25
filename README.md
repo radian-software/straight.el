@@ -1425,7 +1425,7 @@ lookup][#user/lookup]). You can see the default recipe for a package
 by invoking [`M-x straight-get-recipe`][#user/interactive].
 
 If `straight-allow-recipe-inheritance` is non-nil, then you only need
-to specify the components of the recpie that you want to override. All
+to specify the components of the recipe that you want to override. All
 other components will still be looked up in the default recipe. In the
 example above, we are only interested in changing the `:fork`
 component. Therefore if `straight-allow-recipe-inheritance` is set,
