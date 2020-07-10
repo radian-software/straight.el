@@ -2830,12 +2830,13 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
   (let ((packages nil))
     (dolist (org '("mirror" "attic"))
       (with-temp-buffer
-        (insert-file-contents org)
+        (insert-file-contents-literally org)
         (setq packages (nconc (mapcar
                                (lambda (package)
                                  (replace-regexp-in-string
                                   "-plus\\b" "+" package 'fixedcase 'literal))
-                               (split-string (buffer-string) "\n" 'omit-nulls))
+                               (split-string
+                                (buffer-string) "\r?\n" 'omit-nulls))
                               packages))))
     packages))
 
