@@ -141,7 +141,7 @@
              (error "Malformed version lockfile: %S" lockfile-name))))))
     (unless version
       ;; If no lockfile present, use latest version.
-      (setq version :alpha))
+      (setq version :beta))
     (with-current-buffer
         (url-retrieve-synchronously
          (format
