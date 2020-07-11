@@ -74,7 +74,7 @@ ELSE (or nil)."
            (if ,symbol
                ,then
              ,else))))))
-
+ 
 ;; Not defined before Emacs 25.1
 (eval-and-compile
   (unless (fboundp 'when-let)
@@ -1448,9 +1448,15 @@ For built-in packages, this is always nil."
 
 ;;;;; Git
 
-(defcustom straight-vc-git-default-branch "master"
+(defcustom straight-vc-git-default-branch "main"
   "The default value for `:branch' when `:type' is symbol `git'."
   :type 'string)
+
+(defcustom straight-vc-git-alternate-branches'("master")
+  "Other possible names for the main branch.
+This will be consulted if the name in
+`straight-vc-git-default-branch' cannot be found."
+  :type 'list)
 
 (defcustom straight-vc-git-primary-remote "origin"
   "The remote name to use for the primary remote.
@@ -1551,7 +1557,8 @@ appropriately."
               `(cond
                 (,check ,value)
                 (,upstream-check ,upstream-value)
-                (t straight-vc-git-default-branch)))
+                (t (cons straight-vc-git-default-branch
+                         straight-vc-git-alternate-branches))))
              (`remote
               `(cond
                 (,check ,value)
@@ -2057,12 +2064,15 @@ used; it should be a string that is not prefixed with a remote
 name."
   (straight-vc-git--destructure recipe
       (local-repo branch)
-    (while t
-      (and (straight-vc-git--ensure-local recipe)
-           (or (straight-vc-git--ensure-head
-                local-repo branch (format "%s/%s" remote remote-branch))
-               (straight-register-repo-modification local-repo))
-           (cl-return-from straight-vc-git--merge-from-remote-raw t)))))
+    (let ((branch (straight-vc-git--narrow-branch-in-repo branch local-repo))
+          (remote-branch (straight-vc-git--narrow-branch-in-repo remote-branch local-repo)))
+      (while t
+        (and (straight-vc-git--ensure-local recipe)
+             (or (straight-vc-git--ensure-head
+                  local-repo branch
+                  (format "%s/%s" remote remote-branch))
+                 (straight-register-repo-modification local-repo))
+             (cl-return-from straight-vc-git--merge-from-remote-raw t))))))
 
 (cl-defun straight-vc-git--pull-from-remote-raw (recipe remote remote-branch)
   "Using straight.el-style RECIPE, pull from REMOTE.
@@ -2081,7 +2091,8 @@ Return non-nil. If no local repository, do nothing and return non-nil."
         (local-repo repo branch remote)
       (unless repo
         (cl-return t))
-      (let ((push-error-message nil))
+      (let ((push-error-message nil)
+            (branch (straight-vc-git--narrow-branch-in-repo branch local-repo)))
         (while t
           (while (not (straight-vc-git--ensure-local recipe)))
           (let ((ref (format "%s/%s" remote branch)))
@@ -2131,7 +2142,8 @@ with the remotes."
     (and (straight-vc-git--ensure-remotes recipe)
          (or (and (straight-vc-git--ensure-nothing-in-progress local-repo)
                   (straight-vc-git--ensure-worktree local-repo)
-                  (straight-vc-git--ensure-head local-repo branch))
+                  (straight-vc-git--ensure-head local-repo
+                                                (straight-vc-git--narrow-branch-in-repo branch local-repo)))
              (straight-register-repo-modification local-repo)))))
 
 (defcustom straight-vc-git-default-clone-depth 'full
@@ -2297,6 +2309,22 @@ argument is not part of the VC API."
 If RECIPE does not configure a fork, do nothing."
   (straight-vc-git-fetch-from-remote recipe 'from-upstream))
 
+(cl-defun straight-vc-git--narrow-branch-in-repo (branches repo)
+  "Narrow possible BRANCHES to a single choice, in given REPO."
+  (let ((default-directory (straight--repos-dir repo)))
+    (straight-vc-git--narrow-branch branches)))
+
+(cl-defun straight-vc-git--narrow-branch (branches)
+  "Narrow possible branches to a single choice.
+Return the real branch name, or nil if none were found. BRANCHES
+can be a string, in which case it is assumed to be correct
+already, or a list, in which case we try to find the correct one."
+  (cond
+   ((cl-typep branches 'string) branches)
+   ((cl-typep branches 'list)
+    (cl-find-if (lambda (branch) (straight--check-call "git" "show-branch" branch))
+                branches))))
+
 (cl-defun straight-vc-git-merge-from-remote (recipe &optional from-upstream)
   "Using straight.el-style RECIPE, merge from the primary remote.
 If FROM-UPSTREAM is non-nil, merge from the upstream remote
@@ -2308,9 +2336,11 @@ is not part of the VC API."
                        repo branch remote fork)
       (when (and from-upstream (not fork))
         (cl-return t))
-      (let ((remote-branch (if from-upstream upstream-branch branch))
-            (repo (if from-upstream upstream-repo repo))
-            (remote (if from-upstream upstream-remote remote)))
+      (let* ((repo (if from-upstream upstream-repo repo))
+             (remote (if from-upstream upstream-remote remote))
+             (remote-branch
+              (straight-vc-git--narrow-branch-in-repo
+               (if from-upstream upstream-branch branch) repo)))
         (unless repo
           (cl-return t))
         (straight-vc-git--merge-from-remote-raw
