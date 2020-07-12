@@ -2065,7 +2065,8 @@ name."
   (straight-vc-git--destructure recipe
       (local-repo branch)
     (let ((branch (straight-vc-git--narrow-branch-in-repo branch local-repo))
-          (remote-branch (straight-vc-git--narrow-branch-in-repo remote-branch local-repo)))
+          (remote-branch (straight-vc-git--narrow-branch-in-repo
+                          remote-branch local-repo)))
       (while t
         (and (straight-vc-git--ensure-local recipe)
              (or (straight-vc-git--ensure-head
@@ -2092,7 +2093,8 @@ Return non-nil. If no local repository, do nothing and return non-nil."
       (unless repo
         (cl-return t))
       (let ((push-error-message nil)
-            (branch (straight-vc-git--narrow-branch-in-repo branch local-repo)))
+            (branch (straight-vc-git--narrow-branch-in-repo
+                     branch local-repo)))
         (while t
           (while (not (straight-vc-git--ensure-local recipe)))
           (let ((ref (format "%s/%s" remote branch)))
@@ -2142,8 +2144,9 @@ with the remotes."
     (and (straight-vc-git--ensure-remotes recipe)
          (or (and (straight-vc-git--ensure-nothing-in-progress local-repo)
                   (straight-vc-git--ensure-worktree local-repo)
-                  (straight-vc-git--ensure-head local-repo
-                                                (straight-vc-git--narrow-branch-in-repo branch local-repo)))
+                  (straight-vc-git--ensure-head
+                   local-repo
+                   (straight-vc-git--narrow-branch-in-repo branch local-repo)))
              (straight-register-repo-modification local-repo)))))
 
 (defcustom straight-vc-git-default-clone-depth 'full
@@ -2322,7 +2325,8 @@ already, or a list, in which case we try to find the correct one."
   (cond
    ((cl-typep branches 'string) branches)
    ((cl-typep branches 'list)
-    (cl-find-if (lambda (branch) (straight--check-call "git" "show-branch" branch))
+    (cl-find-if (lambda (branch)
+                  (straight--check-call "git" "show-branch" branch))
                 branches))))
 
 (cl-defun straight-vc-git-merge-from-remote (recipe &optional from-upstream)
