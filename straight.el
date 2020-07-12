@@ -74,7 +74,7 @@ ELSE (or nil)."
            (if ,symbol
                ,then
              ,else))))))
- 
+
 ;; Not defined before Emacs 25.1
 (eval-and-compile
   (unless (fboundp 'when-let)
