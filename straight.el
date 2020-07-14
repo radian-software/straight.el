@@ -2064,8 +2064,9 @@ used; it should be a string that is not prefixed with a remote
 name."
   (straight-vc-git--destructure recipe
       (local-repo branch)
-    (let ((branch (straight-vc-git--narrow-branch-in-repo branch local-repo))
-          (remote-branch (straight-vc-git--narrow-branch-in-repo
+    (let ((branch (straight-vc-git--narrow-branch-in-local-repo
+                   branch local-repo))
+          (remote-branch (straight-vc-git--narrow-branch-in-local-repo
                           remote-branch local-repo)))
       (while t
         (and (straight-vc-git--ensure-local recipe)
@@ -2093,7 +2094,7 @@ Return non-nil. If no local repository, do nothing and return non-nil."
       (unless repo
         (cl-return t))
       (let ((push-error-message nil)
-            (branch (straight-vc-git--narrow-branch-in-repo
+            (branch (straight-vc-git--narrow-branch-in-local-repo
                      branch local-repo)))
         (while t
           (while (not (straight-vc-git--ensure-local recipe)))
@@ -2146,7 +2147,8 @@ with the remotes."
                   (straight-vc-git--ensure-worktree local-repo)
                   (straight-vc-git--ensure-head
                    local-repo
-                   (straight-vc-git--narrow-branch-in-repo branch local-repo)))
+                   (straight-vc-git--narrow-branch-in-local-repo
+                    branch local-repo)))
              (straight-register-repo-modification local-repo)))))
 
 (defcustom straight-vc-git-default-clone-depth 'full
@@ -2312,9 +2314,9 @@ argument is not part of the VC API."
 If RECIPE does not configure a fork, do nothing."
   (straight-vc-git-fetch-from-remote recipe 'from-upstream))
 
-(cl-defun straight-vc-git--narrow-branch-in-repo (branches repo)
-  "Narrow possible BRANCHES to a single choice, in given REPO."
-  (let ((default-directory (straight--repos-dir repo)))
+(cl-defun straight-vc-git--narrow-branch-in-local-repo (branches local-repo)
+  "Narrow possible BRANCHES to a single choice, in given LOCAL-REPO."
+  (let ((default-directory (straight--repos-dir local-repo)))
     (straight-vc-git--narrow-branch branches)))
 
 (cl-defun straight-vc-git--narrow-branch (branches)
@@ -2343,7 +2345,7 @@ is not part of the VC API."
       (let* ((repo (if from-upstream upstream-repo repo))
              (remote (if from-upstream upstream-remote remote))
              (remote-branch
-              (straight-vc-git--narrow-branch-in-repo
+              (straight-vc-git--narrow-branch-in-local-repo
                (if from-upstream upstream-branch branch) repo)))
         (unless repo
           (cl-return t))
