@@ -2269,7 +2269,7 @@ Return the real branch name, or nil if none were found. BRANCHES
 can be a string, in which case it is assumed to be correct
 already, or a list, in which case we try to find the correct one."
   (cond
-   ((cl-typep branches 'string) branches)
+   ((stringp branches) branches)
    ((cl-typep branches 'list)
     (cl-find-if (lambda (branch)
                   (straight--check-call "git" "show-branch" branch))
