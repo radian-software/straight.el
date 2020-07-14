@@ -2324,7 +2324,7 @@ can be a string, in which case it is assumed to be correct
 already, or a list, in which case we try to find the correct one."
   (cond
    ((stringp branches) branches)
-   ((cl-typep branches 'list)
+   ((listp branches)
     (cl-find-if (lambda (branch)
                   (straight--check-call "git" "show-branch" branch))
                 branches))))
