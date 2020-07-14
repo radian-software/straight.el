@@ -1452,7 +1452,7 @@ For built-in packages, this is always nil."
   "The default value for `:branch' when `:type' is symbol `git'."
   :type 'string)
 
-(defcustom straight-vc-git-alternate-branches'("master")
+(defcustom straight-vc-git-alternate-branches '("master")
   "Other possible names for the main branch.
 This will be consulted if the name in
 `straight-vc-git-default-branch' cannot be found."
