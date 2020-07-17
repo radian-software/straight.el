@@ -6,10 +6,12 @@ EMACS ?= emacs
 SHELL := bash
 
 # The order is important for compilation.
-for_compile := straight.el bootstrap.el install.el straight-x.el
+for_compile := straight.el bootstrap.el install.el straight-x.el	\
+	benchmark/straight-bench.el
 for_checkdoc := straight.el
-for_longlines := $(wildcard *.el *.md *.yml scripts/*.bash) Makefile
-for_checkindent := $(wildcard *.el)
+for_longlines := $(wildcard *.el *.md *.yml benchmark/*.el	\
+	scripts/*.bash) Makefile
+for_checkindent := $(wildcard *.el benchmark/*.el)
 
 .PHONY: help
 help: ## Show this message
@@ -50,6 +52,7 @@ longlines: ## Check for long lines
 .PHONY: checkindent
 checkindent: ## Ensure that indentation is correct
 	@tmpdir="$$(mktemp -d)"; for file in $(for_checkindent); do \
+	    tmpfile="$$(basename $$file)"; \
 	    echo "[checkindent] $$file"; \
 	    $(EMACS) -Q --batch \
 	        --eval "(setq inhibit-message t)" \
@@ -57,11 +60,11 @@ checkindent: ## Ensure that indentation is correct
 	        --eval "(load (expand-file-name \"straight.el\") nil t)" \
 	        --eval "(find-file \"$$file\")" \
 	        --eval "(indent-region (point-min) (point-max))" \
-	        --eval "(write-file \"$$tmpdir/$$file\")"; \
+	        --eval "(write-file \"$$tmpdir/$$tmpfile\")"; \
 	    (diff <(cat          "$$file" | nl -v1 -ba | \
-                           sed "s/\t/: /" | sed "s/^ */$$file:/") \
-	          <(cat "$$tmpdir/$$file" | nl -v1 -ba | \
-                           sed "s/\t/: /" | sed "s/^ */$$file:/") ) \
+                           sed "s/\t/: /" | sed "s/^ */$$tmpfile:/") \
+	          <(cat "$$tmpdir/$$tmpfile" | nl -v1 -ba | \
+                           sed "s/\t/: /" | sed "s/^ */$$tmpfile:/") ) \
 	        | grep -F ">" | grep -o "[a-z].*" | grep . && exit 1 || true; \
 	done
 
@@ -82,6 +85,11 @@ clean: ## Remove build artifacts
 .PHONY: smoke
 smoke: ## Run smoke test (for CI use only)
 	@scripts/smoke-test.bash
+
+.PHONY: bench
+bench: ## Run benchmarking script against package.el
+	@$(EMACS) -Q --batch -l benchmark/straight-bench.el \
+		-f straight-bench-batch
 
 .PHONY: docker
 docker: ## Start a Docker shell; e.g. make docker VERSION=25.3

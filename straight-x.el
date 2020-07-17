@@ -7,6 +7,7 @@
 ;; Homepage: https://github.com/raxod502/straight.el
 ;; Keywords: extensions
 ;; Package-Requires: ((emacs "24.5"))
+;; SPDX-License-Identifier: MIT
 ;; Version: prerelease
 
 ;;; Commentary:
@@ -152,7 +153,7 @@
   (let ((lockfile-path (straight--versions-lockfile 'pinned)))
     (with-temp-file lockfile-path
       (insert
-       (format "(%s)\n:alpha\n"
+       (format "(%s)\n:beta\n"
                (mapconcat
                 (apply-partially #'format "%S")
                 straight-x-pinned-packages

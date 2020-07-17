@@ -67,6 +67,10 @@ chat][gitter-badge]][gitter]
         * [`check-on-save`](#check-on-save)
         * [`watch-files`](#watch-files)
     + [Customizing how packages are built](#customizing-how-packages-are-built)
+      - [Autoload generation](#autoload-generation)
+      - [Byte compilation](#byte-compilation)
+      - [Native compilation](#native-compilation)
+      - [Symbolic links](#symbolic-links)
     + [Customizing how packages are made available](#customizing-how-packages-are-made-available)
     + [Hooks run by `straight-use-package`](#hooks-run-by-straight-use-package)
   * [The recipe format](#the-recipe-format)
@@ -92,9 +96,11 @@ chat][gitter-badge]][gitter]
     + [Integration with `use-package`](#integration-with-use-package-1)
     + ["Integration" with `package.el`](#integration-with-packageel)
     + [Integration with Org](#integration-with-org)
+    + [Integration with Flycheck](#integration-with-flycheck)
     + [Integration with Hydra](#integration-with-hydra)
   * [Miscellaneous](#miscellaneous)
 - [Developer manual](#developer-manual)
+  * [Low-level functions](#low-level-functions)
 - [Trivia](#trivia)
   * [Comments and docstrings](#comments-and-docstrings)
 - [Contributing](#contributing)
@@ -109,11 +115,11 @@ chat][gitter-badge]][gitter]
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
 - [News](#news)
+  * [April 19, 2020](#april-19-2020)
   * [July 6, 2019](#july-6-2019)
   * [May 24, 2019](#may-24-2019)
   * [May 22, 2019](#may-22-2019)
   * [May 1, 2019](#may-1-2019)
-  * [March 15, 2019](#march-15-2019)
 
 <!-- tocstop -->
 
@@ -220,26 +226,21 @@ loaded more than once.
 
 #### Debugging
 
-On macOS, you may receive an error:
+* Sometimes, in a corporate environment, `url-retrieve-synchronously`
+  may not work and `straight.el` will be unable to download the
+  installation script mentioned in the bootstrap snippet. In this
+  case, you may simply clone this repository into
+  `~/.emacs.d/straight/repos/straight.el` and check out your desired
+  revision/branch. The installation script is just a more convenient
+  way of doing that automatically when necessary (and looking up the
+  correct revision of `straight.el` in your lockfile, if any).
+* On macOS, you may receive an error:
 
-    Could not create connection to raw.githubusercontent.com:443
+      Could not create connection to raw.githubusercontent.com:443
 
-There are two ways to solve this problem. One way is to install a
-version of Emacs that is linked with GnuTLS. The [Homebrew] formula
-for Emacs was recently updated to link with GnuTLS by default, so you
-need only do this:
-
-    $ brew upgrade emacs
-
-The other way is to let Emacs use certificates provided by LibreSSL,
-which you can do by running this command:
-
-    $ brew install gnutls libressl
-
-And adding this to your init-file, *before* the bootstrap snippet:
-
-    (with-eval-after-load 'gnutls
-      (add-to-list 'gnutls-trustfiles "/usr/local/etc/libressl/cert.pem"))
+  This is likely because you are using an ancient version of Emacs
+  which has a broken TLS configuration. Upgrade with `brew upgrade
+  emacs`.
 
 ### Install packages
 
@@ -1424,7 +1425,7 @@ lookup][#user/lookup]). You can see the default recipe for a package
 by invoking [`M-x straight-get-recipe`][#user/interactive].
 
 If `straight-allow-recipe-inheritance` is non-nil, then you only need
-to specify the components of the recpie that you want to override. All
+to specify the components of the recipe that you want to override. All
 other components will still be looked up in the default recipe. In the
 example above, we are only interested in changing the `:fork`
 component. Therefore if `straight-allow-recipe-inheritance` is set,
@@ -1511,7 +1512,6 @@ what sort of `find(1)` program is installed, and issue the appropriate
 command. If it makes a mistake, then you can manually customize
 `straight-find-flavor`. Alternately, you can install GNU find and
 customize the variable `straight-find-executable` to point to it.
-
 
 For about 100 packages on an SSD, calling `find(1)` to detect
 modifications takes about 500ms. You can save this time by customizing
@@ -1631,6 +1631,8 @@ which do not bundle executable Lisp code. (Make sure to use
 [`straight-use-recipes`][#user/lookup/repos] for registering recipe
 repositories.)
 
+##### Autoload generation
+
 By specifying a non-nil value for the `:no-autoloads` attribute in a
 package's recipe, you may prevent any autoloads provided by the
 package from being generated and loaded into Emacs. This is mostly
@@ -1641,12 +1643,34 @@ you *really* know what you're doing). You can also customize the
 variable `straight-disable-autoloads` to effect this change on all
 recipes which do not explicitly specify a `:no-autoloads` attribute.
 
+##### Byte compilation
+
 By specifying a non-nil value for the `:no-byte-compile` attribute in
 a package's recipe, you may inhibit byte-compilation. See [this
 issue][#357] for discussion of why this might be useful. You can also
 customize the variable `straight-disable-byte-compilation` to effect
 this change on all recipes which do not explicitly specify a
 `:no-byte-compile` attribute.
+
+##### Native compilation
+
+Experimental support for native compilation of Emacs Lisp code is
+currently under development in the `feature/native-comp` branch of the
+official Emacs repository (see [gccemacs][gccemacs]). When running on
+this version of Emacs, `straight.el` will perform native compilation
+of packages.
+
+By specifying a non-nil value for the `:no-native-compile` attribute
+in a package's recipe, you may inhibit native compilation. You can
+also customize the variable `straight-disable-native-compilation` to
+effect this change on all recipes which do not explicitly specify a
+`:no-native-compile` attribute.
+
+Native compilation requires byte-compilation, so `:no-byte-compile`
+and `straight-disable-byte-compilation` will also disable native
+compilation.
+
+##### Symbolic links
 
 Usually, `straight.el` uses symbolic links ("symlinks") to make
 package files available from the build directory. This happens when
@@ -1869,9 +1893,9 @@ These are the keywords meaningful for the `git` backend:
   `:branch`, and `:remote`.
 * `:depth`: either the symbol `full` or an integer. If `full`, then
   the repository is cloned with its whole history. If an integer `N`,
-  then the repository is cloned with the option `--depth N`, unless a
-  commit is specified (e.g. by version lockfiles). The default value
-  is `full`.
+  then the repository is cloned with the option `--depth N`. This
+  works even when a commit is specified (e.g. by version lockfiles).
+  The default value is `full`.
 
 This section tells you how the `git` backend, specifically, implements
 the version-control backend API:
@@ -1943,8 +1967,8 @@ You can customize the following user options:
 * `straight-vc-git-default-clone-depth`: the default value for the
   `:depth` keyword. It can be either the symbol `full` or an integer,
   and defaults to `full`. Setting this variable to a small integer will
-  reduce the size of repositories. Note that this variable does *not*
-  affect packages whose versions are locked.
+  reduce the size of repositories. This variable affects all packages,
+  even those whose versions are locked.
 
 ##### Deprecated `:upstream` keyword
 
@@ -2423,7 +2447,7 @@ simple: *reload your entire init-file*. That way, `straight.el` will
 see whether or not that package is registered during your init-file.
 
 One might ask how `straight.el` determines that you have finished
-loading your init-file. The answer is simple: `run-with-idle-timer` is
+loading your init-file. The answer is simple: `post-command-hook` is
 used to execute code only after the current interactive operation has
 finished. The implementation of this concept is part of the
 *transaction system* of `straight.el`, and it is also used to amortize
@@ -2577,6 +2601,33 @@ Please be careful with setting `straight-vc-git-default-clone-depth`,
 which may break some packages' installing processes such as `elfeed`
 that depend on `org`.
 
+#### Integration with Flycheck
+
+[Flycheck] sometimes creates temporary files in order to perform
+syntax checking. This is a problem for `straight.el` because creation
+of temporary files will cause `straight.el` to think that you have
+modified a package when you actually have not. (You might ask why
+`straight.el` cannot recognize temporary files and ignore them. The
+answer is that for eager modification checking, all we see is that the
+directory mtime for the repository has been updated, and there's no
+way to disambiguate between temporary file shenanigans versus if you,
+say, deleted a file.)
+
+To work around the problem, a user option `straight-fix-flycheck` is
+provided, disabled by default (for now). You can enable it *before*
+loading `straight.el`, and it will work around the Flycheck problem in
+the following way. When you first visit a buffer, any Flycheck checker
+that involves creation of temporary files will be inhibited
+automatically, although other checkers will still run. (In practice
+this means no byte-compilation errors for Emacs Lisp, but you still
+get Checkdoc errors.) However, after you make a change to the buffer
+(by typing, etc.) then all checkers will be re-enabled. This means
+that `straight.el` won't think the package was modified unless you
+actually modify the buffer of a file inside it, which I think is a
+reasonable compromise.
+
+See [#508] for discussion.
+
 #### Integration with Hydra
 
 See [the Hydra wiki][hydra-wiki-straight-entry].
@@ -2613,7 +2664,14 @@ details and design decisions that power `straight.el` behind the
 scenes. It assumes you have already read the [user manual][#user] and
 the [conceptual overview][#concepts].
 
-Unfortunately, I haven't yet had time to write it. See [#51].
+More to be written here in future. See [#51].
+
+### Low-level functions
+
+* The function `straight-chase-emulated-symlink` is provided in order
+  for external packages to correctly handle the emulated symlinks
+  created by `straight.el` when `straight-use-symlinks` is nil. See,
+  for example, [#520].
 
 ## Trivia
 
@@ -2881,6 +2939,12 @@ Note that `:type` is a keyword for `straight.el`, not for
 [Read more.][#user/recipes]
 
 ## News
+### April 19, 2020
+
+Shallow clones are now compatible with lockfiles, so you can safely
+set `straight-vc-git-default-clone-depth` to `1` and get massive
+savings on network bandwidth and disk space.
+
 ### July 6, 2019
 
 The default value of the user option `straight-emacsmirror-use-mirror`
@@ -2914,14 +2978,6 @@ your lockfile can not be found and normalizes the repository to the
 recipe's default branch. This should ensure that versions you have
 frozen can be quickly restored and that they can also be saved back to
 the version lock file. This addresses issues [#58], [#66], and [#294].
-
-### March 15, 2019
-
-`straight.el` [now installs a hack for Org by
-default][#user/integration/org], so Org should work out of the box
-with no compile warnings. If you have code to work around the problem
-in your init-file, you can safely remove it. To avoid installing the
-hack, customize the variable `straight-fix-org`.
 
 [#principles]: #guiding-principles
 [#quickstart]: #getting-started
@@ -2981,6 +3037,8 @@ hack, customize the variable `straight-fix-org`.
 [#356]: https://github.com/raxod502/straight.el/issues/356
 [#357]: https://github.com/raxod502/straight.el/issues/357
 [#425]: https://github.com/raxod502/straight.el/issues/425
+[#508]: https://github.com/raxod502/straight.el/issues/508
+[#520]: https://github.com/raxod502/straight.el/issues/520
 
 [auto-compile]: https://github.com/tarsius/auto-compile
 [borg]: https://github.com/emacscollective/borg
@@ -2996,7 +3054,9 @@ hack, customize the variable `straight-fix-org`.
 [emacswiki]: https://www.emacswiki.org/
 [epkg]: https://github.com/emacscollective/epkg
 [epkgs]: https://github.com/emacsmirror/epkgs
+[flycheck]: https://www.flycheck.org/en/latest/
 [forge]: https://github.com/magit/forge
+[gccemacs]: http://akrl.sdf.org/gccemacs.html
 [git]: https://git-scm.com/
 [git-credential-cache]: https://git-scm.com/docs/git-credential-cache
 [gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg

@@ -7,6 +7,7 @@
 ;; Homepage: https://github.com/raxod502/straight.el
 ;; Keywords: extensions
 ;; Package-Requires: ((emacs "24.5"))
+;; SPDX-License-Identifier: MIT
 ;; Version: prerelease
 
 ;;; Commentary:
@@ -110,6 +111,11 @@ They are still logged to the *Messages* buffer.")))
 
 ;; `finder-inf'
 (defvar package--builtins)
+
+;; `flycheck'
+(declare-function flycheck-checker-get "flycheck")
+(declare-function flycheck-get-next-checker-for-buffer "flycheck")
+(declare-function flycheck-start-current-syntax-check "flycheck")
 
 ;; `magit'
 (declare-function magit-status-setup-buffer "magit-status")
@@ -526,8 +532,32 @@ The warning message is obtained by passing MESSAGE and ARGS to
 ;;;;; Paths
 
 (defcustom straight-base-dir user-emacs-directory
-  "Parent path of straight directory. Defaults to `user-emacs-directory'."
+  "Directory in which the straight/ subdirectory is created.
+Defaults to `user-emacs-directory'."
   :type 'string)
+
+(defcustom straight-build-dir "build"
+  "Name of the directory into which packages are built.
+Relative to the straight/ subdirectory of `straight-base-dir'.
+Defaults to \"build\".
+
+By default, this variable also affects the name of the build
+cache file, set the variable `straight-build-cache-fixed-name'
+to override this."
+  :type 'string)
+
+(defcustom straight-build-cache-fixed-name nil
+  "Name of the build cache file.
+If it is nil, uses the default name, namely
+\"`straight-build-dir'-cache.el\".
+
+If it is not nil, it has to be a string which is used as the
+name of the cache file.
+
+In both cases, the path is relative to the \"straight/\"
+subdirectory of `straight-base-dir'."
+  :type '(choice (const :tag "Default location" nil)
+                 (string :tag "Fixed location")))
 
 (defvar straight--this-file
   (file-truename (or load-file-name buffer-file-name))
@@ -578,12 +608,12 @@ SEGMENTS are passed to `straight--emacs-file'."
   "Get a subdirectory of the straight/build/ directory.
 SEGMENTS are passed to `straight--dir'. With no SEGMENTS, return
 the straight/build/ directory itself."
-  (apply #'straight--dir "build" segments))
+  (apply #'straight--dir straight-build-dir segments))
 
 (defun straight--build-file (&rest segments)
   "Get a file in the straight/build/ directory.
 SEGMENTS are passed to `straight--file'."
-  (apply #'straight--file "build" segments))
+  (apply #'straight--file straight-build-dir segments))
 
 (defun straight--autoloads-file (package)
   "Get the filename of the autoloads file for PACKAGE.
@@ -592,7 +622,9 @@ PACKAGE should be a string."
 
 (defun straight--build-cache-file ()
   "Get the file containing straight.el's build cache."
-  (straight--file "build-cache.el"))
+  (straight--file
+   (or straight-build-cache-fixed-name
+       (concat straight-build-dir "-cache.el"))))
 
 (defun straight--links-dir (&rest segments)
   "Get a subdirectory of straight/links/.
@@ -1099,17 +1131,18 @@ transaction. In this case, the caller must do this itself."
 
 ;;;; Feature detection
 
+(defcustom straight-find-executable "find"
+  "Executable path of find command used by straight.el."
+  :type 'string)
+
 (defun straight--determine-find-flavor ()
   "Determine the best default value of `straight-find-flavor'.
 This uses -newermt if possible, and -newer otherwise."
   (if (straight--check-call
-       "find" "/dev/null" "-newermt" "2018-01-01 12:00:00")
+       straight-find-executable
+       "/dev/null" "-newermt" "2018-01-01 12:00:00")
       `(newermt)
     nil))
-
-(defcustom straight-find-executable "find"
-  "Executable path of find command used by straight.el."
-  :type 'string)
 
 (defcustom straight-find-flavor (straight--determine-find-flavor)
   "What options the available find(1) binary supports.
@@ -2122,45 +2155,68 @@ with the remotes."
   "The default value for `:depth' when `:type' is the symbol `git'.
 
 The value should be the symbol `full' or an integer. If the value
-is `full', clone the whole history of repositories. If the value is
-an integer N, remote repositories are cloned with the option --depth N,
-unless a commit is specified (e.g. by version lockfiles)."
+is `full', clone the whole history of repositories. If the value
+is an integer N, remote repositories are cloned with the options
+--depth N --single-branch --no-tags."
   :group 'straight
   :type '(choice integer (const full)))
 
 (cl-defun straight-vc-git--clone-internal
-    (&key depth upstream-remote url repo-dir branch)
+    (&key depth remote url repo-dir branch commit)
   "Clone a remote repository from URL.
 
-If DEPTH is the symbol `full', clone the whole history of the repository.
-If DEPTH is an integer, clone with the option --depth DEPTH --branch BRANCH.
-If this fails, try again to clone without the option --depth and --branch,
-as a fallback.
+If DEPTH is the symbol `full', clone the whole history of the
+repository. If DEPTH is an integer, pass it to the --depth option
+of git-clone to perform a shallow clone. If this fails, try again
+to clone without the option --depth and --branch, as a fallback.
 
-UPSTREAM-REMOTE is the name of the remote to use for the upstream
-\(e.g. \"origin\"; see `straight-vc-git-default-remote-name').
-URL and REPO-DIR are the positional arguments passed to
-git-clone(1), and BRANCH is the name of the default
-branch (although it won't be checked out as per --no-checkout)."
+REMOTE is the name of the remote to use \(e.g. \"origin\"; see
+`straight-vc-git-default-remote-name'). URL and REPO-DIR are the
+positional arguments passed to git-clone(1), and BRANCH is the
+name of the default branch (although it won't be checked out as
+per --no-checkout).
+
+If COMMIT is non-nil and DEPTH is not `full', then try to clone
+only that specific commit from the remote. Fall back to doing a
+clone of everything."
   (cond
    ((eq depth 'full)
     ;; Clone the whole history of the repository.
     (straight--get-call
-     "git" "clone" "--origin" upstream-remote
+     "git" "clone" "--origin" remote
      "--no-checkout" url repo-dir))
    ((integerp depth)
     ;; Do a shallow clone.
     (condition-case nil
-        (straight--get-call
-         "git" "clone" "--origin" upstream-remote
-         "--no-checkout" url repo-dir
-         "--depth" (number-to-string depth)
-         "--branch" branch)
+        (if commit
+            (progn
+              (make-directory repo-dir)
+              (let ((straight--default-directory nil)
+                    (default-directory repo-dir))
+                (straight--get-call
+                 "git" "init")
+                (straight--get-call
+                 "git" "remote" "add" remote url
+                 "--master" branch)
+                (straight--get-call
+                 "git" "fetch" remote commit
+                 "--depth" (number-to-string depth)
+                 "--no-tags")))
+          (delete-directory repo-dir 'recursive)
+          (straight--get-call
+           "git" "clone" "--origin" remote
+           "--no-checkout" url repo-dir
+           "--depth" (number-to-string depth)
+           "--branch" branch
+           "--single-branch"
+           "--no-tags"))
       ;; Fallback for dumb http protocol.
-      (error (straight-vc-git--clone-internal :depth 'full
-                                              :upstream-remote upstream-remote
-                                              :url url
-                                              :repo-dir repo-dir))))
+      (error
+       (delete-directory repo-dir 'recursive)
+       (straight-vc-git--clone-internal :depth 'full
+                                        :remote remote
+                                        :url url
+                                        :repo-dir repo-dir))))
    (t (error "Invalid value %S of depth for %s" depth url))))
 
 ;;;;;; API
@@ -2172,30 +2228,29 @@ out, signal a warning. If COMMIT is nil, check out the branch
 specified in RECIPE instead. If that fails, signal a warning."
   (straight-vc-git--destructure recipe
       (package local-repo branch remote upstream-repo upstream-host
-               upstream-remote fork-repo fork-host
-               fork-remote nonrecursive depth)
+               upstream-remote fork-repo repo host nonrecursive depth)
     (unless upstream-repo
       (error "No `:repo' specified for package `%s'" package))
     (let ((success nil)
           (repo-dir (straight--repos-dir local-repo))
-          (url (straight-vc-git--encode-url upstream-repo upstream-host))
-          (depth (or (when commit 'full)
-                     depth
-                     straight-vc-git-default-clone-depth)))
+          (url (straight-vc-git--encode-url repo host))
+          (depth (or depth straight-vc-git-default-clone-depth)))
       (unwind-protect
           (progn
             (straight-vc-git--clone-internal :depth depth
-                                             :upstream-remote upstream-remote
+                                             :remote remote
                                              :url url
                                              :repo-dir repo-dir
-                                             :branch branch)
+                                             :branch branch
+                                             :commit commit)
             (let* ((straight--default-directory nil)
                    (default-directory repo-dir)
                    (branch (straight-vc-git--narrow-branch branch)))
               (when fork-repo
-                (let ((url (straight-vc-git--encode-url fork-repo fork-host)))
-                  (straight--get-call "git" "remote" "add" fork-remote url)
-                  (straight--get-call "git" "fetch" fork-remote)))
+                (let ((url (straight-vc-git--encode-url
+                            upstream-repo upstream-host)))
+                  (straight--get-call "git" "remote" "add" upstream-remote url)
+                  (straight--get-call "git" "fetch" upstream-remote)))
               (when commit
                 (unless (straight--check-call "git" "checkout" commit)
                   (straight--warn
@@ -2696,6 +2751,20 @@ should not be a major concern since the GNU ELPA build system
 does such a good job of discouraging contributions anyway."
   :type 'boolean)
 
+(defcustom straight-recipes-gnu-elpa-ignored-packages
+  '(cl-generic
+    cl-lib
+    nadvice
+    seq)
+  "Packages from GNU ELPA that we should pretend don't exist.
+Such packages would break things if they were installed. For
+example, the `cl-lib' package from GNU ELPA is not the
+development version but rather an obsolete forwards-compatibility
+package designed for use with Emacs 24.2 and earlier. See
+<https://github.com/raxod502/straight.el/issues/531> for some
+discussion."
+  :type '(list symbol))
+
 ;;;;;;; GNU ELPA mirror
 
 (defun straight-recipes-gnu-elpa-mirror-retrieve (package)
@@ -2704,7 +2773,7 @@ PACKAGE should be a symbol. If the package is maintained in GNU
 ELPA (and should be retrieved from there, which isn't the case if
 the package is built in to Emacs), return a MELPA-style recipe.
 Otherwise, return nil."
-  (unless (straight--package-built-in-p package)
+  (unless (memq package straight-recipes-gnu-elpa-ignored-packages)
     (when (file-exists-p (symbol-name package))
       `(,package :type git
                  :host github
@@ -2724,7 +2793,7 @@ Otherwise, return nil."
 This is a list of strings."
   (cl-remove-if
    (lambda (package)
-     (straight--package-built-in-p (intern package)))
+     (memq (intern package) straight-recipes-gnu-elpa-ignored-packages))
    (straight--directory-files)))
 
 (defun straight-recipes-gnu-elpa-mirror-version ()
@@ -2744,7 +2813,7 @@ PACKAGE should be a symbol. If the package is maintained in GNU
 ELPA (and should be retrieved from there, which isn't the case if
 the package is built in to Emacs), return a MELPA-style recipe.
 Otherwise, return nil."
-  (unless (straight--package-built-in-p package)
+  (unless (memq package straight-recipes-gnu-elpa-ignored-packages)
     (when (file-exists-p (expand-file-name (symbol-name package) "packages/"))
       ;; All the packages in GNU ELPA are just subdirectories of the
       ;; same repository.
@@ -2758,7 +2827,7 @@ Otherwise, return nil."
   "Return a list of recipe names available in GNU ELPA, as a list of strings."
   (cl-remove-if
    (lambda (package)
-     (straight--package-built-in-p (intern package)))
+     (memq (intern package) straight-recipes-gnu-elpa-ignored-packages))
    (straight--directory-files "packages/")))
 
 (defun straight-recipes-gnu-elpa-version ()
@@ -2786,9 +2855,9 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
                             'fixedcase 'literal))))
       (dolist (org '("mirror" "attic"))
         (with-temp-buffer
-          (insert-file-contents-literally org)
+          (insert-file-contents org)
           (when (re-search-forward
-                 (format "^%S\r?$" mirror-package) nil 'noerror)
+                 (format "^%S$" mirror-package) nil 'noerror)
             (cl-return
              `(,package :type git :host github
                         :repo ,(format "emacs%s/%S" org mirror-package)))))))))
@@ -2798,7 +2867,7 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
   (let ((packages nil))
     (dolist (org '("mirror" "attic"))
       (with-temp-buffer
-        (insert-file-contents-literally org)
+        (insert-file-contents org)
         (setq packages (nconc (mapcar
                                (lambda (package)
                                  (replace-regexp-in-string
@@ -3083,7 +3152,8 @@ nil."
 ;;;;; Recipe registration
 
 (defvar straight--build-keywords
-  '(:local-repo :files :flavor :no-autoloads :no-byte-compile)
+  '(:local-repo :files :flavor :no-autoloads :no-byte-compile
+                :no-native-compile)
   "Keywords that affect how a package is built locally.
 If the values for any of these keywords change, then package
 needs to be rebuilt. See also `straight-vc-keywords'.")
@@ -3222,6 +3292,15 @@ only covers modifications made within ~/.emacs.d/straight/repos,
 so if you wish to use these features you should move all of your
 local repositories into that directory.
 
+PERFORMANCE IMPLICATIONS: `at-startup' means straight.el will run
+a command during startup, which can be fairly slow, especially if
+you do not have an SSD. Disable this to improve startup time.
+However, you will still want to have package modifications
+detected. Therefore add either `check-on-save', which has no
+overhead but also does not catch modifications made outside of
+Emacs, or `watch-files', which is more robust but has an external
+dependency (watchexec) and takes up memory / file descriptors.
+
 For backwards compatibility, the value of this variable may also
 be a symbol, which is translated into a corresponding list as
 follows:
@@ -3272,8 +3351,8 @@ third entry is the straight.el-normalized recipe plist for the
 package. This information is used to determine whether or not a
 package needs to be rebuilt.
 
-The value of this variable is persisted in the file
-build-cache.el.")
+The value of this variable is persisted in file pointed to in
+`straight-build-cache-file'.")
 
 (defvar straight--autoloads-cache nil
   "Hash table keeping track of autoloads extracted from packages, or nil.
@@ -3289,8 +3368,9 @@ generated at the end of an init from the keys of
 `straight--profile-cache'.")
 
 ;; See http://stormlightarchive.wikia.com/wiki/Calendar for the
-;; schema.
-(defvar straight--build-cache-version :kak
+;; schema. After that we will switch to animal names starting with
+;; sequential letters of the English alphabet.
+(defvar straight--build-cache-version :tanat
   "The current version of the build cache format.
 When the format on disk changes, this value is changed, so that
 straight.el knows to regenerate the whole cache.")
@@ -3362,7 +3442,12 @@ empty values (all packages will be rebuilt, with no caching)."
                    (listp eager-packages)
                    (cl-every #'stringp eager-packages)
                    ;; Symlink setting should not have changed.
-                   (eq use-symlinks straight-use-symlinks))
+                   (or (eq use-symlinks straight-use-symlinks)
+                       (prog1 (setq malformed nil)
+                         (straight--output
+                          (concat
+                           "Rebuilding all packages due to "
+                           "change in `straight-use-symlinks'")))))
             ;; If anything is wrong, abort and use the default values.
             (when malformed
               (straight--output
@@ -3409,9 +3494,12 @@ empty values (all packages will be rebuilt, with no caching)."
       (straight--save-build-cache))))
 
 (defun straight--save-build-cache ()
-  "Write data from memory into build-cache.el.
+  "Write data from memory into the build cache file.
 This uses the values of `straight--build-cache' and
-`straight--eagerly-checked-packages'."
+`straight--eagerly-checked-packages'.
+
+The name of the cache file is stored in
+`straight-build-cache-file'."
   (unless straight-safe-mode
     (with-temp-buffer
       ;; Prevent mangling of the form being printed in the case that
@@ -4036,23 +4124,41 @@ the build directory, creating a pristine set of symlinks."
         (make-directory (file-name-directory build-file) 'parents)
         (straight--symlink-recursively repo-file build-file)))))
 
+(defvar straight-symlink-emulation-mode)
+
+(defun straight-chase-emulated-symlink (filename)
+  "Check if FILENAME is an emulated symlink.
+Return nil if it's not. Return the link target if it is. Return
+`broken' if it seems like it should be, but it can't be resolved
+to an existing file. See `straight-symlink-emulation-mode'."
+  (when straight-symlink-emulation-mode
+    (let ((build-dir (straight--build-dir)))
+      (when (straight--path-prefix-p build-dir filename)
+        ;; Remove the ~/.emacs.d/straight/build/ part, and get the
+        ;; corresponding path under straight/links/.
+        (let* ((relative-path (substring filename (length build-dir)))
+               (link-record (straight--links-file relative-path)))
+          (if (file-exists-p link-record)
+              (let ((target
+                     (with-temp-buffer
+                       (insert-file-contents-literally link-record)
+                       (buffer-string))))
+                (if (or (string-empty-p target)
+                        (not (file-exists-p target)))
+                    'broken
+                  target))
+            'broken))))))
+
 (defun straight-maybe-emulate-symlink ()
   "If visiting an emulated symlink, visit the link target instead.
 See `straight-symlink-emulation-mode'."
-  (let ((build-dir (straight--build-dir)))
-    (when (and buffer-file-name
-               (straight--path-prefix-p build-dir buffer-file-name))
-      ;; Remove the ~/.emacs.d/straight/build/ part, and get the
-      ;; corresponding path under straight/links/.
-      (let* ((relative-path (substring buffer-file-name (length build-dir)))
-             (link-record (straight--links-file relative-path)))
-        (if (file-exists-p link-record)
-            (find-alternate-file
-             (with-temp-buffer
-               (insert-file-contents-literally link-record)
-               (buffer-string)))
-          (straight--output
-           "Broken symlink, you are not editing the real file"))))))
+  (when buffer-file-name
+    (pcase (straight-chase-emulated-symlink buffer-file-name)
+      (`nil)
+      (`broken
+       (straight--output
+        "Broken symlink, you are not editing the real file"))
+      (target (find-alternate-file target)))))
 
 (define-minor-mode straight-symlink-emulation-mode
   "Minor mode for emulating symlinks in the software layer.
@@ -4107,16 +4213,16 @@ this run of straight.el)."
                (with-temp-buffer
                  ;; Bypass `find-file-hook'.
                  (insert-file-contents-literally
-                  (straight--file
-                   "build" package
+                  (straight--build-file
+                   package
                    (format "%s-pkg.el" package)))
                  (straight--process-dependencies
                   (eval (nth 4 (read (current-buffer)))))))
              (ignore-errors
                (with-temp-buffer
                  (insert-file-contents-literally
-                  (straight--file
-                   "build" package
+                  (straight--build-file
+                   package
                    (format "%s.el" package)))
                  ;; Who cares if the rest of the header is
                  ;; well-formed? Maybe package.el does, but all we
@@ -4210,13 +4316,17 @@ This can be overridden by the `:no-byte-compile' property of an
 individual package recipe."
   :type 'boolean)
 
+(defun straight--byte-compile-package-p (recipe)
+  "Predicate to check whether RECIPE should be byte-compiled."
+  (not (straight--plist-get recipe :no-byte-compile
+                            straight-disable-byte-compilation)))
+
 (cl-defun straight--byte-compile-package (recipe)
   "Byte-compile files for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
-  (when (straight--plist-get recipe :no-byte-compile
-                             straight-disable-byte-compilation)
+  (unless (straight--byte-compile-package-p recipe)
     (cl-return-from straight--byte-compile-package))
   ;; We need to load `bytecomp' so that the `symbol-function'
   ;; assignments below are sure to work. Since we byte-compile this
@@ -4248,6 +4358,39 @@ repository."
         (byte-recompile-directory
          (straight--build-dir package)
          0 'force)))))
+
+;;;;; Native compilation
+
+(defcustom straight-disable-native-compilation nil
+  "Non-nil means do not `native-compile' packages by default.
+This can be overridden by the `:no-native-compile' property of an
+individual package recipe."
+  :type 'boolean)
+
+(defun straight--native-compile-package-p (recipe)
+  "Predicate to check whether RECIPE should be native-compiled."
+  (and (straight--byte-compile-package-p recipe)
+       (not (straight--plist-get recipe :no-native-compile
+                                 straight-disable-native-compilation))))
+
+(defun straight--native-compile-package (recipe)
+  "Queue native compilation for the symlinked package specified by RECIPE.
+RECIPE should be a straight.el-style plist. Note that this
+function only modifies the build folder, not the original
+repository. Also note that native compilation occurs
+asynchronously, and will continue in the background after
+`straight-use-package' returns."
+  (when (and (fboundp 'native-compile-async)
+             (straight--native-compile-package-p recipe))
+    (straight--with-plist recipe
+        (package)
+      (let ((inhibit-message t)
+            (message-log-max nil))
+        (native-compile-async
+         (straight--build-dir package)
+         'recursively 'late)))))
+
+;;;;; Info compilation
 
 (defun straight--compile-package-texinfo (recipe)
   "Compile .texi files into .info files for package specified by RECIPE.
@@ -4375,6 +4518,7 @@ the reason this package is being built."
             (straight--progress-begin task)))
         (straight--generate-package-autoloads recipe)
         (straight--byte-compile-package recipe)
+        (straight--native-compile-package recipe)
         (straight--compile-package-texinfo recipe))
       ;; We messed up the echo area.
       (setq straight--echo-area-dirty t))))
@@ -5448,7 +5592,7 @@ according to the value of `straight-profiles'."
               ;;
               ;; The version keyword comes after the versions alist so
               ;; that you can ignore it if you don't need it.
-              "(%s)\n:alpha\n"
+              "(%s)\n:beta\n"
               (mapconcat
                (apply-partially #'format "%S")
                versions-alist
@@ -5876,6 +6020,52 @@ Inserted by installing org-mode or when a release is made."
               #'straight--fix-org-function)
   (remove-hook 'straight-use-package-prepare-functions
                #'straight--fix-org-function))
+
+;;;;; Flycheck integration
+
+(defcustom straight-fix-flycheck nil
+  "If non-nil, install a workaround for a problem with Flycheck.
+See <https://github.com/raxod502/straight.el/issues/508> for
+discussion.
+
+This variable must be set before straight.el is loaded (or
+re-loaded) in order to take effect."
+  :type 'boolean)
+
+(defvar-local straight--flycheck-in-place-disabled t
+  "If non-nil, inhibit in-place checkers in Flycheck.
+This variable is toggled to nil after the first modification in a
+buffer.")
+
+(defun straight--flycheck-in-place-reenable ()
+  "Re-enable in-place checkers in Flycheck."
+  (setq straight--flycheck-in-place-disabled nil))
+
+(defun straight--flycheck-in-place-inhibit (func checker)
+  "Inhibit in-place Elisp checkers in Flycheck from running automatically.
+You can still run them manually, and automatic checking will be
+re-enabled after you modify the buffer.
+
+This is an `:around' advice for
+`flycheck-start-current-syntax-check'. FUNC and CHECKER are as in
+any `:around' advice."
+  (if (and
+       straight--flycheck-in-place-disabled
+       (memq
+        'source-inplace
+        (flycheck-checker-get checker 'command)))
+      (when-let ((next-checker (flycheck-get-next-checker-for-buffer checker)))
+        (flycheck-start-current-syntax-check next-checker))
+    (funcall func checker)))
+
+(if straight-fix-flycheck
+    (progn
+      (add-hook 'first-change-hook #'straight--flycheck-in-place-reenable)
+      (advice-add 'flycheck-start-current-syntax-check :around
+                  #'straight--flycheck-in-place-inhibit))
+  (remove-hook 'first-change-hook #'straight--flycheck-in-place-reenable)
+  (advice-remove 'flycheck-start-current-syntax-check
+                 #'straight--flycheck-in-place-inhibit))
 
 ;;;; Closing remarks
 
