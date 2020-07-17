@@ -4361,7 +4361,7 @@ repository."
          (comp-async-runnings))
     0))
 
-(defvar straight--wait-for-async-jobs t
+(defvar straight--wait-for-async-jobs nil
   "Whether to block until all async compilation jobs have completed.")
 
 (defun straight--wait-for-async-jobs ()
