@@ -308,15 +308,7 @@ PROPS is a list of symbols. Each one is converted to a keyword
 and then its value is looked up in the PLIST and bound to the
 symbol for the duration of BODY."
   (declare (indent 2) (debug (form sexp body)))
-  (let ((plist-sym (make-symbol "plist")))
-    `(let* ((,plist-sym ,plist)
-            ,@(mapcar (lambda (prop)
-                        `(,prop
-                          (plist-get
-                           ,plist-sym
-                           ,(intern (concat ":" (symbol-name prop))))))
-                      props))
-       ,@body)))
+  `(cl-destructuring-bind (&key ,@props &allow-other-keys) ,plist ,@body))
 
 (defmacro straight--put (plist prop value)
   "Make copy of PLIST with key PROP mapped to VALUE, and re-set it.
