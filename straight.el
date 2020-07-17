@@ -4338,12 +4338,10 @@ individual package recipe."
                                  straight-disable-native-compilation))))
 
 (defun straight--native-compile-package (recipe)
-  "Queue native compilation for the symlinked package specified by RECIPE.
+  "Native-compile files for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
-repository. Also note that native compilation occurs
-asynchronously, and will continue in the background after
-`straight-use-package' returns."
+repository."
   (when (and (fboundp 'native-compile-async)
              (straight--native-compile-package-p recipe))
     (straight--with-plist recipe
@@ -4352,7 +4350,29 @@ asynchronously, and will continue in the background after
             (message-log-max nil))
         (native-compile-async
          (straight--build-dir package)
-         'recursively 'late)))))
+         'recursively 'late)))
+    (straight--wait-for-async-jobs)))
+
+(defun straight--pending-async-jobs ()
+  "How many async compilation jobs are queued or in-progress."
+  (if (and (boundp 'comp-files-queue)
+           (fboundp 'comp-async-runnings))
+      (+ (length comp-files-queue)
+         (comp-async-runnings))
+    0))
+
+(defvar straight--wait-for-async-jobs t
+  "Whether to block until all async compilation jobs have completed.")
+
+(defun straight--wait-for-async-jobs ()
+  "Block until all async compilation jobs have completed (maybe).
+Blocking can be suppressed by setting `straight--wait-for-async-jobs' to nil."
+  (when (and (fboundp 'comp-async-runnings)
+             straight--wait-for-async-jobs)
+    (let ((inhibit-message t)
+          (message-log-max nil))
+      (while (not (zerop (comp-async-runnings)))
+        (sleep-for 0.1)))))
 
 ;;;;; Info compilation
 
