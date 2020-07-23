@@ -2876,10 +2876,15 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
 
 ;;;;; Recipe conversion
 
-(defcustom straight-built-in-pseudo-packages '(emacs python)
+(defcustom straight-built-in-pseudo-packages '(emacs nadvice python)
   "List of built-in packages that aren't real packages.
 If any of these are specified as dependencies, straight.el will
 just skip them instead of looking for a recipe.
+
+Another application of this variable is to correctly handle the
+situation where a package is built-in but Emacs incorrectly
+claims that it's not (see
+<https://github.com/raxod502/straight.el/issues/548>).
 
 Note that straight.el can deal with built-in packages even if
 this variable is set to nil. This just allows you to tell
