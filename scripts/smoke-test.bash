@@ -9,4 +9,4 @@ ln -sf "$PWD" "$HOME/.emacs.d/straight/repos/straight.el"
 # We need to test with a package that supports Emacs 24.5 here.
 emacs --batch -l "$HOME/.emacs.d/straight/repos/straight.el/bootstrap.el" \
       --eval "(straight-use-package 'use-package)"                        \
-      --eval "(use-package clojure-mode :straight t)"
+      --eval "(use-package company-mode :straight t)"
