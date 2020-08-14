@@ -62,29 +62,33 @@
 ;; Not defined before Emacs 25.1
 (eval-and-compile
   (unless (fboundp 'if-let)
-    (defmacro if-let (varlist then &optional else)
-      "Bind variables according to VARLIST and eval THEN or ELSE.
-VARLIST must be of the form ((SYMBOL VALUEFORM)). Evaluate
-VALUEFORM and bind it to SYMBOL. If the result of evaluation is
-non-nil, evaluate and return THEN. Otherwise, evaluate and return
-ELSE (or nil)."
-      (let ((symbol (nth 0 (car varlist)))
-            (valueform (nth 1 (car varlist))))
-        `(let ((,symbol ,valueform))
-           (if ,symbol
-               ,then
-             ,else))))))
+    (defmacro straight--if-let (spec then &rest else)
+      "Bind variables according to SPEC and eval THEN or ELSE.
+SPEC must be of the form ((SYMBOL VALUE)...).
+Evaluate each VALUE in SPEC and bind it to its SYMBOL.
+If the result of evaluation is non-nil, evaluate and return THEN.
+Otherwise, evaluate and return ELSE (or nil)."
+      (declare (indent 2))
+      `(let ,spec
+         (if (and ,@(mapcar (lambda (el)
+                              (if (listp el) (car el) nil))
+                            spec))
+             ,then
+           ,@else)))
+    (defalias 'if-let 'straight--if-let)))
 
 ;; Not defined before Emacs 25.1
 (eval-and-compile
   (unless (fboundp 'when-let)
-    (defmacro when-let (varlist &rest body)
-      "Bind variables according to VARLIST and conditionally eval BODY.
-VARLIST must be of the form ((SYMBOL VALUEFORM)). Evaluate
-VALUEFORM and bind it to SYMBOL. If the result of evaluation is
-non-nil, evaluate and return BODY. Otherwise return nil."
-      `(if-let ,varlist
-           (progn ,@body)))))
+    (defmacro straight--when-let (spec &rest body)
+      "Bind variables according to SPEC and conditionally eval BODY.
+SPEC must be of the form ((SYMBOL VALUE)...). Evaluate each
+VALUE in SPEC and bind it to its corresponding SYMBOL. If the result of
+evaluation is non-nil, evaluate and return BODY. Otherwise return
+nil."
+      (declare (indent 1))
+      `(straight--if-let ,spec (progn ,@body)))
+    (defalias 'when-let 'straight--when-let)))
 
 ;; Not defined before Emacs 25.1
 (eval-and-compile
