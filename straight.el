@@ -5802,20 +5802,30 @@ NAME, KEYWORD, ARGS, REST, and STATE are explained by the
   ;; for the other case.
   ;;
   ;; See <https://github.com/raxod502/straight.el/issues/425>.
+
+  ;; @TODO: Fix bug in normalizer which modifies args.
+  ;; See <https://github.com/raxod502/straight.el/issues/558>.
+  ;; ~ NV 2020-08-20
   (when args
-    (straight--remq rest '(:ensure)))
-  (let ((body (use-package-process-keywords name rest state)))
-    (mapc (lambda (arg)
-            (push `(straight-use-package
-                    ;; The following is an unfortunate hack because
-                    ;; `use-package-defaults' currently operates on
-                    ;; the post-normalization values, rather than the
-                    ;; pre-normalization ones.
-                    ',(if (eq arg t)
-                          name arg))
-                  body))
-          args)
-    body))
+    (straight--remq rest '(:ensure))
+    (setq args (delq 'quote (reverse args))))
+  (let ((body (use-package-process-keywords name rest state))
+        (backquoted nil)
+        (forms nil))
+    (dolist (arg args)
+      (if (eq arg '\`)
+          (setq backquoted t)
+        ;; The following is an unfortunate hack because
+        ;; `use-package-defaults' currently operates on
+        ;; the post-normalization values, rather than the
+        ;; pre-normalization ones.
+        (push `(straight-use-package ,(list (if backquoted '\` 'quote)
+                                            (if (eq arg t) name arg)))
+              forms)
+        (setq backquoted nil)))
+    ;; Push forms in the order they were declared.
+    (dolist (form forms body)
+      (push form body))))
 
 (defun straight-use-package--ensure-handler-advice
     (handler name keyword args rest state)
