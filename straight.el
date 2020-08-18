@@ -3160,7 +3160,7 @@ RECIPE should be a straight.el-style recipe plist."
                 "Packages %S and %S have incompatible "
                 "recipes (%S cannot be both %S and %S)"
                 (when (eq keyword :repo)
-                  "\nOne of the recipes must specify a unique :local-repo."))
+                  "\n(One of the recipes must specify a unique :local-repo)"))
                (plist-get existing-recipe :package)
                package
                keyword
