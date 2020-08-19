@@ -285,11 +285,19 @@ package, since this is so common:
                 :fork (:host github
                        :repo "your-name/el-patch")))
 
-You may also omit the `:type git` if you leave `straight-default-vc`
-at its default value of `git`.
+In the above, `:type git` may be omitted if you leave
+`straight-default-vc` at its default value of `git`. Parts of the
+`:fork` keyword may be omitted as well. One common case is when
+your fork is on the same host and has the same name as the upstream
+repository. In this case, assuming `straight-host-usernames` is set,
+specifying a fork is as simple as:
+
+    (straight-use-package
+     '(el-patch :type git :host github :repo "raxod502/el-patch"
+                :fork t))
 
 To learn more, see the documentation on [the recipe
-format][#user/recipes].
+format][#user/recipes] and [the Git backend][#user/recipes/git].
 
 ### Integration with `use-package`
 
@@ -1943,11 +1951,81 @@ These are the keywords meaningful for the `git` backend:
 * `:nonrecursive`: if non-nil, then submodules are not cloned. This is
   particularly important for the Emacsmirror recipe repository, which
   contains every known Emacs package in existence as submodules.
-* `:fork`: a plist which specifies settings for a fork, if desired.
+* `:fork`: the settings for a fork, if desired.
   This causes the `fetch-from-remote` method to operate on the fork;
   you can use the `fetch-from-upstream` method to operate on the
-  upstream instead. The allowed keywords are `:repo`, `:host`,
-  `:branch`, and `:remote`.
+  upstream instead.
+
+  Note: the following section assumes `straight-host-usernames`
+  has a value of:
+
+        '((github    . "githubUser")
+          (gitlab    . "gitlabUser")
+          (bitbucket . "bitbucketUser")))
+
+  Its value may be:
+
+  * `t`:
+  Look up the username in `straight-host-usernames`.
+  Inherit the repository name from the upstream repository.
+  For example:
+
+        ( :package "package" :host github :type git :repo "upstream/repo"
+          :fork t)
+
+  computes the fork's `:repo` value as `githubUser/repo`.
+
+  * a string (optionally ending with "/"):
+  Use the string as the username.
+  Inherit repository name from the upstream repository.
+  For example:
+
+        ( :package "package" :host github :type git :repo "upstream/repo"
+          :fork "user")
+
+  computes the fork's `:repo` value as `user/repo`.
+
+  * a string starting with "/":
+  Look up the username in `straight-host-usernames`.
+  Use the string as the repository name.
+  For example:
+
+        ( :package "package" :host github :type git :repo "upstream/repo"
+          :fork "/renamed")
+
+  computes the fork's `:repo` value as `githubUser/renamed`.
+
+  * a string with both the recipe and repository specified:
+  Use string as the `:repo` value for the fork.
+  For example:
+
+        ( :package "package" :host github :type git :repo "upstream/repo"
+          :fork "user/renamed")
+
+  computes the fork's `:repo` value as `user/renamed`.
+
+  * a plist:
+  The allowed keywords are `:repo`, `:host`, `:branch`, and `:remote`.
+  The same rules as above apply for the `:repo` string.
+  Likewise, if the `:host` is overridden and the `:repo` does not
+  provide the username, it is looked up in `straight-host-usernames`.
+  For example:
+
+        ( :package "package" :host github :type git :repo "upstream/repo"
+          :fork (:host gitlab))
+
+  computes the fork's `:repo` value as `gitlabUser/repo`.
+
+        ( :package "package" :host github :type git :repo "upstream/repo"
+          :fork (:host gitlab :repo "/renamed"))
+
+  computes the fork's `:repo` value as `gitlabUser/renamed`.
+
+        ( :package "package" :host github :type git :repo "upstream/repo"
+          :fork (:host gitlab :repo "user"))
+
+  computes the fork's `:repo` value as `user/repo`.
+
 * `:depth`: either the symbol `full` or an integer. If `full`, then
   the repository is cloned with its whole history. If an integer `N`,
   then the repository is cloned with the option `--depth N`. This
