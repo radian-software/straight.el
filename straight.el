@@ -3139,8 +3139,7 @@ RECIPE should be a straight.el-style recipe plist."
         ;; in Step 2, no need to show another one here. Only signal a
         ;; warning here when the packages are actually *different*
         ;; packages that share the same repository.
-        (unless (equal (plist-get recipe :package)
-                       (plist-get existing-recipe :package))
+        (unless (equal package (plist-get existing-recipe :package))
           ;; Only the VC-specific keywords are relevant for this.
           (cl-dolist (keyword (cons :type (straight-vc-keywords type)))
             ;; Note that it doesn't matter which recipe we get `:type'
@@ -3156,13 +3155,17 @@ RECIPE should be a straight.el-style recipe plist."
               ;; `straight--repo-cache' and `straight--recipe-cache'
               ;; at the end of this method, this warning will only be
               ;; displayed once per recipe modification.
-              (straight--warn (concat "Packages %S and %S have incompatible "
-                                      "recipes (%S cannot be both %S and %S)")
-                              (plist-get existing-recipe :package)
-                              package
-                              keyword
-                              (plist-get existing-recipe keyword)
-                              (plist-get recipe keyword))
+              (straight--warn
+               (concat
+                "Packages %S and %S have incompatible "
+                "recipes (%S cannot be both %S and %S)"
+                (when (eq keyword :repo)
+                  "\n(One of the recipes must specify a unique :local-repo)"))
+               (plist-get existing-recipe :package)
+               package
+               keyword
+               (plist-get existing-recipe keyword)
+               (plist-get recipe keyword))
               (cl-return)))))
       ;; Step 2 is to check if the given recipe conflicts with an
       ;; existing recipe for the *same* package.
