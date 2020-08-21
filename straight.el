@@ -5767,12 +5767,12 @@ NAME, KEYWORD, RECIPE, REST, and STATE are explained by the
     name rest (plist-put state :recipe recipe)))
 
 (defun straight-use-package--straight-normalizer
-    (name-symbol _keyword args)
+    (name-symbol keyword args)
   "Normalizer for `:straight' in `use-package' forms.
 NAME-SYMBOL, KEYWORD, and ARGS are explained by the `use-package'
 documentation."
   (let ((parsed-args nil))
-    (dolist (arg args)
+    (dolist (arg args (reverse parsed-args))
       (cond
        ((null arg) (setq parsed-args nil))
        ((eq arg t) (push name-symbol parsed-args))
@@ -5785,12 +5785,11 @@ documentation."
        ((cl-some #'keywordp arg)
         ;; assume it's a recipe
         (push arg parsed-args))
-       (t
-        (setq parsed-args
-              (append (straight-use-package--straight-normalizer
-                       name-symbol nil arg)
-                      parsed-args)))))
-    parsed-args))
+       ;; normalize backquoted/quoted arg and preserve quote
+       (t (push (list (car arg)
+                      (car (straight-use-package--straight-normalizer
+                            name-symbol keyword (cdr arg))))
+                parsed-args))))))
 
 (defun straight-use-package--straight-handler
     (name _keyword args rest state)
@@ -5803,29 +5802,19 @@ NAME, KEYWORD, ARGS, REST, and STATE are explained by the
   ;;
   ;; See <https://github.com/raxod502/straight.el/issues/425>.
 
-  ;; @TODO: Fix bug in normalizer which modifies args.
-  ;; See <https://github.com/raxod502/straight.el/issues/558>.
-  ;; ~ NV 2020-08-20
-  (when args
-    (straight--remq rest '(:ensure))
-    (setq args (delq 'quote (reverse args))))
-  (let ((body (use-package-process-keywords name rest state))
-        (backquoted nil)
-        (forms nil))
-    (dolist (arg args)
-      (if (eq arg '\`)
-          (setq backquoted t)
-        ;; The following is an unfortunate hack because
-        ;; `use-package-defaults' currently operates on
-        ;; the post-normalization values, rather than the
-        ;; pre-normalization ones.
-        (push `(straight-use-package ,(list (if backquoted '\` 'quote)
-                                            (if (eq arg t) name arg)))
-              forms)
-        (setq backquoted nil)))
-    ;; Push forms in the order they were declared.
-    (dolist (form forms body)
-      (push form body))))
+  (when args (straight--remq rest '(:ensure)))
+  (append
+   (mapcar (lambda (arg)
+             `(straight-use-package
+               ,(if (member (car-safe arg) '(\` quote))
+                    arg
+                  ;; The following comparison against 't' is an
+                  ;; unfortunate hack because `use-package-defaults'
+                  ;; currently operates on the post-normalization
+                  ;; values, rather than the pre-normalization ones.
+                  (macroexpand `(quote ,(if (eq arg t) name arg))))))
+           args)
+   (use-package-process-keywords name rest state)))
 
 (defun straight-use-package--ensure-handler-advice
     (handler name keyword args rest state)
