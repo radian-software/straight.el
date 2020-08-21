@@ -5801,7 +5801,6 @@ NAME, KEYWORD, ARGS, REST, and STATE are explained by the
   ;; for the other case.
   ;;
   ;; See <https://github.com/raxod502/straight.el/issues/425>.
-
   (when args (straight--remq rest '(:ensure)))
   (append
    (mapcar (lambda (arg)
