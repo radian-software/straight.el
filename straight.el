@@ -2337,7 +2337,8 @@ return nil."
                                   ;; New repositories do not yet
                                   ;; exist, so we don't want to switch
                                   ;; to them.
-                                  (if (file-directory-p d) d default-directory))
+                                  (if (file-directory-p d) d
+                                    default-directory))
                               default-directory))
          (branch-list (cdr (straight--call "git" "branch" "-r"))))
     (when (string-match "^.*origin/HEAD -> \\(.*$\\)" branch-list)
