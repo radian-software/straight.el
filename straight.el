@@ -2191,20 +2191,20 @@ clone of everything."
                 (straight--get-call
                  "git" "init")
                 (apply #'straight--get-call
-                 "git" "remote" "add" remote url
-                 (when branch `("--master" ,branch)))
+                       "git" "remote" "add" remote url
+                       (when branch `("--master" ,branch)))
                 (straight--get-call
                  "git" "fetch" remote commit
                  "--depth" (number-to-string depth)
                  "--no-tags")))
           (delete-directory repo-dir 'recursive)
           (apply #'straight--get-call
-               "git" "clone" "--origin" remote
-               "--no-checkout" url repo-dir
-               "--depth" (number-to-string depth)
-               "--single-branch"
-               "--no-tags"
-               (when branch `("--branch" ,branch))))
+                 "git" "clone" "--origin" remote
+                 "--no-checkout" url repo-dir
+                 "--depth" (number-to-string depth)
+                 "--single-branch"
+                 "--no-tags"
+                 (when branch `("--branch" ,branch))))
       ;; Fallback for dumb http protocol.
       (error
        (delete-directory repo-dir 'recursive)
