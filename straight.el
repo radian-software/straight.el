@@ -2316,15 +2316,18 @@ If RECIPE does not configure a fork, do nothing."
   "Provide a default branch name for LOCAL-REPO.
 The following branch names are tried in the following precedence order:
   1. The only branch name, if there's only one.
-  2. The branch name matching the default remote branch name.
-  3. `'straight-vc-git-default-branch'."
+  2. The current local branch name.
+  3. The branch name matching the default remote branch name.
+  4. `'straight-vc-git-default-branch'."
   (let* ((default-directory (straight--repos-dir local-repo))
          (local-branches (cl-remove-if
                           (lambda (s) (string-equal s "*"))
                           (split-string (cdr
                                          (straight--call "git" "branch"))))))
-    (cond ((= (length local-branches) 1) (car local-branches))
-          ((straight-vc-git--default-remote-branch))
+    (cond ((= (length local-branches) 1) (car local-branches))          
+          ((string-trim (cdr
+                         (straight--call "git" "branch" "--show-current"))))
+          ((straight-vc-git--default-remote-branch local-repo))
           (t straight-vc-git-default-branch))))
 
 (cl-defun straight-vc-git--default-remote-branch (&optional local-repo)
@@ -2341,7 +2344,7 @@ return nil."
                                     default-directory))
                               default-directory))
          (branch-list (cdr (straight--call "git" "branch" "-r"))))
-    (when (string-match "^.*origin/HEAD -> \\(.*$\\)" branch-list)
+    (when (string-match "^.*origin/HEAD -> origin/\\(.*$\\)" branch-list)
       (match-string 1 branch-list))))
 
 (cl-defun straight-vc-git-merge-from-remote (recipe &optional from-upstream)
