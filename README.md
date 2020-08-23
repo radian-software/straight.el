@@ -1938,8 +1938,6 @@ the version-control backend API:
 
 You can customize the following user options:
 
-* `straight-vc-git-default-branch`: if `:branch` is unspecified, then
-  this is the default branch name that will be tried. Defaults to "main".
 * `straight-vc-git-default-remote-name`: the name to use for the
   primary remote, or the upstream remote if the package is forked.
   Defaults to "origin". The `:remote` keyword may be used to override
