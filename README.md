@@ -317,6 +317,13 @@ You can still provide a custom recipe for the package:
                           :fork (:host github
                                  :repo "your-name/el-patch")))
 
+The `:straight` keyword accepts backquoted forms.
+This makes it possible to dynamically compute part of the recipe:
+
+    (use-package el-patch
+      :straight `(el-patch :type git
+                           :repo ,(alist-get 'el-patch my-package-urls)))
+
 Specifying `:straight t` is unnecessary if you set
 `straight-use-package-by-default` to a non-nil value. (Note that the
 variable `use-package-always-ensure` is associated with `package.el`,

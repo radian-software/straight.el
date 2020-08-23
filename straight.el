@@ -5770,12 +5770,12 @@ NAME, KEYWORD, RECIPE, REST, and STATE are explained by the
     name rest (plist-put state :recipe recipe)))
 
 (defun straight-use-package--straight-normalizer
-    (name-symbol _keyword args)
+    (name-symbol keyword args)
   "Normalizer for `:straight' in `use-package' forms.
 NAME-SYMBOL, KEYWORD, and ARGS are explained by the `use-package'
 documentation."
   (let ((parsed-args nil))
-    (dolist (arg args)
+    (dolist (arg args (reverse parsed-args))
       (cond
        ((null arg) (setq parsed-args nil))
        ((eq arg t) (push name-symbol parsed-args))
@@ -5788,12 +5788,11 @@ documentation."
        ((cl-some #'keywordp arg)
         ;; assume it's a recipe
         (push arg parsed-args))
-       (t
-        (setq parsed-args
-              (append (straight-use-package--straight-normalizer
-                       name-symbol nil arg)
-                      parsed-args)))))
-    parsed-args))
+       ;; normalize backquoted/quoted arg and preserve quote
+       (t (push (list (car arg)
+                      (car (straight-use-package--straight-normalizer
+                            name-symbol keyword (cdr arg))))
+                parsed-args))))))
 
 (defun straight-use-package--straight-handler
     (name _keyword args rest state)
@@ -5805,20 +5804,19 @@ NAME, KEYWORD, ARGS, REST, and STATE are explained by the
   ;; for the other case.
   ;;
   ;; See <https://github.com/raxod502/straight.el/issues/425>.
-  (when args
-    (straight--remq rest '(:ensure)))
-  (let ((body (use-package-process-keywords name rest state)))
-    (mapc (lambda (arg)
-            (push `(straight-use-package
-                    ;; The following is an unfortunate hack because
-                    ;; `use-package-defaults' currently operates on
-                    ;; the post-normalization values, rather than the
-                    ;; pre-normalization ones.
-                    ',(if (eq arg t)
-                          name arg))
-                  body))
-          args)
-    body))
+  (when args (straight--remq rest '(:ensure)))
+  (append
+   (mapcar (lambda (arg)
+             `(straight-use-package
+               ,(if (member (car-safe arg) '(\` quote))
+                    arg
+                  ;; The following comparison against 't' is an
+                  ;; unfortunate hack because `use-package-defaults'
+                  ;; currently operates on the post-normalization
+                  ;; values, rather than the pre-normalization ones.
+                  (macroexpand `(quote ,(if (eq arg t) name arg))))))
+           args)
+   (use-package-process-keywords name rest state)))
 
 (defun straight-use-package--ensure-handler-advice
     (handler name keyword args rest state)
