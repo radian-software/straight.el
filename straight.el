@@ -52,7 +52,6 @@
 
 (require 'cl-lib)
 (require 'subr-x)
-(require 'seq)
 
 ;;;; Backports
 
@@ -2320,8 +2319,8 @@ The following branch names are tried in the following precedence order:
   2. The branch name matching the default remote branch name.
   3. `'straight-vc-git-default-branch'."
   (let* ((default-directory (straight--repos-dir local-repo))
-         (local-branches (seq-filter
-                          (lambda (s) (not (string-equal s "*")))
+         (local-branches (cl-remove-if
+                          (lambda (s) (string-equal s "*"))
                           (split-string (cdr
                                          (straight--call "git" "branch"))))))
     (cond ((= (length local-branches) 1) (car local-branches))
