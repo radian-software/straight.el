@@ -141,9 +141,8 @@ chat][gitter-badge]][gitter]
   your Emacs configuration. Package state is defined entirely by your
   init-file and (optional) lockfile, with no extra persistent data
   floating around.
-* Specify package descriptions using a powerful recipe format that
-  supports everything from [MELPA recipes][melpa-recipe-format] and
-  more.
+* Specify package descriptions using a powerful format based on [MELPA
+  recipes][melpa-recipe-format] (with a familiar but improved syntax).
 * [`use-package`][use-package] integration.
 * Modular: you can install your packages manually and straight.el will
   load them for you. Or you can also have straight.el install your
@@ -633,11 +632,12 @@ error is signaled (unless the package is built-in to Emacs, according
 to `package.el`).
 
 Note that `straight.el` uses its own recipe format which is similar,
-but not identical, to the one used by MELPA. The recipe repository
-backends abstract over the formatting differences in different recipe
-sources to translate recipes into the uniform format used by
-`straight.el`. When you run `M-x straight-get-recipe`, the translated
-recipe is what is returned.
+but not identical, to the one used by MELPA (see [the section on the
+recipe format][#user/recipes] for information on the differences). The
+recipe repository backends abstract over the formatting differences in
+different recipe sources to translate recipes into the uniform format
+used by `straight.el`. When you run `M-x straight-get-recipe`, the
+translated recipe is what is returned.
 
 ### What happens when I call `straight-use-package`?
 
@@ -1747,6 +1747,26 @@ dynamically, use backquoting:
 
     (straight-use-package
      `(el-patch :type git :repo ,(alist-get 'el-patch my-package-urls)))
+
+The supported keywords are *similar, but not identical* to those used
+in MELPA recipes. There is a complete list below which you can compare
+with the [MELPA documentation][melpa-recipe-format], but the main
+differences from the user's point of view are:
+
+* We use `:host` instead of `:fetcher`.
+* We only support Git recipes by default, although the system is
+  extensible to other VCs to be added in the future or in user
+  configurations. Thus the supported `:host` values are `nil` (any Git
+  repository), `github`, `gitlab`, and `bitbucket` (Git only).
+* We support `:branch`, but not `:commit` or `:version-regexp`. To
+  lock a package to a specific commit, use a
+  [lockfile][#user/lockfiles]. See also [#246] for discussion of
+  extensions to the recipe to support package pinning, which is a
+  planned feature.
+* We support several additional keywords that affect how a package is
+  built; see below.
+* There are consistency and feature improvements to edge cases of the
+  `:files` keyword as documented in `straight-expand-files-directive`.
 
 Here is a comprehensive list of all keywords which have special
 meaning in a recipe (unknown keywords are ignored but preserved):
