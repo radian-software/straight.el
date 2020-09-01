@@ -141,6 +141,9 @@ They are still logged to the *Messages* buffer.")))
 (declare-function use-package-only-one "use-package")
 (declare-function use-package-process-keywords "use-package")
 
+;; `comp'
+(defvar comp-deferred-compilation-black-list)
+
 ;;;; Customization variables
 
 (defgroup straight nil
@@ -4348,15 +4351,20 @@ function only modifies the build folder, not the original
 repository. Also note that native compilation occurs
 asynchronously, and will continue in the background after
 `straight-use-package' returns."
-  (when (and (fboundp 'native-compile-async)
-             (straight--native-compile-package-p recipe))
+  (when (fboundp 'native-compile-async)
     (straight--with-plist recipe
         (package)
-      (let ((inhibit-message t)
-            (message-log-max nil))
-        (native-compile-async
-         (straight--build-dir package)
-         'recursively 'late)))))
+      (if (straight--native-compile-package-p recipe)
+          ;; Queue compilation for this package
+          (let ((inhibit-message t)
+                (message-log-max nil))
+            (native-compile-async
+             (straight--build-dir package)
+             'recursively 'late))
+        ;; Prevent compilation of this package
+        (require 'comp)
+        (add-to-list 'comp-deferred-compilation-black-list
+                     (format "^%s" (straight--build-dir package)))))))
 
 ;;;;; Info compilation
 
