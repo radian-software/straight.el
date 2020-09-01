@@ -1841,6 +1841,23 @@ meaning in a recipe (unknown keywords are ignored but preserved):
 
       (straight-use-package '(org :type built-in))
 
+* `:source`
+
+ Overrides `straight-recipe-repositories` on a per-recipe basis.
+ Its value may be:
+   - a symbol representing a recipe repository
+   - a list of such symbols
+ The order of the symbols determines their precedence. For example:
+
+        (straight-use-package '(package :source melpa))
+
+ Will search only the melpa recipe repository for package's recipe. While:
+
+        (straight-use-package '(package :source (melpa gnu-elpa-mirror)))
+
+ will search for package's recipe first in melpa.
+ If it is not found there it will check gnu-elpa-mirror next.
+
 * backend-specific keywords
 
   Depending on the value of `:type`, additional keywords (relevant to
