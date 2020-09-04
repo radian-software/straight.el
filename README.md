@@ -1734,6 +1734,11 @@ Currently, `straight-use-package` supports two hooks:
   needs to be built). They are passed the name of the package being
   built as a string, and should take and ignore any additional
   arguments.
+* `straight-use-package-post-build-functions`: The functions in this
+  hook are run just after building a package (and only if the package
+  needs to be built). They are passed the name of the package being
+  built as a string, and should take and ignore any additional
+  arguments.
 
 ### The recipe format
 
