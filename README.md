@@ -2103,10 +2103,12 @@ As mentioned in the [conceptual overview][#concepts/lookup], recipe
 repositories are just regular packages, with some extra code to look
 up recipes in the relevant local repository.
 
-This means that updating a recipe repository is done the same way as
+This means that updating a recipe repository may be done the same way as
 updating a regular package, i.e. with [`M-x
-straight-pull-package`][#user/interactive/vc]. You should do this if
-you find that a package isn't listed by `M-x
+straight-pull-package`][#user/interactive/vc].
+A convenience command with interactive completion for recipe repositories,
+`straight-pull-recipe-repositories`, is provided as well.
+You should use one of these if you find that a package isn't listed by `M-x
 straight-use-package`—perhaps it was added recently.
 
 Note that there is currently some potentially surprising behavior if
