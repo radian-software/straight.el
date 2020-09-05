@@ -6169,6 +6169,186 @@ any `:around' advice."
   (advice-remove 'flycheck-start-current-syntax-check
                  #'straight--flycheck-in-place-inhibit))
 
+;;;;; Reporting Bugs
+
+(defun straight-version (&optional message)
+  "Return straight.el version.
+Interactively, or when MESSAGE is non-nil, show in the echo area."
+  (interactive)
+  (let* ((library (locate-library "straight.el"))
+         (default-directory (file-name-directory (file-truename library)))
+         (declared (with-temp-buffer
+                     (insert-file-contents-literally library)
+                     (goto-char (point-min))
+                     (save-match-data
+                       (when (re-search-forward
+                              "\\(?:;; Version: \\([^z-a]*?$\\)\\)"
+                              nil 'no-error)
+                         (substring-no-properties (match-string 1))))))
+         (gitshow (straight--call "git" "show" "-s" "--format=%d %h %cs"))
+         (gitinfo (when (car gitshow) (string-trim (cdr gitshow))))
+         (version (format "%s %s" declared gitinfo)))
+    (if (or message (called-interactively-p 'interactive))
+        (message "%s" version)
+      version)))
+
+(defvar straight-bug-report--bootstrap
+  '((defvar bootstrap-version)
+    (let ((bootstrap-file
+           (expand-file-name "straight/repos/straight.el/bootstrap.el"
+                             user-emacs-directory))
+          (bootstrap-version 5))
+      (unless (file-exists-p bootstrap-file)
+        (with-current-buffer
+            (url-retrieve-synchronously
+             (concat "https://raw.githubusercontent.com/"
+                     "raxod502/straight.el/develop/install.el")
+             'silent 'inhibit-cookies)
+          (goto-char (point-max))
+          (eval-print-last-sexp)))
+      (load bootstrap-file nil 'nomessage))
+    (condition-case nil
+        (message "Test run with version: " (straight-version))
+      (error nil)))
+  "Static bootstrap portion of bug report metaprogram.")
+
+(defvar straight-bug-report--default-args '("-Q" "--eval")
+  "Args that are passed to the the Emacs executable when testing.")
+
+(defvar straight-bug-report--process-buffer "*straight-bug-report-process*"
+  "Name of the bug report subprocess buffer.")
+
+(defvar straight-bug-report--setup
+  '((setq straight-repository-branch "develop")
+    (setq debug-on-error t))
+  "Static setup portion of bug report metaprogram.")
+
+(defun straight-bug-report--format (&rest preamble)
+  "Format output of `straight-bug-report--process-buffer' as markdown.
+If PREAMBLE is non-nil, it is inserted after the instructions."
+  (with-current-buffer straight-bug-report--process-buffer
+    (let ((output (buffer-string)))
+      (erase-buffer)
+      (when (fboundp 'markdown-mode) (markdown-mode))
+      (insert
+       (string-join
+        (mapcar
+         (lambda (el) (apply #'format el))
+         `(("<!-- copy entire buffer output and paste in an issue at:")
+           ("https://github.com/raxod502/straight.el/issues/new/choose -->")
+           ,@(when preamble
+               `(("<details><summary>Test Case</summary>")
+                 ("\n```emacs-lisp")
+                 ("%s" ,@preamble)
+                 ("```")
+                 ("</details>\n")))
+           ,(list (format-time-string "- Test run at: `%Y-%m-%d %H:%M:%S`"))
+           ("- system-type: `%s`" ,system-type)
+           ("- straight-version: `%s`" ,(straight-version))
+           ("- emacs-version: `%s`" ,(emacs-version))
+           ("\n<details><summary>Output</summary>")
+           ("\n```emacs-lisp")
+           ("%s" ,output)
+           ("```")
+           ("</details>")))
+        "\n")))))
+
+;;;###autoload
+(defmacro straight-bug-report (&rest args)
+  "Test straight.el in a clean environment.
+ARGS may be any of the following keywords and their respective values:
+  - :pre-bootstrap (Form)...
+      Forms evaluated before bootstrapping straight.el
+      e.g. (setq straight-repository-branch \"develop\")
+      Note this example is already in the default bootstrapping code.
+
+  - :post-bootstrap (Form)...
+      Forms evaluated in the testing environment after boostrapping.
+      e.g. (straight-use-package '(example :type git :host github))
+
+  - :interactive Boolean
+      If nil, the subprocess will immediately exit after the test.
+      Output will be printed to `straight-bug-report--process-buffer'
+      Otherwise, the subprocess will be interactive.
+
+  - :preserve Boolean
+      If t, the test directory is left in the directory stored in the
+      variable `temporary-file-directory'. Otherwise, it is
+      immediately removed after the test is run.
+
+  - :executable String
+      Indicate the Emacs executable to launch. Defaults to \"emacs\".
+
+  - :raw Boolean
+      If t, the raw process output is sent to
+      `straight-bug-report--process-buffer'. Otherwise, it is
+      formatted as markdown for submitting as an issue."
+  (declare (indent 0))
+  (let* ((preserve-files    (make-symbol "preserve-files"))
+         (temp-emacs-dir    (make-symbol "temp-emacs-dir"))
+         (interactive       (make-symbol "interactive"))
+         (emacs-args-symbol (make-symbol "emacs-args"))
+         (emacs-executable  (make-symbol "emacs-executable"))
+         (raw               (make-symbol "raw"))
+         (report            (make-symbol "report"))
+         (test              (make-symbol "test"))
+         ;; Collect args in alist of the form: ((KEYWORD (BODY))...)
+         ;; This allows us to have variadic keyword arguments.
+         ;; Each keyword is associated with the args that follow it until
+         ;; the next keyword.
+         (keywords
+          (let (forms target)
+            (dolist (arg args (mapcar
+                               (lambda (pair)
+                                 ;; Return body forms in declared order
+                                 (setcdr pair (nreverse (cdr pair))) pair)
+                               forms))
+              (if (not (keywordp arg))
+                  (push arg (cdr (assq target forms)))
+                (setq target arg)
+                (unless (assq target forms)
+                  (push (list target) forms))))))
+         ;; Construct bug-report form
+         (reportform (with-output-to-string
+                       (pp (append '(straight-bug-report) args))))
+         (temp-dir (make-temp-file "straight.el-test-" 'directory))
+         ;; Construct metaprogram to be evaled by subprocess
+         (program
+          (with-output-to-string
+            (pp (append '(progn)
+                        `((setq user-emacs-directory ,temp-dir))
+                        straight-bug-report--setup
+                        (alist-get :pre-bootstrap keywords)
+                        straight-bug-report--bootstrap
+                        (alist-get :post-bootstrap keywords))))))
+    `(let* ((,preserve-files    ,(car (alist-get :preserve keywords)))
+            (,interactive       ,(car (alist-get :interactive keywords)))
+            (,emacs-executable  ,(or (car (alist-get :executable keywords))
+                                     "emacs"))
+            (,emacs-args-symbol (append (unless ,interactive '("--batch"))
+                                        ',straight-bug-report--default-args))
+            (,raw               ,(car (alist-get :raw keywords)))
+            (,test              ,program)
+            (,report            ,reportform)
+            (,temp-emacs-dir    ,temp-dir))
+       ;; Reset process buffer
+       (with-current-buffer (get-buffer-create
+                             straight-bug-report--process-buffer)
+         (fundamental-mode)
+         (erase-buffer))
+       (make-process
+        :name straight-bug-report--process-buffer
+        :buffer straight-bug-report--process-buffer
+        :command `(,,emacs-executable ,@,emacs-args-symbol ,,test)
+        :sentinel (lambda (_process _event)
+                    (unless ,interactive
+                      (unless ,raw (straight-bug-report--format ,report))
+                      (switch-to-buffer-other-window
+                       straight-bug-report--process-buffer))
+                    (unless ,preserve-files
+                      (delete-directory ,temp-emacs-dir 'recursive))))
+       (message "Testing straight.el in temporary directory: %s"
+                ,temp-emacs-dir))))
 ;;;; Closing remarks
 
 (provide 'straight)
