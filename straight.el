@@ -2190,7 +2190,7 @@ clone of everything."
            "--no-checkout" url repo-dir
            "--depth" (number-to-string depth)
            "--branch" branch
-           "--single-branch"
+           "--no-single-branch"
            "--no-tags"))
       ;; Fallback for dumb http protocol.
       (error
