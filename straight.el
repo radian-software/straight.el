@@ -113,6 +113,9 @@ They are still logged to the *Messages* buffer.")))
 
 ;;;; Functions from other packages
 
+;; `comp'
+(defvar comp-deferred-compilation-black-list)
+
 ;; `finder-inf'
 (defvar package--builtins)
 
@@ -140,9 +143,6 @@ They are still logged to the *Messages* buffer.")))
 (declare-function use-package-normalize/:ensure "use-package")
 (declare-function use-package-only-one "use-package")
 (declare-function use-package-process-keywords "use-package")
-
-;; `comp'
-(defvar comp-deferred-compilation-black-list)
 
 ;;;; Customization variables
 
