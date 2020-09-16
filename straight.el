@@ -4500,7 +4500,9 @@ the reason this package is being built."
         (straight--generate-package-autoloads recipe)
         (straight--byte-compile-package recipe)
         (straight--native-compile-package recipe)
-        (straight--compile-package-texinfo recipe))
+        (straight--compile-package-texinfo recipe)
+        (run-hook-with-args
+         'straight-use-package-post-build-functions package))
       ;; We messed up the echo area.
       (setq straight--echo-area-dirty t))))
 
@@ -4838,6 +4840,13 @@ and ignore additional arguments."
 
 (defcustom straight-use-package-pre-build-functions nil
   "Abnormal hook run before building a package.
+Each hook function is called with the name of the package as a
+string. For forward compatibility, it should accept and ignore
+additional arguments."
+  :type 'hook)
+
+(defcustom straight-use-package-post-build-functions nil
+  "Abnormal hook run after building a package.
 Each hook function is called with the name of the package as a
 string. For forward compatibility, it should accept and ignore
 additional arguments."
