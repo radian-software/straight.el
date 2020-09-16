@@ -3001,7 +3001,12 @@ for dependency resolution."
             (let ((fork (plist-get plist :fork)))
               (when (stringp fork)
                 (straight--put plist :fork `(:repo ,fork))))
-            (let* ((default (cdr (straight-recipes-retrieve package)))
+            (let* ((sources (plist-get plist :source))
+                   (default
+                     (cdr (straight-recipes-retrieve package
+                                                     (if (listp sources)
+                                                         sources
+                                                       (list sources)))))
                    (keywords (straight-vc-keywords
                               (or (plist-get default :type) 'git))))
               (dolist (keyword (cons :files keywords))
