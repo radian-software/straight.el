@@ -5782,17 +5782,22 @@ documentation."
        ((symbolp arg) (push arg parsed-args))
        ((not (listp arg))
         (use-package-error ":straight wants a symbol or list"))
-       ((keywordp (car arg))
-        ;; recipe without package name
-        (push (cons name-symbol arg) parsed-args))
-       ((cl-some #'keywordp arg)
-        ;; assume it's a recipe
-        (push arg parsed-args))
-       ;; normalize backquoted/quoted arg and preserve quote
-       (t (push (list (car arg)
-                      (car (straight-use-package--straight-normalizer
-                            name-symbol keyword (cdr arg))))
-                parsed-args))))))
+       ;; lists
+       (t (let ((c (car arg)))
+            (cond
+             ((keywordp c)
+              ;; recipe without package name
+              (push (cons name-symbol arg) parsed-args))
+             ((cl-some #'keywordp arg)
+              ;; assume it's a recipe
+              (push arg parsed-args))
+             ;; recipe with only a package name
+             ((and (symbolp c) (not (member c '(\` quote))))
+              (push arg parsed-args))
+             ;; normalize backquoted/quoted arg and preserve quote
+             (t (push (list c (car (straight-use-package--straight-normalizer
+                                    name-symbol keyword (cdr arg))))
+                      parsed-args)))))))))
 
 (defun straight-use-package--straight-handler
     (name _keyword args rest state)
