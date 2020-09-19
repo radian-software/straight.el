@@ -3035,7 +3035,8 @@ for dependency resolution."
             ;; attribute to be set to nil to enforce that there is no
             ;; local repository (rather than a local repository name
             ;; being automatically generated).
-            (unless (plist-member plist :local-repo)
+            (unless (or (plist-member plist :local-repo)
+                        (eq (plist-get plist :type) 'built-in))
               (straight--put
                plist :local-repo
                (or (straight-vc-local-repo-name plist)
