@@ -116,10 +116,6 @@ chat][gitter-badge]][gitter]
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
 - [News](#news)
   * [April 19, 2020](#april-19-2020)
-  * [July 6, 2019](#july-6-2019)
-  * [May 24, 2019](#may-24-2019)
-  * [May 22, 2019](#may-22-2019)
-  * [May 1, 2019](#may-1-2019)
 
 <!-- tocstop -->
 
@@ -3026,40 +3022,6 @@ Note that `:type` is a keyword for `straight.el`, not for
 Shallow clones are now compatible with lockfiles, so you can safely
 set `straight-vc-git-default-clone-depth` to `1` and get massive
 savings on network bandwidth and disk space.
-
-### July 6, 2019
-
-The default value of the user option `straight-emacsmirror-use-mirror`
-is now non-nil.
-
-### May 24, 2019
-
-I have completely rewritten the transaction system. The practical
-impact of this is that you no longer have to care about it. Simply
-remove all references to the following functions and variables from
-your configuration, and everything should "just work":
-
-* `straight-transaction`
-* `straight-begin-transaction`
-* `straight-finalize-transaction`
-* `straight-mark-transaction-as-init`
-* `straight-treat-as-init`
-
-### May 22, 2019
-
-I now maintain a mirror of Emacsmirror. (Bear with me here.) The
-advantage of using my mirror is that cloning it is several orders of
-magnitude faster than cloning the official Emacsmirror. You can tell
-`straight.el` to do so by customizing the user option
-`straight-emacsmirror-use-mirror` to non-nil.
-
-### May 1, 2019
-
-`straight-thaw-versions` now fetches in a repository if a commit in
-your lockfile can not be found and normalizes the repository to the
-recipe's default branch. This should ensure that versions you have
-frozen can be quickly restored and that they can also be saved back to
-the version lock file. This addresses issues [#58], [#66], and [#294].
 
 [#principles]: #guiding-principles
 [#quickstart]: #getting-started
