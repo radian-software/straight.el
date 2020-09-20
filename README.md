@@ -750,6 +750,13 @@ your init-file. For this reason, if you have invoked
 straight-freeze-versions` will prompt you to first reload your
 init-file.
 
+**Note: reloading your init-file must have the effect of running all
+of the same `straight.el`-related functions again. For example, if you
+bootstrap `straight.el` in a sub-file that you only `require` instead
+of `load`, then the reloading functionality will not work correctly
+and you may receive the message `Caches are still outdated; something
+is seriously wrong`. See [#437] for discussion.**
+
 ## Comparison to other package managers
 
 (Disclaimer: while I try to be as objective and comprehensive as
@@ -2415,6 +2422,13 @@ installed by your init-file, then ensure that all your local changes
 are pushed (remember, we are aiming for perfect reproducibility!). If
 you wish to bypass these checks, provide a prefix argument.
 
+**Note: reloading your init-file must have the effect of running all
+of the same `straight.el`-related functions again. For example, if you
+bootstrap `straight.el` in a sub-file that you only `require` instead
+of `load`, then the reloading functionality will not work correctly
+and you may receive the message `Caches are still outdated; something
+is seriously wrong`. See [#437] for discussion.**
+
 Version lockfiles are written into `~/.emacs.d/straight/versions`. By
 default, there will be one, called `default.el`. It is recommended
 that you keep your version lockfiles under version control with the
@@ -3105,6 +3119,7 @@ the version lock file. This addresses issues [#58], [#66], and [#294].
 [#356]: https://github.com/raxod502/straight.el/issues/356
 [#357]: https://github.com/raxod502/straight.el/issues/357
 [#425]: https://github.com/raxod502/straight.el/issues/425
+[#437]: https://github.com/raxod502/straight.el/issues/437
 [#508]: https://github.com/raxod502/straight.el/issues/508
 [#520]: https://github.com/raxod502/straight.el/issues/520
 
