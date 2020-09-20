@@ -888,7 +888,7 @@ And here is a brief list of the main reasons you might not want to use
   has a history of impolite treatment of user configuration, which I
   think says some things about the design: until Emacs 27.1 (when [my
   patch to fix this issue][early-init-file-commit] was adopted after
-  around 300 emails' worth of squabbling on emasc-devel), it also
+  around 300 emails' worth of squabbling on emacs-devel), it also
   inserted a call to the `package-initialize` function into the
   init-file if it was not already present, with the officially
   recommended workaround "comment it out if you don't want it, but
