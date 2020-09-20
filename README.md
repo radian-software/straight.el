@@ -882,9 +882,17 @@ And here is a brief list of the main reasons you might not want to use
   displays all messages, errors, and warnings that come from
   byte-compilation and autoload generation.
 * `straight.el` considers modifying the user's init-file extremely
-  uncouth. `package.el` aggressively inserts a call to
-  `package-initialize` into the init-file if it is not already
-  present, whenever any package management operation is performed.
+  uncouth. `package.el` aggressively inserts (via Customize)
+  auto-generated code setting `package-selected-packages` into the
+  init-file whenever a package is installed. Furthermore, `package.el`
+  has a history of impolite treatment of user configuration, which I
+  think says some things about the design: until Emacs 27.1 (when [my
+  patch to fix this issue][early-init-file-commit] was adopted after
+  around 300 emails' worth of squabbling on emasc-devel), it also
+  inserted a call to the `package-initialize` function into the
+  init-file if it was not already present, with the officially
+  recommended workaround "comment it out if you don't want it, but
+  don't get rid of it".
 * `straight.el` has a profile system that allows users of someone
   else's Emacs configuration to manage an additional subset of
   packages, or to override upstream package configuration, without
@@ -3108,6 +3116,7 @@ the version lock file. This addresses issues [#58], [#66], and [#294].
 [circleci-build]: https://circleci.com/gh/raxod502/straight.el
 [develop]: https://github.com/raxod502/straight.el/tree/develop
 [docker]: https://www.docker.com/
+[early-init-file-commit]: https://git.savannah.gnu.org/cgit/emacs.git/commit/?id=24acb31c04b4048b85311d794e600ecd7ce60d3b
 [el-get]: https://github.com/dimitri/el-get
 [emacs]: https://www.gnu.org/software/emacs/
 [emacsmirror]: https://emacsmirror.net/
