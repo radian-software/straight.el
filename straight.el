@@ -3090,13 +3090,6 @@ for dependency resolution."
             ;; inherited from the original recipe. This is done by
             ;; looking in original and finding all keywords that are
             ;; not present in the override and adding them there.
-            (when-let ((fork (plist-get plist :fork)))
-              (if (or (eq fork t) (stringp fork))
-                  (setq fork
-                        (list :repo (straight-vc-git--fork-repo plist)))
-                (straight--put fork :repo
-                               (straight-vc-git--fork-repo plist)))
-              (straight--put plist :fork fork))
             (let* ((sources (plist-get plist :source))
                    (default
                      (cdr (straight-recipes-retrieve package
@@ -3105,18 +3098,17 @@ for dependency resolution."
                                                        (list sources)))))
                    (keywords (straight-vc-keywords
                               (or (plist-get default :type) 'git))))
+              ;; Compute :fork repo name
+              (when-let ((fork (plist-get plist :fork)))
+                (straight--put default :fork fork)
+                ;; Covers cases where :fork is a string or t
+                (unless (listp fork) (setq fork '()))
+                (straight--put fork :repo (straight-vc-git--fork-repo default))
+                (straight--put plist :fork fork))
               (dolist (keyword (cons :files keywords))
-                (if (eq keyword :fork)
-                    (dolist (keyword keywords)
-                      (let ((fork-plist (plist-get plist :fork))
-                            (value (plist-get default keyword)))
-                        (when (and value fork-plist
-                                   (not (plist-member fork-plist keyword)))
-                          (straight--put
-                           plist :fork (plist-put fork-plist keyword value)))))
-                  (let ((value (plist-get default keyword)))
-                    (when (and value (not (plist-member plist keyword)))
-                      (straight--put plist keyword value)))))))
+                (unless (plist-member plist keyword)
+                  (when-let ((value (plist-get default keyword)))
+                    (setq plist (plist-put plist keyword value)))))))
           ;; The normalized recipe format will have the package name
           ;; as a string, not a symbol.
           (let ((package (symbol-name package)))
