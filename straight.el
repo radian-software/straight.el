@@ -270,6 +270,39 @@ Safe mode is not guaranteed to be as performant as normal
 operation."
   :type 'boolean)
 
+(defcustom straight-host-usernames nil
+  "Alist mapping forge :host symbols to username strings.
+The username associated with the host name is used to compute the :repo
+when the :fork keyword is any of the following values:
+  - t
+  - a string prefixed with a forward slash
+  - a plist which provides a :host and no :repo value
+  - a plist which provides a :repo string prefixed with a forward slash
+
+For example, with the following alist:
+
+  (setq straight-host-usernames
+        \\='((github . \"githubUser\")
+          (gitlab . \"gitlabUser\")
+          (bitbucket . \"bitbucketUser\")))
+
+  (straight-use-package
+   \\='( example :host github :type git :repo \"upstream/repo\"
+      :fork t))
+
+computes the fork as \"githubUser/repo\"
+
+  (straight-use-package
+   \\='( example :host github :type git :repo \"upstream/repo\"
+      :fork \"/fork\"))
+
+computes the fork as \"githubUser/fork\"."
+  :type '(alist :key-type (choice
+                           (const :tag "github" github)
+                           (const :tag "gitlab" gitlab)
+                           (const :tag "bitbucket" bitbucket))
+                :value-type (string :tag "username")))
+
 ;;;; Utility functions
 ;;;;; Association lists
 
@@ -1520,6 +1553,65 @@ A nil value allows for inspection of all remote changes."
   :type 'boolean)
 
 ;;;;;; Utility functions
+
+(defun straight-vc--host-username (host)
+  "Return username associated with HOST in `straight-host-usernames'."
+  (or (alist-get host straight-host-usernames)
+      (error "No straight-host-usernames entry for host `%S'" host)))
+
+(defvar straight-vc-repository-separator "/"
+  "Symbol delimiting a VC host's username from the repository's name.")
+
+(defun straight-vc--repo-substring (part string)
+  "Return PART (either `usernmae' or `repo') of `:repo' STRING."
+  (let ((separator straight-vc-repository-separator))
+    (replace-regexp-in-string
+     (cond ((eq part 'username) (concat separator ".*"))
+           ((eq part 'repo) (concat ".*" separator))
+           (t (error "Uknown `:repo' part `%S'" part)))
+     "" string)))
+
+(defun straight-vc-git--fork-string-type (string)
+  "Return symbol indicating :fork STRING's type."
+  (let ((separator straight-vc-repository-separator))
+    (cond
+     ((string-prefix-p separator string) 'repository)
+     ((or (string-suffix-p separator string)
+          (not (string-match-p separator string)))
+      'username)
+     (t 'full))))
+
+(defun straight-vc-git--fork-repo (recipe)
+  "Compute RECIPE's :fork repo value."
+  (straight--with-plist recipe (fork host ((:repo upstream-repo)))
+    ;; Override default :host and :repo if present on :fork.
+    (straight--with-plist (if (listp fork) fork nil)
+        ((host host) (repo upstream-repo))
+      (pcase fork
+        (`nil repo)
+        (`t (concat (straight-vc--host-username host) "/"
+                    (straight-vc--repo-substring 'repo repo)))
+        ((pred listp)
+         (straight-vc-git--fork-repo
+          `(:host ,host :repo ,upstream-repo
+                  ;; When the :fork plist provides a :host without
+                  ;; a :repo, we want the recursion to compute the
+                  ;; username from `straight-host-usernames'
+                  ;; and combine it with the inherited upstream
+                  ;; repo. Otherwise, we can recurse as if :fork
+                  ;; had been specified as a string.
+                  :fork ,(if (and (plist-member fork :host)
+                                  (not (plist-member fork :repo)))
+                             t
+                           repo))))
+        ((pred stringp)
+         (pcase (straight-vc-git--fork-string-type fork)
+           (`repository (concat (straight-vc--host-username host) fork))
+           (`username   (concat fork
+                                (unless (string-suffix-p "/" fork) "/")
+                                (straight-vc--repo-substring 'repo repo)))
+           (`full fork)))
+        (_ repo)))))
 
 (defmacro straight-vc-git--destructure (recipe props &rest body)
   "Binding from RECIPE the given (virtual) PROPS, eval and return BODY.
@@ -2998,9 +3090,13 @@ for dependency resolution."
             ;; inherited from the original recipe. This is done by
             ;; looking in original and finding all keywords that are
             ;; not present in the override and adding them there.
-            (let ((fork (plist-get plist :fork)))
-              (when (stringp fork)
-                (straight--put plist :fork `(:repo ,fork))))
+            (when-let ((fork (plist-get plist :fork)))
+              (if (or (eq fork t) (stringp fork))
+                  (setq fork
+                        (list :repo (straight-vc-git--fork-repo plist)))
+                (straight--put fork :repo
+                               (straight-vc-git--fork-repo plist)))
+              (straight--put plist :fork fork))
             (let* ((sources (plist-get plist :source))
                    (default
                      (cdr (straight-recipes-retrieve package
