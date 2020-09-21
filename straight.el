@@ -3086,7 +3086,7 @@ for dependency resolution."
           ;; to the selected VC backend).
           ;;
           (when straight-allow-recipe-inheritance
-            ;; To keep overridden recipes simple, Some keywords can be
+            ;; To keep overridden recipes simple, some keywords can be
             ;; inherited from the original recipe. This is done by
             ;; looking in original and finding all keywords that are
             ;; not present in the override and adding them there.
