@@ -4903,12 +4903,36 @@ action, just return it)."
            ;; any messages.
            (recipe (straight-recipes-retrieve package sources)))
       (unless recipe
-        (user-error "Recipe for %S is malformed" package))
+        (user-error
+         (concat "Recipe for \"%S\" malformed or missing. "
+                 "Updating recipe repositories: %s "
+                 "with straight-pull-recipe-repositories may fix this.")
+         package sources))
       (pcase action
         (`insert (insert (format "%S" recipe)))
         (`copy (kill-new (format "%S" recipe))
                (straight--output "Copied \"%S\" to kill ring" recipe))
         (_ recipe)))))
+
+;;;;; Update recipe repositories
+(defun straight-pull-recipe-repositories (&optional sources)
+  "Update recipe repository SOURCES.
+When called with `\\[universal-argument]', prompt for SOURCES.
+If SOURCES is nil, update sources in `straight-recipe-repositories'."
+  (interactive (list (if (equal current-prefix-arg '(4))
+                         (completing-read-multiple
+                          "Recipe Repositories (empty to select all): "
+                          straight-recipe-repositories nil 'require-match)
+                       straight-recipe-repositories)))
+  (dolist (source (delete-dups
+                   (mapcar (lambda (src) (if (stringp src) (intern src) src))
+                           (or sources straight-recipe-repositories))))
+    (unless (member source straight-recipe-repositories)
+      (user-error
+       (concat "Unregistered recipe repository: \"%S\". "
+               "Register recipe source with straight-use-recipes")
+       source))
+    (straight-pull-package-and-deps (symbol-name source) 'upstream)))
 
 ;;;;; Jump to package website
 
