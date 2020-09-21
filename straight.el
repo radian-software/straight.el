@@ -4903,11 +4903,7 @@ action, just return it)."
            ;; any messages.
            (recipe (straight-recipes-retrieve package sources)))
       (unless recipe
-        (user-error
-         (concat "Recipe for \"%S\" malformed or missing. "
-                 "Updating recipe repositories: %s "
-                 "with straight-pull-recipe-repositories may fix this.")
-         package sources))
+        (user-error "Recipe for %S is malformed" package))
       (pcase action
         (`insert (insert (format "%S" recipe)))
         (`copy (kill-new (format "%S" recipe))
@@ -4929,8 +4925,7 @@ If SOURCES is nil, update sources in `straight-recipe-repositories'."
                            (or sources straight-recipe-repositories))))
     (unless (member source straight-recipe-repositories)
       (user-error
-       (concat "Unregistered recipe repository: \"%S\". "
-               "Register recipe source with straight-use-recipes")
+       "Package %S is not a recipe repository; see `straight-use-recipes'"
        source))
     (straight-pull-package-and-deps (symbol-name source) 'upstream)))
 
