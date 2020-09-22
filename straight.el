@@ -1143,13 +1143,17 @@ This uses -newermt if possible, and -newer otherwise."
       `(newermt)
     nil))
 
-(defcustom straight-find-flavor (straight--determine-find-flavor)
+(defcustom straight-find-flavor :guess
   "What options the available find(1) binary supports.
 This is a list of symbols. If `newermt' is in the list, then
 find(1) is given the `-newermt' option to check for files newer
 than a particular timestamp. Otherwise, it is given the `-newer'
 option instead (this requires creating temporary files with
 particular mtimes, which is slower).
+
+This variable can also be the symbol `:guess', meaning
+straight.el will automatically assign an appropriate value when
+the variable is next read.
 
 For backwards compatibility, the value of this variable may also
 be a symbol, which is translated into a corresponding list as
@@ -1159,14 +1163,18 @@ follows:
 `busybox' => nil
 
 This usage is deprecated and will be removed."
-  :type '(list
-          (const :tag "Supports -newermt" newermt)))
+  :type '(choice
+          (list
+           (const :tag "Supports -newermt" newermt))
+          (const :tag "Guess a value automatically" :guess)))
 
 (defun straight--find-supports (symbol)
   "Check if `straight-find-flavor' contains SYMBOL.
 However, if `straight-find-flavor' is itself one of the symbols
 supported for backwards compatibility, account for that
 appropriately."
+  (when (eq straight-find-flavor :guess)
+    (setq straight-find-flavor (straight--determine-find-flavor)))
   (memq symbol
         (pcase straight-find-flavor
           (`gnu/bsd '(newermt))
