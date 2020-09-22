@@ -6216,7 +6216,7 @@ Interactively, or when MESSAGE is non-nil, show in the echo area."
           (eval-print-last-sexp)))
       (load bootstrap-file nil 'nomessage))
     (condition-case nil
-        (message "Test run with version: " (straight-version))
+        (message "Test run with version: %s" (straight-version))
       (error nil)))
   "Static bootstrap portion of bug report metaprogram.")
 
