@@ -975,8 +975,18 @@ code of zero, and nil otherwise."
     (if (car result)
         t
       (prog1 nil
+        (when-let ((output (cdr result)))
+          ;; We're only interested in first line of output.
+          (setq output (replace-regexp-in-string "\n.*" "" output))
+          ;; And we want to limit it to 100 characters.
+          (let ((length (length output))
+                (limit 100))
+            (message "Failed to run %S: %s" program
+                     (concat (substring output 0 (min limit length))
+                             (when (> length limit) "…")))))
         (straight--warn "Failed to run %S; see buffer %s"
-                        program straight-process-buffer)))))
+                        program straight-process-buffer)
+        (switch-to-buffer-other-window straight-process-buffer)))))
 
 (defun straight--check-call (program &rest args)
   "Run executable PROGRAM with given ARGS, returning non-nil if it succeeds."
