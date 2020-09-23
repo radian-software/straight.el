@@ -952,8 +952,9 @@ This is nil if the process could not be run, or if
   (with-current-buffer (straight--process-get-buffer)
     (when (and straight--process-output-beginning
                straight--process-output-end)
-      (buffer-substring straight--process-output-beginning
-                        straight--process-output-end))))
+      (buffer-substring-no-properties
+       straight--process-output-beginning
+       straight--process-output-end))))
 
 (defun straight--call (program &rest args)
   "Run executable PROGRAM with given ARGS.
