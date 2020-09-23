@@ -6280,7 +6280,7 @@ ARGS may be any of the following keywords and their respective values:
       Otherwise, the subprocess will be interactive.
 
   - :preserve Boolean
-      If t, the test directory is left in the directory stored in the
+      If non-nil, the test directory is left in the directory stored in the
       variable `temporary-file-directory'. Otherwise, it is
       immediately removed after the test is run.
 
@@ -6288,9 +6288,15 @@ ARGS may be any of the following keywords and their respective values:
       Indicate the Emacs executable to launch. Defaults to \"emacs\".
 
   - :raw Boolean
-      If t, the raw process output is sent to
+      If non-nil, the raw process output is sent to
       `straight-bug-report--process-buffer'. Otherwise, it is
-      formatted as markdown for submitting as an issue."
+      formatted as markdown for submitting as an issue.
+
+  - :user-dir String
+      If non-nil, the test is run with `emacs-user-dir' set to STRING.
+      Otherwise, a temporary directory is created and used.
+      Unless absolute, paths are expanded relative to the variable
+      `temproary-file-directory'."
   (declare (indent 0))
   (let* ((preserve-files    (make-symbol "preserve-files"))
          (temp-emacs-dir    (make-symbol "temp-emacs-dir"))
@@ -6319,7 +6325,9 @@ ARGS may be any of the following keywords and their respective values:
          ;; Construct bug-report form
          (reportform (with-output-to-string
                        (pp (append '(straight-bug-report) args))))
-         (temp-dir (make-temp-file "straight.el-test-" 'directory))
+         (temp-dir (if-let ((dir (car (alist-get :user-dir keywords))))
+                       (expand-file-name dir temporary-file-directory)
+                     (make-temp-file "straight.el-test-" 'directory)))
          ;; Construct metaprogram to be evaled by subprocess
          (program
           (with-output-to-string
@@ -6355,7 +6363,7 @@ ARGS may be any of the following keywords and their respective values:
                        straight-bug-report--process-buffer))
                     (unless ,preserve-files
                       (delete-directory ,temp-emacs-dir 'recursive))))
-       (message "Testing straight.el in temporary directory: %s"
+       (message "Testing straight.el in directory: %s"
                 ,temp-emacs-dir))))
 ;;;; Closing remarks
 
