@@ -1974,19 +1974,19 @@ The URLs do not necessarily need to match exactly; they just have
 to satisfy `straight-vc-git--urls-compatible-p'."
   (straight-vc-git--destructure recipe
       (local-repo upstream-repo upstream-host upstream-remote
-                  fork-repo fork-host fork-remote)
+                  fork-repo fork-host fork-remote protocol)
     (and (or (null upstream-repo)
              (straight-vc-git--ensure-remote
               local-repo
               upstream-remote
               (straight-vc-git--encode-url
-               upstream-repo upstream-host)))
+               upstream-repo upstream-host protocol)))
          (or (null fork-repo)
              (straight-vc-git--ensure-remote
               local-repo
               fork-remote
               (straight-vc-git--encode-url
-               fork-repo fork-host))))))
+               fork-repo fork-host protocol))))))
 
 ;; The following handles only merges, not rebases. See
 ;; https://github.com/raxod502/straight.el/issues/271.
@@ -2321,12 +2321,12 @@ out, signal a warning. If COMMIT is nil, check out the branch
 specified in RECIPE instead. If that fails, signal a warning."
   (straight-vc-git--destructure recipe
       (package local-repo branch remote upstream-repo upstream-host
-               upstream-remote fork-repo repo host nonrecursive depth)
+               upstream-remote fork-repo repo host protocol nonrecursive depth)
     (unless upstream-repo
       (error "No `:repo' specified for package `%s'" package))
     (let ((success nil)
           (repo-dir (straight--repos-dir local-repo))
-          (url (straight-vc-git--encode-url repo host))
+          (url (straight-vc-git--encode-url repo host protocol))
           (depth (or depth straight-vc-git-default-clone-depth)))
       (unwind-protect
           (progn
@@ -2340,7 +2340,7 @@ specified in RECIPE instead. If that fails, signal a warning."
                   (default-directory repo-dir))
               (when fork-repo
                 (let ((url (straight-vc-git--encode-url
-                            upstream-repo upstream-host)))
+                            upstream-repo upstream-host protocol)))
                   (straight--get-call "git" "remote" "add" upstream-remote url)
                   (straight--get-call "git" "fetch" upstream-remote)))
               (when commit
@@ -2483,7 +2483,7 @@ then returned."
 
 (defun straight-vc-git-keywords ()
   "Return a list of keywords used by the VC backend for Git."
-  '(:repo :host :branch :remote :nonrecursive :upstream :fork :depth))
+  '(:repo :host :branch :remote :nonrecursive :upstream :fork :depth :protocol))
 
 ;;;; Fetching repositories
 
