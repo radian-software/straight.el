@@ -2483,7 +2483,8 @@ then returned."
 
 (defun straight-vc-git-keywords ()
   "Return a list of keywords used by the VC backend for Git."
-  '(:repo :host :branch :remote :nonrecursive :upstream :fork :depth :protocol))
+  '(:repo :host :branch :remote :nonrecursive
+          :upstream :fork :depth :protocol))
 
 ;;;; Fetching repositories
 
