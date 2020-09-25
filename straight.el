@@ -6263,16 +6263,18 @@ If PREAMBLE is non-nil, it is inserted after the instructions."
 
 (defun straight-bug-report--report-form (form)
   "Convert elisp FORM into formatted string."
-  (let ((string (mapconcat
-                 (lambda (el)
-                   (format (concat (when (and el (listp el)) "\n")
-                                   "%S"
-                                   (unless (keywordp el) "\n"))
-                           el))
-                 form " ")))
+  (let* ((last (car (last form)))
+         (string (mapconcat
+                  (lambda (el)
+                    (format (concat (when (and el (listp el)) "\n")
+                                    "%S"
+                                    (unless (or (keywordp el)
+                                                (eq last el)) "\n"))
+                            el))
+                  form " ")))
     (with-temp-buffer
       ;; Trim last newline to prevent dangling paren
-      (insert (concat "(" (string-trim string nil "\n") ")"))
+      (insert "(" string ")")
       (goto-char (point-min))
       ;; Remove empty lines
       (flush-lines "\\(?:^[[:space:]]*$\\)")
