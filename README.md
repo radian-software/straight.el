@@ -2087,10 +2087,9 @@ These are the keywords meaningful for the `git` backend:
   then the repository is cloned with the option `--depth N`. This
   works even when a commit is specified (e.g. by version lockfiles).
   The default value is `full`.
-* `:protocol`: If non-nil, specify the default protocol to be used
-  when interacting with the remote repository. Takes the same values
-  as `straight-vc-git-default-protocol`. This keyword should probably
-  only be used when overriding a recipe locally.
+* `:protocol`: If non-nil, force this protocol to be used when
+  interacting with the remote repository. Takes the same values as
+  `straight-vc-git-default-protocol`.
 
 This section tells you how the `git` backend, specifically, implements
 the version-control backend API:
