@@ -6272,6 +6272,27 @@ If PREAMBLE is non-nil, it is inserted after the instructions."
            ("</details>")))
         "\n")))))
 
+(defun straight-bug-report--report-form (form)
+  "Convert elisp FORM into formatted string."
+  (let* ((last (car (last form)))
+         (string (mapconcat
+                  (lambda (el)
+                    (format (concat (when (and el (listp el)) "\n")
+                                    "%S"
+                                    (unless (or (keywordp el)
+                                                (eq last el)) "\n"))
+                            el))
+                  form " ")))
+    (with-temp-buffer
+      ;; Trim last newline to prevent dangling paren
+      (insert "(" string ")")
+      (goto-char (point-min))
+      ;; Remove empty lines
+      (flush-lines "\\(?:^[[:space:]]*$\\)")
+      (emacs-lisp-mode)
+      (indent-region (point-min) (point-max))
+      (buffer-string))))
+
 ;;;###autoload
 (defmacro straight-bug-report (&rest args)
   "Test straight.el in a clean environment.
@@ -6334,8 +6355,8 @@ ARGS may be any of the following keywords and their respective values:
                 (unless (assq target forms)
                   (push (list target) forms))))))
          ;; Construct bug-report form
-         (reportform (with-output-to-string
-                       (pp (append '(straight-bug-report) args))))
+         (reportform (straight-bug-report--report-form
+                      (append '(straight-bug-report) args)))
          (temp-dir (if-let ((dir (car (alist-get :user-dir keywords))))
                        (expand-file-name dir temporary-file-directory)
                      (make-temp-file "straight.el-test-" 'directory)))
