@@ -2981,12 +2981,12 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
          ;; this writing, there are no Gitlab URLs (which makes
          ;; sense, since all the repositories should be hosted on
          ;; github.com/emacsmirror).
-         (cl-destructuring-bind (repo host protocol)
+         (cl-destructuring-bind (repo host _protocol)
              (straight-vc-git--decode-url url)
            (if host
                `(,package :type git :host ,host
-                          :repo ,repo :protocol ,protocol)
-             `(,package :type git :repo ,repo :protocol ,protocol))))))
+                          :repo ,repo)
+             `(,package :type git :repo ,repo))))))
 
 (defun straight-recipes-emacsmirror-list ()
   "Return a list of recipes available in Emacsmirror, as a list of strings."
