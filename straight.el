@@ -6341,7 +6341,10 @@ ARGS may be any of the following keywords and their respective values:
       If non-nil, the test is run with `emacs-user-dir' set to STRING.
       Otherwise, a temporary directory is created and used.
       Unless absolute, paths are expanded relative to the variable
-      `temproary-file-directory'."
+      `temproary-file-directory'.
+
+ARGS are accessible within the :pre/:post-bootsrap phases via the
+locally bound plist, straight-bug-report-args."
   (declare (indent 0))
   (let* ((preserve-files    (make-symbol "preserve-files"))
          (temp-emacs-dir    (make-symbol "temp-emacs-dir"))
@@ -6374,8 +6377,26 @@ ARGS may be any of the following keywords and their respective values:
                        (expand-file-name dir temporary-file-directory)
                      (make-temp-file "straight.el-test-" 'directory)))
          ;; Construct metaprogram to be evaled by subprocess
+         ;; Convert the keywords and their args into a proper plist.
+         (pargs (let ((plist '()))
+                  (dolist (pair keywords plist)
+                    (let* ((c (car pair))
+                           (variadic
+                            (member c '(:post-bootstrap :pre-bootstrap))))
+                      (setq plist (plist-put plist c (if variadic
+                                                         (append '(progn)
+                                                                 (cdr pair))
+                                                       (cadr pair))))))
+                  ;; Add full path of user-dir.
+                  (setq plist (plist-put plist :user-dir temp-dir))))
          (program (pp-to-string
-                   (append '(progn)
+                   ;; The top-level `let' is an intentional local
+                   ;; variable binding. We want users of
+                   ;; `straight-bug-report' to have access to their
+                   ;; args within :pre/:post-bootstrap programs. Since
+                   ;; we are binding with the package namespace, this
+                   ;; should not overwrite other user bindings.
+                   (append `(let ((straight-bug-report-args ',pargs)))
                            `((setq user-emacs-directory ,temp-dir))
                            straight-bug-report--setup
                            (alist-get :pre-bootstrap keywords)
@@ -6391,7 +6412,7 @@ ARGS may be any of the following keywords and their respective values:
             (,test              ,program)
             (,report            ,reportform)
             (,temp-emacs-dir    ,temp-dir))
-       ;; Reset process buffer
+       ;; Reset process buffer.
        (with-current-buffer (get-buffer-create
                              straight-bug-report--process-buffer)
          (fundamental-mode)
@@ -6406,7 +6427,6 @@ ARGS may be any of the following keywords and their respective values:
                       (switch-to-buffer-other-window
                        straight-bug-report--process-buffer))
                     (unless ,preserve-files
-                      (debug)
                       (delete-directory ,temp-emacs-dir 'recursive))))
        (message "Testing straight.el in directory: %s"
                 ,temp-emacs-dir))))
