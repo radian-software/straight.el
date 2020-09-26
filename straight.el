@@ -1612,20 +1612,24 @@ A nil value allows for inspection of all remote changes."
                     (straight-vc--repo-substring 'repo repo)))
         ((pred listp)
          (straight-vc-git--fork-repo
-          `(:host ,host :repo ,upstream-repo
-                  ;; When the :fork plist provides a :host without
-                  ;; a :repo, we want the recursion to compute the
-                  ;; username from `straight-host-usernames'
-                  ;; and combine it with the inherited upstream
-                  ;; repo. Otherwise, we can recurse as if :fork
-                  ;; had been specified as a string.
-                  :fork ,(if (and (plist-member fork :host)
-                                  (not (plist-member fork :repo)))
-                             t
-                           repo))))
+          `(,@(when host `(:host ,host)) :repo ,upstream-repo
+            ;; When the :fork plist provides a :host without
+            ;; a :repo, we want the recursion to compute the
+            ;; username from `straight-host-usernames'
+            ;; and combine it with the inherited upstream
+            ;; repo. Otherwise, we can recurse as if :fork
+            ;; had been specified as a string.
+            :fork ,(if (and (plist-member fork :host)
+                            (not (plist-member fork :repo)))
+                       t
+                     repo))))
         ((pred stringp)
          (pcase (straight-vc-git--fork-string-type fork)
-           (`repository (concat (straight-vc--host-username host) fork))
+           ;; If no :host is given, the repository is assumed to exist
+           ;; on the local file system.
+           (`repository (concat
+                         (when host (straight-vc--host-username host))
+                         fork))
            (`username   (concat fork
                                 (unless (string-suffix-p "/" fork) "/")
                                 (straight-vc--repo-substring 'repo repo)))
