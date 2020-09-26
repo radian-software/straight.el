@@ -6287,24 +6287,24 @@ If PREAMBLE is non-nil, it is inserted after the instructions."
 
 (defun straight-bug-report--report-form (form)
   "Convert elisp FORM into formatted string."
-  (let* ((last (car (last form)))
-         (string (mapconcat
-                  (lambda (el)
-                    (format (concat (when (and el (listp el)) "\n")
-                                    "%S"
-                                    (unless (or (keywordp el)
-                                                (eq last el)) "\n"))
-                            el))
-                  form " ")))
+  (let ((string (mapconcat
+                 (lambda (el)
+                   (concat (when (and el (listp el)) "\n")
+                           (pp-to-string el)
+                           (unless (keywordp el) "\n")))
+                 form " ")))
     (with-temp-buffer
-      ;; Trim last newline to prevent dangling paren
       (insert "(" string ")")
       (goto-char (point-min))
-      ;; Remove empty lines
+      ;; Replace dangling parens.
+      (save-excursion
+        (while (re-search-forward "\\(?:\n[[:space:]]*)\\)" nil 'no-error)
+          (replace-match ")")))
+      ;; Remove empty lines.
       (flush-lines "\\(?:^[[:space:]]*$\\)")
       (emacs-lisp-mode)
       (indent-region (point-min) (point-max))
-      (buffer-string))))
+      (buffer-substring-no-properties (point-min) (point-max)))))
 
 ;;;###autoload
 (defmacro straight-bug-report (&rest args)
@@ -6374,14 +6374,13 @@ ARGS may be any of the following keywords and their respective values:
                        (expand-file-name dir temporary-file-directory)
                      (make-temp-file "straight.el-test-" 'directory)))
          ;; Construct metaprogram to be evaled by subprocess
-         (program
-          (with-output-to-string
-            (pp (append '(progn)
-                        `((setq user-emacs-directory ,temp-dir))
-                        straight-bug-report--setup
-                        (alist-get :pre-bootstrap keywords)
-                        straight-bug-report--bootstrap
-                        (alist-get :post-bootstrap keywords))))))
+         (program (pp-to-string
+                   (append '(progn)
+                           `((setq user-emacs-directory ,temp-dir))
+                           straight-bug-report--setup
+                           (alist-get :pre-bootstrap keywords)
+                           straight-bug-report--bootstrap
+                           (alist-get :post-bootstrap keywords)))))
     `(let* ((,preserve-files    ,(car (alist-get :preserve keywords)))
             (,interactive       ,(car (alist-get :interactive keywords)))
             (,emacs-executable  ,(or (car (alist-get :executable keywords))
@@ -6407,6 +6406,7 @@ ARGS may be any of the following keywords and their respective values:
                       (switch-to-buffer-other-window
                        straight-bug-report--process-buffer))
                     (unless ,preserve-files
+                      (debug)
                       (delete-directory ,temp-emacs-dir 'recursive))))
        (message "Testing straight.el in directory: %s"
                 ,temp-emacs-dir))))
