@@ -3010,6 +3010,16 @@ straight.el to not even bother cloning recipe repositories to
 look for recipes for these packages."
   :type '(repeat symbol))
 
+(defvar straight--build-keywords '(:files
+                                   :flavor
+                                   :local-repo
+                                   :no-autoloads
+                                   :no-byte-compile
+                                   :no-native-compile)
+  "Keywords that affect how a package is built locally.
+If the values for any of these keywords change, then package
+needs to be rebuilt. See also `straight-vc-keywords'.")
+
 (cl-defun straight--convert-recipe (melpa-style-recipe &optional cause)
   "Convert a MELPA-STYLE-RECIPE to a normalized straight.el recipe.
 Recipe repositories specified in `straight-recipe-repositories'
@@ -3115,8 +3125,11 @@ for dependency resolution."
                                                      (if (listp sources)
                                                          sources
                                                        (list sources)))))
-                   (keywords (straight-vc-keywords
-                              (or (plist-get default :type) 'git))))
+                   (keywords
+                    (append
+                     (remq :local-repo straight--build-keywords)
+                     (straight-vc-keywords
+                      (or (plist-get default :type) 'git)))))
               ;; Compute :fork repo name
               (when-let ((fork (plist-get plist :fork)))
                 (straight--put default :fork fork)
@@ -3124,7 +3137,7 @@ for dependency resolution."
                 (unless (listp fork) (setq fork '()))
                 (straight--put fork :repo (straight-vc-git--fork-repo default))
                 (straight--put plist :fork fork))
-              (dolist (keyword (cons :files keywords))
+              (dolist (keyword keywords)
                 (unless (plist-member plist keyword)
                   (when-let ((value (plist-get default keyword)))
                     (setq plist (plist-put plist keyword value)))))))
