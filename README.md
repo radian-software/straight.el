@@ -595,6 +595,7 @@ set of additional directives. For example, the `git` backend accepts:
 * `:branch`
 * `:nonrecursive`
 * `:fork`
+* `:protocol`
 
 If a local repository is not present, then its fetch recipe describes
 how to obtain it. This is done using the `straight-vc-clone` function,
@@ -2086,6 +2087,9 @@ These are the keywords meaningful for the `git` backend:
   then the repository is cloned with the option `--depth N`. This
   works even when a commit is specified (e.g. by version lockfiles).
   The default value is `full`.
+* `:protocol`: If non-nil, force this protocol to be used when
+  interacting with the remote repository. Takes the same values as
+  `straight-vc-git-default-protocol`.
 
 This section tells you how the `git` backend, specifically, implements
 the version-control backend API:

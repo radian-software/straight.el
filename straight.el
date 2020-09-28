@@ -1712,7 +1712,8 @@ appropriately."
                                              "fork-" (symbol-name prop))))
                                 (setq require-fork t))
                               (let ((kw (intern (format ":%S" prop))))
-                                (if (memq prop '(repo host branch remote))
+                                (if (memq prop
+                                          '(repo host branch remote protocol))
                                     `(if-let ((fork (plist-get
                                                      ,recipe-sym :fork)))
                                          ,(funcall
@@ -1977,20 +1978,21 @@ their URLs set to the same as what is specified in the RECIPE.
 The URLs do not necessarily need to match exactly; they just have
 to satisfy `straight-vc-git--urls-compatible-p'."
   (straight-vc-git--destructure recipe
-      (local-repo upstream-repo upstream-host upstream-remote
-                  fork-repo fork-host fork-remote)
+      (local-repo
+       upstream-repo upstream-host upstream-remote upstream-protocol
+       fork-repo fork-host fork-remote fork-protocol)
     (and (or (null upstream-repo)
              (straight-vc-git--ensure-remote
               local-repo
               upstream-remote
               (straight-vc-git--encode-url
-               upstream-repo upstream-host)))
+               upstream-repo upstream-host upstream-protocol)))
          (or (null fork-repo)
              (straight-vc-git--ensure-remote
               local-repo
               fork-remote
               (straight-vc-git--encode-url
-               fork-repo fork-host))))))
+               fork-repo fork-host fork-protocol))))))
 
 ;; The following handles only merges, not rebases. See
 ;; https://github.com/raxod502/straight.el/issues/271.
@@ -2324,13 +2326,16 @@ COMMIT is a 40-character SHA-1 Git hash. If it cannot be checked
 out, signal a warning. If COMMIT is nil, check out the branch
 specified in RECIPE instead. If that fails, signal a warning."
   (straight-vc-git--destructure recipe
-      (package local-repo branch remote upstream-repo upstream-host
-               upstream-remote fork-repo repo host nonrecursive depth)
+      (package local-repo branch nonrecursive depth
+               remote upstream-remote
+               host upstream-host
+               protocol upstream-protocol
+               repo upstream-repo fork-repo)
     (unless upstream-repo
       (error "No `:repo' specified for package `%s'" package))
     (let ((success nil)
           (repo-dir (straight--repos-dir local-repo))
-          (url (straight-vc-git--encode-url repo host))
+          (url (straight-vc-git--encode-url repo host protocol))
           (depth (or depth straight-vc-git-default-clone-depth)))
       (unwind-protect
           (progn
@@ -2344,7 +2349,7 @@ specified in RECIPE instead. If that fails, signal a warning."
                   (default-directory repo-dir))
               (when fork-repo
                 (let ((url (straight-vc-git--encode-url
-                            upstream-repo upstream-host)))
+                            upstream-repo upstream-host upstream-protocol)))
                   (straight--get-call "git" "remote" "add" upstream-remote url)
                   (straight--get-call "git" "fetch" upstream-remote)))
               (when commit
@@ -2487,7 +2492,8 @@ then returned."
 
 (defun straight-vc-git-keywords ()
   "Return a list of keywords used by the VC backend for Git."
-  '(:repo :host :branch :remote :nonrecursive :upstream :fork :depth))
+  '(:repo :host :branch :remote :nonrecursive
+          :upstream :fork :depth :protocol))
 
 ;;;; Fetching repositories
 
