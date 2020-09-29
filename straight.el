@@ -3255,13 +3255,6 @@ nil."
 
 ;;;;; Recipe registration
 
-(defvar straight--build-keywords
-  '(:local-repo :files :flavor :no-autoloads :no-byte-compile
-                :no-native-compile)
-  "Keywords that affect how a package is built locally.
-If the values for any of these keywords change, then package
-needs to be rebuilt. See also `straight-vc-keywords'.")
-
 (defun straight--register-recipe (recipe)
   "Make the various caches aware of RECIPE.
 RECIPE should be a straight.el-style recipe plist."
