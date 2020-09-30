@@ -92,7 +92,7 @@ chat][gitter-badge]][gitter]
   * [Packages and the init-file](#packages-and-the-init-file)
   * [Using `straight.el` to reproduce bugs](#using-straightel-to-reproduce-bugs)
     + [... in other packages](#-in-other-packages)
-    + [in `straight.el` itself](#in-straightel-itself)
+    + [... in `straight.el` itself](#-in-straightel-itself)
   * [Using `straight.el` to develop packages](#using-straightel-to-develop-packages)
   * [Integration with other packages](#integration-with-other-packages)
     + [Integration with `use-package`](#integration-with-use-package-1)
@@ -2645,7 +2645,7 @@ Note that this will use the currently checked-out revisions of
 Projectile and all of its dependencies, so you should take note of
 those in order to make your bug report.
 
-#### in `straight.el` itself
+#### ... in `straight.el` itself
 
 `straight.el` provides a macro, `straight-bug-report`, to test
 `straight.el` in a clean environment. If possible, please use this
