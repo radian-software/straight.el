@@ -344,6 +344,12 @@ specifying a fork is as simple as:
      '(el-patch :type git :host github :repo "raxod502/el-patch"
                 :fork t))
 
+Note that `straight.el` doesn't do any Git operations during startup
+unless it needs to clone a package from scratch. This is for
+performance. You can explicitly request for `straight.el` to fix up
+the Git configuration after you change a package recipe, e.g. to add a
+fork. See [Automatic repository management][#quickstart/vc] below.
+
 To learn more, see the documentation on [the recipe
 format][#user/recipes] and [the Git backend][#user/recipes/git].
 
@@ -3161,6 +3167,7 @@ savings on network bandwidth and disk space.
 
 [#principles]: #guiding-principles
 [#quickstart]: #getting-started
+ [#quickstart/vc]: #automatic-repository-management
 [#faq]: #faq
  [#faq/package-versions]: #the-wrong-version-of-my-package-was-loaded
 [#concepts]: #conceptual-overview
