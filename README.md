@@ -91,6 +91,8 @@ chat][gitter-badge]][gitter]
     + [The profile system](#the-profile-system)
   * [Packages and the init-file](#packages-and-the-init-file)
   * [Using `straight.el` to reproduce bugs](#using-straightel-to-reproduce-bugs)
+    + [... in other packages](#-in-other-packages)
+    + [in `straight.el` itself](#in-straightel-itself)
   * [Using `straight.el` to develop packages](#using-straightel-to-develop-packages)
   * [Integration with other packages](#integration-with-other-packages)
     + [Integration with `use-package`](#integration-with-use-package-1)
@@ -220,58 +222,6 @@ reason to, and it might result in oddities like packages getting
 loaded more than once.
 
 #### Debugging
-* straight.el provides a macro, `straight-bug-report`, to test
-  straight.el in a clean environment. If possible, please use this
-  when creating bug reports.
-
-  `straight-bug-report` accepts the following keyword value pairs:
-
-  - `:pre-bootstrap (Form)...`
-      Forms evaluated before bootstrapping straight.el
-      e.g.
-
-        (setq straight-repository-branch \"develop\")
-
-      Note this example is already in the default bootstrapping code.
-
-  - `:post-bootstrap (Form)...`
-      Forms evaluated in the testing environment after boostrapping.
-      e.g.
-
-        (straight-use-package '(example :type git :host github))
-
-  - `:interactive Boolean`
-      If nil, the subprocess will immediately exit after the test.
-      Output will be printed to `straight-bug-report--process-buffer`
-      Otherwise, the subprocess will be interactive.
-
-  - `:preserve Boolean`
-      If t, the test directory is left in the directory stored in the
-      variable `temporary-file-directory'. Otherwise, it is
-      immediately removed after the test is run.
-
-  - `:executable String`
-      Indicate the Emacs executable to launch. Defaults to `"emacs"`.
-
-  - `:raw Boolean`
-      If t, the raw process output is sent to
-      `straight-bug-report--process-buffer`. Otherwise, it is
-      formatted as markdown for submitting as an issue."
-
-   For example:
-
-        (straight-bug-report
-          :pre-bootstrap
-          (message "before bootstrap")
-          (message "multiple forms allowed")
-          :post-bootstrap
-          (message "after bootstrap")
-          (message "multiple forms allowed")
-          (straight-use-package '(my-broken-package))
-          (message "bye"))
-
-  The above will run your test in a clean environment and produce a
-  buffer with information you can paste directly into the issue body.
 
 * Sometimes, in a corporate environment, `url-retrieve-synchronously`
   may not work and `straight.el` will be unable to download the
@@ -2664,6 +2614,8 @@ details are relegated to the [developer manual][#dev/transactions].
 
 ### Using `straight.el` to reproduce bugs
 
+#### ... in other packages
+
 One of the major reasons I wanted to write `straight.el` was that
 existing package managers were not good for reproducing bugs. For
 instance, some of them would load all installed packages when the
@@ -2692,6 +2644,57 @@ Projectile and all of its dependencies, run:
 Note that this will use the currently checked-out revisions of
 Projectile and all of its dependencies, so you should take note of
 those in order to make your bug report.
+
+#### in `straight.el` itself
+
+`straight.el` provides a macro, `straight-bug-report`, to test
+`straight.el` in a clean environment. If possible, please use this
+when creating bug reports.
+
+`straight-bug-report` accepts the following keyword value pairs:
+
+- `:pre-bootstrap (Form)...` Forms evaluated before bootstrapping
+    `straight.el` e.g.
+
+      (setq straight-repository-branch "develop")
+
+    Note this example is already in the default bootstrapping code.
+
+- `:post-bootstrap (Form)...` Forms evaluated in the testing
+    environment after boostrapping. e.g.
+
+      (straight-use-package '(example :type git :host github))
+
+- `:interactive Boolean` If nil, the subprocess will immediately exit
+    after the test. Output will be printed to
+    `straight-bug-report--process-buffer` Otherwise, the subprocess
+    will be interactive.
+
+- `:preserve Boolean` If t, the test directory is left in the
+    directory stored in the variable `temporary-file-directory'.
+    Otherwise, it is immediately removed after the test is run.
+
+- `:executable String` Indicate the Emacs executable to launch.
+    Defaults to `"emacs"`.
+
+- `:raw Boolean` If t, the raw process output is sent to
+    `straight-bug-report--process-buffer`. Otherwise, it is formatted
+    as markdown for submitting as an issue."
+
+ For example:
+
+      (straight-bug-report
+        :pre-bootstrap
+        (message "before bootstrap")
+        (message "multiple forms allowed")
+        :post-bootstrap
+        (message "after bootstrap")
+        (message "multiple forms allowed")
+        (straight-use-package '(my-broken-package))
+        (message "bye"))
+
+The above will run your test in a clean environment and produce a
+buffer with information you can paste directly into the issue body.
 
 ### Using `straight.el` to develop packages
 
