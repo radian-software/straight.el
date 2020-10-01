@@ -1619,10 +1619,7 @@ A nil value allows for inspection of all remote changes."
             ;; and combine it with the inherited upstream
             ;; repo. Otherwise, we can recurse as if :fork
             ;; had been specified as a string.
-            :fork ,(if (and (plist-member fork :host)
-                            (not (plist-member fork :repo)))
-                       t
-                     repo))))
+            :fork ,(if (plist-member fork :repo) repo t))))
         ((pred stringp)
          (pcase (straight-vc-git--fork-string-type fork)
            ;; If no :host is given, the repository is assumed to exist
