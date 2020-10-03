@@ -1575,6 +1575,7 @@ appropriately."
                   (list
                    :repo repo
                    :host host
+                   :branch branch
                    :remote straight-vc-git-primary-remote)))
            (dolist (kw '(:host :repo))
              (setq ,recipe-sym
@@ -2058,7 +2059,7 @@ name."
           (remote-branch (or remote-branch
                              branch
                              (straight-vc-git--default-remote-branch
-                              local-repo))))
+                              remote local-repo))))
       (while t
         (and (straight-vc-git--ensure-local recipe)
              (or (straight-vc-git--ensure-head
@@ -2091,8 +2092,8 @@ Return non-nil. If no local repository, do nothing and return non-nil."
         (while t
           (while (not (straight-vc-git--ensure-local recipe)))
           (let* ((remote-branch (or branch
-                                 (straight-vc-git--default-remote-branch
-                                  local-repo)))
+                                    (straight-vc-git--default-remote-branch
+                                     remote local-repo)))
                  (ref (format "%s/%s" remote remote-branch)))
             (when (straight--check-call
                    "git" "merge-base" "--is-ancestor"
@@ -2325,8 +2326,8 @@ yet, error out."
       (error "No repository created, so no local branch can be found"))
     (string-trim (cdr (straight--call "git" "branch" "--show-current")))))
 
-(cl-defun straight-vc-git--default-remote-branch (&optional local-repo)
-  "Return the default remote branch of LOCAL-REPO.
+(cl-defun straight-vc-git--default-remote-branch (remote &optional local-repo)
+  "Return the default remote branch of LOCAL-REPO, with remote name REMOTE.
 If LOCAL-REPO is not specified, assume we are the correct
 directory for the repository. If there is no remote repository,
 return nil."
@@ -2339,8 +2340,17 @@ return nil."
                                     default-directory))
                               default-directory))
          (branch-list (cdr (straight--call "git" "branch" "-r"))))
-    (when (string-match "^.*origin/HEAD -> origin/\\(.*$\\)" branch-list)
-      (match-string 1 branch-list))))
+    (if (string-match "^.*origin/HEAD -> origin/\\(.*$\\)" branch-list)
+        (match-string 1 branch-list)
+      ;; git doesn't always have the default remote branch name
+      ;; available locally. For these cases, we have to look at the
+      ;; remote. This is more reliable but also involves is slower, so
+      ;; we do this later.
+      (when branch-list
+        (let ((remote-show-output
+               (cdr (straight--call "git" "remote" "show" remote))))
+          (string-match "HEAD branch: \\(.*\\)$" remote-show-output)
+          (match-string 1 remote-show-output))))))
 
 (cl-defun straight-vc-git-merge-from-remote (recipe &optional from-upstream)
   "Using straight.el-style RECIPE, merge from the primary remote.
@@ -2357,7 +2367,7 @@ is not part of the VC API."
              (remote (if from-upstream upstream-remote remote))
              (remote-branch
               (or (if from-upstream upstream-branch branch)
-                  (straight-vc-git--default-remote-branch repo))))
+                  (straight-vc-git--default-remote-branch remote repo))))
         (unless repo
           (cl-return t))
         (straight-vc-git--merge-from-remote-raw
