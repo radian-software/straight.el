@@ -4398,8 +4398,13 @@ modifies the build folder, not the original repository."
               ;; <https://github.com/raxod502/straight.el/issues/434>.
               (debug-on-error nil))
           ;; Actually generate the autoload file.
-          (update-directory-autoloads
-           (straight--build-dir package)))
+          ;; Emacs > 28.1 replaces `update-directory-autoloads' with
+          ;; `make-directory-autoloads'
+          (if (fboundp 'make-directory-autoloads)
+              (make-directory-autoloads (straight--build-dir package)
+                                        generated-autoload-file)
+            (and (fboundp 'update-directory-autoloads)
+                 (update-directory-autoloads (straight--build-dir package)))))
         ;; And for some reason Emacs leaves a newly created buffer
         ;; lying around. Let's kill it.
         (when-let ((buf (find-buffer-visiting generated-autoload-file)))
