@@ -6335,7 +6335,8 @@ ARGS may be any of the following keywords and their respective values:
       immediately removed after the test is run.
 
   - :executable String
-      Indicate the Emacs executable to launch. Defaults to \"emacs\".
+      Indicate the Emacs executable to launch.
+      Defaults to the path of the current Emacs executable.
 
   - :raw Boolean
       If non-nil, the raw process output is sent to
@@ -6381,6 +6382,8 @@ locally bound plist, straight-bug-report-args."
          (temp-dir (if-let ((dir (car (alist-get :user-dir keywords))))
                        (expand-file-name dir temporary-file-directory)
                      (make-temp-file "straight.el-test-" 'directory)))
+         (executable (or (car (alist-get :executable keywords))
+                         (concat invocation-directory invocation-name)))
          ;; Construct metaprogram to be evaled by subprocess
          ;; Convert the keywords and their args into a proper plist.
          (pargs (let ((plist '()))
@@ -6393,6 +6396,7 @@ locally bound plist, straight-bug-report-args."
                                                                  (cdr pair))
                                                        (cadr pair))))))
                   ;; Add full path of user-dir.
+                  (setq plist (plist-put plist :executable executable))
                   (setq plist (plist-put plist :user-dir temp-dir))))
          (program (pp-to-string
                    ;; The top-level `let' is an intentional local
@@ -6409,8 +6413,7 @@ locally bound plist, straight-bug-report-args."
                            (alist-get :post-bootstrap keywords)))))
     `(let* ((,preserve-files    ,(car (alist-get :preserve keywords)))
             (,interactive       ,(car (alist-get :interactive keywords)))
-            (,emacs-executable  ,(or (car (alist-get :executable keywords))
-                                     "emacs"))
+            (,emacs-executable  ,executable)
             (,emacs-args-symbol (append (unless ,interactive '("--batch"))
                                         ',straight-bug-report--default-args))
             (,raw               ,(car (alist-get :raw keywords)))
