@@ -5,6 +5,9 @@ EMACS ?= emacs
 
 SHELL := bash
 
+#Point to path of your local emacs-buttercup install
+BUTTERCUP = ../emacs-buttercup/
+
 # The order is important for compilation.
 for_compile := straight.el bootstrap.el install.el straight-x.el	\
 	benchmark/straight-bench.el
@@ -48,7 +51,6 @@ checkdoc: ## Check docstring style
 .PHONY: longlines
 longlines: ## Check for long lines
 	@scripts/check-line-length.bash
-
 .PHONY: checkindent
 checkindent: ## Ensure that indentation is correct
 	@tmpdir="$$(mktemp -d)"; for file in $(for_checkindent); do \
@@ -94,3 +96,8 @@ bench: ## Run benchmarking script against package.el
 .PHONY: docker
 docker: ## Start a Docker shell; e.g. make docker VERSION=25.3
 	@scripts/docker.bash "$(VERSION)" "$(CMD)"
+
+.PHONY: test
+test: straight.elc
+	$(EMACS) -Q --batch -L . -L $(BUTTERCUP) \
+		-l buttercup -f buttercup-run-discover
