@@ -2140,8 +2140,8 @@ with the remotes."
                   (straight-vc-git--ensure-worktree local-repo)
                   (straight-vc-git--ensure-head
                    local-repo
-                   (or branch (straight-vc-git--default-remote-branch remote
-                               local-repo))))
+                   (or branch (straight-vc-git--default-remote-branch
+                               remote local-repo))))
              (straight-register-repo-modification local-repo)))))
 
 (defcustom straight-vc-git-default-clone-depth 'full
