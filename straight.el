@@ -2054,16 +2054,14 @@ used; it should be a string that is not prefixed with a remote
 name."
   (straight-vc-git--destructure recipe
       (local-repo branch)
-    (let ((branch (or branch (straight-vc-git--default-branch-in-local-repo
-                              local-repo)))
-          (remote-branch (or remote-branch
+    (let ((remote-branch (or remote-branch
                              branch
                              (straight-vc-git--default-remote-branch
                               remote local-repo))))
       (while t
         (and (straight-vc-git--ensure-local recipe)
              (or (straight-vc-git--ensure-head
-                  local-repo branch
+                  local-repo remote-branch
                   (format "%s/%s" remote remote-branch))
                  (straight-register-repo-modification local-repo))
              (cl-return-from straight-vc-git--merge-from-remote-raw t))))))
@@ -2086,28 +2084,24 @@ Return non-nil. If no local repository, do nothing and return non-nil."
       (unless repo
         (cl-return t))
       (let ((push-error-message nil)
-            (local-branch
+            (branch
              (or branch
-                 (straight-vc-git--default-branch-in-local-repo local-repo))))
+                 (straight-vc-git--default-remote-branch remote local-repo))))
         (while t
           (while (not (straight-vc-git--ensure-local recipe)))
-          (let* ((remote-branch (or branch
-                                    (straight-vc-git--default-remote-branch
-                                     remote local-repo)))
-                 (ref (format "%s/%s" remote remote-branch)))
+          (let* ((ref (format "%s/%s" remote branch)))
             (when (straight--check-call
-                   "git" "merge-base" "--is-ancestor"
-                   local-branch ref)
+                   "git" "merge-base" "--is-ancestor" branch ref)
               (cl-return t))
             (let* ((log (straight--get-call
                          "git" "log" "--format=%h %s"
-                         (concat ref ".." local-branch)))
+                         (concat ref ".." branch)))
                    (num-commits (length (straight--split-and-trim log))))
               (straight-vc-git--popup
                 (format
                  (concat "In repository %S, branch %S has %d "
                          "commit%s unpushed to %S%s:\n\n%s")
-                 local-repo local-branch num-commits
+                 local-repo branch num-commits
                  (if (= num-commits 1) "" "s")
                  ref (if (> num-commits 5) ", including" "")
                  (concat
@@ -2115,10 +2109,10 @@ Return non-nil. If no local repository, do nothing and return non-nil."
                   (when push-error-message
                     (concat "\n\nPush failed:\n\n  "
                             push-error-message))))
-                ("f" (format "Pull %S into branch %S" ref local-branch)
+                ("f" (format "Pull %S into branch %S" ref branch)
                  (straight-vc-git--pull-from-remote-raw
-                  recipe remote local-branch))
-                ("p" (format "Push branch %S to %S" local-branch ref)
+                  recipe remote branch))
+                ("p" (format "Push branch %S to %S" branch ref)
                  (when (straight-are-you-sure
                         (format "Really push to %S in %S?" ref local-repo))
                    (straight--catching-quit
@@ -2126,8 +2120,8 @@ Return non-nil. If no local repository, do nothing and return non-nil."
                             (straight--call
                              "git" "push" remote
                              (format
-                              "refs/heads/%s:refs/heads/%s" remote-branch
-                              remote-branch))))
+                              "refs/heads/%s:refs/heads/%s" branch
+                              branch))))
                        (unless (car result)
                          (setq push-error-message
                                (string-trim (cdr result))))))))))))))))
@@ -2140,13 +2134,13 @@ primary :branch is checked out. The reason for \"local\" in the
 name of this function is that no network communication is done
 with the remotes."
   (straight-vc-git--destructure recipe
-      (local-repo branch)
+      (local-repo branch remote)
     (and (straight-vc-git--ensure-remotes recipe)
          (or (and (straight-vc-git--ensure-nothing-in-progress local-repo)
                   (straight-vc-git--ensure-worktree local-repo)
                   (straight-vc-git--ensure-head
                    local-repo
-                   (or branch (straight-vc-git--default-branch-in-local-repo
+                   (or branch (straight-vc-git--default-remote-branch remote
                                local-repo))))
              (straight-register-repo-modification local-repo)))))
 
@@ -2245,8 +2239,8 @@ specified in RECIPE instead. If that fails, signal a warning."
             (let* ((straight--default-directory nil)
                    (default-directory repo-dir)
                    (branch (or branch
-                               (straight-vc-git--default-branch-in-local-repo
-                                local-repo))))
+                               (straight-vc-git--default-remote-branch
+                                remote local-repo))))
               (when fork-repo
                 (let ((url (straight-vc-git--encode-url
                             upstream-repo upstream-host)))
@@ -2315,16 +2309,6 @@ argument is not part of the VC API."
   "Using straight.el-style RECIPE, fetch from the upstream remote.
 If RECIPE does not configure a fork, do nothing."
   (straight-vc-git-fetch-from-remote recipe 'from-upstream))
-
-(cl-defun straight-vc-git--default-branch-in-local-repo (local-repo)
-  "Provide a default branch name for LOCAL-REPO.
-This is the local branch name that should be acted on, which is
-the currently checked out branch. If there is no local directory
-yet, error out."
-  (let* ((default-directory (straight--repos-dir local-repo)))
-    (unless (file-directory-p default-directory)
-      (error "No repository created, so no local branch can be found"))
-    (string-trim (cdr (straight--call "git" "branch" "--show-current")))))
 
 (cl-defun straight-vc-git--default-remote-branch (remote &optional local-repo)
   "Return the default remote branch of LOCAL-REPO, with remote name REMOTE.
