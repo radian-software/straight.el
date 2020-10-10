@@ -2298,7 +2298,8 @@ clone of everything."
                  "git" "fetch" remote commit
                  "--depth" (number-to-string depth)
                  "--no-tags")))
-          (delete-directory repo-dir 'recursive)
+          (when (file-exists-p repo-dir)
+            (delete-directory repo-dir 'recursive))
           (straight--get-call
            "git" "clone" "--origin" remote
            "--no-checkout" url repo-dir
@@ -2308,7 +2309,8 @@ clone of everything."
            "--no-tags"))
       ;; Fallback for dumb http protocol.
       (error
-       (delete-directory repo-dir 'recursive)
+       (when (file-exists-p repo-dir)
+         (delete-directory repo-dir 'recursive))
        (straight-vc-git--clone-internal :depth 'full
                                         :remote remote
                                         :url url
