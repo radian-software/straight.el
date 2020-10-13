@@ -42,79 +42,76 @@
       (it "tests with eq when SYMBOL non-nil"
         (expect (straight--alist-set "a" 'a  '((a . b) (a . c)) 'symbol)
                 :to-equal '(("a" . a) (a . b) (a . c))))))
-(describe "straight-vc-git--fork-repo"
-  (before-each (setq straight-host-usernames
-                     '((github . "githubUser")
-                       (gitlab . "gitlabUser")
-                       (bitbucket . "bitbucketUser"))))
-  (describe ":fork nil"
-    (it "returns inherited upstream :repo"
-      ;; explicit
-      (expect (straight-vc-git--fork-repo
-               (plist-put straight-test-default-recipe :fork nil))
-              :to-equal "upstream/repo")
-      ;; implicit
-      (expect (straight-vc-git--fork-repo straight-test-default-recipe)
-              :to-equal "upstream/repo")))
-  (describe ":fork t"
-    (it "returns \"straight-host-username/upstream-repo-name\""
-      (expect (straight-vc-git--fork-repo
-               (plist-put straight-test-default-recipe :fork t))
-              :to-equal "githubUser/repo")))
-  (describe ":fork string"
-    (it "returns \"STRING/upstream-repo\" with suffixed or absent \"/\""
-      (expect (straight-vc-git--fork-repo
-               (plist-put straight-test-default-recipe :fork "fork/"))
-              :to-equal "fork/repo")
-      (expect (straight-vc-git--fork-repo
-               (plist-put straight-test-default-recipe :fork "fork"))
-              :to-equal "fork/repo"))
-    (it "returns \"straight-host-username/STRING\" when prefixed with \"/\""
-      (expect (straight-vc-git--fork-repo
-               (plist-put straight-test-default-recipe :fork "/rename"))
-              :to-equal "githubUser/rename"))
-    (it "returns \"STRING\" when contains \"/\" that is not a prefix or suffix"
-      (expect (straight-vc-git--fork-repo
-               (plist-put straight-test-default-recipe :fork "fork/rename"))
-              :to-equal "fork/rename")))
-  (describe ":fork plist"
-    (it "looks up :fork PLIST's :host"
-      (expect (straight-vc-git--fork-repo
-               (plist-put straight-test-default-recipe
-                          :fork '(:host bitbucket)))
-              :to-equal "bitbucketUser/repo"))
-    (it "gives precedence to :fork PLIST's :repo"
-      (expect (straight-vc-git--fork-repo
-               (plist-put straight-test-default-recipe
-                          :fork '(:repo "/rename")))
-              :to-equal "githubUser/rename")
-      (expect (straight-vc-git--fork-repo
-               (plist-put straight-test-default-recipe
-                          :fork '(:host github :repo "user/")))
-              :to-equal "user/repo")
-      (expect (straight-vc-git--fork-repo
-               (plist-put straight-test-default-recipe
-                          :fork '(:host gitlab :repo "full/override")))
-              :to-equal "full/override")
-      ;; https://github.com/raxod502/straight.el/issues/592
-      (expect (straight-vc-git--fork-repo
-               (plist-put straight-test-default-recipe
-                          :fork '(:host nil :repo "/local/repo")))
-              :to-equal "/local/repo"))
-    (it "looks up the user when :fork PLIST does not provide a :repo"
-      (expect (straight-vc-git--fork-repo
-               (plist-put straight-test-default-recipe
-                          :fork '(:branch "feature")))
-              :to-equal "githubUser/repo")))))
+  (describe "straight-vc-git--fork-repo"
+    (before-each (setq straight-host-usernames
+                       '((github . "githubUser")
+                         (gitlab . "gitlabUser")
+                         (bitbucket . "bitbucketUser"))))
+    (describe ":fork nil"
+      (it "returns inherited upstream :repo"
+        ;; explicit
+        (expect (straight-vc-git--fork-repo
+                 (plist-put straight-test-default-recipe :fork nil))
+                :to-equal "upstream/repo")
+        ;; implicit
+        (expect (straight-vc-git--fork-repo straight-test-default-recipe)
+                :to-equal "upstream/repo")))
+    (describe ":fork t"
+      (it "returns \"straight-host-username/upstream-repo-name\""
+        (expect (straight-vc-git--fork-repo
+                 (plist-put straight-test-default-recipe :fork t))
+                :to-equal "githubUser/repo")))
+    (describe ":fork string"
+      (it "returns \"STRING/upstream-repo\" with suffixed or absent \"/\""
+        (expect (straight-vc-git--fork-repo
+                 (plist-put straight-test-default-recipe :fork "fork/"))
+                :to-equal "fork/repo")
+        (expect (straight-vc-git--fork-repo
+                 (plist-put straight-test-default-recipe :fork "fork"))
+                :to-equal "fork/repo"))
+      (it "returns \"straight-host-username/STRING\" when prefixed with \"/\""
+        (expect (straight-vc-git--fork-repo
+                 (plist-put straight-test-default-recipe :fork "/rename"))
+                :to-equal "githubUser/rename"))
+      (it "returns \"STRING\" when \"/\" that is not a prefix or suffix"
+        (expect (straight-vc-git--fork-repo
+                 (plist-put straight-test-default-recipe :fork "fork/rename"))
+                :to-equal "fork/rename")))
+    (describe ":fork plist"
+      (it "looks up :fork PLIST's :host"
+        (expect (straight-vc-git--fork-repo
+                 (plist-put straight-test-default-recipe
+                            :fork '(:host bitbucket)))
+                :to-equal "bitbucketUser/repo"))
+      (it "gives precedence to :fork PLIST's :repo"
+        (expect (straight-vc-git--fork-repo
+                 (plist-put straight-test-default-recipe
+                            :fork '(:repo "/rename")))
+                :to-equal "githubUser/rename")
+        (expect (straight-vc-git--fork-repo
+                 (plist-put straight-test-default-recipe
+                            :fork '(:host github :repo "user/")))
+                :to-equal "user/repo")
+        (expect (straight-vc-git--fork-repo
+                 (plist-put straight-test-default-recipe
+                            :fork '(:host gitlab :repo "full/override")))
+                :to-equal "full/override")
+        ;; https://github.com/raxod502/straight.el/issues/592
+        (expect (straight-vc-git--fork-repo
+                 (plist-put straight-test-default-recipe
+                            :fork '(:host nil :repo "/local/repo")))
+                :to-equal "/local/repo"))
+      (it "looks up the user when :fork PLIST does not provide a :repo"
+        (expect (straight-vc-git--fork-repo
+                 (plist-put straight-test-default-recipe
+                            :fork '(:branch "feature")))
+                :to-equal "githubUser/repo")))))
 
 
 (provide 'straight-test)
 
 ;; Local Variables:
 ;; End:
-
-;;; straight-test.el ends here
-
 
 
 ;;; test-straight.el ends here

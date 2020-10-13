@@ -51,6 +51,7 @@ checkdoc: ## Check docstring style
 .PHONY: longlines
 longlines: ## Check for long lines
 	@scripts/check-line-length.bash
+
 .PHONY: checkindent
 checkindent: ## Ensure that indentation is correct
 	@tmpdir="$$(mktemp -d)"; for file in $(for_checkindent); do \
