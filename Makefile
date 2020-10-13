@@ -6,7 +6,7 @@ EMACS ?= emacs
 SHELL := bash
 
 #Point to path of your local emacs-buttercup install
-BUTTERCUP = ../emacs-buttercup/
+BUTTERCUP ?= ../emacs-buttercup/
 
 # The order is important for compilation.
 for_compile := straight.el bootstrap.el install.el straight-x.el	\
