@@ -6437,7 +6437,8 @@ locally bound plist, straight-bug-report-args."
                       (switch-to-buffer-other-window
                        straight-bug-report--process-buffer))
                     (unless ,preserve-files
-                      (delete-directory ,temp-emacs-dir 'recursive))))
+                      (when (file-exists-p ,temp-emacs-dir)
+                        (delete-directory ,temp-emacs-dir 'recursive)))))
        (message "Testing straight.el in directory: %s"
                 ,temp-emacs-dir))))
 ;;;; Closing remarks
