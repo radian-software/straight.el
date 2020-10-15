@@ -2803,6 +2803,8 @@ return nil."
                 (straight--put
                  plist :files
                  (append files (list (format "%S-pkg.el" package)))))
+              (when-let ((branch (plist-get melpa-plist :branch)))
+                (straight--put plist :branch branch))
               (pcase (plist-get melpa-plist :fetcher)
                 (`git (straight--put plist :repo (plist-get melpa-plist :url)))
                 ((or `github `gitlab)
