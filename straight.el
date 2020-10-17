@@ -2175,6 +2175,7 @@ clone of everything."
     ;; Clone the whole history of the repository.
     (straight--get-call
      "git" "clone" "--origin" remote
+     "--branch" branch
      "--no-checkout" url repo-dir))
    ((integerp depth)
     ;; Do a shallow clone.
@@ -2242,9 +2243,9 @@ specified in RECIPE instead. If that fails, signal a warning."
                   (straight--get-call "git" "remote" "add" upstream-remote url)
                   (straight--get-call "git" "fetch" upstream-remote)))
               (when commit
-                (unless (straight--check-call "git" "checkout" commit)
+                (unless (straight--check-call "git" "reset" "--hard" commit)
                   (straight--warn
-                   "Could not check out commit %S in repository %S"
+                   "Could not reset to commit %S in repository %S"
                    commit local-repo)
                   ;; We couldn't check out the commit, best to proceed
                   ;; as if we weren't given one.
