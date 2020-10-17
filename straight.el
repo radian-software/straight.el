@@ -3133,10 +3133,11 @@ for dependency resolution."
             ;; not present in the override and adding them there.
             (let* ((sources (plist-get plist :source))
                    (default
-                     (cdr (straight-recipes-retrieve package
-                                                     (if (listp sources)
-                                                         sources
-                                                       (list sources)))))
+                     (or (cdr (straight-recipes-retrieve package
+                                                         (if (listp sources)
+                                                             sources
+                                                           (list sources))))
+                         plist))
                    (keywords
                     (append
                      (remq :local-repo straight--build-keywords)
