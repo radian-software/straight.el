@@ -1951,6 +1951,11 @@ confirmation, so this function should only be run after
             local-repo branch)
            ("a" (format "Attach HEAD to branch %S" branch)
             (straight--get-call "git" "checkout" branch)))))
+      ((and (null ref)
+            ;; Are we not on the actual default remote branch? We should be
+            ;; switch to it. If it is not existing, "git checkout" will
+            ;; automatically create it.
+            (straight--get-call "git" "checkout" branch)))
       (t
        (let ((ref-ahead-p (straight--check-call
                            "git" "merge-base" "--is-ancestor"
@@ -2131,8 +2136,8 @@ Return non-nil. If no local repository, do nothing and return non-nil."
 This means that the remote URLs are set correctly; there is no
 merge currently in progress; the worktree is pristine; and the
 primary :branch is checked out. The reason for \"local\" in the
-name of this function is that no network communication is done
-with the remotes."
+name of this function is that for normal situations, no network
+communication is done with the remotes."
   (straight-vc-git--destructure recipe
       (local-repo branch remote)
     (and (straight-vc-git--ensure-remotes recipe)
