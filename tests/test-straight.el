@@ -1,14 +1,5 @@
 ;;; straight.el --- Tests for straight.el -*- lexical-binding: t; -*-
-;; Package-Requires: ((buttercup))
 
-;; Created: 06 Oct 2020
-;; Version: prerelease
-
-
-;;; Commentary:
-;;
-
-;;; Code:
 (require 'buttercup)
 (require 'straight)
 
@@ -109,9 +100,3 @@
 
 
 (provide 'straight-test)
-
-;; Local Variables:
-;; End:
-
-
-;;; test-straight.el ends here
