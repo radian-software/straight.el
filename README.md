@@ -141,9 +141,8 @@ chat][gitter-badge]][gitter]
   your Emacs configuration. Package state is defined entirely by your
   init-file and (optional) lockfile, with no extra persistent data
   floating around.
-* Specify package descriptions using a powerful recipe format that
-  supports everything from [MELPA recipes][melpa-recipe-format] and
-  more.
+* Specify package descriptions using a powerful format based on [MELPA
+  recipes][melpa-recipe-format] (with a familiar but improved syntax).
 * [`use-package`][use-package] integration.
 * Modular: you can install your packages manually and straight.el will
   load them for you. Or you can also have straight.el install your
@@ -316,6 +315,13 @@ You can still provide a custom recipe for the package:
       :straight (el-patch :type git :host github :repo "raxod502/el-patch"
                           :fork (:host github
                                  :repo "your-name/el-patch")))
+
+The `:straight` keyword accepts backquoted forms.
+This makes it possible to dynamically compute part of the recipe:
+
+    (use-package el-patch
+      :straight `(el-patch :type git
+                           :repo ,(alist-get 'el-patch my-package-urls)))
 
 Specifying `:straight t` is unnecessary if you set
 `straight-use-package-by-default` to a non-nil value. (Note that the
@@ -626,11 +632,12 @@ error is signaled (unless the package is built-in to Emacs, according
 to `package.el`).
 
 Note that `straight.el` uses its own recipe format which is similar,
-but not identical, to the one used by MELPA. The recipe repository
-backends abstract over the formatting differences in different recipe
-sources to translate recipes into the uniform format used by
-`straight.el`. When you run `M-x straight-get-recipe`, the translated
-recipe is what is returned.
+but not identical, to the one used by MELPA (see [the section on the
+recipe format][#user/recipes] for information on the differences). The
+recipe repository backends abstract over the formatting differences in
+different recipe sources to translate recipes into the uniform format
+used by `straight.el`. When you run `M-x straight-get-recipe`, the
+translated recipe is what is returned.
 
 ### What happens when I call `straight-use-package`?
 
@@ -1727,6 +1734,11 @@ Currently, `straight-use-package` supports two hooks:
   needs to be built). They are passed the name of the package being
   built as a string, and should take and ignore any additional
   arguments.
+* `straight-use-package-post-build-functions`: The functions in this
+  hook are run just after building a package (and only if the package
+  needs to be built). They are passed the name of the package being
+  built as a string, and should take and ignore any additional
+  arguments.
 
 ### The recipe format
 
@@ -1740,6 +1752,26 @@ dynamically, use backquoting:
 
     (straight-use-package
      `(el-patch :type git :repo ,(alist-get 'el-patch my-package-urls)))
+
+The supported keywords are *similar, but not identical* to those used
+in MELPA recipes. There is a complete list below which you can compare
+with the [MELPA documentation][melpa-recipe-format], but the main
+differences from the user's point of view are:
+
+* We use `:host` instead of `:fetcher`.
+* We only support Git recipes by default, although the system is
+  extensible to other VCs to be added in the future or in user
+  configurations. Thus the supported `:host` values are `nil` (any Git
+  repository), `github`, `gitlab`, and `bitbucket` (Git only).
+* We support `:branch`, but not `:commit` or `:version-regexp`. To
+  lock a package to a specific commit, use a
+  [lockfile][#user/lockfiles]. See also [#246] for discussion of
+  extensions to the recipe to support package pinning, which is a
+  planned feature.
+* We support several additional keywords that affect how a package is
+  built; see below.
+* There are consistency and feature improvements to edge cases of the
+  `:files` keyword as documented in `straight-expand-files-directive`.
 
 Here is a comprehensive list of all keywords which have special
 meaning in a recipe (unknown keywords are ignored but preserved):
@@ -1813,6 +1845,23 @@ meaning in a recipe (unknown keywords are ignored but preserved):
   package declares it as a dependency:
 
       (straight-use-package '(org :type built-in))
+
+* `:source`
+
+ Overrides `straight-recipe-repositories` on a per-recipe basis.
+ Its value may be:
+   - a symbol representing a recipe repository
+   - a list of such symbols
+ The order of the symbols determines their precedence. For example:
+
+        (straight-use-package '(package :source melpa))
+
+ Will search only the melpa recipe repository for package's recipe. While:
+
+        (straight-use-package '(package :source (melpa gnu-elpa-mirror)))
+
+ will search for package's recipe first in melpa.
+ If it is not found there it will check gnu-elpa-mirror next.
 
 * backend-specific keywords
 
@@ -2741,6 +2790,20 @@ Assuming that the package you're trying to install actually exists,
 you need to update your recipe repositories (most likely MELPA,
 possibly Emacsmirror). See the next FAQ entry. This is like running
 `package-refresh-contents` under `package.el`.
+
+Another possibility is that you are providing `straight.el` with a
+feature name rather than a package name. Features are what you load
+with `require` or `load`, or find in files. For example, `org-agenda`
+and `org-capture` are features. Packages, on the other hand, can
+provide one or more features. They are what are listed on MELPA et al.
+or by `M-x straight-get-recipe`. For example, `org` and
+`org-plus-contrib` are packages.
+
+When you write `(use-package foo ...)`, the `foo` is a *feature*, not
+a package. You can give a different package name `bar` by saying
+`(use-package foo :straight bar)`. And when you write
+`(straight-use-package 'bar)`, the `bar` is a *package*, not a
+feature.
 
 ### How do I update MELPA et al.?
 

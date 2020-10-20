@@ -62,29 +62,33 @@
 ;; Not defined before Emacs 25.1
 (eval-and-compile
   (unless (fboundp 'if-let)
-    (defmacro if-let (varlist then &optional else)
-      "Bind variables according to VARLIST and eval THEN or ELSE.
-VARLIST must be of the form ((SYMBOL VALUEFORM)). Evaluate
-VALUEFORM and bind it to SYMBOL. If the result of evaluation is
-non-nil, evaluate and return THEN. Otherwise, evaluate and return
-ELSE (or nil)."
-      (let ((symbol (nth 0 (car varlist)))
-            (valueform (nth 1 (car varlist))))
-        `(let ((,symbol ,valueform))
-           (if ,symbol
-               ,then
-             ,else))))))
+    (defmacro straight--if-let (spec then &rest else)
+      "Bind variables according to SPEC and eval THEN or ELSE.
+SPEC must be of the form ((SYMBOL VALUE)...).
+Evaluate each VALUE in SPEC and bind it to its SYMBOL.
+If the result of evaluation is non-nil, evaluate and return THEN.
+Otherwise, evaluate and return ELSE (or nil)."
+      (declare (indent 2))
+      `(let ,spec
+         (if (and ,@(mapcar (lambda (el)
+                              (if (listp el) (car el) nil))
+                            spec))
+             ,then
+           ,@else)))
+    (defalias 'if-let 'straight--if-let)))
 
 ;; Not defined before Emacs 25.1
 (eval-and-compile
   (unless (fboundp 'when-let)
-    (defmacro when-let (varlist &rest body)
-      "Bind variables according to VARLIST and conditionally eval BODY.
-VARLIST must be of the form ((SYMBOL VALUEFORM)). Evaluate
-VALUEFORM and bind it to SYMBOL. If the result of evaluation is
-non-nil, evaluate and return BODY. Otherwise return nil."
-      `(if-let ,varlist
-           (progn ,@body)))))
+    (defmacro straight--when-let (spec &rest body)
+      "Bind variables according to SPEC and conditionally eval BODY.
+SPEC must be of the form ((SYMBOL VALUE)...). Evaluate each
+VALUE in SPEC and bind it to its corresponding SYMBOL. If the result of
+evaluation is non-nil, evaluate and return BODY. Otherwise return
+nil."
+      (declare (indent 1))
+      `(straight--if-let ,spec (progn ,@body)))
+    (defalias 'when-let 'straight--when-let)))
 
 ;; Not defined before Emacs 25.1
 (eval-and-compile
@@ -108,6 +112,9 @@ non-nil, evaluate and return BODY. Otherwise return nil."
 They are still logged to the *Messages* buffer.")))
 
 ;;;; Functions from other packages
+
+;; `comp'
+(defvar comp-deferred-compilation-black-list)
 
 ;; `finder-inf'
 (defvar package--builtins)
@@ -308,15 +315,7 @@ PROPS is a list of symbols. Each one is converted to a keyword
 and then its value is looked up in the PLIST and bound to the
 symbol for the duration of BODY."
   (declare (indent 2) (debug (form sexp body)))
-  (let ((plist-sym (make-symbol "plist")))
-    `(let* ((,plist-sym ,plist)
-            ,@(mapcar (lambda (prop)
-                        `(,prop
-                          (plist-get
-                           ,plist-sym
-                           ,(intern (concat ":" (symbol-name prop))))))
-                      props))
-       ,@body)))
+  `(cl-destructuring-bind (&key ,@props &allow-other-keys) ,plist ,@body))
 
 (defmacro straight--put (plist prop value)
   "Make copy of PLIST with key PROP mapped to VALUE, and re-set it.
@@ -2830,12 +2829,13 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
   (let ((packages nil))
     (dolist (org '("mirror" "attic"))
       (with-temp-buffer
-        (insert-file-contents org)
+        (insert-file-contents-literally org)
         (setq packages (nconc (mapcar
                                (lambda (package)
                                  (replace-regexp-in-string
                                   "-plus\\b" "+" package 'fixedcase 'literal))
-                               (split-string (buffer-string) "\n" 'omit-nulls))
+                               (split-string
+                                (buffer-string) "\r?\n" 'omit-nulls))
                               packages))))
     packages))
 
@@ -2883,10 +2883,15 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
 
 ;;;;; Recipe conversion
 
-(defcustom straight-built-in-pseudo-packages '(emacs python)
+(defcustom straight-built-in-pseudo-packages '(emacs nadvice python)
   "List of built-in packages that aren't real packages.
 If any of these are specified as dependencies, straight.el will
 just skip them instead of looking for a recipe.
+
+Another application of this variable is to correctly handle the
+situation where a package is built-in but Emacs incorrectly
+claims that it's not (see
+<https://github.com/raxod502/straight.el/issues/548>).
 
 Note that straight.el can deal with built-in packages even if
 this variable is set to nil. This just allows you to tell
@@ -2996,7 +3001,12 @@ for dependency resolution."
             (let ((fork (plist-get plist :fork)))
               (when (stringp fork)
                 (straight--put plist :fork `(:repo ,fork))))
-            (let* ((default (cdr (straight-recipes-retrieve package)))
+            (let* ((sources (plist-get plist :source))
+                   (default
+                     (cdr (straight-recipes-retrieve package
+                                                     (if (listp sources)
+                                                         sources
+                                                       (list sources)))))
                    (keywords (straight-vc-keywords
                               (or (plist-get default :type) 'git))))
               (dolist (keyword (cons :files keywords))
@@ -3025,7 +3035,8 @@ for dependency resolution."
             ;; attribute to be set to nil to enforce that there is no
             ;; local repository (rather than a local repository name
             ;; being automatically generated).
-            (unless (plist-member plist :local-repo)
+            (unless (or (plist-member plist :local-repo)
+                        (eq (plist-get plist :type) 'built-in))
               (straight--put
                plist :local-repo
                (or (straight-vc-local-repo-name plist)
@@ -3137,8 +3148,7 @@ RECIPE should be a straight.el-style recipe plist."
         ;; in Step 2, no need to show another one here. Only signal a
         ;; warning here when the packages are actually *different*
         ;; packages that share the same repository.
-        (unless (equal (plist-get recipe :package)
-                       (plist-get existing-recipe :package))
+        (unless (equal package (plist-get existing-recipe :package))
           ;; Only the VC-specific keywords are relevant for this.
           (cl-dolist (keyword (cons :type (straight-vc-keywords type)))
             ;; Note that it doesn't matter which recipe we get `:type'
@@ -3154,13 +3164,17 @@ RECIPE should be a straight.el-style recipe plist."
               ;; `straight--repo-cache' and `straight--recipe-cache'
               ;; at the end of this method, this warning will only be
               ;; displayed once per recipe modification.
-              (straight--warn (concat "Packages %S and %S have incompatible "
-                                      "recipes (%S cannot be both %S and %S)")
-                              (plist-get existing-recipe :package)
-                              package
-                              keyword
-                              (plist-get existing-recipe keyword)
-                              (plist-get recipe keyword))
+              (straight--warn
+               (concat
+                "Packages %S and %S have incompatible "
+                "recipes (%S cannot be both %S and %S)"
+                (when (eq keyword :repo)
+                  "\n(One of the recipes must specify a unique :local-repo)"))
+               (plist-get existing-recipe :package)
+               package
+               keyword
+               (plist-get existing-recipe keyword)
+               (plist-get recipe keyword))
               (cl-return)))))
       ;; Step 2 is to check if the given recipe conflicts with an
       ;; existing recipe for the *same* package.
@@ -4343,15 +4357,20 @@ function only modifies the build folder, not the original
 repository. Also note that native compilation occurs
 asynchronously, and will continue in the background after
 `straight-use-package' returns."
-  (when (and (fboundp 'native-compile-async)
-             (straight--native-compile-package-p recipe))
+  (when (fboundp 'native-compile-async)
     (straight--with-plist recipe
         (package)
-      (let ((inhibit-message t)
-            (message-log-max nil))
-        (native-compile-async
-         (straight--build-dir package)
-         'recursively 'late)))))
+      (if (straight--native-compile-package-p recipe)
+          ;; Queue compilation for this package
+          (let ((inhibit-message t)
+                (message-log-max nil))
+            (native-compile-async
+             (straight--build-dir package)
+             'recursively 'late))
+        ;; Prevent compilation of this package
+        (require 'comp)
+        (add-to-list 'comp-deferred-compilation-black-list
+                     (format "^%s" (straight--build-dir package)))))))
 
 ;;;;; Info compilation
 
@@ -4482,7 +4501,9 @@ the reason this package is being built."
         (straight--generate-package-autoloads recipe)
         (straight--byte-compile-package recipe)
         (straight--native-compile-package recipe)
-        (straight--compile-package-texinfo recipe))
+        (straight--compile-package-texinfo recipe)
+        (run-hook-with-args
+         'straight-use-package-post-build-functions package))
       ;; We messed up the echo area.
       (setq straight--echo-area-dirty t))))
 
@@ -4581,7 +4602,8 @@ RECIPE is a straight.el-style plist."
                        straight--autoloads-cache)))
           ;; Some autoloads files expect to be loaded normally, rather
           ;; than read and evaluated separately. Fool them.
-          (let ((load-file-name (straight--autoloads-file package)))
+          (let ((load-file-name (straight--autoloads-file package))
+                (load-in-progress t))
             ;; car is the feature list, cdr is the autoloads.
             (dolist (form (cdr (gethash package straight--autoloads-cache)))
               (eval form))))
@@ -4819,6 +4841,13 @@ and ignore additional arguments."
 
 (defcustom straight-use-package-pre-build-functions nil
   "Abnormal hook run before building a package.
+Each hook function is called with the name of the package as a
+string. For forward compatibility, it should accept and ignore
+additional arguments."
+  :type 'hook)
+
+(defcustom straight-use-package-post-build-functions nil
+  "Abnormal hook run after building a package.
 Each hook function is called with the name of the package as a
 string. For forward compatibility, it should accept and ignore
 additional arguments."
@@ -5764,30 +5793,34 @@ NAME, KEYWORD, RECIPE, REST, and STATE are explained by the
     name rest (plist-put state :recipe recipe)))
 
 (defun straight-use-package--straight-normalizer
-    (name-symbol _keyword args)
+    (name-symbol keyword args)
   "Normalizer for `:straight' in `use-package' forms.
 NAME-SYMBOL, KEYWORD, and ARGS are explained by the `use-package'
 documentation."
   (let ((parsed-args nil))
-    (dolist (arg args)
+    (dolist (arg args (reverse parsed-args))
       (cond
        ((null arg) (setq parsed-args nil))
        ((eq arg t) (push name-symbol parsed-args))
        ((symbolp arg) (push arg parsed-args))
        ((not (listp arg))
         (use-package-error ":straight wants a symbol or list"))
-       ((keywordp (car arg))
-        ;; recipe without package name
-        (push (cons name-symbol arg) parsed-args))
-       ((cl-some #'keywordp arg)
-        ;; assume it's a recipe
-        (push arg parsed-args))
-       (t
-        (setq parsed-args
-              (append (straight-use-package--straight-normalizer
-                       name-symbol nil arg)
-                      parsed-args)))))
-    parsed-args))
+       ;; lists
+       (t (let ((c (car arg)))
+            (cond
+             ((keywordp c)
+              ;; recipe without package name
+              (push (cons name-symbol arg) parsed-args))
+             ((cl-some #'keywordp arg)
+              ;; assume it's a recipe
+              (push arg parsed-args))
+             ;; recipe with only a package name
+             ((and (symbolp c) (not (member c '(\` quote))))
+              (push arg parsed-args))
+             ;; normalize backquoted/quoted arg and preserve quote
+             (t (push (list c (car (straight-use-package--straight-normalizer
+                                    name-symbol keyword (cdr arg))))
+                      parsed-args)))))))))
 
 (defun straight-use-package--straight-handler
     (name _keyword args rest state)
@@ -5799,20 +5832,19 @@ NAME, KEYWORD, ARGS, REST, and STATE are explained by the
   ;; for the other case.
   ;;
   ;; See <https://github.com/raxod502/straight.el/issues/425>.
-  (when args
-    (straight--remq rest '(:ensure)))
-  (let ((body (use-package-process-keywords name rest state)))
-    (mapc (lambda (arg)
-            (push `(straight-use-package
-                    ;; The following is an unfortunate hack because
-                    ;; `use-package-defaults' currently operates on
-                    ;; the post-normalization values, rather than the
-                    ;; pre-normalization ones.
-                    ',(if (eq arg t)
-                          name arg))
-                  body))
-          args)
-    body))
+  (when args (straight--remq rest '(:ensure)))
+  (append
+   (mapcar (lambda (arg)
+             `(straight-use-package
+               ,(if (member (car-safe arg) '(\` quote))
+                    arg
+                  ;; The following comparison against 't' is an
+                  ;; unfortunate hack because `use-package-defaults'
+                  ;; currently operates on the post-normalization
+                  ;; values, rather than the pre-normalization ones.
+                  (macroexpand `(quote ,(if (eq arg t) name arg))))))
+           args)
+   (use-package-process-keywords name rest state)))
 
 (defun straight-use-package--ensure-handler-advice
     (handler name keyword args rest state)
