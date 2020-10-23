@@ -3138,11 +3138,12 @@ for dependency resolution."
                                                              sources
                                                            (list sources))))
                          plist))
+                   (type (or (plist-get default :type) 'git))
                    (keywords
                     (append
                      (remq :local-repo straight--build-keywords)
-                     (straight-vc-keywords
-                      (or (plist-get default :type) 'git)))))
+                     (unless (eq type 'built-in)
+                       (straight-vc-keywords type)))))
               ;; Compute :fork repo name
               (when-let ((fork (plist-get plist :fork)))
                 (straight--put default :fork fork)
