@@ -1951,18 +1951,20 @@ confirmation, so this function should only be run after
             local-repo branch)
            ("a" (format "Attach HEAD to branch %S" branch)
             (straight--get-call "git" "checkout" branch)))))
-      ((and (null ref)
-            ;; Are we not on the actual default remote branch? We should be
-            ;; switch to it. If it is not existing, "git checkout" will
-            ;; automatically create it.
-            (straight--get-call "git" "checkout" branch)))
       (t
-       (let ((ref-ahead-p (straight--check-call
-                           "git" "merge-base" "--is-ancestor"
-                           branch ref-name))
-             (ref-behind-p (straight--check-call
-                            "git" "merge-base" "--is-ancestor"
-                            ref-name branch)))
+       ;; ref-ahead-p and ref-behind-p determine whether the local
+       ;; copy is ahead or behind ref. When the branch is different,
+       ;; though, it's not a question of being ahead or behind, the
+       ;; state can be more complex than that, so we consider it
+       ;; neither ahead nor behind.
+       (let ((ref-ahead-p (and (straight--check-call
+                                "git" "merge-base" "--is-ancestor"
+                                branch ref-name)
+                               (eq cur-branch branch)))
+             (ref-behind-p (and (straight--check-call
+                                 "git" "merge-base" "--is-ancestor"
+                                 ref-name branch)
+                                (eq cur-branch branch))))
          (when (and ref ref-behind-p)
            (cl-return-from straight-vc-git--ensure-head t))
          (when (and ref ref-ahead-p straight-vc-git-auto-fast-forward)
@@ -1979,23 +1981,23 @@ confirmation, so this function should only be run after
                 (ref-behind-p
                  (cl-return-from straight-vc-git--ensure-head t))
                 (ref-ahead-p
-                 (format "branch %S is behind %S" branch ref))
-                (t (format "branch %S has diverged from %S" branch ref)))
+                 (format "default branch %S is behind %S" branch ref))
+                (t (format "default branch %S has diverged from %S" branch ref)))
              (let ((on-branch (if head-detached-p ""
                                 (format " (on branch %S)"
                                         cur-branch))))
                (cond
                 (ref-ahead-p
-                 (format "HEAD%s is ahead of branch %S" on-branch branch))
+                 (format "HEAD%s is ahead of default branch %S" on-branch branch))
                 (ref-behind-p
-                 (format "HEAD%s is behind branch %S" on-branch branch))
-                (t (format "HEAD%s has diverged from branch %S"
+                 (format "HEAD%s is behind default branch %S" on-branch branch))
+                (t (format "HEAD%s has diverged from default branch %S"
                            on-branch branch))))))
           ;; Here be dragons! Watch the quoting very carefully in
           ;; order to get the lexical scoping to work right, and don't
           ;; confuse this syntax with the syntax of the
           ;; `straight--popup' macro.
-          `(,@(when ref-ahead-p
+          `(,@(when (and ref-ahead-p)
                 `(("f" ,(format "Fast-forward branch %S to %s"
                                 branch quoted-ref-name)
                    ,(lambda ()
@@ -2027,7 +2029,7 @@ confirmation, so this function should only be run after
                       (straight--get-call
                        "git" "reset" "--hard" ref-name)))
                   ,@(unless ref
-                      `(("c" ,(format "Reset HEAD to branch %S" branch)
+                      `(("c" ,(format "Checkout branch %S" branch)
                          ,(lambda ()
                             (straight--get-call
                              "git" "checkout" branch)))))
