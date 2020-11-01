@@ -6378,6 +6378,8 @@ ARGS may be any of the following keywords and their respective values:
 ARGS are accessible within the :pre/:post-bootsrap phases via the
 locally bound plist, straight-bug-report-args."
   (declare (indent 0))
+  (unless lexical-binding
+    (user-error "Lexical binding required for straight-bug-report"))
   (let* ((preserve-files    (make-symbol "preserve-files"))
          (temp-emacs-dir    (make-symbol "temp-emacs-dir"))
          (interactive       (make-symbol "interactive"))
