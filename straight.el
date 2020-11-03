@@ -6460,8 +6460,10 @@ locally bound plist, straight-bug-report-args."
         :sentinel (lambda (_process _event)
                     (unless ,interactive
                       (unless ,raw (straight-bug-report--format ,report))
-                      (switch-to-buffer-other-window
-                       straight-bug-report--process-buffer))
+                      (run-with-idle-timer
+                       1 nil (lambda ()
+                               (switch-to-buffer-other-window
+                                straight-bug-report--process-buffer))))
                     (unless ,preserve-files
                       (when (file-exists-p ,temp-emacs-dir)
                         (delete-directory ,temp-emacs-dir 'recursive)))))
