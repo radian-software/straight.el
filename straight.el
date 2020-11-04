@@ -6318,12 +6318,14 @@ If PREAMBLE is non-nil, it is inserted after the instructions."
 
 (defun straight-bug-report--report-form (form)
   "Convert elisp FORM into formatted string."
-  (let ((string (mapconcat
-                 (lambda (el)
-                   (concat (when (and el (listp el)) "\n")
-                           (pp-to-string el)
-                           (unless (keywordp el) "\n")))
-                 form " ")))
+  (let* ((print-level nil)
+         (print-length nil)
+         (string (mapconcat
+                  (lambda (el)
+                    (concat (when (and el (listp el)) "\n")
+                            (pp-to-string el)
+                            (unless (keywordp el) "\n")))
+                  form " ")))
     (with-temp-buffer
       (insert "(" string ")")
       (goto-char (point-min))
@@ -6426,19 +6428,21 @@ locally bound plist, straight-bug-report-args."
                   ;; Add full path of user-dir.
                   (setq plist (plist-put plist :executable executable))
                   (setq plist (plist-put plist :user-dir temp-dir))))
-         (program (pp-to-string
-                   ;; The top-level `let' is an intentional local
-                   ;; variable binding. We want users of
-                   ;; `straight-bug-report' to have access to their
-                   ;; args within :pre/:post-bootstrap programs. Since
-                   ;; we are binding with the package namespace, this
-                   ;; should not overwrite other user bindings.
-                   (append `(let ((straight-bug-report-args ',pargs)))
-                           `((setq user-emacs-directory ,temp-dir))
-                           straight-bug-report--setup
-                           (alist-get :pre-bootstrap keywords)
-                           straight-bug-report--bootstrap
-                           (alist-get :post-bootstrap keywords)))))
+         (program (let ((print-level nil)
+                        (print-length nil))
+                    (pp-to-string
+                     ;; The top-level `let' is an intentional local
+                     ;; variable binding. We want users of
+                     ;; `straight-bug-report' to have access to their
+                     ;; args within :pre/:post-bootstrap programs. Since
+                     ;; we are binding with the package namespace, this
+                     ;; should not overwrite other user bindings.
+                     (append `(let ((straight-bug-report-args ',pargs)))
+                             `((setq user-emacs-directory ,temp-dir))
+                             straight-bug-report--setup
+                             (alist-get :pre-bootstrap keywords)
+                             straight-bug-report--bootstrap
+                             (alist-get :post-bootstrap keywords))))))
     `(let* ((,preserve-files    ,(car (alist-get :preserve keywords)))
             (,interactive       ,(car (alist-get :interactive keywords)))
             (,emacs-executable  ,executable)
