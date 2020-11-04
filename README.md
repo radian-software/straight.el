@@ -151,6 +151,10 @@ chat][gitter-badge]][gitter]
 * The cleanest source code you've ever seen. [45%][#trivia/comments]
   of `straight.el` is comments and docstrings.
 
+Note: `straight.el` is a replacement for `package.el`, **not**
+`use-package`. `use-package` can be used with either `package.el` or
+`straight.el`.
+
 ## Guiding principles
 
 * Init-file and version lockfiles as the sole source of truth. No
