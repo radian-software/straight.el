@@ -1982,15 +1982,18 @@ confirmation, so this function should only be run after
                  (cl-return-from straight-vc-git--ensure-head t))
                 (ref-ahead-p
                  (format "default branch %S is behind %S" branch ref))
-                (t (format "default branch %S has diverged from %S" branch ref)))
+                (t (format "default branch %S has diverged from %S"
+                           branch ref)))
              (let ((on-branch (if head-detached-p ""
                                 (format " (on branch %S)"
                                         cur-branch))))
                (cond
                 (ref-ahead-p
-                 (format "HEAD%s is ahead of default branch %S" on-branch branch))
+                 (format "HEAD%s is ahead of default branch %S"
+                         on-branch branch))
                 (ref-behind-p
-                 (format "HEAD%s is behind default branch %S" on-branch branch))
+                 (format "HEAD%s is behind default branch %S"
+                         on-branch branch))
                 (t (format "HEAD%s has diverged from default branch %S"
                            on-branch branch))))))
           ;; Here be dragons! Watch the quoting very carefully in
