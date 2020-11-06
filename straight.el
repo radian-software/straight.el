@@ -1957,14 +1957,12 @@ confirmation, so this function should only be run after
        ;; though, it's not a question of being ahead or behind, the
        ;; state can be more complex than that, so we consider it
        ;; neither ahead nor behind.
-       (let ((ref-ahead-p (and (straight--check-call
+       (let ((ref-ahead-p (straight--check-call
                                 "git" "merge-base" "--is-ancestor"
-                                branch ref-name)
-                               (eq cur-branch branch)))
-             (ref-behind-p (and (straight--check-call
+                                cur-branch ref-name))
+             (ref-behind-p (straight--check-call
                                  "git" "merge-base" "--is-ancestor"
-                                 ref-name branch)
-                                (eq cur-branch branch))))
+                                 ref-name cur-branch)))
          (when (and ref ref-behind-p)
            (cl-return-from straight-vc-git--ensure-head t))
          (when (and ref ref-ahead-p straight-vc-git-auto-fast-forward)
@@ -2000,14 +1998,14 @@ confirmation, so this function should only be run after
           ;; order to get the lexical scoping to work right, and don't
           ;; confuse this syntax with the syntax of the
           ;; `straight--popup' macro.
-          `(,@(when (and ref-ahead-p)
+          `(,@(when (and ref-ahead-p ref)
                 `(("f" ,(format "Fast-forward branch %S to %s"
-                                branch quoted-ref-name)
+                                cur-branch quoted-ref-name)
                    ,(lambda ()
                       (straight--get-call
                        "git" "reset" "--hard" ref-name)))))
             ,@(when (and ref-behind-p (null ref))
-                `(("f" ,(format "Fast-forward HEAD to branch %S" branch)
+                `(("c" ,(format "Checkout branch %S" branch)
                    ,(lambda ()
                       (straight--get-call
                        "git" "checkout" branch)))))
