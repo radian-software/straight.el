@@ -3456,7 +3456,7 @@ follows:
 
 This usage is deprecated and will be removed."
   :type
-  '(list
+  '(repeat
     (choice
      (const :tag "Use find(1) at startup" find-at-startup)
      (const :tag "Use find(1) in \\[straight-check-package]"
