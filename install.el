@@ -161,6 +161,7 @@
       ;; All of the following code is actually executed by the child
       ;; Emacs.
       (goto-char (point-min))
+      (princ ";; -*- coding: utf-8 -*-" (current-buffer))
       (print
        `(progn
           ;; Pass relevant variables into the child Emacs, if they
