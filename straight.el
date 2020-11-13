@@ -1958,11 +1958,11 @@ confirmation, so this function should only be run after
        ;; state can be more complex than that, so we consider it
        ;; neither ahead nor behind.
        (let ((ref-ahead-p (straight--check-call
-                                "git" "merge-base" "--is-ancestor"
-                                cur-branch ref-name))
+                           "git" "merge-base" "--is-ancestor"
+                           cur-branch ref-name))
              (ref-behind-p (straight--check-call
-                                 "git" "merge-base" "--is-ancestor"
-                                 ref-name cur-branch)))
+                            "git" "merge-base" "--is-ancestor"
+                            ref-name cur-branch)))
          (when (and ref ref-behind-p)
            (cl-return-from straight-vc-git--ensure-head t))
          (when (and ref ref-ahead-p straight-vc-git-auto-fast-forward)
