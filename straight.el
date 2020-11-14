@@ -2302,10 +2302,10 @@ clone of everything."
   (cond
    ((eq depth 'full)
     ;; Clone the whole history of the repository.
-    (straight--get-call
-     "git" "clone" "--origin" remote
-     "--branch" branch
-     "--no-checkout" url repo-dir))
+    (apply #'straight--get-call
+           "git" "clone" "--origin" remote
+           "--no-checkout" url repo-dir
+           (when branch `("--branch" ,branch))))
    ((integerp depth)
     ;; Do a shallow clone.
     (condition-case nil
