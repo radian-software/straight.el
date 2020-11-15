@@ -2218,7 +2218,7 @@ Return non-nil. If no local repository, do nothing and return non-nil."
                  (straight-vc-git--default-remote-branch remote local-repo))))
         (while t
           (while (not (straight-vc-git--ensure-local recipe)))
-          (let* ((ref (format "%s/%s" remote branch)))
+          (let ((ref (format "%s/%s" remote branch)))
             (when (straight--check-call
                    "git" "merge-base" "--is-ancestor" branch ref)
               (cl-return t))
