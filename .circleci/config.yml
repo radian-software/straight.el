@@ -33,7 +33,7 @@ jobs:
     <<: *shared
     environment:
       VERSION: "26.2"
-  emacs-master:
+  emacs-git:
     <<: *shared
     environment:
       VERSION: "master"
@@ -47,4 +47,4 @@ workflows:
       - emacs-25.3
       - emacs-26.1
       - emacs-26.2
-      - emacs-master
+      - emacs-git

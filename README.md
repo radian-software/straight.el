@@ -91,11 +91,12 @@ chat][gitter-badge]][gitter]
     + [The profile system](#the-profile-system)
   * [Packages and the init-file](#packages-and-the-init-file)
   * [Using `straight.el` to reproduce bugs](#using-straightel-to-reproduce-bugs)
+    + [... in other packages](#-in-other-packages)
+    + [... in `straight.el` itself](#-in-straightel-itself)
   * [Using `straight.el` to develop packages](#using-straightel-to-develop-packages)
   * [Integration with other packages](#integration-with-other-packages)
     + [Integration with `use-package`](#integration-with-use-package-1)
     + ["Integration" with `package.el`](#integration-with-packageel)
-    + [Integration with Org](#integration-with-org)
     + [Integration with Flycheck](#integration-with-flycheck)
     + [Integration with Hydra](#integration-with-hydra)
   * [Miscellaneous](#miscellaneous)
@@ -116,10 +117,6 @@ chat][gitter-badge]][gitter]
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
 - [News](#news)
   * [April 19, 2020](#april-19-2020)
-  * [July 6, 2019](#july-6-2019)
-  * [May 24, 2019](#may-24-2019)
-  * [May 22, 2019](#may-22-2019)
-  * [May 1, 2019](#may-1-2019)
 
 <!-- tocstop -->
 
@@ -141,9 +138,8 @@ chat][gitter-badge]][gitter]
   your Emacs configuration. Package state is defined entirely by your
   init-file and (optional) lockfile, with no extra persistent data
   floating around.
-* Specify package descriptions using a powerful recipe format that
-  supports everything from [MELPA recipes][melpa-recipe-format] and
-  more.
+* Specify package descriptions using a powerful format based on [MELPA
+  recipes][melpa-recipe-format] (with a familiar but improved syntax).
 * [`use-package`][use-package] integration.
 * Modular: you can install your packages manually and straight.el will
   load them for you. Or you can also have straight.el install your
@@ -154,6 +150,10 @@ chat][gitter-badge]][gitter]
   backends.
 * The cleanest source code you've ever seen. [45%][#trivia/comments]
   of `straight.el` is comments and docstrings.
+
+Note: `straight.el` is a replacement for `package.el`, **not**
+`use-package`. `use-package` can be used with either `package.el` or
+`straight.el`.
 
 ## Guiding principles
 
@@ -180,18 +180,20 @@ First, place the following bootstrap code in your init-file:
 
 <!-- longlines-start -->
 
-    (defvar bootstrap-version)
-    (let ((bootstrap-file
-           (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
-          (bootstrap-version 5))
-      (unless (file-exists-p bootstrap-file)
-        (with-current-buffer
-            (url-retrieve-synchronously
-             "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
-             'silent 'inhibit-cookies)
-          (goto-char (point-max))
-          (eval-print-last-sexp)))
-      (load bootstrap-file nil 'nomessage))
+```emacs-lisp
+(defvar bootstrap-version)
+(let ((bootstrap-file
+       (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
+      (bootstrap-version 5))
+  (unless (file-exists-p bootstrap-file)
+    (with-current-buffer
+        (url-retrieve-synchronously
+         "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
+         'silent 'inhibit-cookies)
+      (goto-char (point-max))
+      (eval-print-last-sexp)))
+  (load bootstrap-file nil 'nomessage))
+```
 
 <!-- longlines-stop -->
 
@@ -253,7 +255,9 @@ tarballs like `package.el` does.) To install a package temporarily
 the package you want. To install a package permanently, place a call
 to `straight-use-package` in your init-file, like:
 
-    (straight-use-package 'el-patch)
+```emacs-lisp
+(straight-use-package 'el-patch)
+```
 
 Note that installing a package will activate all of its autoloads, but
 it will not actually `require` the features provided by the package.
@@ -270,27 +274,49 @@ can pass a list ("recipe"). You can see the default recipe for any
 given package by running `M-x straight-get-recipe`. For example, the
 recipe for `el-patch` is:
 
-    (el-patch :type git :host github :repo "raxod502/el-patch")
+```emacs-lisp
+(el-patch :type git :host github :repo "raxod502/el-patch")
+```
 
 So, if you have forked `el-patch` and you want to use your fork
 instead of the upstream, do:
 
-    (straight-use-package
-     '(el-patch :type git :host github :repo "your-name/el-patch"))
+```emacs-lisp
+(straight-use-package
+ '(el-patch :type git :host github :repo "your-name/el-patch"))
+```
 
 In fact, `straight.el` has explicit support for using a forked
 package, since this is so common:
 
-    (straight-use-package
-     '(el-patch :type git :host github :repo "raxod502/el-patch"
-                :fork (:host github
-                       :repo "your-name/el-patch")))
+```emacs-lisp
+(straight-use-package
+ '(el-patch :type git :host github :repo "raxod502/el-patch"
+            :fork (:host github
+                   :repo "your-name/el-patch")))
+```
 
-You may also omit the `:type git` if you leave `straight-default-vc`
-at its default value of `git`.
+In the above, `:type git` may be omitted if you leave
+`straight-default-vc` at its default value of `git`. Parts of the
+`:fork` keyword may be omitted as well. One common case is when
+your fork is on the same host and has the same name as the upstream
+repository. In this case, assuming `straight-host-usernames` is set,
+specifying a fork is as simple as:
+
+```emacs-lisp
+(straight-use-package
+ '(el-patch :type git :host github :repo "raxod502/el-patch"
+            :fork t))
+```
+
+Note that `straight.el` doesn't do any Git operations during startup
+unless it needs to clone a package from scratch. This is for
+performance. You can explicitly request for `straight.el` to fix up
+the Git configuration after you change a package recipe, e.g. to add a
+fork. See [Automatic repository management][#quickstart/vc] below.
 
 To learn more, see the documentation on [the recipe
-format][#user/recipes].
+format][#user/recipes] and [the Git backend][#user/recipes/git].
 
 ### Integration with `use-package`
 
@@ -302,20 +328,35 @@ the packages, but instead defers to a package manager, like
 
 To use `use-package`, first install it with `straight.el`:
 
-    (straight-use-package 'use-package)
+```emacs-lisp
+(straight-use-package 'use-package)
+```
 
 Now `use-package` will use `straight.el` to automatically install
 missing packages if you provide `:straight t`:
 
-    (use-package el-patch
-      :straight t)
+```emacs-lisp
+(use-package el-patch
+  :straight t)
+```
 
 You can still provide a custom recipe for the package:
 
-    (use-package el-patch
-      :straight (el-patch :type git :host github :repo "raxod502/el-patch"
-                          :fork (:host github
-                                 :repo "your-name/el-patch")))
+```emacs-lisp
+(use-package el-patch
+  :straight (el-patch :type git :host github :repo "raxod502/el-patch"
+                      :fork (:host github
+                             :repo "your-name/el-patch")))
+```
+
+The `:straight` keyword accepts backquoted forms.
+This makes it possible to dynamically compute part of the recipe:
+
+```emacs-lisp
+(use-package el-patch
+  :straight `(el-patch :type git
+                       :repo ,(alist-get 'el-patch my-package-urls)))
+```
 
 Specifying `:straight t` is unnecessary if you set
 `straight-use-package-by-default` to a non-nil value. (Note that the
@@ -477,30 +518,31 @@ irrelevant details have been omitted for pedagogical purposes):
 
 <!-- longlines-start -->
 
-    straight
-    ├── build
-    │   ├── el-patch
-    │   │   ├── el-patch-autoloads.el
-    │   │   ├── el-patch.el -> ~/.emacs.d/straight/repos/el-patch/el-patch.el
-    │   │   └── el-patch.elc
-    │   └── straight
-    │       ├── straight-autoloads.el
-    │       ├── straight.el -> ~/.emacs.d/straight/repos/straight.el/straight.el
-    │       └── straight.elc
-    └── repos
-        ├── el-patch
-        │   ├── CHANGELOG.md
-        │   ├── LICENSE.md
-        │   ├── README.md
-        │   └── el-patch.el
+```
+straight
+├── build
+│   ├── el-patch
+│   │   ├── el-patch-autoloads.el
+│   │   ├── el-patch.el -> ~/.emacs.d/straight/repos/el-patch/el-patch.el
+│   │   └── el-patch.elc
+│   └── straight
+│       ├── straight-autoloads.el
+│       ├── straight.el -> ~/.emacs.d/straight/repos/straight.el/straight.el
+│       └── straight.elc
+└── repos
+    ├── el-patch
+    │   ├── CHANGELOG.md
+    │   ├── LICENSE.md
+    │   ├── README.md
+    │   └── el-patch.el
+    └── straight.el
+        ├── LICENSE.md
+        ├── Makefile
+        ├── README.md
+        ├── bootstrap.el
+        ├── install.el
         └── straight.el
-            ├── LICENSE.md
-            ├── Makefile
-            ├── README.md
-            ├── bootstrap.el
-            ├── install.el
-            └── straight.el
-
+```
 <!-- longlines-stop -->
 
 As you can see, the package names are `el-patch` and `straight`. While
@@ -533,6 +575,7 @@ set of additional directives. For example, the `git` backend accepts:
 * `:branch`
 * `:nonrecursive`
 * `:fork`
+* `:protocol`
 
 If a local repository is not present, then its fetch recipe describes
 how to obtain it. This is done using the `straight-vc-clone` function,
@@ -626,11 +669,12 @@ error is signaled (unless the package is built-in to Emacs, according
 to `package.el`).
 
 Note that `straight.el` uses its own recipe format which is similar,
-but not identical, to the one used by MELPA. The recipe repository
-backends abstract over the formatting differences in different recipe
-sources to translate recipes into the uniform format used by
-`straight.el`. When you run `M-x straight-get-recipe`, the translated
-recipe is what is returned.
+but not identical, to the one used by MELPA (see [the section on the
+recipe format][#user/recipes] for information on the differences). The
+recipe repository backends abstract over the formatting differences in
+different recipe sources to translate recipes into the uniform format
+used by `straight.el`. When you run `M-x straight-get-recipe`, the
+translated recipe is what is returned.
 
 ### What happens when I call `straight-use-package`?
 
@@ -742,6 +786,13 @@ your init-file. For this reason, if you have invoked
 `straight-use-package` interactively, running `M-x
 straight-freeze-versions` will prompt you to first reload your
 init-file.
+
+**Note: reloading your init-file must have the effect of running all
+of the same `straight.el`-related functions again. For example, if you
+bootstrap `straight.el` in a sub-file that you only `require` instead
+of `load`, then the reloading functionality will not work correctly
+and you may receive the message `Caches are still outdated; something
+is seriously wrong`. See [#437] for discussion.**
 
 ## Comparison to other package managers
 
@@ -875,9 +926,17 @@ And here is a brief list of the main reasons you might not want to use
   displays all messages, errors, and warnings that come from
   byte-compilation and autoload generation.
 * `straight.el` considers modifying the user's init-file extremely
-  uncouth. `package.el` aggressively inserts a call to
-  `package-initialize` into the init-file if it is not already
-  present, whenever any package management operation is performed.
+  uncouth. `package.el` aggressively inserts (via Customize)
+  auto-generated code setting `package-selected-packages` into the
+  init-file whenever a package is installed. Furthermore, `package.el`
+  has a history of impolite treatment of user configuration, which I
+  think says some things about the design: until Emacs 27.1 (when [my
+  patch to fix this issue][early-init-file-commit] was adopted after
+  around 300 emails' worth of squabbling on emacs-devel), it also
+  inserted a call to the `package-initialize` function into the
+  init-file if it was not already present, with the officially
+  recommended workaround "comment it out if you don't want it, but
+  don't get rid of it".
 * `straight.el` has a profile system that allows users of someone
   else's Emacs configuration to manage an additional subset of
   packages, or to override upstream package configuration, without
@@ -1331,18 +1390,20 @@ care of all these details for you:
 
 <!-- longlines-start -->
 
-    (defvar bootstrap-version)
-    (let ((bootstrap-file
-           (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
-          (bootstrap-version 5))
-      (unless (file-exists-p bootstrap-file)
-        (with-current-buffer
-            (url-retrieve-synchronously
-             "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
-             'silent 'inhibit-cookies)
-          (goto-char (point-max))
-          (eval-print-last-sexp)))
-      (load bootstrap-file nil 'nomessage))
+```emacs-lisp
+(defvar bootstrap-version)
+(let ((bootstrap-file
+       (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
+      (bootstrap-version 5))
+  (unless (file-exists-p bootstrap-file)
+    (with-current-buffer
+        (url-retrieve-synchronously
+         "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
+         'silent 'inhibit-cookies)
+      (goto-char (point-max))
+      (eval-print-last-sexp)))
+  (load bootstrap-file nil 'nomessage))
+```
 
 <!-- longlines-stop -->
 
@@ -1363,7 +1424,9 @@ permanently). This section covers the programmatic usage; see
 
 Here is the basic usage of `straight-use-package`:
 
-    (straight-use-package 'el-patch)
+```emacs-lisp
+(straight-use-package 'el-patch)
+```
 
 This will ensure that the package `el-patch` is installed and loaded.
 (Note that `straight-use-package` takes a symbol, not a string, for
@@ -1414,10 +1477,12 @@ name, and the remainder of the list is a [property
 list][property-lists] providing information about how to install and
 build the package. Here is an example:
 
-    (straight-use-package
-     '(el-patch :type git :host github :repo "raxod502/el-patch"
-                :fork (:host github
-                       :repo "your-name/el-patch")))
+```emacs-lisp
+(straight-use-package
+ '(el-patch :type git :host github :repo "raxod502/el-patch"
+            :fork (:host github
+                   :repo "your-name/el-patch")))
+```
 
 If you give `straight-use-package` just a package name, then a recipe
 will be looked up by default (see the section on [recipe
@@ -1431,13 +1496,17 @@ example above, we are only interested in changing the `:fork`
 component. Therefore if `straight-allow-recipe-inheritance` is set,
 the recipe could be simplifed as follows:
 
-    (straight-use-package
-     '(el-patch :fork (:repo "your-name/el-patch")))
+```emacs-lisp
+(straight-use-package
+ '(el-patch :fork (:repo "your-name/el-patch")))
+```
 
 or even simpler:
 
-    (straight-use-package
-     '(el-patch :fork "your-name/el-patch"))
+```emacs-lisp
+(straight-use-package
+ '(el-patch :fork "your-name/el-patch"))
+```
 
 The `:files` keyword and all version control keywords support
 inheritance.
@@ -1448,7 +1517,9 @@ To learn more, see the section on [the recipe format][#user/recipes].
 
 The full user-facing signature of `straight-use-package` is:
 
-    (straight-use-package PACKAGE-OR-RECIPE &optional NO-CLONE NO-BUILD)
+```emacs-lisp
+(straight-use-package PACKAGE-OR-RECIPE &optional NO-CLONE NO-BUILD)
+```
 
 As discussed [previously][#user/install], by default
 `straight-use-package` will do three things:
@@ -1727,19 +1798,48 @@ Currently, `straight-use-package` supports two hooks:
   needs to be built). They are passed the name of the package being
   built as a string, and should take and ignore any additional
   arguments.
+* `straight-use-package-post-build-functions`: The functions in this
+  hook are run just after building a package (and only if the package
+  needs to be built). They are passed the name of the package being
+  built as a string, and should take and ignore any additional
+  arguments.
 
 ### The recipe format
 
 The general format for a `straight.el` recipe is:
 
-    (package-name :keyword value :keyword value ...)
+```emacs-lisp
+(package-name :keyword value :keyword value ...)
+```
 
 Note that if you wish to pass a recipe to `straight-use-package`, you
 will need to quote it. If you need to compute part of the recipe
 dynamically, use backquoting:
 
-    (straight-use-package
-     `(el-patch :type git :repo ,(alist-get 'el-patch my-package-urls)))
+```emacs-lisp
+(straight-use-package
+  `(el-patch :type git :repo ,(alist-get 'el-patch my-package-urls)))
+```
+
+The supported keywords are *similar, but not identical* to those used
+in MELPA recipes. There is a complete list below which you can compare
+with the [MELPA documentation][melpa-recipe-format], but the main
+differences from the user's point of view are:
+
+* We use `:host` instead of `:fetcher`.
+* We only support Git recipes by default, although the system is
+  extensible to other VCs to be added in the future or in user
+  configurations. Thus the supported `:host` values are `nil` (any Git
+  repository), `github`, `gitlab`, and `bitbucket` (Git only).
+* We support `:branch`, but not `:commit` or `:version-regexp`. To
+  lock a package to a specific commit, use a
+  [lockfile][#user/lockfiles]. See also [#246] for discussion of
+  extensions to the recipe to support package pinning, which is a
+  planned feature.
+* We support several additional keywords that affect how a package is
+  built; see below.
+* There are consistency and feature improvements to edge cases of the
+  `:files` keyword as documented in `straight-expand-files-directive`.
 
 Here is a comprehensive list of all keywords which have special
 meaning in a recipe (unknown keywords are ignored but preserved):
@@ -1787,6 +1887,53 @@ meaning in a recipe (unknown keywords are ignored but preserved):
   recipe source. See the docstring of
   `straight-expand-files-directive` for details.
 
+* `:build`
+
+  This specifies system commands and/or elisp to be evaluated before
+  symlinking, generating autoloads, and byte-compiling a package.
+
+  Each command is either an elisp form to be evaluated or a list of
+  strings to be executed in a shell context of the form:
+
+        ("executable" "arg"...)
+
+  Commands are executed in the package's repository directory.
+
+  The `:build` keyword's value may be:
+
+  - A single command
+  - A list of commands
+  - nil, in which case no commands are executed.
+    Note this is not the same as `:no-build` mentioned below.
+    `:no-build` takes precedence over `:build`.
+
+    For example:
+
+        (straight-use-package
+         '( example :type git :host github :repo "user/example.el"
+            :build ("make all")))
+
+        (straight-use-package
+         `( example :type git :host github :repo "user/example.el"
+            :build ,(pcase system-type
+                      (`windows-nt '(message "This might take a while"))
+                      (_ '(("./configure") ("make") ("make" "install"))))))
+
+* `:post-build`
+
+  This specifies system commands and/or elisp to be evaluated after
+  symlinking, generating autoloads, and byte-compiling a package.
+
+  Otherwise, it is identical to the `:build` keyword in terms of the values
+  it accepts and how it is executed.
+
+    For example:
+
+        (straight-use-package
+         '( example :type git :host github :repo "user/example.el"
+            :build (("./pre-build.sh") (message "hi"))
+            :post-build (("./post-build.sh") (message "bye"))))
+
 * `:no-build`
 
   If this is non-nil, then it causes the build step to be skipped
@@ -1812,7 +1959,30 @@ meaning in a recipe (unknown keywords are ignored but preserved):
   Org, rather than cloning it from the upstream repository if another
   package declares it as a dependency:
 
-      (straight-use-package '(org :type built-in))
+```emacs-lisp
+(straight-use-package '(org :type built-in))
+```
+
+* `:source`
+
+ Overrides `straight-recipe-repositories` on a per-recipe basis.
+ Its value may be:
+   - a symbol representing a recipe repository
+   - a list of such symbols
+ The order of the symbols determines their precedence. For example:
+
+```emacs-lisp
+(straight-use-package '(package :source melpa))
+```
+
+ Will search only the melpa recipe repository for package's recipe. While:
+
+```emacs-lisp
+(straight-use-package '(package :source (melpa gnu-elpa-mirror)))
+```
+
+ will search for package's recipe first in melpa.
+ If it is not found there it will check gnu-elpa-mirror next.
 
 * backend-specific keywords
 
@@ -1886,16 +2056,105 @@ These are the keywords meaningful for the `git` backend:
 * `:nonrecursive`: if non-nil, then submodules are not cloned. This is
   particularly important for the Emacsmirror recipe repository, which
   contains every known Emacs package in existence as submodules.
-* `:fork`: a plist which specifies settings for a fork, if desired.
+* `:fork`: the settings for a fork, if desired.
   This causes the `fetch-from-remote` method to operate on the fork;
   you can use the `fetch-from-upstream` method to operate on the
-  upstream instead. The allowed keywords are `:repo`, `:host`,
-  `:branch`, and `:remote`.
+  upstream instead.
+
+  Note: the following section assumes `straight-host-usernames`
+  has a value of:
+
+```emacs-lisp
+'((github    . "githubUser")
+  (gitlab    . "gitlabUser")
+  (bitbucket . "bitbucketUser")))
+```
+
+  Its value may be:
+
+  * `t`:
+  Look up the username in `straight-host-usernames`.
+  Inherit the repository name from the upstream repository.
+  For example:
+
+```emacs-lisp
+( :package "package" :host github :type git :repo "upstream/repo"
+  :fork t)
+```
+
+  computes the fork's `:repo` value as `githubUser/repo`.
+
+  * a string (optionally ending with "/"):
+  Use the string as the username.
+  Inherit repository name from the upstream repository.
+  For example:
+
+```emacs-lisp
+( :package "package" :host github :type git :repo "upstream/repo"
+  :fork "user")
+```
+
+  computes the fork's `:repo` value as `user/repo`.
+
+  * a string starting with "/":
+  Look up the username in `straight-host-usernames`.
+  Use the string as the repository name.
+  For example:
+
+```emacs-lisp
+( :package "package" :host github :type git :repo "upstream/repo"
+  :fork "/renamed")
+```
+
+  computes the fork's `:repo` value as `githubUser/renamed`.
+
+  * a string with both the recipe and repository specified:
+  Use string as the `:repo` value for the fork.
+  For example:
+
+```emacs-lisp
+( :package "package" :host github :type git :repo "upstream/repo"
+  :fork "user/renamed")
+```
+
+  computes the fork's `:repo` value as `user/renamed`.
+
+  * a plist:
+  The allowed keywords are `:repo`, `:host`, `:branch`, and `:remote`.
+  The same rules as above apply for the `:repo` string.
+  Likewise, if the `:host` is overridden and the `:repo` does not
+  provide the username, it is looked up in `straight-host-usernames`.
+  For example:
+
+```emacs-lisp
+( :package "package" :host github :type git :repo "upstream/repo"
+  :fork (:host gitlab))
+```
+
+  computes the fork's `:repo` value as `gitlabUser/repo`.
+
+```emacs-lisp
+( :package "package" :host github :type git :repo "upstream/repo"
+  :fork (:host gitlab :repo "/renamed"))
+```
+
+  computes the fork's `:repo` value as `gitlabUser/renamed`.
+
+```emacs-lisp
+( :package "package" :host github :type git :repo "upstream/repo"
+  :fork (:host gitlab :repo "user"))
+```
+
+  computes the fork's `:repo` value as `user/repo`.
+
 * `:depth`: either the symbol `full` or an integer. If `full`, then
   the repository is cloned with its whole history. If an integer `N`,
   then the repository is cloned with the option `--depth N`. This
   works even when a commit is specified (e.g. by version lockfiles).
   The default value is `full`.
+* `:protocol`: If non-nil, force this protocol to be used when
+  interacting with the remote repository. Takes the same values as
+  `straight-vc-git-default-protocol`.
 
 This section tells you how the `git` backend, specifically, implements
 the version-control backend API:
@@ -1964,6 +2223,10 @@ You can customize the following user options:
   and defaults to `full`. Setting this variable to a small integer will
   reduce the size of repositories. This variable affects all packages,
   even those whose versions are locked.
+
+  Please be careful with setting `straight-vc-git-default-clone-depth`,
+  which may break some packages' installing processes such as `elfeed`
+  that depend on `org`.
 
 ##### Deprecated `:upstream` keyword
 
@@ -2044,10 +2307,12 @@ As mentioned in the [conceptual overview][#concepts/lookup], recipe
 repositories are just regular packages, with some extra code to look
 up recipes in the relevant local repository.
 
-This means that updating a recipe repository is done the same way as
+This means that updating a recipe repository may be done the same way as
 updating a regular package, i.e. with [`M-x
-straight-pull-package`][#user/interactive/vc]. You should do this if
-you find that a package isn't listed by `M-x
+straight-pull-package`][#user/interactive/vc].
+A convenience command with interactive completion for recipe repositories,
+`straight-pull-recipe-repositories`, is provided as well.
+You should use one of these if you find that a package isn't listed by `M-x
 straight-use-package`—perhaps it was added recently.
 
 Note that there is currently some potentially surprising behavior if
@@ -2062,7 +2327,9 @@ can control which recipe repositories are searched, and in what order
 of precedence, by customizing `straight-recipe-repositories`. The
 default value is:
 
-    (org-elpa melpa gnu-elpa-mirror emacsmirror)
+```emacs-lisp
+(org-elpa melpa gnu-elpa-mirror emacsmirror)
+```
 
 ##### GNU ELPA
 
@@ -2088,7 +2355,9 @@ You can customize the following user options:
   option to nil causes the default value of
   `straight-recipe-repositories` to shift to:
 
-      (org-elpa melpa gnu-elpa emacsmirror)
+```emacs-lisp
+(org-elpa melpa gnu-elpa emacsmirror)
+```
 
 ##### Emacsmirror
 
@@ -2108,7 +2377,9 @@ You can customize the following user option:
   of this user option to non-nil causes the default value of
   `straight-recipe-repositories` to shift to:
 
-      (org-elpa melpa gnu-elpa-mirror emacsmirror-mirror)
+```emacs-lisp
+(org-elpa melpa gnu-elpa-mirror emacsmirror-mirror)
+```
 
 ##### Defining new recipe repositories
 
@@ -2122,6 +2393,52 @@ following things:
   repository has already been cloned, and that `default-directory` has
   been set to that local repository. This is used for recipe lookup
   during the course of `straight-use-package`.
+
+  If the returned recipe is a backquoted list, it will be evaluated
+  during `straight--convert-recipe`. This is useful for specifying
+  dynamic elements within the recipe such as system-specific
+  build commands. For example, if `straight-recipes-NAME-retrieve`
+  returns:
+
+        '`( package :type git :repo "host/repo"
+            :build ,(pcase system-type
+                      (`berkeley-unix '("gmake"))
+                      (_ '("make")))
+            :files (:defaults))
+
+  The recipe is converted to:
+
+        (package :type git :repo "host/repo"
+                 :build ("make")
+                 :files (:defaults))
+
+  on a `gnu/linux` system, and:
+
+        (package :type git :repo "host/repo"
+                 :build ("gmake")
+                 :files (:defaults))
+
+  on a `berkely-unix` system.
+
+  The recipe could be read from a file in the recipe repository as
+  well. In this case, the quote is *not* included in the recipe, as
+  `straight-recipes-NAME-retrieve` would make use of `read`, which
+  will return the literal Lisp object. For example, considering the
+  following retrieval function:
+
+        (defun straight-recipes-example-retrieve (name)
+          (with-temp-buffer
+            (insert-file-literally "./recipes/example.recipe")
+            (read (buffer-string))))
+
+  The recipe from above could be stored in the file, `example.recipe`, as:
+
+        `( package :type git :repo "host/repo"
+           :build ,(pcase system-type
+                     (`berkeley-unix '("gmake"))
+                     (_ '("make")))
+           :files (:defaults))
+
 * Define a function `straight-recipes-NAME-list`, which takes no
   arguments and returns a list of strings representing packages for
   which recipes are available. It is permissible to return some
@@ -2207,10 +2524,12 @@ bootstrapped.)
 Here is the default recipe used for `straight.el`, if you don't
 override it:
 
-    (straight :type git :host github
-              :repo ,(format "%s/straight.el" straight-repository-user)
-              :files ("straight*.el")
-              :branch ,straight-repository-branch)
+```emacs-lisp
+(straight :type git :host github
+          :repo ,(format "%s/straight.el" straight-repository-user)
+          :files ("straight*.el")
+          :branch ,straight-repository-branch)
+```
 
 Note that even though the bootstrap snippet references the `develop`
 branch of `straight.el`, the default recipe installs from `master`.
@@ -2356,6 +2675,13 @@ installed by your init-file, then ensure that all your local changes
 are pushed (remember, we are aiming for perfect reproducibility!). If
 you wish to bypass these checks, provide a prefix argument.
 
+**Note: reloading your init-file must have the effect of running all
+of the same `straight.el`-related functions again. For example, if you
+bootstrap `straight.el` in a sub-file that you only `require` instead
+of `load`, then the reloading functionality will not work correctly
+and you may receive the message `Caches are still outdated; something
+is seriously wrong`. See [#437] for discussion.**
+
 Version lockfiles are written into `~/.emacs.d/straight/versions`. By
 default, there will be one, called `default.el`. It is recommended
 that you keep your version lockfiles under version control with the
@@ -2453,6 +2779,8 @@ details are relegated to the [developer manual][#dev/transactions].
 
 ### Using `straight.el` to reproduce bugs
 
+#### ... in other packages
+
 One of the major reasons I wanted to write `straight.el` was that
 existing package managers were not good for reproducing bugs. For
 instance, some of them would load all installed packages when the
@@ -2466,21 +2794,84 @@ loading `straight.el` by means of the [bootstrap
 snippet][#quickstart], but when you are in `emacs -Q`, here is how you
 can initialize `straight.el`:
 
-    M-x load-file RET ~/.emacs.d/straight/repos/straight.el/bootstrap.el RET
+```
+M-x load-file RET ~/.emacs.d/straight/repos/straight.el/bootstrap.el RET
+```
 
 You can also do this from the command line, perhaps by creating an
 alias for it:
 
-    $ emacs -Q -l ~/.emacs.d/straight/repos/straight.el/bootstrap.el
+```
+$ emacs -Q -l ~/.emacs.d/straight/repos/straight.el/bootstrap.el
+```
 
 Let's say you are making a bug report for Projectile. To load just
 Projectile and all of its dependencies, run:
 
-    M-x straight-use-package RET projectile RET
+```
+M-x straight-use-package RET projectile RET
+```
 
 Note that this will use the currently checked-out revisions of
 Projectile and all of its dependencies, so you should take note of
 those in order to make your bug report.
+
+#### ... in `straight.el` itself
+
+`straight.el` provides a macro, `straight-bug-report`, to test
+`straight.el` in a clean environment. If possible, please use this
+when creating bug reports.
+
+`straight-bug-report` accepts the following keyword value pairs:
+
+- `:pre-bootstrap (Form)...` Forms evaluated before bootstrapping
+    `straight.el` e.g.
+
+```emacs-lisp
+(setq straight-repository-branch "develop")
+```
+
+    Note this example is already in the default bootstrapping code.
+
+- `:post-bootstrap (Form)...` Forms evaluated in the testing
+    environment after boostrapping. e.g.
+
+```emacs-lisp
+(straight-use-package '(example :type git :host github))
+```
+
+- `:interactive Boolean` If nil, the subprocess will immediately exit
+    after the test. Output will be printed to
+    `straight-bug-report--process-buffer` Otherwise, the subprocess
+    will be interactive.
+
+- `:preserve Boolean` If t, the test directory is left in the
+    directory stored in the variable `temporary-file-directory'.
+    Otherwise, it is immediately removed after the test is run.
+
+- `:executable String` Indicate the Emacs executable to launch.
+    Defaults to `"emacs"`.
+
+- `:raw Boolean` If t, the raw process output is sent to
+    `straight-bug-report--process-buffer`. Otherwise, it is formatted
+    as markdown for submitting as an issue."
+
+ For example:
+
+```emacs-lisp
+(straight-bug-report
+  :pre-bootstrap
+  (message "before bootstrap")
+  (message "multiple forms allowed")
+  :post-bootstrap
+  (message "after bootstrap")
+  (message "multiple forms allowed")
+  (straight-use-package '(my-broken-package))
+  (message "bye"))
+```
+
+The above will run your test in a clean environment and produce a
+buffer with information you can paste directly into the issue body.
 
 ### Using `straight.el` to develop packages
 
@@ -2506,37 +2897,49 @@ By default, `straight.el` installs a new keyword `:straight` for
 `use-package` which may be used to install packages via `straight.el`.
 The algorithm is extremely simple. This:
 
-    (use-package el-patch
-      :straight t)
+```emacs-lisp
+(use-package el-patch
+  :straight t)
+```
 
 macroexpands (essentially) to:
 
-    (straight-use-package 'el-patch)
+```emacs-lisp
+(straight-use-package 'el-patch)
+```
 
 And this:
 
-    (use-package el-patch
-      :straight (:host github :repo "raxod502/el-patch"
-                 :branch "develop"))
+```emacs-lisp
+(use-package el-patch
+  :straight (:host github :repo "raxod502/el-patch"
+             :branch "develop"))
+```
 
 becomes:
 
-    (straight-use-package
-     '(el-patch :host github :repo "raxod502/el-patch"
-                :branch "develop"))
+```emacs-lisp
+(straight-use-package
+ '(el-patch :host github :repo "raxod502/el-patch"
+            :branch "develop"))
+```
 
 If the feature you are requiring with `use-package` is different from
 the package name, you can provide a full recipe:
 
-    (use-package tex-site
-      :straight (auctex :host github
-                        :repo "emacsmirror/auctex"
-                        :files (:defaults (:exclude "*.el.in"))))
+```emacs-lisp
+(use-package tex-site
+  :straight (auctex :host github
+                    :repo "emacsmirror/auctex"
+                    :files (:defaults (:exclude "*.el.in"))))
+```
 
 And you may also provide just the package name:
 
-    (use-package tex-site
-      :straight auctex)
+```emacs-lisp
+(use-package tex-site
+  :straight auctex)
+```
 
 If you don't provide `:straight`, then by default nothing happens. You
 may customize `straight-use-package-by-default` to make it so that
@@ -2567,34 +2970,6 @@ To help avoid you shooting yourself in the foot by using both
 different package managers), `straight.el` will helpfully disable
 `:ensure` whenever you include `:straight` in a `use-package` form.
 See [#425].
-
-#### Integration with Org
-
-Org expects you to run `make` in its source repository before you run
-it, but `straight.el` does not yet support running such build systems
-automatically (see [#72]). This presents two problems:
-
-* Byte-compiling Org without running `make` first produces some
-  annoying warnings.
-* Running `make` generates a file `org-version.el` which provides the
-  functions `org-git-version` and `org-release`. Thus the version of
-  Org provided by `straight.el` does not include these functions, but
-  the obsolete version of Org provided by Emacs (see [the
-  FAQ][#faq/package-versions]) does. This can result in the obsolete
-  version getting partially loaded, which is confusing.
-
-See [#211] for discussion.
-
-By default, `straight.el` installs a hack (namely, defining the
-functions `org-git-version` and `org-release` itself) whenever you ask
-it to install Org. This functionality is implemented using
-[`straight-use-package-prepare-functions`][#user/install/hooks]. You
-can disable it by setting the value of the variable `straight-fix-org`
-to nil.
-
-Please be careful with setting `straight-vc-git-default-clone-depth`,
-which may break some packages' installing processes such as `elfeed`
-that depend on `org`.
 
 #### Integration with Flycheck
 
@@ -2632,7 +3007,9 @@ See [the Hydra wiki][hydra-wiki-straight-entry].
 * By default, `straight.el` explains what it is doing in the echo
   area, like this:
 
-      Looking for cider recipe → Cloning melpa...
+```
+Looking for cider recipe → Cloning melpa...
+```
 
   If your terminal does not support Unicode characters nicely, you can
   customize `straight-arrow` to display something else for the arrow.
@@ -2679,17 +3056,19 @@ How did I get that statistic about the percentage of `straight.el`
 that is comments and docstrings? Simple: by abusing the syntax
 highlighting.
 
-    (let ((lines (make-hash-table :test #'equal)))
-      (goto-char (point-min))
-      (while (< (point) (point-max))
-        (when (memq (face-at-point)
-                    '(font-lock-comment-face
-                      font-lock-doc-face))
-          (puthash (line-number-at-pos) t lines))
-        (forward-char))
-      (* (/ (float (length (hash-table-keys lines)))
-            (line-number-at-pos))
-         100))
+```emacs-lisp
+(let ((lines (make-hash-table :test #'equal)))
+  (goto-char (point-min))
+  (while (< (point) (point-max))
+    (when (memq (face-at-point)
+                '(font-lock-comment-face
+                  font-lock-doc-face))
+      (puthash (line-number-at-pos) t lines))
+    (forward-char))
+  (* (/ (float (length (hash-table-keys lines)))
+        (line-number-at-pos))
+     100))
+```
 
 Note that you will have to scroll through the entire buffer first,
 since `font-lock-mode` computes syntax highlighting lazily.
@@ -2699,15 +3078,19 @@ since `font-lock-mode` computes syntax highlighting lazily.
 Please do! Development takes place on the `develop` branch. You can
 switch to that branch with
 
-    (setq straight-repository-branch "develop")
+```emacs-lisp
+(setq straight-repository-branch "develop")
+```
 
 and base your pull requests from it. If you have an outstanding pull
 request whose features you would like to use in your configuration,
 there is full support for defining `straight.el` as coming from any
 branch in any fork:
 
-    (setq straight-repository-user "my-github-username")
-    (setq straight-repository-branch "feat/my-cool-feature")
+```emacs-lisp
+(setq straight-repository-user "my-github-username")
+(setq straight-repository-branch "feat/my-cool-feature")
+```
 
 For additional information, please see [the contributor guide for my
 projects](https://github.com/raxod502/contributor-guide). Note that
@@ -2814,8 +3197,10 @@ function `straight-x-clean-unused-repos`.
 To explain this problem, let us consider a concrete example. In [this
 issue][#355], a user found that the code
 
-    (straight-use-package 'company-lsp)
-    (straight-use-package 'eglot)
+```emacs-lisp
+(straight-use-package 'company-lsp)
+(straight-use-package 'eglot)
+```
 
 sometimes resulted in runtime errors because an old version of Flymake
 was being used.
@@ -2894,17 +3279,21 @@ First you need to add a new profile to `straight-profiles` which also
 needs to be the last profile in the list. This should be done before
 you bootstrap `straight.el`.
 
-    ;; Tell straight.el about the profiles we are going to be using.
-    (setq straight-profiles
-          '((nil . "default.el")
-            ;; Packages which are pinned to a specific commit.
-            (pinned . "pinned.el")))
+```emacs-lisp
+;; Tell straight.el about the profiles we are going to be using.
+(setq straight-profiles
+      '((nil . "default.el")
+        ;; Packages which are pinned to a specific commit.
+        (pinned . "pinned.el")))
+```
 
 After straight's install procedure you will need to add
 `straight-x.el` and load the required commands.
 
-    (autoload #'straight-x-pull-all "straight-x")
-    (autoload #'straight-x-freeze-versions "straight-x")
+```emacs-lisp
+(autoload #'straight-x-pull-all "straight-x")
+(autoload #'straight-x-freeze-versions "straight-x")
+```
 
 A variable called `straight-x-pinned-packages` has been defined in
 `straight-x.el` and will contain your list of pinned packages.
@@ -2913,12 +3302,14 @@ From now on, you can pin a package to a specific commit like in the
 following example which will pin `org-mode` to the 9.2.3 release
 version:
 
-    (let ((straight-current-profile 'pinned))
-      (straight-use-package 'org-plus-contrib)
-      (straight-use-package 'org)
-      ;; Pin org-mode version.
-      (add-to-list 'straight-x-pinned-packages
-                   '("org" . "924308a150ab82014b69c46c04d1ab71e874a2e6")))
+```emacs-lisp
+(let ((straight-current-profile 'pinned))
+  (straight-use-package 'org-plus-contrib)
+  (straight-use-package 'org)
+  ;; Pin org-mode version.
+  (add-to-list 'straight-x-pinned-packages
+               '("org" . "924308a150ab82014b69c46c04d1ab71e874a2e6")))
+```
 
 If you invoke `straight-x-freeze-versions` it will first write the
 default lockfile and then pinned lockfile which takes precedence over
@@ -2927,8 +3318,10 @@ first invoke `straight-pull-all` and then restore all pinned packages.
 
 You might want to assign the following aliases for more convenience:
 
-    (defalias 'straight-pull-all #'straight-x-pull-all)
-    (defalias 'straight-freeze-versions #'straight-x-freeze-versions)
+```emacs-lisp
+(defalias 'straight-pull-all #'straight-x-pull-all)
+(defalias 'straight-freeze-versions #'straight-x-freeze-versions)
+```
 
 Please keep in mind that this is only a temporary solution and
 experimental!
@@ -2938,12 +3331,16 @@ experimental!
 To tell `straight.el` that you want to use the version of Org shipped
 with Emacs, rather than cloning the upstream repository:
 
-    (straight-use-package '(org :type built-in))
+```emacs-lisp
+(straight-use-package '(org :type built-in))
+```
 
 Note that `:type` is a keyword for `straight.el`, not for
 `use-package`. If you are using `use-package`, then use:
 
-    (use-package org :straight (:type built-in))
+```emacs-lisp
+(use-package org :straight (:type built-in))
+```
 
 [Read more.][#user/recipes]
 
@@ -2954,42 +3351,9 @@ Shallow clones are now compatible with lockfiles, so you can safely
 set `straight-vc-git-default-clone-depth` to `1` and get massive
 savings on network bandwidth and disk space.
 
-### July 6, 2019
-
-The default value of the user option `straight-emacsmirror-use-mirror`
-is now non-nil.
-
-### May 24, 2019
-
-I have completely rewritten the transaction system. The practical
-impact of this is that you no longer have to care about it. Simply
-remove all references to the following functions and variables from
-your configuration, and everything should "just work":
-
-* `straight-transaction`
-* `straight-begin-transaction`
-* `straight-finalize-transaction`
-* `straight-mark-transaction-as-init`
-* `straight-treat-as-init`
-
-### May 22, 2019
-
-I now maintain a mirror of Emacsmirror. (Bear with me here.) The
-advantage of using my mirror is that cloning it is several orders of
-magnitude faster than cloning the official Emacsmirror. You can tell
-`straight.el` to do so by customizing the user option
-`straight-emacsmirror-use-mirror` to non-nil.
-
-### May 1, 2019
-
-`straight-thaw-versions` now fetches in a repository if a commit in
-your lockfile can not be found and normalizes the repository to the
-recipe's default branch. This should ensure that versions you have
-frozen can be quickly restored and that they can also be saved back to
-the version lock file. This addresses issues [#58], [#66], and [#294].
-
 [#principles]: #guiding-principles
 [#quickstart]: #getting-started
+ [#quickstart/vc]: #automatic-repository-management
 [#faq]: #faq
  [#faq/package-versions]: #the-wrong-version-of-my-package-was-loaded
 [#concepts]: #conceptual-overview
@@ -3046,6 +3410,7 @@ the version lock file. This addresses issues [#58], [#66], and [#294].
 [#356]: https://github.com/raxod502/straight.el/issues/356
 [#357]: https://github.com/raxod502/straight.el/issues/357
 [#425]: https://github.com/raxod502/straight.el/issues/425
+[#437]: https://github.com/raxod502/straight.el/issues/437
 [#508]: https://github.com/raxod502/straight.el/issues/508
 [#520]: https://github.com/raxod502/straight.el/issues/520
 
@@ -3057,6 +3422,7 @@ the version lock file. This addresses issues [#58], [#66], and [#294].
 [circleci-build]: https://circleci.com/gh/raxod502/straight.el
 [develop]: https://github.com/raxod502/straight.el/tree/develop
 [docker]: https://www.docker.com/
+[early-init-file-commit]: https://git.savannah.gnu.org/cgit/emacs.git/commit/?id=24acb31c04b4048b85311d794e600ecd7ce60d3b
 [el-get]: https://github.com/dimitri/el-get
 [emacs]: https://www.gnu.org/software/emacs/
 [emacsmirror]: https://emacsmirror.net/

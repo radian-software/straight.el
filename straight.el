@@ -62,29 +62,33 @@
 ;; Not defined before Emacs 25.1
 (eval-and-compile
   (unless (fboundp 'if-let)
-    (defmacro if-let (varlist then &optional else)
-      "Bind variables according to VARLIST and eval THEN or ELSE.
-VARLIST must be of the form ((SYMBOL VALUEFORM)). Evaluate
-VALUEFORM and bind it to SYMBOL. If the result of evaluation is
-non-nil, evaluate and return THEN. Otherwise, evaluate and return
-ELSE (or nil)."
-      (let ((symbol (nth 0 (car varlist)))
-            (valueform (nth 1 (car varlist))))
-        `(let ((,symbol ,valueform))
-           (if ,symbol
-               ,then
-             ,else))))))
+    (defmacro straight--if-let (spec then &rest else)
+      "Bind variables according to SPEC and eval THEN or ELSE.
+SPEC must be of the form ((SYMBOL VALUE)...).
+Evaluate each VALUE in SPEC and bind it to its SYMBOL.
+If the result of evaluation is non-nil, evaluate and return THEN.
+Otherwise, evaluate and return ELSE (or nil)."
+      (declare (indent 2))
+      `(let ,spec
+         (if (and ,@(mapcar (lambda (el)
+                              (if (listp el) (car el) nil))
+                            spec))
+             ,then
+           ,@else)))
+    (defalias 'if-let 'straight--if-let)))
 
 ;; Not defined before Emacs 25.1
 (eval-and-compile
   (unless (fboundp 'when-let)
-    (defmacro when-let (varlist &rest body)
-      "Bind variables according to VARLIST and conditionally eval BODY.
-VARLIST must be of the form ((SYMBOL VALUEFORM)). Evaluate
-VALUEFORM and bind it to SYMBOL. If the result of evaluation is
-non-nil, evaluate and return BODY. Otherwise return nil."
-      `(if-let ,varlist
-           (progn ,@body)))))
+    (defmacro straight--when-let (spec &rest body)
+      "Bind variables according to SPEC and conditionally eval BODY.
+SPEC must be of the form ((SYMBOL VALUE)...). Evaluate each
+VALUE in SPEC and bind it to its corresponding SYMBOL. If the result of
+evaluation is non-nil, evaluate and return BODY. Otherwise return
+nil."
+      (declare (indent 1))
+      `(straight--if-let ,spec (progn ,@body)))
+    (defalias 'when-let 'straight--when-let)))
 
 ;; Not defined before Emacs 25.1
 (eval-and-compile
@@ -108,6 +112,9 @@ non-nil, evaluate and return BODY. Otherwise return nil."
 They are still logged to the *Messages* buffer.")))
 
 ;;;; Functions from other packages
+
+;; `comp'
+(defvar comp-deferred-compilation-black-list)
 
 ;; `finder-inf'
 (defvar package--builtins)
@@ -263,6 +270,39 @@ Safe mode is not guaranteed to be as performant as normal
 operation."
   :type 'boolean)
 
+(defcustom straight-host-usernames nil
+  "Alist mapping forge :host symbols to username strings.
+The username associated with the host name is used to compute the :repo
+when the :fork keyword is any of the following values:
+  - t
+  - a string prefixed with a forward slash
+  - a plist which provides a :host and no :repo value
+  - a plist which provides a :repo string prefixed with a forward slash
+
+For example, with the following alist:
+
+  (setq straight-host-usernames
+        \\='((github . \"githubUser\")
+          (gitlab . \"gitlabUser\")
+          (bitbucket . \"bitbucketUser\")))
+
+  (straight-use-package
+   \\='( example :host github :type git :repo \"upstream/repo\"
+      :fork t))
+
+computes the fork as \"githubUser/repo\"
+
+  (straight-use-package
+   \\='( example :host github :type git :repo \"upstream/repo\"
+      :fork \"/fork\"))
+
+computes the fork as \"githubUser/fork\"."
+  :type '(alist :key-type (choice
+                           (const :tag "github" github)
+                           (const :tag "gitlab" gitlab)
+                           (const :tag "bitbucket" bitbucket))
+                :value-type (string :tag "username")))
+
 ;;;; Utility functions
 ;;;;; Association lists
 
@@ -308,15 +348,7 @@ PROPS is a list of symbols. Each one is converted to a keyword
 and then its value is looked up in the PLIST and bound to the
 symbol for the duration of BODY."
   (declare (indent 2) (debug (form sexp body)))
-  (let ((plist-sym (make-symbol "plist")))
-    `(let* ((,plist-sym ,plist)
-            ,@(mapcar (lambda (prop)
-                        `(,prop
-                          (plist-get
-                           ,plist-sym
-                           ,(intern (concat ":" (symbol-name prop))))))
-                      props))
-       ,@body)))
+  `(cl-destructuring-bind (&key ,@props &allow-other-keys) ,plist ,@body))
 
 (defmacro straight--put (plist prop value)
   "Make copy of PLIST with key PROP mapped to VALUE, and re-set it.
@@ -522,6 +554,12 @@ The warning message is obtained by passing MESSAGE and ARGS to
           (cl-incf num-existing)
           (backward-char)))
       (insert (make-string (- n num-existing) ?\n)))))
+
+;;;;; Predicates
+
+(defun straight--quoted-form-p (object)
+  "Return t if OBJECT is quoted or backquoted, else nil."
+  (when (member (car-safe object) '(quote \`)) t))
 
 ;;;;; Windows OS detection
 
@@ -859,6 +897,8 @@ Output is logged to `straight-process-buffer' unless
 
 The return value of this function is undefined."
   (let ((directory (or straight--default-directory default-directory)))
+    (when (string-match-p "/" program)
+      (setq program (expand-file-name program directory)))
     (prog1 nil
       (with-current-buffer (straight--process-get-buffer)
         (let ((inhibit-read-only t))
@@ -920,8 +960,9 @@ This is nil if the process could not be run, or if
   (with-current-buffer (straight--process-get-buffer)
     (when (and straight--process-output-beginning
                straight--process-output-end)
-      (buffer-substring straight--process-output-beginning
-                        straight--process-output-end))))
+      (buffer-substring-no-properties
+       straight--process-output-beginning
+       straight--process-output-end))))
 
 (defun straight--call (program &rest args)
   "Run executable PROGRAM with given ARGS.
@@ -943,8 +984,18 @@ code of zero, and nil otherwise."
     (if (car result)
         t
       (prog1 nil
+        (when-let ((output (cdr result)))
+          ;; We're only interested in first line of output.
+          (setq output (replace-regexp-in-string "\n.*" "" output))
+          ;; And we want to limit it to 100 characters.
+          (let ((length (length output))
+                (limit 100))
+            (message "Failed to run %S: %s" program
+                     (concat (substring output 0 (min limit length))
+                             (when (> length limit) "…")))))
         (straight--warn "Failed to run %S; see buffer %s"
-                        program straight-process-buffer)))))
+                        program straight-process-buffer)
+        (switch-to-buffer-other-window straight-process-buffer)))))
 
 (defun straight--check-call (program &rest args)
   "Run executable PROGRAM with given ARGS, returning non-nil if it succeeds."
@@ -1144,13 +1195,17 @@ This uses -newermt if possible, and -newer otherwise."
       `(newermt)
     nil))
 
-(defcustom straight-find-flavor (straight--determine-find-flavor)
+(defcustom straight-find-flavor :guess
   "What options the available find(1) binary supports.
 This is a list of symbols. If `newermt' is in the list, then
 find(1) is given the `-newermt' option to check for files newer
 than a particular timestamp. Otherwise, it is given the `-newer'
 option instead (this requires creating temporary files with
 particular mtimes, which is slower).
+
+This variable can also be the symbol `:guess', meaning
+straight.el will automatically assign an appropriate value when
+the variable is next read.
 
 For backwards compatibility, the value of this variable may also
 be a symbol, which is translated into a corresponding list as
@@ -1160,14 +1215,18 @@ follows:
 `busybox' => nil
 
 This usage is deprecated and will be removed."
-  :type '(list
-          (const :tag "Supports -newermt" newermt)))
+  :type '(choice
+          (list
+           (const :tag "Supports -newermt" newermt))
+          (const :tag "Guess a value automatically" :guess)))
 
 (defun straight--find-supports (symbol)
   "Check if `straight-find-flavor' contains SYMBOL.
 However, if `straight-find-flavor' is itself one of the symbols
 supported for backwards compatibility, account for that
 appropriately."
+  (when (eq straight-find-flavor :guess)
+    (setq straight-find-flavor (straight--determine-find-flavor)))
   (memq symbol
         (pcase straight-find-flavor
           (`gnu/bsd '(newermt))
@@ -1518,6 +1577,66 @@ A nil value allows for inspection of all remote changes."
 
 ;;;;;; Utility functions
 
+(defun straight-vc--host-username (host)
+  "Return username associated with HOST in `straight-host-usernames'."
+  (or (alist-get host straight-host-usernames)
+      (error "No straight-host-usernames entry for host `%S'" host)))
+
+(defvar straight-vc-repository-separator "/"
+  "Symbol delimiting a VC host's username from the repository's name.")
+
+(defun straight-vc--repo-substring (part string)
+  "Return PART (either `usernmae' or `repo') of `:repo' STRING."
+  (let ((separator straight-vc-repository-separator))
+    (replace-regexp-in-string
+     (cond ((eq part 'username) (concat separator ".*"))
+           ((eq part 'repo) (concat ".*" separator))
+           (t (error "Uknown `:repo' part `%S'" part)))
+     "" string)))
+
+(defun straight-vc-git--fork-string-type (string)
+  "Return symbol indicating :fork STRING's type."
+  (let ((separator straight-vc-repository-separator))
+    (cond
+     ((string-prefix-p separator string) 'repository)
+     ((or (string-suffix-p separator string)
+          (not (string-match-p separator string)))
+      'username)
+     (t 'full))))
+
+(defun straight-vc-git--fork-repo (recipe)
+  "Compute RECIPE's :fork repo value."
+  (straight--with-plist recipe (fork host ((:repo upstream-repo)))
+    ;; Override default :host and :repo if present on :fork.
+    (straight--with-plist (if (listp fork) fork nil)
+        ((host host) (repo upstream-repo))
+      (pcase fork
+        (`nil repo)
+        (`t (concat (straight-vc--host-username host) "/"
+                    (straight-vc--repo-substring 'repo repo)))
+        ((pred listp)
+         (straight-vc-git--fork-repo
+          `(,@(when host `(:host ,host)) :repo ,upstream-repo
+            ;; When the :fork plist provides a :host without
+            ;; a :repo, we want the recursion to compute the
+            ;; username from `straight-host-usernames'
+            ;; and combine it with the inherited upstream
+            ;; repo. Otherwise, we can recurse as if :fork
+            ;; had been specified as a string.
+            :fork ,(if (plist-member fork :repo) repo t))))
+        ((pred stringp)
+         (pcase (straight-vc-git--fork-string-type fork)
+           ;; If no :host is given, the repository is assumed to exist
+           ;; on the local file system.
+           (`repository (concat
+                         (when host (straight-vc--host-username host))
+                         fork))
+           (`username   (concat fork
+                                (unless (string-suffix-p "/" fork) "/")
+                                (straight-vc--repo-substring 'repo repo)))
+           (`full fork)))
+        (_ repo)))))
+
 (defmacro straight-vc-git--destructure (recipe props &rest body)
   "Binding from RECIPE the given (virtual) PROPS, eval and return BODY.
 Unlike `straight--with-plist', this macro has special support for
@@ -1595,7 +1714,8 @@ appropriately."
                                              "fork-" (symbol-name prop))))
                                 (setq require-fork t))
                               (let ((kw (intern (format ":%S" prop))))
-                                (if (memq prop '(repo host branch remote))
+                                (if (memq prop
+                                          '(repo host branch remote protocol))
                                     `(if-let ((fork (plist-get
                                                      ,recipe-sym :fork)))
                                          ,(funcall
@@ -1860,20 +1980,21 @@ their URLs set to the same as what is specified in the RECIPE.
 The URLs do not necessarily need to match exactly; they just have
 to satisfy `straight-vc-git--urls-compatible-p'."
   (straight-vc-git--destructure recipe
-      (local-repo upstream-repo upstream-host upstream-remote
-                  fork-repo fork-host fork-remote)
+      (local-repo
+       upstream-repo upstream-host upstream-remote upstream-protocol
+       fork-repo fork-host fork-remote fork-protocol)
     (and (or (null upstream-repo)
              (straight-vc-git--ensure-remote
               local-repo
               upstream-remote
               (straight-vc-git--encode-url
-               upstream-repo upstream-host)))
+               upstream-repo upstream-host upstream-protocol)))
          (or (null fork-repo)
              (straight-vc-git--ensure-remote
               local-repo
               fork-remote
               (straight-vc-git--encode-url
-               fork-repo fork-host))))))
+               fork-repo fork-host fork-protocol))))))
 
 ;; The following handles only merges, not rebases. See
 ;; https://github.com/raxod502/straight.el/issues/271.
@@ -2185,6 +2306,7 @@ clone of everything."
     ;; Clone the whole history of the repository.
     (straight--get-call
      "git" "clone" "--origin" remote
+     "--branch" branch
      "--no-checkout" url repo-dir))
    ((integerp depth)
     ;; Do a shallow clone.
@@ -2203,7 +2325,8 @@ clone of everything."
                  "git" "fetch" remote commit
                  "--depth" (number-to-string depth)
                  "--no-tags")))
-          (delete-directory repo-dir 'recursive)
+          (when (file-exists-p repo-dir)
+            (delete-directory repo-dir 'recursive))
           (apply #'straight--get-call
                  "git" "clone" "--origin" remote
                  "--no-checkout" url repo-dir
@@ -2213,11 +2336,13 @@ clone of everything."
                  (when branch `("--branch" ,branch))))
       ;; Fallback for dumb http protocol.
       (error
-       (delete-directory repo-dir 'recursive)
+       (when (file-exists-p repo-dir)
+         (delete-directory repo-dir 'recursive))
        (straight-vc-git--clone-internal :depth 'full
                                         :remote remote
                                         :url url
-                                        :repo-dir repo-dir))))
+                                        :repo-dir repo-dir
+                                        :branch branch))))
    (t (error "Invalid value %S of depth for %s" depth url))))
 
 ;;;;;; API
@@ -2228,13 +2353,16 @@ COMMIT is a 40-character SHA-1 Git hash. If it cannot be checked
 out, signal a warning. If COMMIT is nil, check out the branch
 specified in RECIPE instead. If that fails, signal a warning."
   (straight-vc-git--destructure recipe
-      (package local-repo branch remote upstream-repo upstream-host
-               upstream-remote fork-repo repo host nonrecursive depth)
+      (package local-repo branch nonrecursive depth
+               remote upstream-remote
+               host upstream-host
+               protocol upstream-protocol
+               repo upstream-repo fork-repo)
     (unless upstream-repo
       (error "No `:repo' specified for package `%s'" package))
     (let ((success nil)
           (repo-dir (straight--repos-dir local-repo))
-          (url (straight-vc-git--encode-url repo host))
+          (url (straight-vc-git--encode-url repo host protocol))
           (depth (or depth straight-vc-git-default-clone-depth)))
       (unwind-protect
           (progn
@@ -2251,13 +2379,13 @@ specified in RECIPE instead. If that fails, signal a warning."
                                 remote local-repo))))
               (when fork-repo
                 (let ((url (straight-vc-git--encode-url
-                            upstream-repo upstream-host)))
+                            upstream-repo upstream-host upstream-protocol)))
                   (straight--get-call "git" "remote" "add" upstream-remote url)
                   (straight--get-call "git" "fetch" upstream-remote)))
               (when commit
-                (unless (straight--check-call "git" "checkout" commit)
+                (unless (straight--check-call "git" "reset" "--hard" commit)
                   (straight--warn
-                   "Could not check out commit %S in repository %S"
+                   "Could not reset to commit %S in repository %S"
                    commit local-repo)
                   ;; We couldn't check out the commit, best to proceed
                   ;; as if we weren't given one.
@@ -2422,7 +2550,8 @@ then returned."
 
 (defun straight-vc-git-keywords ()
   "Return a list of keywords used by the VC backend for Git."
-  '(:repo :host :branch :remote :nonrecursive :upstream :fork :depth))
+  '(:repo :host :branch :remote :nonrecursive
+          :upstream :fork :depth :protocol))
 
 ;;;; Fetching repositories
 
@@ -2684,18 +2813,38 @@ Return a list of package names as strings."
 
 ;;;;;; Org
 
+(make-obsolete-variable
+ 'straight-fix-org
+ "No longer necessary, as straight.el supports external build commands."
+ "2020-07-28")
+
 (defun straight-recipes-org-elpa-retrieve (package)
   "Look up a pseudo-PACKAGE recipe in Org ELPA.
 PACKAGE must be either `org' or `org-plus-contrib'. Otherwise
 return nil."
   (pcase package
     (`org
-     '(org :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
-           :local-repo "org"))
+     '`(org :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
+            :local-repo "org"
+            :build ,(let ((make (if (eq system-type 'berkeley-unix)
+                                    "gmake"
+                                  "make"))
+                          (emacs (concat "EMACS="
+                                         invocation-directory
+                                         invocation-name)))
+                      `(,make "oldorg" ,emacs))))
     (`org-plus-contrib
-     '(org-plus-contrib
-       :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
-       :local-repo "org" :files (:defaults "contrib/lisp/*.el")))
+     '`(org-plus-contrib
+        :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
+        :local-repo "org"
+        :files (:defaults "contrib/lisp/*.el")
+        :build ,(let ((make (if (eq system-type 'berkeley-unix)
+                                "gmake"
+                              "make"))
+                      (emacs (concat "EMACS="
+                                     invocation-directory
+                                     invocation-name)))
+                  `(,make "oldorg" ,emacs))))
     (_ nil)))
 
 (defun straight-recipes-org-elpa-list ()
@@ -2704,7 +2853,7 @@ return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  1)
+  2)
 
 ;;;;;; MELPA
 
@@ -2733,6 +2882,8 @@ return nil."
                 (straight--put
                  plist :files
                  (append files (list (format "%S-pkg.el" package)))))
+              (when-let ((branch (plist-get melpa-plist :branch)))
+                (straight--put plist :branch branch))
               (pcase (plist-get melpa-plist :fetcher)
                 (`git (straight--put plist :repo (plist-get melpa-plist :url)))
                 ((or `github `gitlab)
@@ -2933,16 +3084,33 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
 
 ;;;;; Recipe conversion
 
-(defcustom straight-built-in-pseudo-packages '(emacs python)
+(defcustom straight-built-in-pseudo-packages '(emacs nadvice python)
   "List of built-in packages that aren't real packages.
 If any of these are specified as dependencies, straight.el will
 just skip them instead of looking for a recipe.
+
+Another application of this variable is to correctly handle the
+situation where a package is built-in but Emacs incorrectly
+claims that it's not (see
+<https://github.com/raxod502/straight.el/issues/548>).
 
 Note that straight.el can deal with built-in packages even if
 this variable is set to nil. This just allows you to tell
 straight.el to not even bother cloning recipe repositories to
 look for recipes for these packages."
   :type '(repeat symbol))
+
+(defvar straight--build-keywords '(:build
+                                   :files
+                                   :flavor
+                                   :local-repo
+                                   :no-autoloads
+                                   :no-byte-compile
+                                   :no-native-compile
+                                   :post-build)
+  "Keywords that affect how a package is built locally.
+If the values for any of these keywords change, then package
+needs to be rebuilt. See also `straight-vc-keywords'.")
 
 (cl-defun straight--convert-recipe (melpa-style-recipe &optional cause)
   "Convert a MELPA-STYLE-RECIPE to a normalized straight.el recipe.
@@ -3031,6 +3199,10 @@ for dependency resolution."
                              straight-recipe-repositories))))))
         ;; MELPA-style recipe format is a list whose car is the
         ;; package name as a symbol, and whose cdr is a plist.
+
+        ;; Recipes retrieved from files may be backquoted.
+        (when (straight--quoted-form-p full-melpa-style-recipe)
+          (setq full-melpa-style-recipe (eval full-melpa-style-recipe)))
         (cl-destructuring-bind (package . plist) full-melpa-style-recipe
           ;; Recipes taken from recipe repositories would not normally
           ;; have `:local-repo' specified. But if the recipe was
@@ -3039,28 +3211,39 @@ for dependency resolution."
           ;; to the selected VC backend).
           ;;
           (when straight-allow-recipe-inheritance
-            ;; To keep overridden recipes simple, Some keywords can be
+            ;; To keep overridden recipes simple, some keywords can be
             ;; inherited from the original recipe. This is done by
             ;; looking in original and finding all keywords that are
             ;; not present in the override and adding them there.
-            (let ((fork (plist-get plist :fork)))
-              (when (stringp fork)
-                (straight--put plist :fork `(:repo ,fork))))
-            (let* ((default (cdr (straight-recipes-retrieve package)))
-                   (keywords (straight-vc-keywords
-                              (or (plist-get default :type) 'git))))
-              (dolist (keyword (cons :files keywords))
-                (if (eq keyword :fork)
-                    (dolist (keyword keywords)
-                      (let ((fork-plist (plist-get plist :fork))
-                            (value (plist-get default keyword)))
-                        (when (and value fork-plist
-                                   (not (plist-member fork-plist keyword)))
-                          (straight--put
-                           plist :fork (plist-put fork-plist keyword value)))))
-                  (let ((value (plist-get default keyword)))
-                    (when (and value (not (plist-member plist keyword)))
-                      (straight--put plist keyword value)))))))
+            (let* ((sources (plist-get plist :source))
+                   (default
+                     (or
+                      (when-let ((retrieved (straight-recipes-retrieve
+                                             package
+                                             (if (listp sources)
+                                                 sources
+                                               (list sources)))))
+                        ;; Recipes retrieved from files may be backquoted.
+                        (cdr (if (straight--quoted-form-p retrieved)
+                                 (eval retrieved) retrieved)))
+                      plist))
+                   (type (or (plist-get default :type) 'git))
+                   (keywords
+                    (append
+                     (remq :local-repo straight--build-keywords)
+                     (unless (eq type 'built-in)
+                       (straight-vc-keywords type)))))
+              ;; Compute :fork repo name
+              (when-let ((fork (plist-get plist :fork)))
+                (straight--put default :fork fork)
+                ;; Covers cases where :fork is a string or t
+                (unless (listp fork) (setq fork '()))
+                (straight--put fork :repo (straight-vc-git--fork-repo default))
+                (straight--put plist :fork fork))
+              (dolist (keyword keywords)
+                (unless (plist-member plist keyword)
+                  (when-let ((value (plist-get default keyword)))
+                    (setq plist (plist-put plist keyword value)))))))
           ;; The normalized recipe format will have the package name
           ;; as a string, not a symbol.
           (let ((package (symbol-name package)))
@@ -3075,7 +3258,8 @@ for dependency resolution."
             ;; attribute to be set to nil to enforce that there is no
             ;; local repository (rather than a local repository name
             ;; being automatically generated).
-            (unless (plist-member plist :local-repo)
+            (unless (or (plist-member plist :local-repo)
+                        (eq (plist-get plist :type) 'built-in))
               (straight--put
                plist :local-repo
                (or (straight-vc-local-repo-name plist)
@@ -3164,13 +3348,6 @@ nil."
 
 ;;;;; Recipe registration
 
-(defvar straight--build-keywords
-  '(:local-repo :files :flavor :no-autoloads :no-byte-compile
-                :no-native-compile)
-  "Keywords that affect how a package is built locally.
-If the values for any of these keywords change, then package
-needs to be rebuilt. See also `straight-vc-keywords'.")
-
 (defun straight--register-recipe (recipe)
   "Make the various caches aware of RECIPE.
 RECIPE should be a straight.el-style recipe plist."
@@ -3187,8 +3364,7 @@ RECIPE should be a straight.el-style recipe plist."
         ;; in Step 2, no need to show another one here. Only signal a
         ;; warning here when the packages are actually *different*
         ;; packages that share the same repository.
-        (unless (equal (plist-get recipe :package)
-                       (plist-get existing-recipe :package))
+        (unless (equal package (plist-get existing-recipe :package))
           ;; Only the VC-specific keywords are relevant for this.
           (cl-dolist (keyword (cons :type (straight-vc-keywords type)))
             ;; Note that it doesn't matter which recipe we get `:type'
@@ -3204,13 +3380,17 @@ RECIPE should be a straight.el-style recipe plist."
               ;; `straight--repo-cache' and `straight--recipe-cache'
               ;; at the end of this method, this warning will only be
               ;; displayed once per recipe modification.
-              (straight--warn (concat "Packages %S and %S have incompatible "
-                                      "recipes (%S cannot be both %S and %S)")
-                              (plist-get existing-recipe :package)
-                              package
-                              keyword
-                              (plist-get existing-recipe keyword)
-                              (plist-get recipe keyword))
+              (straight--warn
+               (concat
+                "Packages %S and %S have incompatible "
+                "recipes (%S cannot be both %S and %S)"
+                (when (eq keyword :repo)
+                  "\n(One of the recipes must specify a unique :local-repo)"))
+               (plist-get existing-recipe :package)
+               package
+               keyword
+               (plist-get existing-recipe keyword)
+               (plist-get recipe keyword))
               (cl-return)))))
       ;; Step 2 is to check if the given recipe conflicts with an
       ;; existing recipe for the *same* package.
@@ -3325,7 +3505,7 @@ follows:
 
 This usage is deprecated and will be removed."
   :type
-  '(list
+  '(repeat
     (choice
      (const :tag "Use find(1) at startup" find-at-startup)
      (const :tag "Use find(1) in \\[straight-check-package]"
@@ -4113,6 +4293,39 @@ other value, the behavior is not specified."
      ;; Keys are strings.
      #'equal)))
 
+;;;;; Running Build Commands
+
+(defun straight--run-build-commands (recipe &optional post)
+  "Run RECIPE's :build or :post-build commands synchronously.
+If POST is non-nil, RECIPE's :post-build commands are run.
+Otherwise, the :build commands are run.
+RECIPE is a straight.el-style plist.
+
+Each command is either an elisp form to be evaluated or a list of
+strings to be executed in a shell context of the form:
+
+  (\"executable\" \"arg\"...)
+
+Commands are exectued in the repository directory.
+
+The keyword's value is expected to be one of the following:
+
+  - A single command
+  - A list of commands
+  - nil, in which case no commands are executed.
+    Note :no-build takes precedence over :build and :post-build."
+  (straight--with-plist recipe (build post-build package local-repo)
+    (when-let ((commands (if post post-build build))
+               (repo (straight--repos-dir (or local-repo package))))
+      (let ((default-directory repo))
+        ;; Allow a single command or a list of commands.
+        (dolist (command (if (cl-every #'listp commands)
+                             commands
+                           (list commands)))
+          (if (cl-every #'stringp command)
+              (apply #'straight--warn-call command)
+            (eval command)))))))
+
 ;;;;; Symlinking
 
 (defun straight--symlink-package (recipe)
@@ -4314,8 +4527,13 @@ modifies the build folder, not the original repository."
               ;; <https://github.com/raxod502/straight.el/issues/434>.
               (debug-on-error nil))
           ;; Actually generate the autoload file.
-          (update-directory-autoloads
-           (straight--build-dir package)))
+          ;; Emacs > 28.1 replaces `update-directory-autoloads' with
+          ;; `make-directory-autoloads'
+          (if (fboundp 'make-directory-autoloads)
+              (make-directory-autoloads (straight--build-dir package)
+                                        generated-autoload-file)
+            (and (fboundp 'update-directory-autoloads)
+                 (update-directory-autoloads (straight--build-dir package)))))
         ;; And for some reason Emacs leaves a newly created buffer
         ;; lying around. Let's kill it.
         (when-let ((buf (find-buffer-visiting generated-autoload-file)))
@@ -4393,15 +4611,20 @@ function only modifies the build folder, not the original
 repository. Also note that native compilation occurs
 asynchronously, and will continue in the background after
 `straight-use-package' returns."
-  (when (and (fboundp 'native-compile-async)
-             (straight--native-compile-package-p recipe))
+  (when (fboundp 'native-compile-async)
     (straight--with-plist recipe
         (package)
-      (let ((inhibit-message t)
-            (message-log-max nil))
-        (native-compile-async
-         (straight--build-dir package)
-         'recursively 'late)))))
+      (if (straight--native-compile-package-p recipe)
+          ;; Queue compilation for this package
+          (let ((inhibit-message t)
+                (message-log-max nil))
+            (native-compile-async
+             (straight--build-dir package)
+             'recursively 'late))
+        ;; Prevent compilation of this package
+        (require 'comp)
+        (add-to-list 'comp-deferred-compilation-black-list
+                     (format "^%s" (straight--build-dir package)))))))
 
 ;;;;; Info compilation
 
@@ -4475,10 +4698,11 @@ recipe in `straight--build-cache' for the package are updated."
 
 (defun straight--build-package (recipe &optional cause)
   "Build the package specified by the RECIPE.
-This includes symlinking the package files into the build
-directory, building dependencies, generating the autoload file,
-byte-compiling, and updating the build cache. It is assumed that
-the package repository has already been cloned.
+This includes running RECIPE's `:build` commands, symlinking the package
+files into the build directory, building dependencies, generating the
+autoload file, byte-compiling, running RECIPE's `:post-build`
+commands, and updating the build cache. It is assumed that the package
+repository has already been cloned.
 
 RECIPE is a straight.el-style plist. CAUSE is a string indicating
 the reason this package is being built."
@@ -4489,6 +4713,7 @@ the reason this package is being built."
     (let ((task (concat cause (when cause straight-arrow)
                         (format "Building %s" package))))
       (straight--with-progress task
+        (straight--run-build-commands recipe)
         (straight--symlink-package recipe)
         ;; The following function call causes the dependency list to
         ;; be written to the build cache. There is no need to save it
@@ -4532,7 +4757,10 @@ the reason this package is being built."
         (straight--generate-package-autoloads recipe)
         (straight--byte-compile-package recipe)
         (straight--native-compile-package recipe)
-        (straight--compile-package-texinfo recipe))
+        (straight--compile-package-texinfo recipe)
+        (straight--run-build-commands recipe 'post)
+        (run-hook-with-args
+         'straight-use-package-post-build-functions package))
       ;; We messed up the echo area.
       (setq straight--echo-area-dirty t))))
 
@@ -4843,6 +5071,25 @@ action, just return it)."
                (straight--output "Copied \"%S\" to kill ring" recipe))
         (_ recipe)))))
 
+;;;;; Update recipe repositories
+(defun straight-pull-recipe-repositories (&optional sources)
+  "Update recipe repository SOURCES.
+When called with `\\[universal-argument]', prompt for SOURCES.
+If SOURCES is nil, update sources in `straight-recipe-repositories'."
+  (interactive (list (if (equal current-prefix-arg '(4))
+                         (completing-read-multiple
+                          "Recipe Repositories (empty to select all): "
+                          straight-recipe-repositories nil 'require-match)
+                       straight-recipe-repositories)))
+  (dolist (source (delete-dups
+                   (mapcar (lambda (src) (if (stringp src) (intern src) src))
+                           (or sources straight-recipe-repositories))))
+    (unless (member source straight-recipe-repositories)
+      (user-error
+       "Package %S is not a recipe repository; see `straight-use-recipes'"
+       source))
+    (straight-pull-package-and-deps (symbol-name source) 'upstream)))
+
 ;;;;; Jump to package website
 
 ;;;###autoload
@@ -4870,6 +5117,13 @@ and ignore additional arguments."
 
 (defcustom straight-use-package-pre-build-functions nil
   "Abnormal hook run before building a package.
+Each hook function is called with the name of the package as a
+string. For forward compatibility, it should accept and ignore
+additional arguments."
+  :type 'hook)
+
+(defcustom straight-use-package-post-build-functions nil
+  "Abnormal hook run after building a package.
 Each hook function is called with the name of the package as a
 string. For forward compatibility, it should accept and ignore
 additional arguments."
@@ -5815,30 +6069,34 @@ NAME, KEYWORD, RECIPE, REST, and STATE are explained by the
     name rest (plist-put state :recipe recipe)))
 
 (defun straight-use-package--straight-normalizer
-    (name-symbol _keyword args)
+    (name-symbol keyword args)
   "Normalizer for `:straight' in `use-package' forms.
 NAME-SYMBOL, KEYWORD, and ARGS are explained by the `use-package'
 documentation."
   (let ((parsed-args nil))
-    (dolist (arg args)
+    (dolist (arg args (reverse parsed-args))
       (cond
        ((null arg) (setq parsed-args nil))
        ((eq arg t) (push name-symbol parsed-args))
        ((symbolp arg) (push arg parsed-args))
        ((not (listp arg))
         (use-package-error ":straight wants a symbol or list"))
-       ((keywordp (car arg))
-        ;; recipe without package name
-        (push (cons name-symbol arg) parsed-args))
-       ((cl-some #'keywordp arg)
-        ;; assume it's a recipe
-        (push arg parsed-args))
-       (t
-        (setq parsed-args
-              (append (straight-use-package--straight-normalizer
-                       name-symbol nil arg)
-                      parsed-args)))))
-    parsed-args))
+       ;; lists
+       (t (let ((c (car arg)))
+            (cond
+             ((keywordp c)
+              ;; recipe without package name
+              (push (cons name-symbol arg) parsed-args))
+             ((cl-some #'keywordp arg)
+              ;; assume it's a recipe
+              (push arg parsed-args))
+             ;; recipe with only a package name
+             ((and (symbolp c) (not (member c '(\` quote))))
+              (push arg parsed-args))
+             ;; normalize backquoted/quoted arg and preserve quote
+             (t (push (list c (car (straight-use-package--straight-normalizer
+                                    name-symbol keyword (cdr arg))))
+                      parsed-args)))))))))
 
 (defun straight-use-package--straight-handler
     (name _keyword args rest state)
@@ -5850,20 +6108,19 @@ NAME, KEYWORD, ARGS, REST, and STATE are explained by the
   ;; for the other case.
   ;;
   ;; See <https://github.com/raxod502/straight.el/issues/425>.
-  (when args
-    (straight--remq rest '(:ensure)))
-  (let ((body (use-package-process-keywords name rest state)))
-    (mapc (lambda (arg)
-            (push `(straight-use-package
-                    ;; The following is an unfortunate hack because
-                    ;; `use-package-defaults' currently operates on
-                    ;; the post-normalization values, rather than the
-                    ;; pre-normalization ones.
-                    ',(if (eq arg t)
-                          name arg))
-                  body))
-          args)
-    body))
+  (when args (straight--remq rest '(:ensure)))
+  (append
+   (mapcar (lambda (arg)
+             `(straight-use-package
+               ,(if (member (car-safe arg) '(\` quote))
+                    arg
+                  ;; The following comparison against 't' is an
+                  ;; unfortunate hack because `use-package-defaults'
+                  ;; currently operates on the post-normalization
+                  ;; values, rather than the pre-normalization ones.
+                  (macroexpand `(quote ,(if (eq arg t) name arg))))))
+           args)
+   (use-package-process-keywords name rest state)))
 
 (defun straight-use-package--ensure-handler-advice
     (handler name keyword args rest state)
@@ -5978,63 +6235,6 @@ is loaded, according to the value of
                                        use-package-defaults
                                        'symbol))))))))
 
-;;;;; Org integration
-
-(defcustom straight-fix-org t
-  "If non-nil, install a workaround for a problem with Org.
-See <https://github.com/raxod502/straight.el/issues/211> for
-discussion.
-
-This variable must be set before straight.el is loaded in order
-to take effect."
-  :type 'boolean)
-
-(defun straight--fix-org-function (package &rest _)
-  "Pre-build function to fix Org. See `straight-fix-org'.
-PACKAGE is the name of the package being built, as a string.
-
-This function is for use on the hook
-`straight-use-package-pre-build-functions'."
-  (when (member package '("org" "org-plus-contrib"))
-
-    (defun org-git-version ()
-      "The Git version of org-mode.
-Inserted by installing org-mode or when a release is made."
-      (let ((default-directory (straight--repos-dir "org")))
-        (string-trim
-         (with-output-to-string
-           (with-current-buffer standard-output
-             (call-process
-              "git" nil t nil
-              "describe"
-              "--match=release*"
-              "--abbrev=6"
-              "HEAD"))))))
-
-    (defun org-release ()
-      "The release version of org-mode.
-Inserted by installing org-mode or when a release is made."
-      (let ((default-directory (straight--repos-dir "org")))
-        (string-trim
-         (string-remove-prefix
-          "release_"
-          (with-output-to-string
-            (with-current-buffer standard-output
-              (call-process
-               "git" nil t nil
-               "describe"
-               "--match=release*"
-               "--abbrev=0"
-               "HEAD")))))))
-
-    (provide 'org-version)))
-
-(if straight-fix-org
-    (add-hook 'straight-use-package-prepare-functions
-              #'straight--fix-org-function)
-  (remove-hook 'straight-use-package-prepare-functions
-               #'straight--fix-org-function))
-
 ;;;;; Flycheck integration
 
 (defcustom straight-fix-flycheck nil
@@ -6081,6 +6281,247 @@ any `:around' advice."
   (advice-remove 'flycheck-start-current-syntax-check
                  #'straight--flycheck-in-place-inhibit))
 
+;;;;; Reporting Bugs
+
+(defun straight-version (&optional message)
+  "Return straight.el version.
+Interactively, or when MESSAGE is non-nil, show in the echo area."
+  (interactive)
+  (let* ((library (locate-library "straight.el"))
+         (default-directory (file-name-directory (file-truename library)))
+         (declared (with-temp-buffer
+                     (insert-file-contents-literally library)
+                     (goto-char (point-min))
+                     (save-match-data
+                       (when (re-search-forward
+                              "\\(?:;; Version: \\([^z-a]*?$\\)\\)"
+                              nil 'no-error)
+                         (substring-no-properties (match-string 1))))))
+         (gitshow (straight--call "git" "show" "-s" "--format=%d %h %cs"))
+         (gitinfo (when (car gitshow) (string-trim (cdr gitshow))))
+         (version (format "%s %s" declared gitinfo)))
+    (if (or message (called-interactively-p 'interactive))
+        (message "%s" version)
+      version)))
+
+(defvar straight-bug-report--bootstrap
+  '((defvar bootstrap-version)
+    (let ((bootstrap-file
+           (expand-file-name "straight/repos/straight.el/bootstrap.el"
+                             user-emacs-directory))
+          (bootstrap-version 5))
+      (unless (file-exists-p bootstrap-file)
+        (with-current-buffer
+            (url-retrieve-synchronously
+             (concat "https://raw.githubusercontent.com/"
+                     "raxod502/straight.el/develop/install.el")
+             'silent 'inhibit-cookies)
+          (goto-char (point-max))
+          (eval-print-last-sexp)))
+      (load bootstrap-file nil 'nomessage))
+    (condition-case nil
+        (message "Test run with version: %s" (straight-version))
+      (error nil)))
+  "Static bootstrap portion of bug report metaprogram.")
+
+(defvar straight-bug-report--default-args '("-Q" "--eval")
+  "Args that are passed to the the Emacs executable when testing.")
+
+(defvar straight-bug-report--process-buffer "*straight-bug-report-process*"
+  "Name of the bug report subprocess buffer.")
+
+(defvar straight-bug-report--setup
+  '((setq straight-repository-branch "develop")
+    (setq debug-on-error t))
+  "Static setup portion of bug report metaprogram.")
+
+(defun straight-bug-report--format (&rest preamble)
+  "Format output of `straight-bug-report--process-buffer' as markdown.
+If PREAMBLE is non-nil, it is inserted after the instructions."
+  (with-current-buffer straight-bug-report--process-buffer
+    (let ((output (buffer-string)))
+      (erase-buffer)
+      (when (fboundp 'markdown-mode) (markdown-mode))
+      (insert
+       (string-join
+        (mapcar
+         (lambda (el) (apply #'format el))
+         `(("<!-- copy entire buffer output and paste in an issue at:")
+           ("https://github.com/raxod502/straight.el/issues/new/choose -->")
+           ,@(when preamble
+               `(("<details><summary>Test Case</summary>")
+                 ("\n```emacs-lisp")
+                 ("%s" ,@preamble)
+                 ("```")
+                 ("</details>\n")))
+           ,(list (format-time-string "- Test run at: `%Y-%m-%d %H:%M:%S`"))
+           ("- system-type: `%s`" ,system-type)
+           ("- straight-version: `%s`" ,(straight-version))
+           ("- emacs-version: `%s`" ,(emacs-version))
+           ("\n<details><summary>Output</summary>")
+           ("\n```emacs-lisp")
+           ("%s" ,output)
+           ("```")
+           ("</details>")))
+        "\n")))))
+
+(defun straight-bug-report--report-form (form)
+  "Convert elisp FORM into formatted string."
+  (let* ((print-level nil)
+         (print-length nil)
+         (string (mapconcat
+                  (lambda (el)
+                    (concat (when (and el (listp el)) "\n")
+                            (pp-to-string el)
+                            (unless (keywordp el) "\n")))
+                  form " ")))
+    (with-temp-buffer
+      (insert "(" string ")")
+      (goto-char (point-min))
+      ;; Replace dangling parens.
+      (save-excursion
+        (while (re-search-forward "\\(?:\n[[:space:]]*)\\)" nil 'no-error)
+          (replace-match ")")))
+      ;; Remove empty lines.
+      (flush-lines "\\(?:^[[:space:]]*$\\)")
+      (emacs-lisp-mode)
+      (indent-region (point-min) (point-max))
+      (buffer-substring-no-properties (point-min) (point-max)))))
+
+;;;###autoload
+(defmacro straight-bug-report (&rest args)
+  "Test straight.el in a clean environment.
+ARGS may be any of the following keywords and their respective values:
+  - :pre-bootstrap (Form)...
+      Forms evaluated before bootstrapping straight.el
+      e.g. (setq straight-repository-branch \"develop\")
+      Note this example is already in the default bootstrapping code.
+
+  - :post-bootstrap (Form)...
+      Forms evaluated in the testing environment after boostrapping.
+      e.g. (straight-use-package '(example :type git :host github))
+
+  - :interactive Boolean
+      If nil, the subprocess will immediately exit after the test.
+      Output will be printed to `straight-bug-report--process-buffer'
+      Otherwise, the subprocess will be interactive.
+
+  - :preserve Boolean
+      If non-nil, the test directory is left in the directory stored in the
+      variable `temporary-file-directory'. Otherwise, it is
+      immediately removed after the test is run.
+
+  - :executable String
+      Indicate the Emacs executable to launch.
+      Defaults to the path of the current Emacs executable.
+
+  - :raw Boolean
+      If non-nil, the raw process output is sent to
+      `straight-bug-report--process-buffer'. Otherwise, it is
+      formatted as markdown for submitting as an issue.
+
+  - :user-dir String
+      If non-nil, the test is run with `emacs-user-dir' set to STRING.
+      Otherwise, a temporary directory is created and used.
+      Unless absolute, paths are expanded relative to the variable
+      `temproary-file-directory'.
+
+ARGS are accessible within the :pre/:post-bootsrap phases via the
+locally bound plist, straight-bug-report-args."
+  (declare (indent 0))
+  (unless lexical-binding
+    (user-error "Lexical binding required for straight-bug-report"))
+  (let* ((preserve-files    (make-symbol "preserve-files"))
+         (temp-emacs-dir    (make-symbol "temp-emacs-dir"))
+         (interactive       (make-symbol "interactive"))
+         (emacs-args-symbol (make-symbol "emacs-args"))
+         (emacs-executable  (make-symbol "emacs-executable"))
+         (raw               (make-symbol "raw"))
+         (report            (make-symbol "report"))
+         (test              (make-symbol "test"))
+         ;; Collect args in alist of the form: ((KEYWORD (BODY))...)
+         ;; This allows us to have variadic keyword arguments.
+         ;; Each keyword is associated with the args that follow it until
+         ;; the next keyword.
+         (keywords
+          (let (forms target)
+            (dolist (arg args (mapcar
+                               (lambda (pair)
+                                 ;; Return body forms in declared order
+                                 (setcdr pair (nreverse (cdr pair))) pair)
+                               forms))
+              (if (not (keywordp arg))
+                  (push arg (cdr (assq target forms)))
+                (setq target arg)
+                (unless (assq target forms)
+                  (push (list target) forms))))))
+         ;; Construct bug-report form
+         (reportform (straight-bug-report--report-form
+                      (append '(straight-bug-report) args)))
+         (temp-dir (if-let ((dir (car (alist-get :user-dir keywords))))
+                       (expand-file-name dir temporary-file-directory)
+                     (make-temp-file "straight.el-test-" 'directory)))
+         (executable (or (car (alist-get :executable keywords))
+                         (concat invocation-directory invocation-name)))
+         ;; Construct metaprogram to be evaled by subprocess
+         ;; Convert the keywords and their args into a proper plist.
+         (pargs (let ((plist '()))
+                  (dolist (pair keywords plist)
+                    (let* ((c (car pair))
+                           (variadic
+                            (member c '(:post-bootstrap :pre-bootstrap))))
+                      (setq plist (plist-put plist c (if variadic
+                                                         (append '(progn)
+                                                                 (cdr pair))
+                                                       (cadr pair))))))
+                  ;; Add full path of user-dir.
+                  (setq plist (plist-put plist :executable executable))
+                  (setq plist (plist-put plist :user-dir temp-dir))))
+         (program (let ((print-level nil)
+                        (print-length nil))
+                    (pp-to-string
+                     ;; The top-level `let' is an intentional local
+                     ;; variable binding. We want users of
+                     ;; `straight-bug-report' to have access to their
+                     ;; args within :pre/:post-bootstrap programs. Since
+                     ;; we are binding with the package namespace, this
+                     ;; should not overwrite other user bindings.
+                     (append `(let ((straight-bug-report-args ',pargs)))
+                             `((setq user-emacs-directory ,temp-dir))
+                             straight-bug-report--setup
+                             (alist-get :pre-bootstrap keywords)
+                             straight-bug-report--bootstrap
+                             (alist-get :post-bootstrap keywords))))))
+    `(let* ((,preserve-files    ,(car (alist-get :preserve keywords)))
+            (,interactive       ,(car (alist-get :interactive keywords)))
+            (,emacs-executable  ,executable)
+            (,emacs-args-symbol (append (unless ,interactive '("--batch"))
+                                        ',straight-bug-report--default-args))
+            (,raw               ,(car (alist-get :raw keywords)))
+            (,test              ,program)
+            (,report            ,reportform)
+            (,temp-emacs-dir    ,temp-dir))
+       ;; Reset process buffer.
+       (with-current-buffer (get-buffer-create
+                             straight-bug-report--process-buffer)
+         (fundamental-mode)
+         (erase-buffer))
+       (make-process
+        :name straight-bug-report--process-buffer
+        :buffer straight-bug-report--process-buffer
+        :command `(,,emacs-executable ,@,emacs-args-symbol ,,test)
+        :sentinel (lambda (_process _event)
+                    (unless ,interactive
+                      (unless ,raw (straight-bug-report--format ,report))
+                      (run-with-idle-timer
+                       1 nil (lambda ()
+                               (switch-to-buffer-other-window
+                                straight-bug-report--process-buffer))))
+                    (unless ,preserve-files
+                      (when (file-exists-p ,temp-emacs-dir)
+                        (delete-directory ,temp-emacs-dir 'recursive)))))
+       (message "Testing straight.el in directory: %s"
+                ,temp-emacs-dir))))
 ;;;; Closing remarks
 
 (provide 'straight)
