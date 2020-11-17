@@ -995,7 +995,8 @@ code of zero, and nil otherwise."
                              (when (> length limit) "…")))))
         (straight--warn "Failed to run %S; see buffer %s"
                         program straight-process-buffer)
-        (switch-to-buffer-other-window straight-process-buffer)))))
+        (switch-to-buffer-other-window straight-process-buffer)
+        (goto-char (point-max))))))
 
 (defun straight--check-call (program &rest args)
   "Run executable PROGRAM with given ARGS, returning non-nil if it succeeds."
