@@ -172,7 +172,7 @@ Note: `straight.el` is a replacement for `package.el`, **not**
 
 ## Getting started
 
-> **Note: `straight.el` supports a minimum version of Emacs 24.5, and
+> **Note: `straight.el` supports a minimum version of Emacs 25.1, and
 > works on macOS, Windows, and most flavors of Linux. You must install
 > [Git] in order to use `straight.el`.**
 
