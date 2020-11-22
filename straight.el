@@ -3081,6 +3081,126 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
   "Return the current version of the Emacsmirror retriever."
   2)
 
+;;;;;; el-get
+
+;;;;;; shims for el-get variables/functions
+;; If possible, we would like to avoid loading `el-get'
+;; to make use of its recipes. Very few recipes make use of the
+;; `:build` commands. A subset of those recipes use some
+;; variables or functions to compute part of :build commands.
+;; This is an incomplete list of shims, but it should handle most cases.
+
+(defun straight--el-get-emacs ()
+  "Return path to currently running Emacs.
+Shim for `el-get-emacs' variable."
+  (concat invocation-directory invocation-name))
+
+(defun straight--el-get-install-info ()
+  "Shim for `el-get-install-info' variable."
+  (or (executable-find "ginstall-info")
+      (executable-find "install-info")))
+
+(defun straight--el-get-package-directory (package)
+  "Return absolute path to PACKAGE repository.
+Shim for `el-get-package-directory'."
+  (straight--repos-dir (format "%S" package)))
+
+(defmacro straight--recipes-el-get-build-commands (plist)
+  "Convert `el-get' PLIST's :build/* commands to a programmatic elisp form.
+Return nil if no :build/* commands are available."
+  (let* ((names
+          (cl-sort
+           (delq nil
+                 (mapcar (lambda (el)
+                           (when (keywordp el)
+                             (let ((name (symbol-name el)))
+                               (and (string-prefix-p ":build" name) name))))
+                         plist))
+           ;; Sort so :build is the last case in the expanded pcase.
+           (lambda (a b) (> (length a) (length b)))))
+         (systems
+          (mapcar (lambda (name)
+                    (let ((system (replace-regexp-in-string "^:build/?"
+                                                            "" name))
+                          (value (plist-get plist (intern name))))
+                      `(,(if (string-empty-p system)
+                             '_
+                           (list '\` (intern system)))
+                        ,(if (symbolp (car value))
+                             value
+                           (list '\` (if (straight--quoted-form-p value)
+                                         (cadr value)
+                                       value))))))
+                  names)))
+    (list '\,
+          `(cl-letf (((symbol-function #'el-get-package-directory)
+                      (lambda (package)
+                        (straight--repos-dir (format "%S" package))))
+                     (el-get-install-info (straight--el-get-install-info))
+                     (el-get-emacs (straight--el-get-emacs))
+                     (el-get-dir (straight--repos-dir)))
+             (pcase system-type ,@systems)))))
+
+(defun straight--el-get-flatten (arg)
+  "Return a version of ARG as a one-level list."
+  (if (listp arg)
+      (apply 'append (mapcar 'el-get-flatten arg))
+    (list arg)))
+
+(defun straight-recipes-el-get-retrieve (package)
+  "Look up a an `el-get' PACKAGE's recipe.
+PACKAGE must be a symbol. If the package has an `el-get' recipe that
+uses one of the Git fetchers, return it; otherwise return nil."
+  (with-temp-buffer
+    (ignore-errors
+      (progn
+        (insert-file-contents-literally
+         (expand-file-name (concat (symbol-name package) ".rcp")
+                           "recipes/"))
+        (let ((recipe (read (current-buffer)))
+              plist)
+          (straight--with-plist recipe
+              (type name url branch load-path ((:pkgname repo)))
+            (when (stringp name) (setq name (intern name)))
+            (when (member type '(git github))
+              (straight--put plist :type 'git)
+              (if (eq type 'git)
+                  (straight--put plist :repo url)
+                (straight--put plist :host 'github)
+                (straight--put plist :repo repo))
+              (when branch (straight--put plist :branch branch))
+              ;; Differentiate between recipe explicitly declaring
+              ;; :autoloads nil and recipe not declaring :autoloads.
+              (when-let ((autoloads (plist-member recipe :autoloads)))
+                ;; ignore    :autoloads t
+                ;; translate :autoloads nil -> :no-autoloads t
+                ;; el-get also allows a file or list of files which are
+                ;; ignored for now.
+                (unless (cadr autoloads)
+                  (straight--put plist :no-autoloads t)))
+              (when (plist-get recipe :build)
+                (straight--put plist :build
+                               (macroexpand
+                                `(straight--recipes-el-get-build-commands
+                                  ,recipe))))
+              (straight--put
+               plist :files
+               (append '(:defaults)
+                       (cl-remove-if (lambda (file)
+                                       (string= "." file))
+                                     (straight--el-get-flatten load-path))))
+              (list '\` (cons name plist)))))))))
+
+
+(defun straight-recipes-el-get-list ()
+  "Return a list of recipes available in `el-get', as a list of strings."
+  (mapcar #'file-name-sans-extension
+          (straight--directory-files "recipes")))
+
+(defun straight-recipes-el-get-version ()
+  "Return the current version of the `el-get' retriever."
+  1)
+
 ;;;;; Recipe conversion
 
 (defcustom straight-built-in-pseudo-packages '(emacs nadvice python)

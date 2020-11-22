@@ -99,6 +99,10 @@
                                    :local-repo "elpa"
                                    :no-build t)))
 
+(straight-use-recipes '(el-get :type git :host github
+                               :repo "dimitri/el-get"
+                               :no-build t))
+
 (if straight-recipes-emacsmirror-use-mirror
     (straight-use-recipes
      '(emacsmirror-mirror :type git :host github
