@@ -114,7 +114,7 @@ They are still logged to the *Messages* buffer.")))
 ;;;; Functions from other packages
 
 ;; `comp'
-(defvar comp-deferred-compilation-black-list)
+(defvar comp-deferred-compilation-deny-list)
 
 ;; `finder-inf'
 (defvar package--builtins)
@@ -4723,6 +4723,12 @@ individual package recipe."
        (not (straight--plist-get recipe :no-native-compile
                                  straight-disable-native-compilation))))
 
+(defun straight--native-compile-file-p (file)
+  "Predicate to check whether FILE should be native-compiled."
+  (not (cl-some (lambda (re)
+                  (string-match-p re file))
+                comp-deferred-compilation-deny-list)))
+
 (defun straight--native-compile-package (recipe)
   "Queue native compilation for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
@@ -4731,6 +4737,7 @@ repository. Also note that native compilation occurs
 asynchronously, and will continue in the background after
 `straight-use-package' returns."
   (when (fboundp 'native-compile-async)
+    (require 'comp)
     (straight--with-plist recipe
         (package)
       (if (straight--native-compile-package-p recipe)
@@ -4739,10 +4746,10 @@ asynchronously, and will continue in the background after
                 (message-log-max nil))
             (native-compile-async
              (straight--build-dir package)
-             'recursively 'late))
+             'recursively nil
+             #'straight--native-compile-file-p))
         ;; Prevent compilation of this package
-        (require 'comp)
-        (add-to-list 'comp-deferred-compilation-black-list
+        (add-to-list 'comp-deferred-compilation-deny-list
                      (format "^%s" (straight--build-dir package)))))))
 
 ;;;;; Info compilation
