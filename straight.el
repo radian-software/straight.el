@@ -6,7 +6,7 @@
 ;; Created: 1 Jan 2017
 ;; Homepage: https://github.com/raxod502/straight.el
 ;; Keywords: extensions
-;; Package-Requires: ((emacs "24.5"))
+;; Package-Requires: ((emacs "25.1"))
 ;; SPDX-License-Identifier: MIT
 ;; Version: prerelease
 
@@ -58,51 +58,6 @@
 ;; Note that we use `eval-and-compile' even for macros, because
 ;; otherwise libraries which load the byte-compiled version of this
 ;; file won't be able to use those macros.
-
-;; Not defined before Emacs 25.1
-(eval-and-compile
-  (unless (fboundp 'if-let)
-    (defmacro straight--if-let (spec then &rest else)
-      "Bind variables according to SPEC and eval THEN or ELSE.
-SPEC must be of the form ((SYMBOL VALUE)...).
-Evaluate each VALUE in SPEC and bind it to its SYMBOL.
-If the result of evaluation is non-nil, evaluate and return THEN.
-Otherwise, evaluate and return ELSE (or nil)."
-      (declare (indent 2))
-      `(let ,spec
-         (if (and ,@(mapcar (lambda (el)
-                              (if (listp el) (car el) nil))
-                            spec))
-             ,then
-           ,@else)))
-    (defalias 'if-let 'straight--if-let)))
-
-;; Not defined before Emacs 25.1
-(eval-and-compile
-  (unless (fboundp 'when-let)
-    (defmacro straight--when-let (spec &rest body)
-      "Bind variables according to SPEC and conditionally eval BODY.
-SPEC must be of the form ((SYMBOL VALUE)...). Evaluate each
-VALUE in SPEC and bind it to its corresponding SYMBOL. If the result of
-evaluation is non-nil, evaluate and return BODY. Otherwise return
-nil."
-      (declare (indent 1))
-      `(straight--if-let ,spec (progn ,@body)))
-    (defalias 'when-let 'straight--when-let)))
-
-;; Not defined before Emacs 25.1
-(eval-and-compile
-  (unless (fboundp 'alist-get)
-    (defun alist-get (key alist)
-      "Return the value associated with KEY in ALIST, using `assq'."
-      (cdr (assq key alist)))))
-
-;; Not defined before Emacs 25.1
-(eval-and-compile
-  (unless (fboundp 'hash-table-empty-p)
-    (defun hash-table-empty-p (hash-table)
-      "Check whether HASH-TABLE is empty (has 0 elements)."
-      (zerop (hash-table-count hash-table)))))
 
 ;; Not defined before Emacs 25.3
 (eval-and-compile
@@ -1230,8 +1185,8 @@ appropriately."
     (setq straight-find-flavor (straight--determine-find-flavor)))
   (memq symbol
         (pcase straight-find-flavor
-          (`gnu/bsd '(newermt))
-          (`busybox nil)
+          ('gnu/bsd '(newermt))
+          ('busybox nil)
           (lst lst))))
 
 ;;;; Lockfile utility functions
@@ -1612,8 +1567,8 @@ A nil value allows for inspection of all remote changes."
     (straight--with-plist (if (listp fork) fork nil)
         ((host host) (repo upstream-repo))
       (pcase fork
-        (`nil repo)
-        (`t (concat (straight-vc--host-username host) "/"
+        ('nil repo)
+        ('t (concat (straight-vc--host-username host) "/"
                     (straight-vc--repo-substring 'repo repo)))
         ((pred listp)
          (straight-vc-git--fork-repo
@@ -1629,13 +1584,13 @@ A nil value allows for inspection of all remote changes."
          (pcase (straight-vc-git--fork-string-type fork)
            ;; If no :host is given, the repository is assumed to exist
            ;; on the local file system.
-           (`repository (concat
+           ('repository (concat
                          (when host (straight-vc--host-username host))
                          fork))
-           (`username   (concat fork
+           ('username   (concat fork
                                 (unless (string-suffix-p "/" fork) "/")
                                 (straight-vc--repo-substring 'repo repo)))
-           (`full fork)))
+           ('full fork)))
         (_ repo)))))
 
 (defmacro straight-vc-git--destructure (recipe props &rest body)
@@ -1658,19 +1613,19 @@ appropriately."
          (lambda (prop check value
                        &optional fork upstream-check upstream-value)
            (pcase prop
-             (`host
+             ('host
               `(cond
                 (,check ,value)
                 (,upstream-check ,upstream-value)
                 (t nil)))
-             (`branch
+             ('branch
               `(cond
                 (,check ,value)
                 (,upstream-check ,upstream-value)
                 ;; We use nil here to signify there is no branch
                 ;; specified, so it must be figured out by clients.
                 (t nil)))
-             (`remote
+             ('remote
               `(cond
                 (,check ,value)
                 ,@(if fork
@@ -1826,17 +1781,15 @@ returned unchanged. PROTOCOL must be either `https' or `ssh'; if
 it is omitted, it defaults to `straight-vc-git-default-protocol'.
 See also `straight-vc-git--decode-url'."
   (pcase host
-    ;; Use backquote instead of regular quote here for compatibility
-    ;; with Emacs 24.5.
-    (`nil repo)
-    ((or `github `gitlab `bitbucket)
+    ('nil repo)
+    ((or 'github 'gitlab 'bitbucket)
      (let ((domain (pcase host
-                     (`bitbucket "bitbucket.org")
+                     ('bitbucket "bitbucket.org")
                      (_ (format "%s.com" host)))))
        (pcase (or protocol straight-vc-git-default-protocol)
-         (`https
+         ('https
           (format "https://%s/%s.git" domain repo))
-         (`ssh
+         ('ssh
           (format "git@%s:%s.git" domain repo))
          (_ (error "Unknown protocol: %S" protocol)))))
     (_ (error "Unknown value for host: %S" host))))
@@ -2822,7 +2775,7 @@ Return a list of package names as strings."
 PACKAGE must be either `org' or `org-plus-contrib'. Otherwise
 return nil."
   (pcase package
-    (`org
+    ('org
      '`(org :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
             :local-repo "org"
             :build ,(let ((make (if (eq system-type 'berkeley-unix)
@@ -2832,7 +2785,7 @@ return nil."
                                          invocation-directory
                                          invocation-name)))
                       `(,make "oldorg" ,emacs))))
-    (`org-plus-contrib
+    ('org-plus-contrib
      '`(org-plus-contrib
         :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
         :local-repo "org"
@@ -2884,8 +2837,8 @@ return nil."
               (when-let ((branch (plist-get melpa-plist :branch)))
                 (straight--put plist :branch branch))
               (pcase (plist-get melpa-plist :fetcher)
-                (`git (straight--put plist :repo (plist-get melpa-plist :url)))
-                ((or `github `gitlab)
+                ('git (straight--put plist :repo (plist-get melpa-plist :url)))
+                ((or 'github 'gitlab)
                  (straight--put plist :host (plist-get melpa-plist :fetcher))
                  (straight--put plist :repo (plist-get melpa-plist :repo)))
                 ;; This error is caught by `condition-case', no need
@@ -3639,10 +3592,10 @@ the symbols supported for backwards compatibility, account for
 that appropriately."
   (memq symbol
         (pcase straight-check-for-modifications
-          (`at-startup '(find-at-startup find-when-checking))
-          (`live '(check-on-save))
-          (`live-with-find '(check-on-save find-when-checking))
-          (`never nil)
+          ('at-startup '(find-at-startup find-when-checking))
+          ('live '(check-on-save))
+          ('live-with-find '(check-on-save find-when-checking))
+          ('never nil)
           (lst lst))))
 
 (defcustom straight-cache-autoloads t
@@ -4499,8 +4452,8 @@ to an existing file. See `straight-symlink-emulation-mode'."
 See `straight-symlink-emulation-mode'."
   (when buffer-file-name
     (pcase (straight-chase-emulated-symlink buffer-file-name)
-      (`nil)
-      (`broken
+      ('nil)
+      ('broken
        (straight--output
         "Broken symlink, you are not editing the real file"))
       (target (find-alternate-file target)))))
@@ -4789,35 +4742,24 @@ repository."
 
 ;;;;; Cache handling
 
-(defun straight--format-timestamp (&optional timestamp)
-  "Format an Elisp TIMESTAMP for the operating system.
-See `format-time-string' for the format of TIMESTAMP. The
-formatted string does not include millisecond precision because
-this is not supported by find(1) commands on all operating
-systems (thanks, Apple). Therefore, to avoid spurious rebuilds,
-the time is rounded up to the next second."
-  (format-time-string
-   "%F %T" (time-add
-            ;; Default is needed for Emacs 24.5 due to bad design.
-            (or timestamp (current-time))
-            ;; This format instead of just the integer 1 is needed for
-            ;; Emacs 24.5 due to bad design.
-            '(0 1))))
-
 (defun straight--declare-successful-build (recipe)
   "Update `straight--build-cache' to reflect a successful build of RECIPE.
 RECIPE should be a straight.el-style plist. The build mtime and
 recipe in `straight--build-cache' for the package are updated."
-  (straight--with-plist recipe
-      (package)
+  (straight--with-plist recipe (package)
     ;; We've rebuilt the package, so its autoloads might have changed.
     (remhash package straight--autoloads-cache)
-    (let (;; This time format is compatible with:
-          ;;
-          ;; * BSD find shipped with macOS >=10.11
-          ;; * GNU find >=4.4.2
-          (mtime (straight--format-timestamp)))
-      (straight--insert 0 package mtime straight--build-cache))
+    ;; This time format is compatible with:
+    ;;
+    ;; * BSD find shipped with macOS >=10.11
+    ;; * GNU find >=4.4.2
+    ;;
+    ;; Time is rounded up to the next second to avoid spurious
+    ;; rebuilds. find(1) millisecond precision is not guaranteed
+    ;; on all platforms (e.g. Apple).
+    (straight--insert 0 package
+                      (format-time-string "%F %T" (time-add nil 1))
+                      straight--build-cache)
     (straight--insert 2 package recipe straight--build-cache)))
 
 ;;;;; Main entry point
@@ -5092,13 +5034,7 @@ The default value is \"Processing\"."
                                         (setq next-repos (cdr next-repos))
                                         (cl-return-from loop))
                                     (error e)
-                                    ;; Emacs 24.5 has a bug where the
-                                    ;; byte-compiler signals an unused
-                                    ;; argument warning for the target
-                                    ;; of a `condition-case' unless
-                                    ;; it's used on every error
-                                    ;; handler.
-                                    (quit (ignore e)))))
+                                    (quit))))
                             (format (concat "While processing repository %S, "
                                             "an error occurred:\n\n  %S")
                                     local-repo (error-message-string err))
@@ -5192,8 +5128,8 @@ action, just return it)."
       (unless recipe
         (user-error "Recipe for %S is malformed" package))
       (pcase action
-        (`insert (insert (format "%S" recipe)))
-        (`copy (kill-new (format "%S" recipe))
+        ('insert (insert (format "%S" recipe)))
+        ('copy (kill-new (format "%S" recipe))
                (straight--output "Copied \"%S\" to kill ring" recipe))
         (_ recipe)))))
 
@@ -5226,8 +5162,8 @@ If SOURCES is nil, update sources in `straight-recipe-repositories'."
          (recipe (straight--convert-recipe melpa-recipe)))
     (straight--with-plist recipe (host repo)
       (pcase host
-        (`github (browse-url (format "https://github.com/%s" repo)))
-        (`gitlab (browse-url (format "https://gitlab.com/%s" repo)))
+        ('github (browse-url (format "https://github.com/%s" repo)))
+        ('gitlab (browse-url (format "https://gitlab.com/%s" repo)))
         (_ (browse-url (format "%s" repo)))))))
 
 ;;;;; Package registration
@@ -6277,7 +6213,7 @@ is loaded, according to the value of
   :global t
   :group 'straight
   (pcase straight-use-package--last-version
-    (`ensure
+    ('ensure
      (with-eval-after-load 'use-package
        (when (and (boundp 'use-package-ensure-function)
                   (eq use-package-ensure-function
@@ -6298,7 +6234,7 @@ is loaded, according to the value of
        (fmakunbound 'use-package-handler/:recipe)
        (advice-remove #'use-package-normalize/:ensure
                       #'straight-use-package--ensure-normalizer)))
-    (`straight
+    ('straight
      (with-eval-after-load 'use-package-core
        (when (and (boundp 'use-package-keywords)
                   (listp use-package-keywords))
@@ -6315,7 +6251,7 @@ is loaded, according to the value of
   (when straight-use-package-mode
     (setq straight-use-package--last-version straight-use-package-version)
     (pcase straight-use-package-version
-      (`ensure
+      ('ensure
        (with-eval-after-load 'use-package
          (when (boundp 'use-package-ensure-function)
            (setq straight-use-package--last-ensure-function
@@ -6342,7 +6278,7 @@ is loaded, according to the value of
            #'straight-use-package--recipe-handler)
          (advice-add #'use-package-normalize/:ensure :override
                      #'straight-use-package--ensure-normalizer)))
-      (`straight
+      ('straight
        (with-eval-after-load 'use-package-core
          (when (and (boundp 'use-package-keywords)
                     (listp use-package-keywords))
