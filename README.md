@@ -866,9 +866,6 @@ And here is a brief list of the main reasons you might not want to use
   of packages (i.e. tagged revisions), although this is a [planned
   feature][#31]. If this is important to you, you probably want to go
   with `package.el` (with GNU ELPA and MELPA Stable), Cask, or Quelpa.
-* `straight.el` does not currently support arbitrary build commands
-  like `make`, although this is a [planned feature][#72]. This feature
-  is supported by el-get and Borg.
 * If you don't like having to modify your init-file to do package
   management, then `straight.el` is absolutely not for you. You want
   `package.el`, Quelpa, el-get, or Borg.
@@ -1310,8 +1307,6 @@ offer corrections for this section.
 * Borg does a heck of a lot less magic, so if you want a solution with
   simple implementation details, `straight.el` may not be for you.
   (But see the developer manual and docstrings, first.)
-* Borg supports arbitrary build commands; `straight.el` does not
-  (although this is a [planned feature][#72]).
 
 ### Comparison to the manual approach
 
@@ -3396,7 +3391,6 @@ savings on network bandwidth and disk space.
 [#51]: https://github.com/raxod502/straight.el/issues/51
 [#54]: https://github.com/raxod502/straight.el/issues/54
 [#58]: https://github.com/raxod502/straight.el/issues/58
-[#72]: https://github.com/raxod502/straight.el/issues/72
 [#95-c1]: https://github.com/raxod502/straight.el/issues/95#issuecomment-316379495
 [#110]: https://github.com/raxod502/straight.el/issues/110
 [#115]: https://github.com/raxod502/straight.el/issues/115
