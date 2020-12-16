@@ -1456,10 +1456,6 @@ For built-in packages, this is always nil."
 
 ;;;;; Git
 
-(defcustom straight-vc-git-default-branch "master"
-  "The default value for `:branch' when `:type' is symbol `git'."
-  :type 'string)
-
 (defcustom straight-vc-git-primary-remote "origin"
   "The remote name to use for the primary remote.
 This variable is deprecated, and only applies to usage of the
@@ -1559,7 +1555,9 @@ appropriately."
               `(cond
                 (,check ,value)
                 (,upstream-check ,upstream-value)
-                (t straight-vc-git-default-branch)))
+                ;; We use nil here to signify there is no branch
+                ;; specified, so it must be figured out by clients.
+                (t nil)))
              (`remote
               `(cond
                 (,check ,value)
@@ -1585,14 +1583,13 @@ appropriately."
                   (list
                    :repo repo
                    :host host
-                   :branch (or branch straight-vc-git-default-branch)
+                   :branch branch
                    :remote straight-vc-git-primary-remote)))
            (dolist (kw '(:host :repo))
              (setq ,recipe-sym
                    (plist-put ,recipe-sym kw (plist-get upstream kw))))
            (setq ,recipe-sym (plist-put ,recipe-sym :branch
-                                        (or (plist-get upstream :branch)
-                                            straight-vc-git-default-branch)))
+                                        (plist-get upstream :branch)))
            (setq ,recipe-sym
                  (plist-put
                   ,recipe-sym :remote straight-vc-git-upstream-remote))))
@@ -1963,12 +1960,17 @@ confirmation, so this function should only be run after
            ("a" (format "Attach HEAD to branch %S" branch)
             (straight--get-call "git" "checkout" branch)))))
       (t
+       ;; ref-ahead-p and ref-behind-p determine whether the local
+       ;; copy is ahead or behind ref. When the branch is different,
+       ;; though, it's not a question of being ahead or behind, the
+       ;; state can be more complex than that, so we consider it
+       ;; neither ahead nor behind.
        (let ((ref-ahead-p (straight--check-call
                            "git" "merge-base" "--is-ancestor"
-                           branch ref-name))
+                           cur-branch ref-name))
              (ref-behind-p (straight--check-call
                             "git" "merge-base" "--is-ancestor"
-                            ref-name branch)))
+                            ref-name cur-branch)))
          (when (and ref ref-behind-p)
            (cl-return-from straight-vc-git--ensure-head t))
          (when (and ref ref-ahead-p straight-vc-git-auto-fast-forward)
@@ -1985,30 +1987,33 @@ confirmation, so this function should only be run after
                 (ref-behind-p
                  (cl-return-from straight-vc-git--ensure-head t))
                 (ref-ahead-p
-                 (format "branch %S is behind %S" branch ref))
-                (t (format "branch %S has diverged from %S" branch ref)))
+                 (format "default branch %S is behind %S" branch ref))
+                (t (format "default branch %S has diverged from %S"
+                           branch ref)))
              (let ((on-branch (if head-detached-p ""
                                 (format " (on branch %S)"
                                         cur-branch))))
                (cond
                 (ref-ahead-p
-                 (format "HEAD%s is ahead of branch %S" on-branch branch))
+                 (format "HEAD%s is ahead of default branch %S"
+                         on-branch branch))
                 (ref-behind-p
-                 (format "HEAD%s is behind branch %S" on-branch branch))
-                (t (format "HEAD%s has diverged from branch %S"
+                 (format "HEAD%s is behind default branch %S"
+                         on-branch branch))
+                (t (format "HEAD%s has diverged from default branch %S"
                            on-branch branch))))))
           ;; Here be dragons! Watch the quoting very carefully in
           ;; order to get the lexical scoping to work right, and don't
           ;; confuse this syntax with the syntax of the
           ;; `straight--popup' macro.
-          `(,@(when ref-ahead-p
+          `(,@(when (and ref-ahead-p ref)
                 `(("f" ,(format "Fast-forward branch %S to %s"
-                                branch quoted-ref-name)
+                                cur-branch quoted-ref-name)
                    ,(lambda ()
                       (straight--get-call
                        "git" "reset" "--hard" ref-name)))))
             ,@(when (and ref-behind-p (null ref))
-                `(("f" ,(format "Fast-forward HEAD to branch %S" branch)
+                `(("c" ,(format "Checkout branch %S" branch)
                    ,(lambda ()
                       (straight--get-call
                        "git" "checkout" branch)))))
@@ -2033,7 +2038,7 @@ confirmation, so this function should only be run after
                       (straight--get-call
                        "git" "reset" "--hard" ref-name)))
                   ,@(unless ref
-                      `(("c" ,(format "Reset HEAD to branch %S" branch)
+                      `(("c" ,(format "Checkout branch %S" branch)
                          ,(lambda ()
                             (straight--get-call
                              "git" "checkout" branch)))))
@@ -2065,12 +2070,17 @@ used; it should be a string that is not prefixed with a remote
 name."
   (straight-vc-git--destructure recipe
       (local-repo branch)
-    (while t
-      (and (straight-vc-git--ensure-local recipe)
-           (or (straight-vc-git--ensure-head
-                local-repo branch (format "%s/%s" remote remote-branch))
-               (straight-register-repo-modification local-repo))
-           (cl-return-from straight-vc-git--merge-from-remote-raw t)))))
+    (let ((remote-branch (or remote-branch
+                             branch
+                             (straight-vc-git--default-remote-branch
+                              remote local-repo))))
+      (while t
+        (and (straight-vc-git--ensure-local recipe)
+             (or (straight-vc-git--ensure-head
+                  local-repo remote-branch
+                  (format "%s/%s" remote remote-branch))
+                 (straight-register-repo-modification local-repo))
+             (cl-return-from straight-vc-git--merge-from-remote-raw t))))))
 
 (cl-defun straight-vc-git--pull-from-remote-raw (recipe remote remote-branch)
   "Using straight.el-style RECIPE, pull from REMOTE.
@@ -2089,7 +2099,10 @@ Return non-nil. If no local repository, do nothing and return non-nil."
         (local-repo repo branch remote)
       (unless repo
         (cl-return t))
-      (let ((push-error-message nil))
+      (let ((push-error-message nil)
+            (branch
+             (or branch
+                 (straight-vc-git--default-remote-branch remote local-repo))))
         (while t
           (while (not (straight-vc-git--ensure-local recipe)))
           (let ((ref (format "%s/%s" remote branch)))
@@ -2132,14 +2145,17 @@ Return non-nil. If no local repository, do nothing and return non-nil."
 This means that the remote URLs are set correctly; there is no
 merge currently in progress; the worktree is pristine; and the
 primary :branch is checked out. The reason for \"local\" in the
-name of this function is that no network communication is done
-with the remotes."
+name of this function is that for normal situations, no network
+communication is done with the remotes."
   (straight-vc-git--destructure recipe
-      (local-repo branch)
+      (local-repo branch remote)
     (and (straight-vc-git--ensure-remotes recipe)
          (or (and (straight-vc-git--ensure-nothing-in-progress local-repo)
                   (straight-vc-git--ensure-worktree local-repo)
-                  (straight-vc-git--ensure-head local-repo branch))
+                  (straight-vc-git--ensure-head
+                   local-repo
+                   (or branch (straight-vc-git--default-remote-branch
+                               remote local-repo))))
              (straight-register-repo-modification local-repo)))))
 
 (defcustom straight-vc-git-default-clone-depth 'full
@@ -2173,10 +2189,10 @@ clone of everything."
   (cond
    ((eq depth 'full)
     ;; Clone the whole history of the repository.
-    (straight--get-call
-     "git" "clone" "--origin" remote
-     "--branch" branch
-     "--no-checkout" url repo-dir))
+    (apply #'straight--get-call
+           "git" "clone" "--origin" remote
+           "--no-checkout" url repo-dir
+           (when branch `("--branch" ,branch))))
    ((integerp depth)
     ;; Do a shallow clone.
     (condition-case nil
@@ -2187,28 +2203,31 @@ clone of everything."
                     (default-directory repo-dir))
                 (straight--get-call
                  "git" "init")
-                (straight--get-call
-                 "git" "remote" "add" remote url
-                 "--master" branch)
+                (apply #'straight--get-call
+                       "git" "remote" "add" remote url
+                       (when branch `("--master" ,branch)))
                 (straight--get-call
                  "git" "fetch" remote commit
                  "--depth" (number-to-string depth)
                  "--no-tags")))
-          (delete-directory repo-dir 'recursive)
-          (straight--get-call
-           "git" "clone" "--origin" remote
-           "--no-checkout" url repo-dir
-           "--depth" (number-to-string depth)
-           "--branch" branch
-           "--single-branch"
-           "--no-tags"))
+          (when (file-exists-p repo-dir)
+            (delete-directory repo-dir 'recursive))
+          (apply #'straight--get-call
+                 "git" "clone" "--origin" remote
+                 "--no-checkout" url repo-dir
+                 "--depth" (number-to-string depth)
+                 "--no-single-branch"
+                 "--no-tags"
+                 (when branch `("--branch" ,branch))))
       ;; Fallback for dumb http protocol.
       (error
-       (delete-directory repo-dir 'recursive)
+       (when (file-exists-p repo-dir)
+         (delete-directory repo-dir 'recursive))
        (straight-vc-git--clone-internal :depth 'full
                                         :remote remote
                                         :url url
-                                        :repo-dir repo-dir))))
+                                        :repo-dir repo-dir
+                                        :branch branch))))
    (t (error "Invalid value %S of depth for %s" depth url))))
 
 ;;;;;; API
@@ -2235,8 +2254,11 @@ specified in RECIPE instead. If that fails, signal a warning."
                                              :repo-dir repo-dir
                                              :branch branch
                                              :commit commit)
-            (let ((straight--default-directory nil)
-                  (default-directory repo-dir))
+            (let* ((straight--default-directory nil)
+                   (default-directory repo-dir)
+                   (branch (or branch
+                               (straight-vc-git--default-remote-branch
+                                remote local-repo))))
               (when fork-repo
                 (let ((url (straight-vc-git--encode-url
                             upstream-repo upstream-host)))
@@ -2306,6 +2328,32 @@ argument is not part of the VC API."
 If RECIPE does not configure a fork, do nothing."
   (straight-vc-git-fetch-from-remote recipe 'from-upstream))
 
+(cl-defun straight-vc-git--default-remote-branch (remote &optional local-repo)
+  "Return the default remote branch of LOCAL-REPO, with remote name REMOTE.
+If LOCAL-REPO is not specified, assume we are the correct
+directory for the repository. If there is no remote repository,
+return nil."
+  (let* ((default-directory (if local-repo
+                                (let ((d (straight--repos-dir local-repo)))
+                                  ;; New repositories do not yet
+                                  ;; exist, so we don't want to switch
+                                  ;; to them.
+                                  (if (file-directory-p d) d
+                                    default-directory))
+                              default-directory))
+         (branch-list (cdr (straight--call "git" "branch" "-r"))))
+    (if (string-match "^.*origin/HEAD -> origin/\\(.*$\\)" branch-list)
+        (match-string 1 branch-list)
+      ;; git doesn't always have the default remote branch name
+      ;; available locally. For these cases, we have to look at the
+      ;; remote. This is more reliable but also involves is slower, so
+      ;; we do this later.
+      (when branch-list
+        (let ((remote-show-output
+               (cdr (straight--call "git" "remote" "show" remote))))
+          (string-match "HEAD branch: \\(.*\\)$" remote-show-output)
+          (match-string 1 remote-show-output))))))
+
 (cl-defun straight-vc-git-merge-from-remote (recipe &optional from-upstream)
   "Using straight.el-style RECIPE, merge from the primary remote.
 If FROM-UPSTREAM is non-nil, merge from the upstream remote
@@ -2317,9 +2365,11 @@ is not part of the VC API."
                        repo branch remote fork)
       (when (and from-upstream (not fork))
         (cl-return t))
-      (let ((remote-branch (if from-upstream upstream-branch branch))
-            (repo (if from-upstream upstream-repo repo))
-            (remote (if from-upstream upstream-remote remote)))
+      (let* ((repo (if from-upstream upstream-repo repo))
+             (remote (if from-upstream upstream-remote remote))
+             (remote-branch
+              (or (if from-upstream upstream-branch branch)
+                  (straight-vc-git--default-remote-branch remote repo))))
         (unless repo
           (cl-return t))
         (straight-vc-git--merge-from-remote-raw
