@@ -1781,7 +1781,32 @@ since otherwise this cache file may grow quite large over time.
 
 #### Hooks run by `straight-use-package`
 
-Currently, `straight-use-package` supports two hooks:
+Currently, `straight-use-package` supports three hooks:
+
+* `straight-vc-git-post-clone-hook`: The functions in this hook are
+  run just after cloning a git repository.  This allows users to
+  automate custom configuration of Elisp Git repositories after they
+  have been cloned.  For example, the `user.email` `git-config`
+  variable could be set on clone, to make upstream contributions more
+  convenient for developers who use different email addresses for
+  different repositories.
+
+  Each hook function is passed the following [keyword arguments]:
+
+    - `:repo-dir` - the local directory to which the repository was
+      cloned
+    - `:remote` - the name of the remote from which the repository was
+      cloned
+    - `:url` - the URL from which the repository was cloned
+    - `:branch` - the branch as specified by the recipe, if any,
+      otherwise `nil`
+    - `:depth` - the clone depth as specified by the recipe or
+      `straight-vc-git-default-clone-depth`
+    - `:commit` - the specific commit which was requested via the
+      lockfile, if any, otherwise `nil`
+
+  Since keyword arguments are used, each function should be defined
+  via `cl-defun`, and `&key` used at the front of the argument list.
 
 * `straight-use-package-prepare-functions`: The functions in this hook
   are run just before a package would be built, even if the package
@@ -3437,6 +3462,7 @@ savings on network bandwidth and disk space.
 [hydra-wiki-straight-entry]: https://github.com/abo-abo/hydra/wiki/straight.el
 [hydra]: https://github.com/abo-abo/hydra
 [issues]: https://github.com/raxod502/straight.el/issues
+[keyword arguments]: https://www.emacswiki.org/emacs/KeywordArguments
 [magit]: https://magit.vc/
 [markdown-toc]: https://github.com/jonschlinkert/markdown-toc
 [melpa-recipe-format]: https://github.com/melpa/melpa#recipe-format

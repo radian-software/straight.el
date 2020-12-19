@@ -258,6 +258,27 @@ computes the fork as \"githubUser/fork\"."
                            (const :tag "bitbucket" bitbucket))
                 :value-type (string :tag "username")))
 
+(defcustom straight-vc-git-post-clone-hook nil
+  "Functions called after straight.el clones a git repository.
+
+Each hook function is passed the following keyword arguments:
+
+  - `:repo-dir' - the local directory to which the repository was cloned
+  - `:remote' - the name of the remote from which the repository was cloned
+  - `:url' - the URL from which the repository was cloned
+  - `:branch' - the branch as specified by the recipe, if any,
+    otherwise nil
+  - `:depth' - the clone depth as specified by the recipe or
+    `straight-vc-git-default-clone-depth'
+  - `:commit' - the specific commit which was requested via the
+    lockfile, if any, otherwise nil
+
+Since keyword arguments are used, each function should be defined
+via `cl-defun', with `&key' used at the front of the argument
+list, and `&allow-other-keys' at the end to ensure forwards
+compatibility."
+  :type 'hook)
+
 ;;;; Utility functions
 ;;;;; Association lists
 
@@ -2357,10 +2378,13 @@ specified in RECIPE instead. If that fails, signal a warning."
                 (straight--get-call
                  "git" "submodule" "update" "--init" "--recursive")))
             (setq success t))
-        ;; Make cloning an atomic operation.
-        (unless success
-          (when (file-exists-p repo-dir)
-            (delete-directory repo-dir 'recursive)))))))
+        (if (not success)
+            ;; Make cloning an atomic operation.
+            (when (file-exists-p repo-dir)
+              (delete-directory repo-dir 'recursive))
+          (run-hook-with-args 'straight-vc-git-post-clone-hook
+                              :repo-dir repo-dir :remote remote :url url
+                              :branch branch :depth depth :commit commit))))))
 
 (cl-defun straight-vc-git-normalize (recipe)
   "Using straight.el-style RECIPE, make the repository locally sane.
