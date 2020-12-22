@@ -2427,7 +2427,10 @@ If RECIPE does not configure a fork, do nothing."
 If LOCAL-REPO is not specified, assume we are the correct
 directory for the repository. If there is no remote repository,
 return nil."
-  (let* ((default-directory (if local-repo
+  (let* ((process-environment
+          ;;force locale for git command
+          (append (list "LC_ALL=C") process-environment))
+         (default-directory (if local-repo
                                 (let ((d (straight--repos-dir local-repo)))
                                   ;; New repositories do not yet
                                   ;; exist, so we don't want to switch
@@ -2444,9 +2447,12 @@ return nil."
       ;; we do this later.
       (when branch-list
         (let ((remote-show-output
-               (cdr (straight--call "git" "remote" "show" remote))))
-          (string-match "HEAD branch: \\(.*\\)$" remote-show-output)
-          (match-string 1 remote-show-output))))))
+               (straight--call "git" "remote" "show" remote)))
+          (when (car remote-show-output)
+            (replace-regexp-in-string ".*: \\(.*\\)$" "\\1"
+                                      (nth 3 (split-string
+                                              (cdr remote-show-output)
+                                              "\n")))))))))
 
 (cl-defun straight-vc-git-merge-from-remote (recipe &optional from-upstream)
   "Using straight.el-style RECIPE, merge from the primary remote.
