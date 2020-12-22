@@ -2446,10 +2446,13 @@ return nil."
       ;; remote. This is more reliable but also involves is slower, so
       ;; we do this later.
       (when branch-list
-        (let ((remote-show-output (straight--call "git" "remote" "show" remote)))
+        (let ((remote-show-output
+               (straight--call "git" "remote" "show" remote)))
           (when (car remote-show-output)
             (replace-regexp-in-string ".*: \\(.*\\)$" "\\1"
-                                      (nth 3 (split-string (cdr remote-show-output) "\n")))))))))
+                                      (nth 3 (split-string
+                                              (cdr remote-show-output)
+                                              "\n")))))))))
 
 (cl-defun straight-vc-git-merge-from-remote (recipe &optional from-upstream)
   "Using straight.el-style RECIPE, merge from the primary remote.
