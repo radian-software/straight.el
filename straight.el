@@ -2802,32 +2802,28 @@ Return a list of package names as strings."
 
 (defun straight-recipes-org-elpa-retrieve (package)
   "Look up a pseudo-PACKAGE recipe in Org ELPA.
-PACKAGE must be either `org' or `org-plus-contrib'. Otherwise
-return nil."
-  (pcase package
-    ('org
-     '`(org :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
-            :local-repo "org"
-            :build ,(let ((make (if (eq system-type 'berkeley-unix)
-                                    "gmake"
-                                  "make"))
-                          (emacs (concat "EMACS="
-                                         invocation-directory
-                                         invocation-name)))
-                      `(,make "oldorg" ,emacs))))
-    ('org-plus-contrib
-     '`(org-plus-contrib
-        :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
-        :local-repo "org"
-        :files (:defaults "contrib/lisp/*.el")
-        :build ,(let ((make (if (eq system-type 'berkeley-unix)
-                                "gmake"
-                              "make"))
-                      (emacs (concat "EMACS="
-                                     invocation-directory
-                                     invocation-name)))
-                  `(,make "oldorg" ,emacs))))
-    (_ nil)))
+PACKAGE must be either `org' or `org-plus-contrib'.
+Otherwise return nil."
+  (when (member package '(org org-plus-contrib))
+    (let* ((form
+            '`(org :type git
+                   :repo "https://code.orgmode.org/bzg/org-mode.git"
+                   ;; Org's make autoloads generates org-verison.el.
+                   :no-autoloads t
+                   :local-repo "org"
+                   :build
+                   ,(list
+                     (concat (when (eq system-type 'berkeley-unix) "g")
+                             "make")
+                     "autoloads"
+                     (concat "EMACS=" invocation-directory invocation-name))))
+           (recipe (cadr form)))
+      (setcdr recipe
+              (plist-put (cdr recipe)
+                         :files (append '(:defaults "lisp/*.el")
+                                        (when (eq package 'org-plus-contrib)
+                                          '("contrib/lisp/*.el")))))
+      form)))
 
 (defun straight-recipes-org-elpa-list ()
   "Return a list of Org ELPA pseudo-packages, as a list of strings."
@@ -2835,7 +2831,7 @@ return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  2)
+  3)
 
 ;;;;;; MELPA
 
