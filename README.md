@@ -221,7 +221,18 @@ set **before** the bootstrap code runs, if they might affect how
 You should remove any code that relates to `package.el`; for example,
 references to `package-initialize`, `package-archives`, and (if you're
 using [`use-package`][use-package]) `:ensure` or
-`use-package-always-ensure`. While it is technically possible to use
+`use-package-always-ensure`.
+
+Users of Emacs versions >= 27 will want to add:
+
+```emacs-lisp
+(setq package-enable-at-startup nil)
+```
+
+to their [`early-init file`][early-init file] to prevent package.el
+loading packages prior to their init-file loading.
+
+While it is technically possible to use
 both `package.el` and `straight.el` at the same time, there is no real
 reason to, and it might result in oddities like packages getting
 loaded more than once.
@@ -3441,6 +3452,7 @@ savings on network bandwidth and disk space.
 [circleci-build]: https://circleci.com/gh/raxod502/straight.el
 [develop]: https://github.com/raxod502/straight.el/tree/develop
 [docker]: https://www.docker.com/
+[early-init-file]: https://www.gnu.org/software/emacs/manual/html_node/emacs/Early-Init-File.html
 [early-init-file-commit]: https://git.savannah.gnu.org/cgit/emacs.git/commit/?id=24acb31c04b4048b85311d794e600ecd7ce60d3b
 [el-get]: https://github.com/dimitri/el-get
 [emacs]: https://www.gnu.org/software/emacs/
