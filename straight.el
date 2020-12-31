@@ -4650,7 +4650,7 @@ individual package recipe."
 (defcustom straight-byte-compilation-buffer "*straight-byte-compilation*"
   "Name of the byte compilation log buffer.
 If nil, output is discarded."
-  :type '(or string nil))
+  :type '(or (string :tag "Buffer name") (const :tag "Discard output" nil)))
 
 (defun straight--byte-compile-package (recipe)
   "Byte-compile files for the symlinked package specified by RECIPE.
