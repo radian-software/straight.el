@@ -49,7 +49,6 @@
     (throw 'emacs-version-changed nil)))
 
 ;;;; Libraries
-
 (require 'cl-lib)
 (require 'subr-x)
 
@@ -4650,43 +4649,24 @@ individual package recipe."
   (not (straight--plist-get recipe :no-byte-compile
                             straight-disable-byte-compilation)))
 
-(cl-defun straight--byte-compile-package (recipe)
+(defcustom straight-byte-compilation-buffer "*straight-byte-compilation*"
+  "Name of the byte compilation log buffer.
+If nil, output is discarded."
+  :type '(or (string :tag "Buffer name") (const :tag "Discard output" nil)))
+
+(defun straight--byte-compile-package (recipe)
   "Byte-compile files for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
-  (unless (straight--byte-compile-package-p recipe)
-    (cl-return-from straight--byte-compile-package))
-  ;; We need to load `bytecomp' so that the `symbol-function'
-  ;; assignments below are sure to work. Since we byte-compile this
-  ;; file, we need to `require' the feature at compilation time too.
-  (eval-and-compile
-    (require 'bytecomp))
-  (straight--with-plist recipe
-      (package)
-    ;; These two `let' forms try very, very hard to make
-    ;; byte-compilation an invisible process. Lots of packages have
-    ;; byte-compile warnings; I don't need to know about them and
-    ;; neither do straight.el users.
-    (cl-letf (;; Prevent Emacs from asking the user to save all their
-              ;; files before compiling.
-              ((symbol-function #'save-some-buffers) #'ignore)
-              ;; Die, byte-compile log, die!!!
-              ((symbol-function #'byte-compile-log-1) #'ignore)
-              ((symbol-function #'byte-compile-log-file) #'ignore)
-              ((symbol-function #'byte-compile-log-warning) #'ignore))
-      (let (;; Suppress messages about byte-compilation progress.
-            (byte-compile-verbose nil)
-            ;; Suppress messages about byte-compilation warnings.
-            (byte-compile-warnings nil)
-            ;; Suppress the remaining messages.
-            (inhibit-message t)
-            (message-log-max nil))
-        ;; Note that there is in fact no `byte-compile-directory'
-        ;; function.
-        (byte-recompile-directory
-         (straight--build-dir package)
-         0 'force)))))
+  (when (straight--byte-compile-package-p recipe)
+    (let* ((package (plist-get recipe :package))
+           (dir (straight--build-dir package))
+           (form (format "(byte-recompile-directory %S 0 'force)" dir)))
+      (call-process
+       (concat invocation-directory invocation-name)
+       nil straight-byte-compilation-buffer nil
+       "-Q" "-L" dir "--batch" "--eval" form))))
 
 ;;;;; Native compilation
 
