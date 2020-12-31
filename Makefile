@@ -16,6 +16,10 @@ for_longlines := $(wildcard *.el *.md *.yml benchmark/*.el	\
 	scripts/*.bash) Makefile
 for_checkindent := $(wildcard *.el benchmark/*.el)
 
+# excludes benchmarking, smoke and unit tests
+.PHONY: all
+all: clean lint
+
 .PHONY: help
 help: ## Show this message
 	@echo "usage:" >&2
