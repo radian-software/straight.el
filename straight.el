@@ -2807,6 +2807,8 @@ Otherwise return nil."
     (let* ((form
             '`(org :type git
                    :repo "https://code.orgmode.org/bzg/org-mode.git"
+                   ;; `org-version' depends on repository tags.
+                   :depth full
                    ;; Org's make autoloads generates org-verison.el.
                    :no-autoloads t
                    :local-repo "org"
@@ -2830,7 +2832,7 @@ Otherwise return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  3)
+  4)
 
 ;;;;;; MELPA
 
