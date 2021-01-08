@@ -3153,11 +3153,11 @@ uses one of the Git fetchers, return it; otherwise return nil."
               ;; :autoloads nil and recipe not declaring :autoloads.
               (when-let ((autoloads (plist-member recipe :autoloads)))
                 ;; ignore    :autoloads t
-                ;; translate :autoloads nil -> :no-autoloads t
+                ;; translate :autoloads nil -> :build (:not autoloads)
                 ;; el-get also allows a file or list of files which are
                 ;; ignored for now.
                 (unless (cadr autoloads)
-                  (straight--put plist :no-autoloads t)))
+                  (straight--put plist :build '(:not autoloads))))
               (when (plist-get recipe :build)
                 (straight--put plist :pre-build
                                (macroexpand
@@ -3199,14 +3199,12 @@ straight.el to not even bother cloning recipe repositories to
 look for recipes for these packages."
   :type '(repeat symbol))
 
-(defvar straight--build-keywords '(:files
+(defvar straight--build-keywords '(:build
+                                   :files
                                    :flavor
                                    :local-repo
-                                   :no-autoloads
-                                   :no-byte-compile
-                                   :no-native-compile
-                                   :post-build
-                                   :pre-build)
+                                   :pre-build
+                                   :post-build)
   "Keywords that affect how a package is built locally.
 If the values for any of these keywords change, then package
 needs to be rebuilt. See also `straight-vc-keywords'.")
@@ -4160,6 +4158,108 @@ last time."
                         (not (string-empty-p results))))))))))))
 
 ;;;; Building packages
+
+(defvar straight--build-functions nil
+  "Abnormal hook run to build a package.
+This is lexically bound per-recipe during `straight--build-package'.
+Each function recieves the current recipe as its argument.")
+
+
+(defconst straight--build-default-steps '(autoloads
+                                          compile
+                                          native-compile
+                                          info)
+  "List of symbols representing the build steps.")
+
+(defun straight--build-steps (recipe)
+  "Compute RECIPE's :build functions for use in `straight--build-functions'."
+  (let* ((member (plist-member recipe :build))
+         (val (cadr member)))
+    (unless (and member (not val)) ; explicit :build nil
+      (let* ((defaults (if (or (eq (car-safe val) :not) (not member))
+                           (cl-remove-if
+                            (lambda (step)
+                              (symbol-value
+                               (intern (concat "straight-disable-"
+                                               (symbol-name step)))))
+                            straight--build-default-steps)
+                         straight--build-default-steps)))
+        (mapcar (lambda (step)
+                  (intern (concat "straight--build-" (symbol-name step))))
+                (pcase val
+                  ((or 'nil 't) defaults)
+                  (`(:not . ,steps) (cl-set-difference defaults steps))
+                  ((pred listp) val)
+                  (_ defaults)))))))
+
+;;;;; Main entry point
+(defun straight--build-package (recipe &optional cause)
+  "Build the package specified by the RECIPE.
+This includes running RECIPE's `:pre-build` commands, symlinking the
+package files into the build directory, building dependencies, running
+RECIPE's `:build` and `:post-build` commands, and updating the build
+cache. It is assumed that the package repository has already been
+cloned.
+
+RECIPE is a straight.el-style plist. CAUSE is a string indicating
+the reason this package is being built."
+  (straight--with-plist recipe
+      (package)
+    (when straight-safe-mode
+      (error "Building %s not allowed in safe mode" package))
+    (let ((task (concat cause (when cause straight-arrow)
+                        (format "Building %s" package))))
+      (straight--with-progress task
+        (straight--run-build-commands recipe)
+        (straight--symlink-package recipe)
+        ;; The following function call causes the dependency list to
+        ;; be written to the build cache. There is no need to save it
+        ;; right away, as the transaction system ensures that in order
+        ;; for the build cache to be loaded again, the current
+        ;; transaction would first have to end, including saving the
+        ;; build cache. (We know we're inside a transaction because
+        ;; otherwise the build cache would not be available at all,
+        ;; and hence this code would break immediately.)
+        (straight--compute-dependencies package)
+        ;; Before we (possibly) build the dependencies, we need to set
+        ;; this flag so that we know if our progress message will need
+        ;; to be redisplayed afterwards (before autoload generation
+        ;; and byte-compilation).
+        (setq straight--echo-area-dirty nil)
+        ;; Yes, we do the following logic twice. Once here and again
+        ;; in `straight-use-package'. Why? We need to do it here
+        ;; because the dependencies need to be available before this
+        ;; package can be byte-compiled. But the normal case is that
+        ;; packages are already going to be built, so this code path
+        ;; will not be hit and therefore autoloads will not be loaded
+        ;; for the dependencies in that situation if we don't do it
+        ;; again in `straight-use-package'.
+        (when-let ((dependencies (straight--get-dependencies package)))
+          (dolist (dependency dependencies)
+            ;; The implicit meaning of the first argument to
+            ;; `straight-use-package' here is that the default recipes
+            ;; (taken from one of the recipe repositories) are used
+            ;; for dependencies. (Well, maybe. See all the weird edge
+            ;; cases and exceptions in `straight--convert-recipe'.)
+            ;;
+            ;; Note that the second and third arguments are always
+            ;; nil. This means that dependencies will always be
+            ;; eagerly cloned and built, if we got to building this
+            ;; package.
+            (straight-use-package (intern dependency) nil nil task))
+          ;; We might need to redisplay the progress message from
+          ;; `straight--with-progress' up above.
+          (when straight--echo-area-dirty
+            (straight--progress-begin task)))
+        (let ((straight--build-functions
+               (straight--build-steps recipe)))
+          (run-hook-with-args 'straight--build-functions recipe))
+        (straight--run-build-commands recipe 'post)
+        (run-hook-with-args
+         'straight-use-package-post-build-functions package))
+      ;; We messed up the echo area.
+      (setq straight--echo-area-dirty t))))
+
 ;;;;; Files directive processing
 
 (defvar straight-default-files-directive
@@ -4412,7 +4512,7 @@ The keyword's value is expected to be one of the following:
   - A single command
   - A list of commands
   - nil, in which case no commands are executed.
-    Note :no-build takes precedence over :pre-build and :post-build."
+    Note if :build is nil, :pre/post-build commands are not executed."
   (straight--with-plist recipe (pre-build post-build package local-repo)
     (when-let ((commands (if post post-build pre-build))
                (repo (straight--repos-dir (or local-repo package))))
@@ -4572,17 +4672,15 @@ they were previously registered in the build cache by
 
 (defcustom straight-disable-autoloads nil
   "Non-nil means do not generate or activate autoloads by default.
-This can be overridden by the `:no-autoloads' property of an
-individual package recipe."
+This can be overridden by the `:build' property of an individual
+package recipe."
   :type 'boolean)
 
-(cl-defun straight--generate-package-autoloads (recipe)
+(defun straight--build-autoloads (recipe)
   "Generate autoloads for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. See
 `straight--autoloads-file-name'. Note that this function only
 modifies the build folder, not the original repository."
-  (when (straight--plist-get recipe :no-autoloads straight-disable-autoloads)
-    (cl-return-from straight--generate-package-autoloads))
   ;; The `eval-and-compile' here is extremely important. If you take
   ;; it out, then straight.el will fail with a mysterious error and
   ;; then cause Emacs to segfault if you start it with --debug-init.
@@ -4640,49 +4738,42 @@ modifies the build folder, not the original repository."
 
 ;;;;; Byte-compilation
 
-(defcustom straight-disable-byte-compilation nil
+(define-obsolete-variable-alias 'straight-disable-byte-compilation
+  'straight-disable-compile "2021-01-01")
+
+(defcustom straight-disable-compile nil
   "Non-nil means do not byte-compile packages by default.
-This can be overridden by the `:no-byte-compile' property of an
+This can be overridden by the `:build' property of an
 individual package recipe."
   :type 'boolean)
-
-(defun straight--byte-compile-package-p (recipe)
-  "Predicate to check whether RECIPE should be byte-compiled."
-  (not (straight--plist-get recipe :no-byte-compile
-                            straight-disable-byte-compilation)))
 
 (defcustom straight-byte-compilation-buffer "*straight-byte-compilation*"
   "Name of the byte compilation log buffer.
 If nil, output is discarded."
   :type '(or (string :tag "Buffer name") (const :tag "Discard output" nil)))
 
-(defun straight--byte-compile-package (recipe)
+(defun straight--build-compile (recipe)
   "Byte-compile files for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
-  (when (straight--byte-compile-package-p recipe)
-    (let* ((package (plist-get recipe :package))
-           (dir (straight--build-dir package))
-           (form (format "(byte-recompile-directory %S 0 'force)" dir)))
-      (call-process
-       (concat invocation-directory invocation-name)
-       nil straight-byte-compilation-buffer nil
-       "-Q" "-L" dir "--batch" "--eval" form))))
+  (let* ((package (plist-get recipe :package))
+         (dir (straight--build-dir package))
+         (form (format "(byte-recompile-directory %S 0 'force)" dir)))
+    (call-process (concat invocation-directory invocation-name)
+                  nil straight-byte-compilation-buffer nil
+                  "-Q" "-L" dir "--batch" "--eval" form)))
 
 ;;;;; Native compilation
 
-(defcustom straight-disable-native-compilation nil
+(define-obsolete-variable-alias 'straight-disable-native-compilation
+  'straight-disable-native-compile "2021-01-01")
+
+(defcustom straight-disable-native-compile nil
   "Non-nil means do not `native-compile' packages by default.
-This can be overridden by the `:no-native-compile' property of an
+This can be overridden by the `:build' property of an
 individual package recipe."
   :type 'boolean)
-
-(defun straight--native-compile-package-p (recipe)
-  "Predicate to check whether RECIPE should be native-compiled."
-  (and (straight--byte-compile-package-p recipe)
-       (not (straight--plist-get recipe :no-native-compile
-                                 straight-disable-native-compilation))))
 
 (defun straight--native-compile-file-p (file)
   "Predicate to check whether FILE should be native-compiled."
@@ -4690,32 +4781,38 @@ individual package recipe."
                   (string-match-p re file))
                 comp-deferred-compilation-deny-list)))
 
-(defun straight--native-compile-package (recipe)
+
+(defun straight--build-native-compile (recipe)
   "Queue native compilation for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository. Also note that native compilation occurs
 asynchronously, and will continue in the background after
 `straight-use-package' returns."
-  (when (fboundp 'native-compile-async)
+  (when (and (fboundp 'native-compile-async)
+             (member 'straight--build-compile straight--build-functions))
     (require 'comp)
-    (straight--with-plist recipe
-        (package)
-      (if (straight--native-compile-package-p recipe)
-          ;; Queue compilation for this package
-          (let ((inhibit-message t)
-                (message-log-max nil))
-            (native-compile-async
-             (straight--build-dir package)
-             'recursively nil
-             #'straight--native-compile-file-p))
-        ;; Prevent compilation of this package
-        (add-to-list 'comp-deferred-compilation-deny-list
-                     (format "^%s" (straight--build-dir package)))))))
+    (straight--with-plist recipe (package)
+      ;; Queue compilation for this package
+      (let ((inhibit-message t)
+            (message-log-max nil))
+        (native-compile-async
+         (straight--build-dir package)
+         'recursively nil
+         #'straight--native-compile-file-p))
+      ;; Prevent compilation of this package
+      (add-to-list 'comp-deferred-compilation-deny-list
+                   (format "^%s" (straight--build-dir package))))))
 
 ;;;;; Info compilation
 
-(defun straight--compile-package-texinfo (recipe)
+(defcustom straight-disable-info nil
+  "Non-nil means do not generate or activate texinfo by default.
+This can be overridden by the `:build' property of an individual
+package recipe."
+  :type 'boolean)
+
+(defun straight--build-info (recipe)
   "Compile .texi files into .info files for package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build directory, not the original
@@ -4769,76 +4866,6 @@ recipe in `straight--build-cache' for the package are updated."
                       (format-time-string "%F %T" (time-add nil 1))
                       straight--build-cache)
     (straight--insert 2 package recipe straight--build-cache)))
-
-;;;;; Main entry point
-
-(defun straight--build-package (recipe &optional cause)
-  "Build the package specified by the RECIPE.
-This includes running RECIPE's `:pre-build` commands, symlinking the package
-files into the build directory, building dependencies, generating the
-autoload file, byte-compiling, running RECIPE's `:post-build`
-commands, and updating the build cache. It is assumed that the package
-repository has already been cloned.
-
-RECIPE is a straight.el-style plist. CAUSE is a string indicating
-the reason this package is being built."
-  (straight--with-plist recipe
-      (package)
-    (when straight-safe-mode
-      (error "Building %s not allowed in safe mode" package))
-    (let ((task (concat cause (when cause straight-arrow)
-                        (format "Building %s" package))))
-      (straight--with-progress task
-        (straight--run-build-commands recipe)
-        (straight--symlink-package recipe)
-        ;; The following function call causes the dependency list to
-        ;; be written to the build cache. There is no need to save it
-        ;; right away, as the transaction system ensures that in order
-        ;; for the build cache to be loaded again, the current
-        ;; transaction would first have to end, including saving the
-        ;; build cache. (We know we're inside a transaction because
-        ;; otherwise the build cache would not be available at all,
-        ;; and hence this code would break immediately.)
-        (straight--compute-dependencies package)
-        ;; Before we (possibly) build the dependencies, we need to set
-        ;; this flag so that we know if our progress message will need
-        ;; to be redisplayed afterwards (before autoload generation
-        ;; and byte-compilation).
-        (setq straight--echo-area-dirty nil)
-        ;; Yes, we do the following logic twice. Once here and again
-        ;; in `straight-use-package'. Why? We need to do it here
-        ;; because the dependencies need to be available before this
-        ;; package can be byte-compiled. But the normal case is that
-        ;; packages are already going to be built, so this code path
-        ;; will not be hit and therefore autoloads will not be loaded
-        ;; for the dependencies in that situation if we don't do it
-        ;; again in `straight-use-package'.
-        (when-let ((dependencies (straight--get-dependencies package)))
-          (dolist (dependency dependencies)
-            ;; The implicit meaning of the first argument to
-            ;; `straight-use-package' here is that the default recipes
-            ;; (taken from one of the recipe repositories) are used
-            ;; for dependencies. (Well, maybe. See all the weird edge
-            ;; cases and exceptions in `straight--convert-recipe'.)
-            ;;
-            ;; Note that the second and third arguments are always
-            ;; nil. This means that dependencies will always be
-            ;; eagerly cloned and built, if we got to building this
-            ;; package.
-            (straight-use-package (intern dependency) nil nil task))
-          ;; We might need to redisplay the progress message from
-          ;; `straight--with-progress' up above.
-          (when straight--echo-area-dirty
-            (straight--progress-begin task)))
-        (straight--generate-package-autoloads recipe)
-        (straight--byte-compile-package recipe)
-        (straight--native-compile-package recipe)
-        (straight--compile-package-texinfo recipe)
-        (straight--run-build-commands recipe 'post)
-        (run-hook-with-args
-         'straight-use-package-post-build-functions package))
-      ;; We messed up the echo area.
-      (setq straight--echo-area-dirty t))))
 
 ;;;; Loading packages
 
@@ -4949,7 +4976,7 @@ RECIPE is a straight.el-style plist."
   "Use `completing-read' to select a package.
 MESSAGE is displayed as the prompt; it should not end in
 punctuation or whitespace. If FOR-BUILD is non-nil, then only
-packages that have a nil `:no-build' property are considered. If
+packages that have a non-nil `:build' property are considered. If
 INSTALLED is non-nil, then only packages that have an available
 repo are considered."
   (completing-read
@@ -4957,7 +4984,7 @@ repo are considered."
    (let ((packages nil))
      (maphash
       (lambda (package recipe)
-        (unless (or (and for-build (plist-get recipe :no-build))
+        (unless (or (and for-build (not (plist-get recipe :build)))
                     (and installed
                          (or (null (plist-get recipe :local-repo))
                              (not (straight--repository-is-available-p
@@ -5224,7 +5251,7 @@ package name as a string. In that case, the return value of the
 function is used as the value of NO-BUILD instead. In any case,
 if NO-BUILD is non-nil, then processing halts here. Otherwise,
 the package is built and activated. Note that if the package
-recipe has a non-nil `:no-build' entry, then NO-BUILD is ignored
+recipe has a nil `:build' entry, then NO-BUILD is ignored
 and processing always stops before building and activation
 occurs.
 
@@ -5314,7 +5341,8 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
            ;; invalidate the relevant entry in the recipe lookup
            ;; cache.
            (straight--make-build-cache-available)
-           (let* ((no-build
+           (let* ((build (plist-member recipe :build))
+                  (no-build
                    (or
                     ;; Remember that `no-build' can come both from the
                     ;; arguments to `straight-use-package' and from
@@ -5322,7 +5350,7 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
                     ;; to build packages which have no local
                     ;; repositories.
                     (null local-repo)
-                    (plist-get recipe :no-build)
+                    (and build (not (cadr build))) ; explicit :build nil
                     (if (straight--functionp no-build)
                         (funcall no-build package)
                       no-build)))

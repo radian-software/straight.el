@@ -23,7 +23,7 @@
        (straight.el
         (expand-file-name
          "straight.el" (file-name-directory bootstrap.el))))
-  ;; This logic replicates that in `straight--byte-compile-package',
+  ;; This logic replicates that in `straight--build-compile',
   ;; and is used to silence byte-compile warnings and other cruft.
   (cl-letf (((symbol-function #'save-some-buffers) #'ignore)
             ((symbol-function #'byte-compile-log-1) #'ignore)
@@ -81,31 +81,31 @@
 
 (straight-use-recipes '(melpa :type git :host github
                               :repo "melpa/melpa"
-                              :no-build t))
+                              :build nil))
 
 (if straight-recipes-gnu-elpa-use-mirror
     (straight-use-recipes
      '(gnu-elpa-mirror :type git :host github
                        :repo "emacs-straight/gnu-elpa-mirror"
-                       :no-build t))
+                       :build nil))
   (straight-use-recipes `(gnu-elpa :type git
                                    :repo ,straight-recipes-gnu-elpa-url
                                    :local-repo "elpa"
-                                   :no-build t)))
+                                   :build nil)))
 
 (straight-use-recipes '(el-get :type git :host github
                                :repo "dimitri/el-get"
-                               :no-build t))
+                               :build nil))
 
 (if straight-recipes-emacsmirror-use-mirror
     (straight-use-recipes
      '(emacsmirror-mirror :type git :host github
                           :repo "emacs-straight/emacsmirror-mirror"
-                          :no-build t))
+                          :build nil))
   (straight-use-recipes '(emacsmirror :type git :host github
                                       :repo "emacsmirror/epkgs"
                                       :nonrecursive t
-                                      :no-build t)))
+                                      :build nil)))
 
 ;; Then we register (and build) straight.el itself.
 (straight-use-package `(straight :type git :host github

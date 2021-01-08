@@ -116,6 +116,7 @@ chat][gitter-badge]][gitter]
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
 - [News](#news)
+  * [Jan 1, 2021](#jan-1-2021)
   * [April 19, 2020](#april-19-2020)
 
 <!-- tocstop -->
@@ -502,7 +503,7 @@ repository, but this is not necessary.
 
 The build recipe is not a literal data structure. It is a concept that
 represents a certain subset of the package's recipe. Specifically, the
-`:files`, `:local-repo`, and `:no-build` keywords.
+`:files`, `:local-repo`, and `:build` keywords.
 
 To transform this *information* into an actual package that Emacs can
 load, `straight.el` *builds* the package. This means that some
@@ -516,7 +517,7 @@ After the symlinks are created, the resulting files are byte-compiled,
 and their autoloads are generated and written into a file in the
 package's directory.
 
-If `:no-build` is specified, however, this entire process is skipped.
+If `:build nil` is specified, however, this entire process is skipped.
 This mechanism is used for recipe repositories.
 
 ### What does this look like on disk?
@@ -653,8 +654,8 @@ system.
 A recipe repository consists of four parts:
 
 * a fetch recipe for the local repository (this will typically include
-  the `:no-build` directive, since recipe repositories usually do not
-  need to be built)
+  `:build nil`, since recipe repositories usually do not need to be
+  built)
 * a function that, provided the local repository is already available,
   returns a list of all packages that have recipes in the recipe
   repository
@@ -1554,7 +1555,7 @@ be called with the package name as a string; their return values will
 then be used instead.
 
 Note that if it makes no sense to build a package, then you should put
-`:no-build t` in its [recipe][#user/recipes], rather than specifying
+`:build nil` in its [recipe][#user/recipes], rather than specifying
 `NO-BUILD` every time you register it with `straight.el`. (This is
 especially relevant when writing recipes for [recipe
 repositories][#user/lookup/repos].)
@@ -1701,33 +1702,32 @@ Run filesystem watcher to detect changes
 
 #### Customizing how packages are built
 
-By specifying a non-nil value for the `:no-build` attribute in a
-package's [recipe][#user/recipes], you may prevent the package from
-being built at all. This is usually useful for recipe repositories
-which do not bundle executable Lisp code. (Make sure to use
-[`straight-use-recipes`][#user/lookup/repos] for registering recipe
-repositories.)
+By specifying `:build nil` in a package's [recipe][#user/recipes], you
+may prevent the package from being built at all. This is usually
+useful for recipe repositories which do not bundle executable Lisp
+code. (Make sure to use [`straight-use-recipes`][#user/lookup/repos]
+for registering recipe repositories.)
 
 ##### Autoload generation
 
-By specifying a non-nil value for the `:no-autoloads` attribute in a
-package's recipe, you may prevent any autoloads provided by the
-package from being generated and loaded into Emacs. This is mostly
-useful if the package provides a large number of autoloads, you know
-you need only a few of them, and you wish to optimize your startup
-time (although this is almost certainly premature optimization unless
-you *really* know what you're doing). You can also customize the
-variable `straight-disable-autoloads` to effect this change on all
-recipes which do not explicitly specify a `:no-autoloads` attribute.
+By specifying `:build (:not autoloads)` in a package's recipe, you may
+prevent any autoloads provided by the package from being generated and
+loaded into Emacs. This is mostly useful if the package provides a
+large number of autoloads, you know you need only a few of them, and
+you wish to optimize your startup time (although this is almost
+certainly premature optimization unless you *really* know what you're
+doing). You can also customize the variable
+`straight-disable-autoloads` to effect this change on all recipes
+which do not explicitly disable autoloads via the `:build` keyword.
 
 ##### Byte compilation
 
-By specifying a non-nil value for the `:no-byte-compile` attribute in
-a package's recipe, you may inhibit byte-compilation. See [this
-issue][#357] for discussion of why this might be useful. You can also
-customize the variable `straight-disable-byte-compilation` to effect
-this change on all recipes which do not explicitly specify a
-`:no-byte-compile` attribute.
+By specifying `:build (:not compile)` in a package's recipe, you may
+inhibit byte-compilation. See [this issue][#357] for discussion of why
+this might be useful. You can also customize the variable
+`straight-disable-compile` to effect this change on all
+recipes which do not explicitly disable byte-compilation via the
+`:build` keyword.
 
 ##### Native compilation
 
@@ -1737,14 +1737,14 @@ official Emacs repository (see [gccemacs][gccemacs]). When running on
 this version of Emacs, `straight.el` will perform native compilation
 of packages.
 
-By specifying a non-nil value for the `:no-native-compile` attribute
-in a package's recipe, you may inhibit native compilation. You can
-also customize the variable `straight-disable-native-compilation` to
-effect this change on all recipes which do not explicitly specify a
-`:no-native-compile` attribute.
+By specifying a `:build (:not native-compile)` in a package's recipe,
+you may inhibit native compilation. You can also customize the
+variable `straight-disable-native-compile` to effect this change on
+all recipes which do not explicitly disable native-compilation via the
+`:build` keyword.
 
-Native compilation requires byte-compilation, so `:no-byte-compile`
-and `straight-disable-byte-compilation` will also disable native
+Native compilation requires byte-compilation, so `:build (:not compile)`
+and `straight-disable-compile` will also disable native
 compilation.
 
 ##### Symbolic links
@@ -1918,15 +1918,64 @@ meaning in a recipe (unknown keywords are ignored but preserved):
   recipe source. See the docstring of
   `straight-expand-files-directive` for details.
 
+* `:build`
+  This specifies the steps taken on the files symlinked within a
+  package's straight/build/PACKAGE directory. It may be any of the
+  following values:
+  
+  - nil, in which case nothing is done.
+    This also prevents :pre/:post-build commands from running.
+
+```emacs-lisp
+(example :build nil)
+```
+
+  - t, runs the steps listed in `straight--build-default-steps`.
+    Note this ignores all `straight-disable-SYMBOL` keywords.
+  
+```emacs-lisp
+(example :build t)
+```
+  - A list of steps.
+    Each step is a symbol which represents a function named:
+    `straight--build-SYMBOL`.
+    The function is passed the recipe as its sole argument.
+    Steps are exectuted in the order they are listed. e.g.
+    
+```emacs-lisp
+(example :build (autoloads compile native-compile info))
+```
+
+  - A list which has `:not` as its car and step symbols as its cdr.
+    This eliminates the listed steps from the default steps. e.g.
+    The following recipe will not be compiled or have its texinfo generated:
+    
+```emacs-lisp
+(example :build (:not compile info))
+```
+    Steps may be disabled globally for recipes which do not explicilty
+    declare their `:build` via the defcustom variables named
+    `straight--build-SYMBOL`. e.g. The last example but for all recipes
+    without a `:build`:
+
+```emacs-lisp
+(setq straight-disable-compile t
+      straight-disable-info t)
+```
+
+In the absence of a `:build` keyword, `straight--build-default-steps` are run.
+
 * `:pre-build`
 
   This specifies system commands and/or elisp to be evaluated before
-  symlinking, generating autoloads, and byte-compiling a package.
+  symlinking, and running a recipe's `:build` steps.
 
   Each command is either an elisp form to be evaluated or a list of
   strings to be executed in a shell context of the form:
 
-        ("executable" "arg"...)
+```emacs-lisp
+("executable" "arg"...)
+```
 
   Commands are executed in the package's repository directory.
 
@@ -1935,41 +1984,38 @@ meaning in a recipe (unknown keywords are ignored but preserved):
   - A single command
   - A list of commands
   - nil, in which case no commands are executed.
-    Note this is not the same as `:no-build` mentioned below.
-    `:no-build` takes precedence over `:pre-build`.
 
     For example:
 
-        (straight-use-package
-         '( example :type git :host github :repo "user/example.el"
-            :pre-build ("make all")))
+```emacs-lisp
+(straight-use-package
+ '( example :type git :host github :repo "user/example.el"
+    :pre-build ("make all")))
 
-        (straight-use-package
-         `( example :type git :host github :repo "user/example.el"
-            :pre-build ,(pcase system-type
-                          (`windows-nt '(message "This might take a while"))
-                          (_ '(("./configure") ("make") ("make" "install"))))))
+(straight-use-package
+ `( example :type git :host github :repo "user/example.el"
+    :pre-build ,(pcase system-type
+                  (`windows-nt '(message "This might take a while"))
+                  (_ '(("./configure") ("make") ("make" "install"))))))
+
+```
 
 * `:post-build`
 
   This specifies system commands and/or elisp to be evaluated after
-  symlinking, generating autoloads, and byte-compiling a package.
+  the `:build` steps are run.
 
   Otherwise, it is identical to the `:pre-build` keyword in terms of the values
   it accepts and how it is executed.
 
     For example:
-
-        (straight-use-package
-         '( example :type git :host github :repo "user/example.el"
-            :pre-build  (("./pre-build.sh") (message "hi"))
-            :post-build (("./post-build.sh") (message "bye"))))
-
-* `:no-build`
-
-  If this is non-nil, then it causes the build step to be skipped
-  entirely and unconditionally. You should specify this for [recipe
-  repository recipes][#user/lookup/repos].
+    
+```emacs-lisp
+(straight-use-package
+ '( example :type git :host github :repo "user/example.el"
+    :pre-build  (("./pre-build.sh") (message "hi"))
+    :post-build (("./post-build.sh") (message "bye"))))
+```
 
 * `:type`
 
@@ -2287,8 +2333,8 @@ then the recipe is looked up automatically. By default, [MELPA], [GNU
 ELPA][gnu-elpa], and [Emacsmirror] are searched for recipes, in that
 order. This means that one or more of them may need to be cloned.
 Recipe repositories are actually just the same as ordinary packages,
-except that their recipes specify `:no-build`, so they are not
-symlinked or added to the `load-path` or anything.
+except that their recipes specify `:build nil`, so they are not
+symlinked or added to the `load-path`.
 
 Note that dependencies always use the default recipes, since the only
 information `straight.el` gets about a package's dependencies are
@@ -2431,23 +2477,29 @@ following things:
   build commands. For example, if `straight-recipes-NAME-retrieve`
   returns:
 
-        '`( package :type git :repo "host/repo"
-            :pre-build ,(pcase system-type
-                          (`berkeley-unix '("gmake"))
-                          (_ '("make")))
-            :files (:defaults))
+```emacs-lisp
+'`( package :type git :repo "host/repo"
+    :pre-build ,(pcase system-type
+                  (`berkeley-unix '("gmake"))
+                  (_ '("make")))
+    :files (:defaults))
+```
 
   The recipe is converted to:
 
-        (package :type git :repo "host/repo"
-                 :pre-build ("make")
-                 :files (:defaults))
+```emacs-lisp
+(package :type git :repo "host/repo"
+ :pre-build ("make")
+ :files (:defaults))
+```
 
   on a `gnu/linux` system, and:
 
-        (package :type git :repo "host/repo"
-                 :pre-build ("gmake")
-                 :files (:defaults))
+```emacs-lisp
+(package :type git :repo "host/repo"
+         :pre-build ("gmake")
+         :files (:defaults))
+```
 
   on a `berkely-unix` system.
 
@@ -2457,18 +2509,22 @@ following things:
   will return the literal Lisp object. For example, considering the
   following retrieval function:
 
-        (defun straight-recipes-example-retrieve (name)
-          (with-temp-buffer
-            (insert-file-literally "./recipes/example.recipe")
-            (read (buffer-string))))
+```emacs-lisp
+(defun straight-recipes-example-retrieve (name)
+  (with-temp-buffer
+    (insert-file-literally "./recipes/example.recipe")
+    (read (buffer-string))))
+```
 
   The recipe from above could be stored in the file, `example.recipe`, as:
 
-        `( package :type git :repo "host/repo"
-           :pre-build ,(pcase system-type
-                         (`berkeley-unix '("gmake"))
-                         (_ '("make")))
-           :files (:defaults))
+```emacs-lisp
+`( package :type git :repo "host/repo"
+   :pre-build ,(pcase system-type
+                 (`berkeley-unix '("gmake"))
+                 (_ '("make")))
+   :files (:defaults))
+```
 
 * Define a function `straight-recipes-NAME-list`, which takes no
   arguments and returns a list of strings representing packages for
@@ -2488,7 +2544,7 @@ following things:
   modifications to the recipe repository) to decide when to invalidate
   the cache.
 * Call `straight-use-recipes` with the recipe for your recipe
-  repository. Make sure to include `:no-build` in the recipe, unless
+  repository. Make sure to include `:build nil` in the recipe, unless
   you also want to use the recipe repository as an executable Emacs
   Lisp package. Alternatively, you can take the manual approach:
     * Call `straight-use-package-lazy` with the recipe for your recipe
@@ -3376,6 +3432,21 @@ Note that `:type` is a keyword for `straight.el`, not for
 [Read more.][#user/recipes]
 
 ## News
+### Jan 1, 2021
+Breaking change: The previous behavior of the `:build` keyword is now
+associated with the `:pre-build` keyword. `:build` is now used to
+specify build steps (generating autoloads and texinfo, byte/native
+compilation, etc). For more information on both of these keywords see
+[the recipe format](#the-recipe-format).
+
+The following customization variable names have changed:
+
+- `straight-disable-byte-compilation` is now
+  `straight-disable-compile`
+
+- `straight-disable-native-compilation` is now
+  `straight-disable-native-compile`
+
 ### April 19, 2020
 
 Shallow clones are now compatible with lockfiles, so you can safely

@@ -187,4 +187,60 @@
                           :fork '(:branch "feature")))
               :to-equal "githubUser/repo"))))
 
+(describe "straight--build-steps"
+  (describe ":build nil"
+    (it "Returns an empty list"
+      (expect (straight--build-steps '(:package "test" :build nil))
+              :to-be nil)))
+  (describe ":build t"
+    (it "Returns the default list of build step functions"
+      (expect (straight--build-steps '(:package "test" :build t))
+              :to-have-same-items-as '(straight--build-autoloads
+                                       straight--build-compile
+                                       straight--build-native-compile
+                                       straight--build-info)))
+    (it "Ignores straight-disable-SYMBOL options"
+      (expect (let ((straight-disable-autoloads t)
+                    (striaght-disable-compile t)
+                    (straight-disable-native-compile t)
+                    (straight-disable-info t))
+                (straight--build-steps '(:package "test" :build t))
+                :to-have-same-items-as '(straight--build-autoloads
+                                         straight--build-compile
+                                         straight--build-native-compile
+                                         straight--build-info)))))
+  (describe ":build (steps...)"
+    (it "Returns straight--build-SYMBOL functions in declared order"
+      (expect (straight--build-steps '(:package "test" :build (compile)))
+              :to-equal '(straight--build-compile))
+      (expect (straight--build-steps
+               '(:package "test" :build (autoloads info)))
+              :to-equal '(straight--build-autoloads straight--build-info))))
+  (describe ":build (:not steps...)"
+    (it "Returns the default steps less each step in the list"
+      (expect (straight--build-steps
+               '(:package "test" :build (:not compile)))
+              :to-equal '(straight--build-autoloads
+                          straight--build-native-compile
+                          straight--build-info)))
+    (it "Respects straight-disable-SYMBOL options"
+      (expect (let ((straight-disable-info t))
+                (straight--build-steps
+                 '(:package "test" :build (:not compile))))
+              :to-equal '(straight--build-autoloads
+                          straight--build-native-compile))))
+  (describe "no :build declared"
+    (it "Returns the default steps"
+      (expect (straight--build-steps '(:package "test"))
+              :to-equal '(straight--build-autoloads
+                          straight--build-compile
+                          straight--build-native-compile
+                          straight--build-info)))
+    (it "Respects straight-disable-SYMBOL options"
+      (expect (let ((straight-disable-info t))
+                (straight--build-steps '(:package "test")))
+              :to-equal '(straight--build-autoloads
+                          straight--build-compile
+                          straight--build-native-compile)))))
+
 (provide 'straight-test)
