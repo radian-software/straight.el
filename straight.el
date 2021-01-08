@@ -2810,7 +2810,7 @@ Otherwise return nil."
                    ;; `org-version' depends on repository tags.
                    :depth full
                    ;; Org's make autoloads generates org-verison.el.
-                   :no-autoloads t
+                   :build (:not autoloads)
                    :local-repo "org"
                    :pre-build
                    ,(list
