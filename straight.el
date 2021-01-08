@@ -3124,7 +3124,7 @@ Return nil if no :build/* commands are available."
 (defun straight--el-get-flatten (arg)
   "Return a version of ARG as a one-level list."
   (if (listp arg)
-      (apply 'append (mapcar 'el-get-flatten arg))
+      (apply 'append (mapcar #'straight--el-get-flatten arg))
     (list arg)))
 
 (defun straight-recipes-el-get-retrieve (package)
