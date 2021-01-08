@@ -1918,7 +1918,7 @@ meaning in a recipe (unknown keywords are ignored but preserved):
   recipe source. See the docstring of
   `straight-expand-files-directive` for details.
 
-* `:build`
+* `:pre-build`
 
   This specifies system commands and/or elisp to be evaluated before
   symlinking, generating autoloads, and byte-compiling a package.
@@ -1930,39 +1930,39 @@ meaning in a recipe (unknown keywords are ignored but preserved):
 
   Commands are executed in the package's repository directory.
 
-  The `:build` keyword's value may be:
+  The `:pre-build` keyword's value may be:
 
   - A single command
   - A list of commands
   - nil, in which case no commands are executed.
     Note this is not the same as `:no-build` mentioned below.
-    `:no-build` takes precedence over `:build`.
+    `:no-build` takes precedence over `:pre-build`.
 
     For example:
 
         (straight-use-package
          '( example :type git :host github :repo "user/example.el"
-            :build ("make all")))
+            :pre-build ("make all")))
 
         (straight-use-package
          `( example :type git :host github :repo "user/example.el"
-            :build ,(pcase system-type
-                      (`windows-nt '(message "This might take a while"))
-                      (_ '(("./configure") ("make") ("make" "install"))))))
+            :pre-build ,(pcase system-type
+                          (`windows-nt '(message "This might take a while"))
+                          (_ '(("./configure") ("make") ("make" "install"))))))
 
 * `:post-build`
 
   This specifies system commands and/or elisp to be evaluated after
   symlinking, generating autoloads, and byte-compiling a package.
 
-  Otherwise, it is identical to the `:build` keyword in terms of the values
+  Otherwise, it is identical to the `:pre-build` keyword in terms of the values
   it accepts and how it is executed.
 
     For example:
 
         (straight-use-package
          '( example :type git :host github :repo "user/example.el"
-            :build (("./pre-build.sh") (message "hi"))
+            :pre-build  (("./pre-build.sh") (message "hi"))
             :post-build (("./post-build.sh") (message "bye"))))
 
 * `:no-build`
@@ -2432,21 +2432,21 @@ following things:
   returns:
 
         '`( package :type git :repo "host/repo"
-            :build ,(pcase system-type
-                      (`berkeley-unix '("gmake"))
-                      (_ '("make")))
+            :pre-build ,(pcase system-type
+                          (`berkeley-unix '("gmake"))
+                          (_ '("make")))
             :files (:defaults))
 
   The recipe is converted to:
 
         (package :type git :repo "host/repo"
-                 :build ("make")
+                 :pre-build ("make")
                  :files (:defaults))
 
   on a `gnu/linux` system, and:
 
         (package :type git :repo "host/repo"
-                 :build ("gmake")
+                 :pre-build ("gmake")
                  :files (:defaults))
 
   on a `berkely-unix` system.
@@ -2465,9 +2465,9 @@ following things:
   The recipe from above could be stored in the file, `example.recipe`, as:
 
         `( package :type git :repo "host/repo"
-           :build ,(pcase system-type
-                     (`berkeley-unix '("gmake"))
-                     (_ '("make")))
+           :pre-build ,(pcase system-type
+                         (`berkeley-unix '("gmake"))
+                         (_ '("make")))
            :files (:defaults))
 
 * Define a function `straight-recipes-NAME-list`, which takes no

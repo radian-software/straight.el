@@ -2812,7 +2812,7 @@ Otherwise return nil."
                    ;; Org's make autoloads generates org-verison.el.
                    :no-autoloads t
                    :local-repo "org"
-                   :build
+                   :pre-build
                    ,(list
                      (concat (when (eq system-type 'berkeley-unix) "g")
                              "make")
@@ -2832,7 +2832,7 @@ Otherwise return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  4)
+  5)
 
 ;;;;;; MELPA
 
@@ -3159,7 +3159,7 @@ uses one of the Git fetchers, return it; otherwise return nil."
                 (unless (cadr autoloads)
                   (straight--put plist :no-autoloads t)))
               (when (plist-get recipe :build)
-                (straight--put plist :build
+                (straight--put plist :pre-build
                                (macroexpand
                                 `(straight--recipes-el-get-build-commands
                                   ,recipe))))
@@ -3199,14 +3199,14 @@ straight.el to not even bother cloning recipe repositories to
 look for recipes for these packages."
   :type '(repeat symbol))
 
-(defvar straight--build-keywords '(:build
-                                   :files
+(defvar straight--build-keywords '(:files
                                    :flavor
                                    :local-repo
                                    :no-autoloads
                                    :no-byte-compile
                                    :no-native-compile
-                                   :post-build)
+                                   :post-build
+                                   :pre-build)
   "Keywords that affect how a package is built locally.
 If the values for any of these keywords change, then package
 needs to be rebuilt. See also `straight-vc-keywords'.")
@@ -4395,9 +4395,9 @@ other value, the behavior is not specified."
 ;;;;; Running Build Commands
 
 (defun straight--run-build-commands (recipe &optional post)
-  "Run RECIPE's :build or :post-build commands synchronously.
+  "Run RECIPE's :pre-build or :post-build commands synchronously.
 If POST is non-nil, RECIPE's :post-build commands are run.
-Otherwise, the :build commands are run.
+Otherwise, the :pre-build commands are run.
 RECIPE is a straight.el-style plist.
 
 Each command is either an elisp form to be evaluated or a list of
@@ -4412,9 +4412,9 @@ The keyword's value is expected to be one of the following:
   - A single command
   - A list of commands
   - nil, in which case no commands are executed.
-    Note :no-build takes precedence over :build and :post-build."
-  (straight--with-plist recipe (build post-build package local-repo)
-    (when-let ((commands (if post post-build build))
+    Note :no-build takes precedence over :pre-build and :post-build."
+  (straight--with-plist recipe (pre-build post-build package local-repo)
+    (when-let ((commands (if post post-build pre-build))
                (repo (straight--repos-dir (or local-repo package))))
       (let ((default-directory repo))
         ;; Allow a single command or a list of commands.
@@ -4774,7 +4774,7 @@ recipe in `straight--build-cache' for the package are updated."
 
 (defun straight--build-package (recipe &optional cause)
   "Build the package specified by the RECIPE.
-This includes running RECIPE's `:build` commands, symlinking the package
+This includes running RECIPE's `:pre-build` commands, symlinking the package
 files into the build directory, building dependencies, generating the
 autoload file, byte-compiling, running RECIPE's `:post-build`
 commands, and updating the build cache. It is assumed that the package
