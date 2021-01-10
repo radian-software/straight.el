@@ -5473,7 +5473,7 @@ MELPA-STYLE-RECIPE is as for `straight-use-package'."
   "Register a recipe repository using MELPA-STYLE-RECIPE.
 This registers the recipe and builds it if it is already cloned.
 Note that you probably want the recipe for a recipe repository to
-include a non-nil `:no-build' property, to unconditionally
+include a nil `:build' property, to unconditionally
 inhibit the build phase.
 
 This function also adds the recipe repository to
