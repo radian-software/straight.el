@@ -1872,6 +1872,8 @@ differences from the user's point of view are:
 * There are consistency and feature improvements to edge cases of the
   `:files` keyword as documented in `straight-expand-files-directive`.
 
+* `:includes` indicates a package is a superset of another package
+
 Here is a comprehensive list of all keywords which have special
 meaning in a recipe (unknown keywords are ignored but preserved):
 
@@ -2068,6 +2070,23 @@ In the absence of a `:build` keyword, `straight--build-default-steps` are run.
   meaningful. See the next section.
 
   The `built-in` pseudo-backend does not take any other keywords.
+
+* `:includes`
+
+Informs straight that a package is a superset of another package.
+For example `org-plus-contrib` includes `org`.
+The following will prevent `straight.el` from attempting to install `org`
+after `org-plus-contrib` has been installed:
+
+```emacs-lisp
+(straight-use-package '(org-plus-contrib :includes org))
+```
+
+It's value may also be a list of symbols indicating multiple packages:
+
+```emacs-lisp
+(straight-use-package '(example :includes (foo bar)))
+```
 
 #### Version-control backends
 
