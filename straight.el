@@ -3443,194 +3443,7 @@ nil."
           (setq recipe overridden-recipe))))
     recipe))
 
-;;;;; Recipe registration
-
-(defun straight--register-recipe (recipe)
-  "Make the various caches aware of RECIPE.
-RECIPE should be a straight.el-style recipe plist."
-  (straight--with-plist recipe
-      (package local-repo type)
-    ;; Skip conflict detection for built-in packages.
-    (unless (eq type 'built-in)
-      ;; Step 1 is to check if the given recipe conflicts with an
-      ;; existing recipe for a *different* package with the *same*
-      ;; repository.
-      (when-let ((existing-recipe (gethash local-repo straight--repo-cache)))
-        ;; Avoid signalling two warnings when you change the recipe
-        ;; for a single package. We already get a warning down below
-        ;; in Step 2, no need to show another one here. Only signal a
-        ;; warning here when the packages are actually *different*
-        ;; packages that share the same repository.
-        (unless (equal package (plist-get existing-recipe :package))
-          ;; Only the VC-specific keywords are relevant for this.
-          (cl-dolist (keyword (cons :type (straight-vc-keywords type)))
-            ;; Note that it doesn't matter which recipe we get `:type'
-            ;; from. If the two are different, then the first
-            ;; iteration of this loop will terminate with a warning,
-            ;; as desired.
-            (unless (equal (plist-get recipe keyword)
-                           (plist-get existing-recipe keyword))
-              ;; We're using a warning rather than an error here,
-              ;; because it's very frustrating if your package manager
-              ;; simply refuses to install a package for no good
-              ;; reason. Note that since we update
-              ;; `straight--repo-cache' and `straight--recipe-cache'
-              ;; at the end of this method, this warning will only be
-              ;; displayed once per recipe modification.
-              (straight--warn
-               (concat
-                "Packages %S and %S have incompatible "
-                "recipes (%S cannot be both %S and %S)"
-                (when (eq keyword :repo)
-                  "\n(One of the recipes must specify a unique :local-repo)"))
-               (plist-get existing-recipe :package)
-               package
-               keyword
-               (plist-get existing-recipe keyword)
-               (plist-get recipe keyword))
-              (cl-return)))))
-      ;; Step 2 is to check if the given recipe conflicts with an
-      ;; existing recipe for the *same* package.
-      (when-let ((existing-recipe (gethash package straight--recipe-cache)))
-        (cl-dolist (keyword
-                    (cons :type
-                          (append straight--build-keywords
-                                  ;; As in Step 1, it doesn't matter which
-                                  ;; recipe we get `:type' from.
-                                  (straight-vc-keywords type))))
-          (unless (equal (plist-get recipe keyword)
-                         (plist-get existing-recipe keyword))
-            ;; Same reasoning as with the previous warning.
-            (straight--warn
-             (concat "Two different recipes given for %S "
-                     "(%S cannot be both %S and %S)")
-             package
-             keyword
-             (plist-get existing-recipe keyword)
-             (plist-get recipe keyword))
-            (cl-return)))))
-    ;; Step 3, now that we've signaled any necessary warnings, is to
-    ;; actually update the caches. Just FYI, `straight--build-cache'
-    ;; is updated later (namely, at build time -- which may be quite a
-    ;; while later, or never, depending on the values of NO-CLONE and
-    ;; NO-BUILD that were passed to `straight-use-package'.
-    (puthash package recipe straight--recipe-cache)
-    ;; Don't record recipes which have no local repositories.
-    (when local-repo
-      (puthash local-repo recipe straight--repo-cache))
-    (cl-pushnew straight-current-profile
-                (gethash package straight--profile-cache)
-                ;; Profiles are symbols and can be compared more
-                ;; efficiently using `eq'.
-                :test #'eq)
-    ;; If we've registered a new package, then we no longer know that
-    ;; the set of registered packages actually corresponds to the
-    ;; packages requested in the init-file. (For instance, this could
-    ;; be an interactive call.) But we're OK if this operation is
-    ;; guaranteed to be functional (e.g. because we're currently
-    ;; loading the init-file).
-    (unless straight--functional-p
-      (setq straight--profile-cache-valid nil))))
-
-(defun straight--map-repos (func)
-  "Call FUNC for each local repository referenced in the known recipes.
-FUNC is passed one argument, the straight.el-style recipe plist.
-It is called once for every local repository (i.e. each distinct
-value of `:local-repo'). This means that if multiple packages are
-versioned in the same local repository, then all but one of them
-will be omitted."
-  ;; Remember that `straight--repo-cache' only has the most recent
-  ;; recipe that specified each `:local-repo'.
-  (dolist (recipe (hash-table-values straight--repo-cache))
-    (funcall func recipe)))
-
-(defun straight--map-repo-packages (func)
-  "Call FUNC for each local repository referenced in the known recipes.
-The function FUNC is passed one argument, the name (as a string)
-of one of the packages using the local repository."
-  (straight--map-repos
-   (lambda (recipe)
-     (straight--with-plist recipe
-         (package)
-       (funcall func package)))))
-
-;;;; Checking for package modifications
-
-(defun straight--determine-best-modification-checking ()
-  "Determine the best default value of `straight-check-for-modifications'.
-This uses find(1) for all checking on most platforms, and
-`before-save-hook' on Microsoft Windows."
-  (if (straight--windows-os-p)
-      (list 'check-on-save)
-    (list 'find-at-startup 'find-when-checking)))
-
-(defcustom straight-check-for-modifications
-  (straight--determine-best-modification-checking)
-  "When to check for package modifications.
-This is a list of symbols. If `find-at-startup' is in the list,
-then find(1) is used to detect modifications of all packages
-before they are made available. If `find-when-checking' is in the
-list, then find(1) is used to detect modifications in
-\\[straight-check-package] and \\[straight-check-all]. If
-`check-on-save' is in the list, then `before-save-hook' is used
-to detect modifications of packages that you perform within
-Emacs. If `watch-files' is in the list, then a filesystem watcher
-is automatically started by straight.el to detect modifications.
-
-Note that the functionality of `check-on-save' and `watch-files'
-only covers modifications made within ~/.emacs.d/straight/repos,
-so if you wish to use these features you should move all of your
-local repositories into that directory.
-
-PERFORMANCE IMPLICATIONS: `at-startup' means straight.el will run
-a command during startup, which can be fairly slow, especially if
-you do not have an SSD. Disable this to improve startup time.
-However, you will still want to have package modifications
-detected. Therefore add either `check-on-save', which has no
-overhead but also does not catch modifications made outside of
-Emacs, or `watch-files', which is more robust but has an external
-dependency (watchexec) and takes up memory / file descriptors.
-
-For backwards compatibility, the value of this variable may also
-be a symbol, which is translated into a corresponding list as
-follows:
-
-`at-startup' => `(find-at-startup find-when-checking)'
-`live' => `(check-on-save)'
-`live-with-find' => `(check-on-save find-when-checking)'
-`never' => nil
-
-This usage is deprecated and will be removed."
-  :type
-  '(repeat
-    (choice
-     (const :tag "Use find(1) at startup" find-at-startup)
-     (const :tag "Use find(1) in \\[straight-check-package]"
-            find-when-checking)
-     (const :tag "Use `before-save-hook' to detect changes" check-on-save)
-     (const :tag "Use a filesystem watcher to detect changes" watch-files))))
-
-(defun straight--modifications (symbol)
-  "Check if `straight-check-for-modifications' contains SYMBOL.
-However, if `straight-check-for-modifications' is itself one of
-the symbols supported for backwards compatibility, account for
-that appropriately."
-  (memq symbol
-        (pcase straight-check-for-modifications
-          ('at-startup '(find-at-startup find-when-checking))
-          ('live '(check-on-save))
-          ('live-with-find '(check-on-save find-when-checking))
-          ('never nil)
-          (lst lst))))
-
-(defcustom straight-cache-autoloads t
-  "Non-nil means read autoloads in bulk to speed up startup.
-The operation of this variable should be transparent to the user;
-no changes in configuration are necessary."
-  :type 'boolean)
-
 ;;;;; Build cache
-
 (defvar straight--build-cache nil
   "Hash table keeping track of information about built packages, or nil.
 The keys are strings naming packages, and the values are lists of
@@ -3835,6 +3648,194 @@ you ought not to make any changes to it.)"
    'build-cache
    :now #'straight--load-build-cache
    :later (unless nosave #'straight--save-build-cache)))
+
+;;;;; Recipe registration
+(defun straight--register-recipe (recipe)
+  "Make the various caches aware of RECIPE.
+RECIPE should be a straight.el-style recipe plist."
+  (straight--with-plist recipe
+      (package local-repo type)
+    ;; Skip conflict detection for built-in packages.
+    (unless (eq type 'built-in)
+      ;; Step 1 is to check if the given recipe conflicts with an
+      ;; existing recipe for a *different* package with the *same*
+      ;; repository.
+      (when-let ((existing-recipe (gethash local-repo straight--repo-cache)))
+        ;; Avoid signalling two warnings when you change the recipe
+        ;; for a single package. We already get a warning down below
+        ;; in Step 2, no need to show another one here. Only signal a
+        ;; warning here when the packages are actually *different*
+        ;; packages that share the same repository.
+        (unless (equal package (plist-get existing-recipe :package))
+          ;; Only the VC-specific keywords are relevant for this.
+          (cl-dolist (keyword (cons :type (straight-vc-keywords type)))
+            ;; Note that it doesn't matter which recipe we get `:type'
+            ;; from. If the two are different, then the first
+            ;; iteration of this loop will terminate with a warning,
+            ;; as desired.
+            (unless (equal (plist-get recipe keyword)
+                           (plist-get existing-recipe keyword))
+              ;; We're using a warning rather than an error here,
+              ;; because it's very frustrating if your package manager
+              ;; simply refuses to install a package for no good
+              ;; reason. Note that since we update
+              ;; `straight--repo-cache' and `straight--recipe-cache'
+              ;; at the end of this method, this warning will only be
+              ;; displayed once per recipe modification.
+              (straight--warn
+               (concat
+                "Packages %S and %S have incompatible "
+                "recipes (%S cannot be both %S and %S)"
+                (when (eq keyword :repo)
+                  "\n(One of the recipes must specify a unique :local-repo)"))
+               (plist-get existing-recipe :package)
+               package
+               keyword
+               (plist-get existing-recipe keyword)
+               (plist-get recipe keyword))
+              (cl-return)))))
+      ;; Step 2 is to check if the given recipe conflicts with an
+      ;; existing recipe for the *same* package.
+      (when-let ((existing-recipe (gethash package straight--recipe-cache)))
+        (cl-dolist (keyword
+                    (cons :type
+                          (append straight--build-keywords
+                                  ;; As in Step 1, it doesn't matter which
+                                  ;; recipe we get `:type' from.
+                                  (straight-vc-keywords type))))
+          (unless (equal (plist-get recipe keyword)
+                         (plist-get existing-recipe keyword))
+            ;; Same reasoning as with the previous warning.
+            (straight--warn
+             (concat "%S recipe ignored: already installed"
+                     " as a dependency of %S")
+             package
+             (cl-some
+              (lambda (built)
+                (and (member package
+                             (nth 1 (gethash built straight--build-cache)))
+                     built))
+              (hash-table-keys straight--build-cache)))
+            (cl-return)))))
+    ;; Step 3, now that we've signaled any necessary warnings, is to
+    ;; actually update the caches. Just FYI, `straight--build-cache'
+    ;; is updated later (namely, at build time -- which may be quite a
+    ;; while later, or never, depending on the values of NO-CLONE and
+    ;; NO-BUILD that were passed to `straight-use-package'.
+    (puthash package recipe straight--recipe-cache)
+    ;; Don't record recipes which have no local repositories.
+    (when local-repo
+      (puthash local-repo recipe straight--repo-cache))
+    (cl-pushnew straight-current-profile
+                (gethash package straight--profile-cache)
+                ;; Profiles are symbols and can be compared more
+                ;; efficiently using `eq'.
+                :test #'eq)
+    ;; If we've registered a new package, then we no longer know that
+    ;; the set of registered packages actually corresponds to the
+    ;; packages requested in the init-file. (For instance, this could
+    ;; be an interactive call.) But we're OK if this operation is
+    ;; guaranteed to be functional (e.g. because we're currently
+    ;; loading the init-file).
+    (unless straight--functional-p
+      (setq straight--profile-cache-valid nil))))
+
+(defun straight--map-repos (func)
+  "Call FUNC for each local repository referenced in the known recipes.
+FUNC is passed one argument, the straight.el-style recipe plist.
+It is called once for every local repository (i.e. each distinct
+value of `:local-repo'). This means that if multiple packages are
+versioned in the same local repository, then all but one of them
+will be omitted."
+  ;; Remember that `straight--repo-cache' only has the most recent
+  ;; recipe that specified each `:local-repo'.
+  (dolist (recipe (hash-table-values straight--repo-cache))
+    (funcall func recipe)))
+
+(defun straight--map-repo-packages (func)
+  "Call FUNC for each local repository referenced in the known recipes.
+The function FUNC is passed one argument, the name (as a string)
+of one of the packages using the local repository."
+  (straight--map-repos
+   (lambda (recipe)
+     (straight--with-plist recipe
+         (package)
+       (funcall func package)))))
+
+;;;; Checking for package modifications
+
+(defun straight--determine-best-modification-checking ()
+  "Determine the best default value of `straight-check-for-modifications'.
+This uses find(1) for all checking on most platforms, and
+`before-save-hook' on Microsoft Windows."
+  (if (straight--windows-os-p)
+      (list 'check-on-save)
+    (list 'find-at-startup 'find-when-checking)))
+
+(defcustom straight-check-for-modifications
+  (straight--determine-best-modification-checking)
+  "When to check for package modifications.
+This is a list of symbols. If `find-at-startup' is in the list,
+then find(1) is used to detect modifications of all packages
+before they are made available. If `find-when-checking' is in the
+list, then find(1) is used to detect modifications in
+\\[straight-check-package] and \\[straight-check-all]. If
+`check-on-save' is in the list, then `before-save-hook' is used
+to detect modifications of packages that you perform within
+Emacs. If `watch-files' is in the list, then a filesystem watcher
+is automatically started by straight.el to detect modifications.
+
+Note that the functionality of `check-on-save' and `watch-files'
+only covers modifications made within ~/.emacs.d/straight/repos,
+so if you wish to use these features you should move all of your
+local repositories into that directory.
+
+PERFORMANCE IMPLICATIONS: `at-startup' means straight.el will run
+a command during startup, which can be fairly slow, especially if
+you do not have an SSD. Disable this to improve startup time.
+However, you will still want to have package modifications
+detected. Therefore add either `check-on-save', which has no
+overhead but also does not catch modifications made outside of
+Emacs, or `watch-files', which is more robust but has an external
+dependency (watchexec) and takes up memory / file descriptors.
+
+For backwards compatibility, the value of this variable may also
+be a symbol, which is translated into a corresponding list as
+follows:
+
+`at-startup' => `(find-at-startup find-when-checking)'
+`live' => `(check-on-save)'
+`live-with-find' => `(check-on-save find-when-checking)'
+`never' => nil
+
+This usage is deprecated and will be removed."
+  :type
+  '(repeat
+    (choice
+     (const :tag "Use find(1) at startup" find-at-startup)
+     (const :tag "Use find(1) in \\[straight-check-package]"
+            find-when-checking)
+     (const :tag "Use `before-save-hook' to detect changes" check-on-save)
+     (const :tag "Use a filesystem watcher to detect changes" watch-files))))
+
+(defun straight--modifications (symbol)
+  "Check if `straight-check-for-modifications' contains SYMBOL.
+However, if `straight-check-for-modifications' is itself one of
+the symbols supported for backwards compatibility, account for
+that appropriately."
+  (memq symbol
+        (pcase straight-check-for-modifications
+          ('at-startup '(find-at-startup find-when-checking))
+          ('live '(check-on-save))
+          ('live-with-find '(check-on-save find-when-checking))
+          ('never nil)
+          (lst lst))))
+
+(defcustom straight-cache-autoloads t
+  "Non-nil means read autoloads in bulk to speed up startup.
+The operation of this variable should be transparent to the user;
+no changes in configuration are necessary."
+  :type 'boolean)
 
 ;;;;; Live modification checking
 
