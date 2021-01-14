@@ -3326,10 +3326,9 @@ for dependency resolution."
                       plist))
                    (type (or (plist-get default :type) 'git))
                    (keywords
-                    (append
-                     (remq :local-repo straight--build-keywords)
-                     (unless (eq type 'built-in)
-                       (straight-vc-keywords type)))))
+                    (append straight--build-keywords
+                            (unless (eq type 'built-in)
+                              (straight-vc-keywords type)))))
               ;; Compute :fork repo name
               (when-let ((fork (plist-get plist :fork)))
                 (straight--put default :fork fork)
