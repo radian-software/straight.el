@@ -6521,7 +6521,7 @@ ARGS may be any of the following keywords and their respective values:
       If non-nil, the test is run with `emacs-user-dir' set to STRING.
       Otherwise, a temporary directory is created and used.
       Unless absolute, paths are expanded relative to the variable
-      `temproary-file-directory'.
+      `temporary-file-directory'.
 
 ARGS are accessible within the :pre/:post-bootsrap phases via the
 locally bound plist, straight-bug-report-args."
