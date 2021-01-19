@@ -1872,7 +1872,7 @@ differences from the user's point of view are:
 * There are consistency and feature improvements to edge cases of the
   `:files` keyword as documented in `straight-expand-files-directive`.
 
-* `:includes` indicates a package is a superset of another package
+* `:includes` indicates a package is a superset of another package.
 
 Here is a comprehensive list of all keywords which have special
 meaning in a recipe (unknown keywords are ignored but preserved):
