@@ -2804,27 +2804,27 @@ Return a list of package names as strings."
 PACKAGE must be either `org' or `org-plus-contrib'.
 Otherwise return nil."
   (when (member package '(org org-plus-contrib))
-    (let* ((form
-            '`(org :type git
-                   :repo "https://code.orgmode.org/bzg/org-mode.git"
-                   ;; `org-version' depends on repository tags.
-                   :depth full
-                   ;; Org's make autoloads generates org-verison.el.
-                   :build (:not autoloads)
-                   :local-repo "org"
-                   :pre-build
-                   ,(list
-                     (concat (when (eq system-type 'berkeley-unix) "g")
-                             "make")
-                     "autoloads"
-                     (concat "EMACS=" invocation-directory invocation-name))))
-           (recipe (cadr form)))
-      (setcdr recipe
-              (plist-put (cdr recipe)
-                         :files (append '(:defaults "lisp/*.el")
-                                        (when (eq package 'org-plus-contrib)
-                                          '("contrib/lisp/*.el")))))
-      form)))
+    (list '\`
+          (append
+           (list package
+                 :type 'git
+                 :repo "https://code.orgmode.org/bzg/org-mode.git"
+                 :local-repo "org"
+                 ;; `org-version' depends on repository tags.
+                 :depth 'full
+                 :pre-build
+                 ',(list
+                    (concat (when (eq system-type 'berkeley-unix) "g")
+                            "make")
+                    "autoloads"
+                    (concat "EMACS=" invocation-directory invocation-name))
+                 ;; Org's make autoloads generates org-verison.el.
+                 :build '(:not autoloads)
+                 :files (append '(:defaults "lisp/*.el")
+                                (when (eq package 'org-plus-contrib)
+                                  '("contrib/lisp/*.el"))))
+           (when (eq package 'org-plus-contrib)
+             '(:includes org))))))
 
 (defun straight-recipes-org-elpa-list ()
   "Return a list of Org ELPA pseudo-packages, as a list of strings."
@@ -2832,7 +2832,7 @@ Otherwise return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  5)
+  6)
 
 ;;;;;; MELPA
 
@@ -3447,8 +3447,7 @@ nil."
 (defun straight--register-recipe (recipe)
   "Make the various caches aware of RECIPE.
 RECIPE should be a straight.el-style recipe plist."
-  (straight--with-plist recipe
-      (package local-repo type)
+  (straight--with-plist recipe (package local-repo type)
     ;; Skip conflict detection for built-in packages.
     (unless (eq type 'built-in)
       ;; Step 1 is to check if the given recipe conflicts with an
@@ -3514,6 +3513,18 @@ RECIPE should be a straight.el-style recipe plist."
     ;; while later, or never, depending on the values of NO-CLONE and
     ;; NO-BUILD that were passed to `straight-use-package'.
     (puthash package recipe straight--recipe-cache)
+    ;; register recipes covered by :includes
+    (when-let ((includes (plist-get recipe :includes)))
+      (dolist (included (mapcar #'symbol-name
+                                (if (listp includes)
+                                    includes (list includes))))
+        (puthash included
+                 (list :package included
+                       :type type
+                       :build nil
+                       :local-repo nil
+                       :included-by package)
+                 straight--recipe-cache)))
     ;; Don't record recipes which have no local repositories.
     (when local-repo
       (puthash local-repo recipe straight--repo-cache))
