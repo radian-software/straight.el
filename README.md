@@ -2082,7 +2082,7 @@ after `org-plus-contrib` has been installed:
 (straight-use-package '(org-plus-contrib :includes org))
 ```
 
-It's value may also be a list of symbols indicating multiple packages:
+Its value may also be a list of symbols indicating multiple packages:
 
 ```emacs-lisp
 (straight-use-package '(example :includes (foo bar)))
