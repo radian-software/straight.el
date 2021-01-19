@@ -2073,7 +2073,7 @@ In the absence of a `:build` keyword, `straight--build-default-steps` are run.
 
 * `:includes`
 
-Informs straight that a package is a superset of another package.
+Informs `straight.el` that a package is a superset of another package.
 For example `org-plus-contrib` includes `org`.
 The following will prevent `straight.el` from attempting to install `org`
 after `org-plus-contrib` has been installed:
