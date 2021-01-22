@@ -6529,7 +6529,7 @@ ARGS may be any of the following keywords and their respective values:
       formatted as markdown for submitting as an issue.
 
   - :user-dir String
-      If non-nil, the test is run with `emacs-user-dir' set to STRING.
+      If non-nil, the test is run with `user-emacs-directory' set to STRING.
       Otherwise, a temporary directory is created and used.
       Unless absolute, paths are expanded relative to the variable
       `temporary-file-directory'.
