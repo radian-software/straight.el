@@ -4769,10 +4769,24 @@ function only modifies the build folder, not the original
 repository."
   (let* ((package (plist-get recipe :package))
          (dir (straight--build-dir package))
-         (form (format "(byte-recompile-directory %S 0 'force)" dir)))
-    (call-process (concat invocation-directory invocation-name)
-                  nil straight-byte-compilation-buffer nil
-                  "-Q" "-L" dir "--batch" "--eval" form)))
+         (program (concat invocation-directory invocation-name))
+         (args
+          `("-Q" "-L" ,dir
+            ,@(apply #'append
+                     (mapcar (lambda (d)
+                               (let ((d (straight--build-dir d)))
+                                 (when (file-exists-p d) (list "-L" d))))
+                             (straight--get-dependencies package)))
+            "--batch" "--eval"
+            ,(format "(byte-recompile-directory %S 0 'force)" dir))))
+    (with-current-buffer (get-buffer-create straight-byte-compilation-buffer)
+      (insert "\n$ " (replace-regexp-in-string
+                      "\\(-L [^z-a]*? \\)"
+                      "\\1\\\\ \n  "
+                      (string-join `(,program ,@args) " "))
+              "\n"))
+    (apply #'call-process
+           `(,program nil ,straight-byte-compilation-buffer nil ,@args))))
 
 ;;;;; Native compilation
 
