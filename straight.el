@@ -4779,12 +4779,13 @@ repository."
                              (straight--get-dependencies package)))
             "--batch" "--eval"
             ,(format "(byte-recompile-directory %S 0 'force)" dir))))
-    (with-current-buffer (get-buffer-create straight-byte-compilation-buffer)
-      (insert "\n$ " (replace-regexp-in-string
-                      "\\(-L [^z-a]*? \\)"
-                      "\\1\\\\ \n  "
-                      (string-join `(,program ,@args) " "))
-              "\n"))
+    (when straight-byte-compilation-buffer
+      (with-current-buffer (get-buffer-create straight-byte-compilation-buffer)
+        (insert "\n$ " (replace-regexp-in-string
+                        "\\(-L [^z-a]*? \\)"
+                        "\\1\\\\ \n  "
+                        (string-join `(,program ,@args) " "))
+                "\n")))
     (apply #'call-process
            `(,program nil ,straight-byte-compilation-buffer nil ,@args))))
 
