@@ -1881,7 +1881,8 @@ necessarily need to match DESIRED-URL; it just has to satisfy
   (ignore
    (if-let ((actual-url (condition-case nil
                             (straight--get-call
-                             "git" "remote" "get-url" remote)
+                             "git" "config" "--get"
+                             (format "remote.%s.url" remote))
                           (error nil))))
        (if (straight-vc-git--urls-compatible-p
             actual-url desired-url)
