@@ -48,6 +48,9 @@
            ,(eval-when-compile (emacs-version)))
     (throw 'emacs-version-changed nil)))
 
+(unless (executable-find "git")
+  (user-error "Git executable not found. straight.el requires git"))
+
 ;;;; Libraries
 
 (require 'cl-lib)
