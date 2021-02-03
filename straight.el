@@ -768,9 +768,10 @@ order has been changed. Also, DIRECTORY defaults to
 SORT has been inverted from `directory-files'. Finally, the . and
 .. entries are never returned, and .git is removed from the
 results if present."
-  (delete ".git" (delete "." (delete ".." (directory-files
-                                           (or directory default-directory)
-                                           full match (not sort))))))
+  (cl-remove-if
+   (lambda (file)
+     (string-match-p "\\(?:\\(?:\\.\\(?:\\.\\|git\\)?\\)$\\)" file))
+   (directory-files (or directory default-directory) full match (not sort))))
 
 (defun straight--symlink-recursively (link-target link-name)
   "Make a symbolic link to LINK-TARGET, named LINK-NAME, recursively.
