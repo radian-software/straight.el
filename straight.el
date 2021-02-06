@@ -5001,24 +5001,25 @@ RECIPE is a straight.el-style plist."
 
 (defun straight--select-package (message &optional for-build installed)
   "Use `completing-read' to select a package.
-MESSAGE is displayed as the prompt; it should not end in
-punctuation or whitespace. If FOR-BUILD is non-nil, then only
-packages that have a non-nil `:build' property are considered. If
-INSTALLED is non-nil, then only packages that have an available
-repo are considered."
+MESSAGE is displayed as the prompt; it should not end in punctuation
+or whitespace. If FOR-BUILD is non-nil, then packages with an
+explicitly nil `:build' property are excluded. If INSTALLED is
+non-nil, then only packages that have an available repo are
+considered."
   (completing-read
    (concat message ": ")
    (let ((packages nil))
      (maphash
       (lambda (package recipe)
-        (unless (or (and for-build (not (plist-get recipe :build)))
-                    (and installed
-                         (or (null (plist-get recipe :local-repo))
-                             (not (straight--repository-is-available-p
-                                   recipe)))))
-          (push package packages)))
+        (let ((build (plist-member recipe :build)))
+          (unless (or (and for-build build (not (cadr build)))
+                      (and installed
+                           (or (null (plist-get recipe :local-repo))
+                               (not (straight--repository-is-available-p
+                                     recipe)))))
+            (push package packages))))
       straight--recipe-cache)
-     packages)
+     (nreverse packages))
    (lambda (_) t)
    'require-match))
 
