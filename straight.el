@@ -536,6 +536,25 @@ The warning message is obtained by passing MESSAGE and ARGS to
   "Return t if OBJECT is quoted or backquoted, else nil."
   (when (member (car-safe object) '(quote \`)) t))
 
+(defun straight--build-disabled-p (recipe)
+  "Return t if RECIPE has an explicitly nil `:build` keyword."
+  (let ((build (plist-member recipe :build)))
+    (and build (not (cadr build)))))
+
+(defun straight--buildable-p (recipe)
+  "Return t if RECIPE has a non-nil, or vacuously nil `:build` keyword."
+  (not (straight--build-disabled-p recipe)))
+
+(defun straight--installed-p (recipe)
+  "Return t if RECIPE's repository is available and `:local-repo` is non-nil."
+  (and (plist-get recipe :local-repo)
+       (straight--repository-is-available-p recipe)))
+
+(defun straight--installed-and-buildable-p (recipe)
+  "Return t if installed RECIPE has a non-nil or absent `:build'."
+  (and (straight--buildable-p recipe)
+       (straight--installed-p recipe)))
+
 ;;;;; Windows OS detection
 
 (defun straight--windows-os-p ()
@@ -4185,24 +4204,24 @@ Each function recieves the current recipe as its argument.")
 
 (defun straight--build-steps (recipe)
   "Compute RECIPE's :build functions for use in `straight--build-functions'."
-  (let* ((member (plist-member recipe :build))
-         (val (cadr member)))
-    (unless (and member (not val)) ; explicit :build nil
-      (let* ((defaults (if (or (eq (car-safe val) :not) (not member))
-                           (cl-remove-if
-                            (lambda (step)
-                              (symbol-value
-                               (intern (concat "straight-disable-"
-                                               (symbol-name step)))))
-                            straight--build-default-steps)
-                         straight--build-default-steps)))
-        (mapcar (lambda (step)
-                  (intern (concat "straight--build-" (symbol-name step))))
-                (pcase val
-                  ((or 'nil 't) defaults)
-                  (`(:not . ,steps) (cl-set-difference defaults steps))
-                  ((pred listp) val)
-                  (_ defaults)))))))
+  (unless (straight--build-disabled-p recipe)
+    (let* ((build (plist-member recipe :build))
+           (val (cadr build))
+           (defaults (if (or (eq (car-safe val) :not) (not build))
+                         (cl-remove-if
+                          (lambda (step)
+                            (symbol-value
+                             (intern (concat "straight-disable-"
+                                             (symbol-name step)))))
+                          straight--build-default-steps)
+                       straight--build-default-steps)))
+      (mapcar (lambda (step)
+                (intern (concat "straight--build-" (symbol-name step))))
+              (pcase val
+                ((or 'nil 't) defaults)
+                (`(:not . ,steps) (cl-set-difference defaults steps))
+                ((pred listp) val)
+                (_ defaults))))))
 
 ;;;;; Main entry point
 (defun straight--build-package (recipe &optional cause)
@@ -4999,26 +5018,21 @@ RECIPE is a straight.el-style plist."
 ;;;; Interactive helpers
 ;;;;; Package selection
 
-(defun straight--select-package (message &optional for-build installed)
+(defun straight--select-package (message &optional filter)
   "Use `completing-read' to select a package.
 MESSAGE is displayed as the prompt; it should not end in punctuation
-or whitespace. If FOR-BUILD is non-nil, then packages with an
-explicitly nil `:build' property are excluded. If INSTALLED is
-non-nil, then only packages that have an available repo are
-considered."
+or whitespace.
+
+FILTER is a function accepting one argument: a straight style recipe plist.
+If it returns nil, the package is not considered a selection candidate."
   (completing-read
    (concat message ": ")
    (let ((packages nil))
-     (maphash
-      (lambda (package recipe)
-        (let ((build (plist-member recipe :build)))
-          (unless (or (and for-build build (not (cadr build)))
-                      (and installed
-                           (or (null (plist-get recipe :local-repo))
-                               (not (straight--repository-is-available-p
-                                     recipe)))))
-            (push package packages))))
-      straight--recipe-cache)
+     (maphash (lambda (package recipe)
+                (when (or (null filter)
+                          (funcall filter (plist-put recipe :package package)))
+                  (push package packages)))
+              straight--recipe-cache)
      (nreverse packages))
    (lambda (_) t)
    'require-match))
@@ -5369,8 +5383,7 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
            ;; invalidate the relevant entry in the recipe lookup
            ;; cache.
            (straight--make-build-cache-available)
-           (let* ((build (plist-member recipe :build))
-                  (no-build
+           (let* ((no-build
                    (or
                     ;; Remember that `no-build' can come both from the
                     ;; arguments to `straight-use-package' and from
@@ -5378,7 +5391,7 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
                     ;; to build packages which have no local
                     ;; repositories.
                     (null local-repo)
-                    (and build (not (cadr build))) ; explicit :build nil
+                    (straight--build-disabled-p recipe)
                     (if (straight--functionp no-build)
                         (funcall no-build package)
                       no-build)))
@@ -5540,9 +5553,9 @@ PACKAGE is a string naming a package. Interactively, select
 PACKAGE from the known packages in the current Emacs session
 using `completing-read'. See also `straight-rebuild-package' and
 `straight-check-all'."
-  (interactive (list (straight--select-package "Check package"
-                                               'for-build
-                                               'installed)))
+  (interactive (list (straight--select-package
+                      "Check package"
+                      #'straight--installed-and-buildable-p)))
   (let ((straight--allow-find t))
     (straight-use-package (intern package))))
 
@@ -5565,9 +5578,9 @@ using `completing-read'. With prefix argument RECURSIVE, rebuild
 all dependencies as well. See also `straight-check-package' and
 `straight-rebuild-all'."
   (interactive
-   (list
-    (straight--select-package "Rebuild package" 'for-build 'installed)
-    current-prefix-arg))
+   (list (straight--select-package "Rebuild package"
+                                   #'straight--installed-and-buildable-p)
+         current-prefix-arg))
   (let ((straight--packages-to-rebuild
          (if recursive
              :all
@@ -5656,8 +5669,7 @@ PACKAGE is a string naming a package. Interactively, select
 PACKAGE from the known packages in the current Emacs session
 using `completing-read'."
   (interactive (list (straight--select-package "Normalize package"
-                                               nil
-                                               'installed)))
+                                               #'straight--installed-p)))
   (let ((recipe (gethash package straight--recipe-cache)))
     (straight-vc-normalize recipe)))
 
@@ -5703,7 +5715,8 @@ PACKAGE from the known packages in the current Emacs session
 using `completing-read'. With prefix argument FROM-UPSTREAM,
 fetch not just from primary remote but also from upstream (for
 forked packages)."
-  (interactive (list (straight--select-package "Fetch package" nil 'installed)
+  (interactive (list (straight--select-package "Fetch package"
+                                               #'straight--installed-p)
                      current-prefix-arg))
   (let ((recipe (gethash package straight--recipe-cache)))
     (and (straight-vc-fetch-from-remote recipe)
@@ -5721,8 +5734,8 @@ PACKAGE from the known packages in the current Emacs session
 using `completing-read'. With prefix argument FROM-UPSTREAM,
 fetch not just from primary remote but also from upstream (for
 forked packages)."
-  (interactive (list (straight--select-package
-                      "Fetch package and dependencies" nil 'installed)
+  (interactive (list (straight--select-package "Fetch package and dependencies"
+                                               #'straight--installed-p)
                      current-prefix-arg))
   (let ((deps (make-hash-table :test #'equal)))
     (dolist (dep (straight--get-transitive-dependencies package))
@@ -5760,7 +5773,8 @@ PACKAGE from the known packages in the current Emacs session
 using `completing-read'. With prefix argument FROM-UPSTREAM,
 merge not just from primary remote but also from upstream (for
 forked packages)."
-  (interactive (list (straight--select-package "Merge package" nil 'installed)
+  (interactive (list (straight--select-package "Merge package"
+                                               #'straight--installed-p)
                      current-prefix-arg))
   (let ((recipe (gethash package straight--recipe-cache)))
     (and (straight-vc-merge-from-remote recipe)
@@ -5779,7 +5793,7 @@ using `completing-read'. With prefix argument FROM-UPSTREAM,
 merge not just from primary remote but also from upstream (for
 forked packages)."
   (interactive (list (straight--select-package
-                      "Merge package and dependencies" nil 'installed)
+                      "Merge package and dependencies" #'straight--installed-p)
                      current-prefix-arg))
   (let ((deps (make-hash-table :test #'equal)))
     (dolist (dep (straight--get-transitive-dependencies package))
@@ -5817,7 +5831,8 @@ PACKAGE from the known packages in the current Emacs session
 using `completing-read'. With prefix argument FROM-UPSTREAM, pull
 not just from primary remote but also from upstream (for forked
 packages)."
-  (interactive (list (straight--select-package "Pull package" nil 'installed)
+  (interactive (list (straight--select-package "Pull package"
+                                               #'straight--installed-p)
                      current-prefix-arg))
   (let ((recipe (gethash package straight--recipe-cache)))
     (and (straight-vc-fetch-from-remote recipe)
@@ -5838,7 +5853,7 @@ using `completing-read'. With prefix argument FROM-UPSTREAM,
 pull not just from primary remote but also from upstream (for
 forked packages)."
   (interactive (list (straight--select-package
-                      "Pull package and dependencies" nil 'installed)
+                      "Pull package and dependencies" #'straight--installed-p)
                      current-prefix-arg))
   (let ((deps (make-hash-table :test #'equal)))
     (dolist (dep (straight--get-transitive-dependencies package))
@@ -5872,7 +5887,8 @@ non-nil if the package should actually be pulled."
 PACKAGE is a string naming a package. Interactively, select
 PACKAGE from the known packages in the current Emacs session
 using `completing-read'."
-  (interactive (list (straight--select-package "Push package" nil 'installed)))
+  (interactive (list (straight--select-package "Push package"
+                                               #'straight--installed-p)))
   (let ((recipe (gethash package straight--recipe-cache)))
     (straight-vc-push-to-remote recipe)))
 
