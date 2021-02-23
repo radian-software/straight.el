@@ -2841,7 +2841,9 @@ Otherwise return nil."
                     (concat "EMACS=" invocation-directory invocation-name))
                  ;; Org's make autoloads generates org-verison.el.
                  :build '(:not autoloads)
-                 :files (append '(:defaults "lisp/*.el")
+                 :files (append '(:defaults
+                                  "lisp/*.el"
+                                  ("etc/styles/" "etc/styles/*"))
                                 (when (eq package 'org-plus-contrib)
                                   '("contrib/lisp/*.el"))))
            (when (eq package 'org-plus-contrib)
@@ -2853,7 +2855,7 @@ Otherwise return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  6)
+  7)
 
 ;;;;;; MELPA
 
