@@ -6676,5 +6676,4 @@ locally bound plist, straight-bug-report-args."
 ;; checkdoc-symbol-words: ("byte-compile" "top-level")
 ;; checkdoc-verb-check-experimental-flag: nil
 ;; indent-tabs-mode: nil
-;; outline-regexp: ";;;;* "
 ;; End:
