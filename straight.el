@@ -6670,11 +6670,10 @@ locally bound plist, straight-bug-report-args."
 
 (provide 'straight)
 
-;;; straight.el ends here
-
 ;; Local Variables:
 ;; checkdoc-symbol-words: ("byte-compile" "top-level")
 ;; checkdoc-verb-check-experimental-flag: nil
 ;; indent-tabs-mode: nil
-;; outline-regexp: ";;;;* "
 ;; End:
+
+;;; straight.el ends here
