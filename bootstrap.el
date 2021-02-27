@@ -5,12 +5,6 @@
 (require 'bytecomp)
 (require 'cl-lib)
 
-;; In Emacs 24.5, `inhibit-message' is not defined, so the
-;; byte-compiler complains that it is bound lexically here but not
-;; used. We make sure that Emacs 24.5 treats `inhibit-message' as a
-;; dynamic variable, even if it does not have any effect.
-(defvar inhibit-message)
-
 (let* ((bootstrap.el
         ;; If this file is accessed through a symlink (this may happen
         ;; when an old version of the bootstrap snippet is used to
@@ -29,7 +23,7 @@
        (straight.el
         (expand-file-name
          "straight.el" (file-name-directory bootstrap.el))))
-  ;; This logic replicates that in `straight--byte-compile-package',
+  ;; This logic replicates that in `straight--build-compile',
   ;; and is used to silence byte-compile warnings and other cruft.
   (cl-letf (((symbol-function #'save-some-buffers) #'ignore)
             ((symbol-function #'byte-compile-log-1) #'ignore)
@@ -87,27 +81,31 @@
 
 (straight-use-recipes '(melpa :type git :host github
                               :repo "melpa/melpa"
-                              :no-build t))
+                              :build nil))
 
 (if straight-recipes-gnu-elpa-use-mirror
     (straight-use-recipes
      '(gnu-elpa-mirror :type git :host github
                        :repo "emacs-straight/gnu-elpa-mirror"
-                       :no-build t))
+                       :build nil))
   (straight-use-recipes `(gnu-elpa :type git
                                    :repo ,straight-recipes-gnu-elpa-url
                                    :local-repo "elpa"
-                                   :no-build t)))
+                                   :build nil)))
+
+(straight-use-recipes '(el-get :type git :host github
+                               :repo "dimitri/el-get"
+                               :build nil))
 
 (if straight-recipes-emacsmirror-use-mirror
     (straight-use-recipes
      '(emacsmirror-mirror :type git :host github
                           :repo "emacs-straight/emacsmirror-mirror"
-                          :no-build t))
+                          :build nil))
   (straight-use-recipes '(emacsmirror :type git :host github
                                       :repo "emacsmirror/epkgs"
                                       :nonrecursive t
-                                      :no-build t)))
+                                      :build nil)))
 
 ;; Then we register (and build) straight.el itself.
 (straight-use-package `(straight :type git :host github

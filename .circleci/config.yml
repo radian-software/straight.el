@@ -9,10 +9,6 @@ shared: &shared
         make docker
         CMD="make -k compile checkdoc longlines checkindent smoke"
 jobs:
-  emacs-24.5:
-    <<: *shared
-    environment:
-      VERSION: "24.5"
   emacs-25.1:
     <<: *shared
     environment:
@@ -33,7 +29,7 @@ jobs:
     <<: *shared
     environment:
       VERSION: "26.2"
-  emacs-master:
+  emacs-git:
     <<: *shared
     environment:
       VERSION: "master"
@@ -41,10 +37,9 @@ workflows:
   version: 2
   ci:
     jobs:
-      - emacs-24.5
       - emacs-25.1
       - emacs-25.2
       - emacs-25.3
       - emacs-26.1
       - emacs-26.2
-      - emacs-master
+      - emacs-git
