@@ -4549,14 +4549,28 @@ The keyword's value is expected to be one of the following:
   (straight--with-plist recipe (pre-build post-build package local-repo)
     (when-let ((commands (if post post-build pre-build))
                (repo (straight--repos-dir (or local-repo package))))
-      (let ((default-directory repo))
+      (let ((default-directory repo)
+            (commanderror nil))
         ;; Allow a single command or a list of commands.
         (dolist (command (if (cl-every #'listp commands)
                              commands
                            (list commands)))
-          (if (cl-every #'stringp command)
-              (apply #'straight--warn-call command)
-            (eval command)))))))
+          (condition-case err
+              (if (cl-every #'stringp command)
+                  (unless (apply #'straight--check-call command)
+                    (setq inhibit-startup-screen t
+                          commanderror t)
+                    (switch-to-buffer-other-window straight-process-buffer)
+                    (goto-char (point-max))
+                    (error "%S" command))
+                (eval command))
+            ((error) (error (concat
+                             (if post ":post" ":pre")
+                             "-build command error in %S recipe"
+                             (when commanderror " in command")
+                             " %S")
+                            package
+                            (if commanderror (cadr err) err)))))))))
 
 ;;;;; Symlinking
 
