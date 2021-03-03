@@ -1955,10 +1955,11 @@ meaning in a recipe (unknown keywords are ignored but preserved):
 ```emacs-lisp
 (example :build (:not compile info))
 ```
-    Steps may be disabled globally for recipes which do not explicilty
-    declare their `:build` via the defcustom variables named
-    `straight--build-SYMBOL`. e.g. The last example but for all recipes
-    without a `:build`:
+
+   Steps may be disabled globally for recipes which do not explicilty
+   declare their `:build` via the defcustom variables named
+   `straight--build-SYMBOL`. e.g. The last example but for all recipes
+   without a `:build`:
 
 ```emacs-lisp
 (setq straight-disable-compile t
@@ -1992,7 +1993,7 @@ In the absence of a `:build` keyword, `straight--build-default-steps` are run.
 ```emacs-lisp
 (straight-use-package
  '( example :type git :host github :repo "user/example.el"
-    :pre-build ("make all")))
+    :pre-build ("make" "all")))
 
 (straight-use-package
  `( example :type git :host github :repo "user/example.el"
