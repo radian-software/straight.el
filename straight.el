@@ -2814,40 +2814,64 @@ Return a list of package names as strings."
                                       'list source cause)))))))
 
 ;;;;;; Org
+(defcustom straight-byte-compilation-buffer "*straight-byte-compilation*"
+  "Name of the byte compilation log buffer.
+If nil, output is discarded."
+  :type '(or (string :tag "Buffer name") (const :tag "Discard output" nil)))
 
 (make-obsolete-variable
  'straight-fix-org
  "No longer necessary, as straight.el supports external build commands."
  "2020-07-28")
 
+(defun straight-recipes-org-elpa--build ()
+  "Generate `org-version.el`.
+This is to avoid relying on `make` on Windows.
+See: https://github.com/raxod502/straight.el/issues/707"
+  (let* ((default-directory (straight--repos-dir "org" "lisp"))
+         (orgversion
+          (string-trim
+           (shell-command-to-string
+            "git describe --match release\* --abbrev=0 HEAD")))
+         (gitversion
+          (concat
+           orgversion "-g"
+           (string-trim
+            (shell-command-to-string "git rev-parse --short=6 HEAD"))))
+         (emacs (concat invocation-directory invocation-name)))
+    (call-process
+     emacs nil straight-byte-compilation-buffer nil
+     "-Q" "--batch"
+     "--eval" "(setq vc-handled-backends nil org-startup-folded nil)"
+     "--eval" "(add-to-list 'load-path \".\")"
+     "--eval" "(load \"org-compat.el\")"
+     "--eval" "(load \"../mk/org-fixup.el\")"
+     ;; Do we want autoloads here, or should straight handle it?
+     "--eval" "(org-make-org-loaddefs)"
+     "--eval" (format "(org-make-org-version %S %S)"
+                      orgversion gitversion))))
+
 (defun straight-recipes-org-elpa-retrieve (package)
   "Look up a pseudo-PACKAGE recipe in Org ELPA.
 PACKAGE must be either `org' or `org-plus-contrib'.
 Otherwise return nil."
   (when (member package '(org org-plus-contrib))
-    (list '\`
-          (append
-           (list package
-                 :type 'git
-                 :repo "https://code.orgmode.org/bzg/org-mode.git"
-                 :local-repo "org"
-                 ;; `org-version' depends on repository tags.
-                 :depth 'full
-                 :pre-build
-                 ',(list
-                    (concat (when (eq system-type 'berkeley-unix) "g")
-                            "make")
-                    "autoloads"
-                    (concat "EMACS=" invocation-directory invocation-name))
-                 ;; Org's make autoloads generates org-verison.el.
-                 :build '(:not autoloads)
-                 :files (append '(:defaults
-                                  "lisp/*.el"
-                                  ("etc/styles/" "etc/styles/*"))
-                                (when (eq package 'org-plus-contrib)
-                                  '("contrib/lisp/*.el"))))
-           (when (eq package 'org-plus-contrib)
-             '(:includes org))))))
+    (append
+     (list package
+           :type 'git
+           :repo "https://code.orgmode.org/bzg/org-mode.git"
+           :local-repo "org"
+           ;; `org-version' depends on repository tags.
+           :depth 'full
+           :pre-build '(straight-recipes-org-elpa--build)
+           :build '(:not autoloads)
+           :files (append '(:defaults
+                            "lisp/*.el"
+                            ("etc/styles/" "etc/styles/*"))
+                          (when (eq package 'org-plus-contrib)
+                            '("contrib/lisp/*.el"))))
+     (when (eq package 'org-plus-contrib)
+       '(:includes org)))))
 
 (defun straight-recipes-org-elpa-list ()
   "Return a list of Org ELPA pseudo-packages, as a list of strings."
@@ -2855,7 +2879,7 @@ Otherwise return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  7)
+  8)
 
 ;;;;;; MELPA
 
@@ -4793,11 +4817,6 @@ modifies the build folder, not the original repository."
 This can be overridden by the `:build' property of an
 individual package recipe."
   :type 'boolean)
-
-(defcustom straight-byte-compilation-buffer "*straight-byte-compilation*"
-  "Name of the byte compilation log buffer.
-If nil, output is discarded."
-  :type '(or (string :tag "Buffer name") (const :tag "Discard output" nil)))
 
 (defun straight--build-compile (recipe)
   "Byte-compile files for the symlinked package specified by RECIPE.
