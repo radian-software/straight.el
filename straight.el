@@ -2830,9 +2830,11 @@ This is to avoid relying on `make` on Windows.
 See: https://github.com/raxod502/straight.el/issues/707"
   (let* ((default-directory (straight--repos-dir "org" "lisp"))
          (orgversion
-          (string-trim
-           (shell-command-to-string
-            "git describe --match release\* --abbrev=0 HEAD")))
+          (replace-regexp-in-string
+           "release_" ""
+           (string-trim
+            (shell-command-to-string
+             "git describe --match release\* --abbrev=0 HEAD"))))
          (gitversion
           (concat
            orgversion "-g"
