@@ -557,6 +557,8 @@ The warning message is obtained by passing MESSAGE and ARGS to
 
 ;;;;; Windows OS detection
 
+;; THIS FUNCTION MUST BE MANUALLY SYNCED WITH
+;; ./install.el straight--windows-os-p
 (defun straight--windows-os-p ()
   "Check if the current operating system is Windows."
   (memq system-type '(ms-dos windows-nt)))
