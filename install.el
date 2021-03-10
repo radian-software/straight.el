@@ -94,10 +94,11 @@
   (defvar url-http-end-of-headers)
   (defvar url-http-response-status)
 
-  ;; for windows os
+  ;; THIS FUNCTION MUST BE MANUALLY SYNCED WITH
+  ;; ./straight.el straight--windows-os-p
   (defun straight--windows-os-p ()
     "Check if the current operating system is Windows."
-    (memq system-type '(ms-dos windows-nt cygwin)))
+    (memq system-type '(ms-dos windows-nt)))
 
   (let ((version nil)
         (straight-profiles (if (boundp 'straight-profiles)
