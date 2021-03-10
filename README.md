@@ -777,7 +777,7 @@ packages anywhere, like Cask does. Instead, it determines what
 packages are to be loaded implicitly, by your invocations of
 `straight-use-package` during Emacs initialization. Furthermore,
 `straight.el` allows you to install packages after initialization
-using `M-x straight-install-package` (or even by evaluating
+using `M-x straight-use-package` (or even by evaluating
 `straight-use-package` forms). However, `straight.el` still provides
 advanced features such as bulk package management and version locking.
 This creates some interesting challenges which other package managers
