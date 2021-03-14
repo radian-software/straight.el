@@ -2834,7 +2834,7 @@ See: https://github.com/raxod502/straight.el/issues/707"
          (orgversion
           (replace-regexp-in-string
            "release_" ""
-           (straight--get-call "git" "describe" "--match" "release\*"
+           (straight--get-call "git" "describe" "--match" "release*"
                                "--abbrev=0" "HEAD")))
          (gitversion
           (concat
