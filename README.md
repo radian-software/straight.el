@@ -2141,8 +2141,23 @@ These are the keywords meaningful for the `git` backend:
 
 * `:repo`: the clone URL for the Git repository.
 * `:host`: either nil or one of the symbols `github`, `gitlab`,
-  `bitbucket`. If non-nil, then `:repo` should just be a string
-  "username/repo", and the URL is constructed automatically.
+  `bitbucket`.
+    * If nil, then `:repo` should be a string which is the full URL of
+    the target repository. For example:
+
+    ```emacs-lisp
+    ( :package "package" :host nil :type git
+      :repo "http://myhost.tld/repo")
+    ```
+
+    * If non-nil, then `:repo` should be a string "username/repo",
+    and the URL is constructed automatically.  For example:
+
+    ```emacs-lisp
+    ( :package "package" :host github :type git
+      :repo "username/repo")
+    ```
+
 * `:branch`: the name of the branch used for primary development, as a
   string. If your version lockfiles do not specify a commit to check
   out when the repository is cloned, then this branch is checked out,
