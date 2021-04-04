@@ -49,6 +49,7 @@
     (throw 'emacs-version-changed nil)))
 
 ;;;; Libraries
+
 (require 'cl-lib)
 (require 'subr-x)
 
