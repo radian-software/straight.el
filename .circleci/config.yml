@@ -25,9 +25,6 @@ workflows:
   version: 2
   ci:
     jobs:
-      - emacs-25.1
-      - emacs-25.2
       - emacs-25.3
-      - emacs-26.1
       - emacs-26.2
       - emacs-git
