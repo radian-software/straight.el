@@ -17,6 +17,10 @@ jobs:
     <<: *shared
     environment:
       VERSION: "26"
+  emacs-27:
+    <<: *shared
+    environment:
+      VERSION: "27"
   emacs-git:
     <<: *shared
     environment:
@@ -27,4 +31,5 @@ workflows:
     jobs:
       - emacs-25
       - emacs-26
+      - emacs-27
       - emacs-git
