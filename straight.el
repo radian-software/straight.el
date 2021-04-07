@@ -79,9 +79,6 @@ They are still logged to the *Messages* buffer.")))
 (declare-function flycheck-get-next-checker-for-buffer "flycheck")
 (declare-function flycheck-start-current-syntax-check "flycheck")
 
-;; `magit'
-(declare-function magit-status-setup-buffer "magit-status")
-
 ;; `package'
 (defvar package-selected-packages)
 (declare-function package--ensure-init-file "package")
@@ -1754,29 +1751,28 @@ appropriately."
                        props))
          ,@body))))
 
-;; We don't define `straight--profile-cache' until later. I don't
-;; think it's possible to avoid the circular dependency in any sane
-;; way, since the VC layer is used to clone packages and we need to
-;; clone Magit here.
-(defvar straight--profile-cache)
-
-(cl-defun straight--magit-status (directory)
-  "Like `magit-status', but install Magit if necessary.
-Magit is only installed if the user responds to a `y-or-n-p'
-prompt. Return non-nil if Magit was installed. DIRECTORY is as in
-`magit-status'."
-  (unless (or (require 'magit nil 'noerror)
-              (gethash "magit" straight--profile-cache))
-    (if (y-or-n-p "Install Magit? ")
+(defun straight--ensure-magit-p (feature)
+  "Load Magit FEATURE and return non-nil if it's avaliable.
+If the feature isn't available, offer to install Magit with a
+`y-or-n-p' prompt before loading it."
+  (or (require feature nil 'noerror)
+      (when (y-or-n-p "Install Magit? ")
         (straight-use-package 'magit)
-      (cl-return-from straight--magit-status)))
-  (prog1 t
-    (magit-status-setup-buffer directory)))
+        (require feature nil 'noerror))))
+
+(defun straight--magit-status (directory)
+  "Like `magit-status', but offer to install Magit if necessary.
+Return non-nil if `magit-status-setup-buffer' is invoked successfully.
+DIRECTORY is as in `magit-status'."
+  (when (and (straight--ensure-magit-p 'magit-status)
+             (fboundp 'magit-status-setup-buffer))
+    (magit-status-setup-buffer directory)
+    t))
 
 (defun straight--recursive-edit ()
   "Start a new recursive edit session.
 Make sure that other packages such as `server.el' don't cause us
-to loose our session."
+to lose our session."
   ;; Don't mess up recursive straight.el operations. The wonderful
   ;; thing about using our own variable is that since it's not
   ;; buffer-local, a recursive binding to nil is actually able to
@@ -1997,24 +1993,46 @@ to satisfy `straight-vc-git--urls-compatible-p'."
               (straight-vc-git--encode-url
                fork-repo fork-host fork-protocol))))))
 
-;; The following handles only merges, not rebases. See
-;; https://github.com/raxod502/straight.el/issues/271.
+(defun straight-vc-git--rebase-in-progress-p ()
+  "Return t if rebase is in progress.
+Delegate to magit's version of this function if available; it may
+handle cases we don't try to here. For example, magit's version does
+something more complicated to locate the git directory from Emacs
+running under cygwin."
+  (let ((default-directory straight--default-directory))
+    (if (fboundp 'magit-rebase-in-progress-p)
+        (magit-rebase-in-progress-p)
+      (let ((git-dir (file-name-as-directory
+                      (straight--process-output
+                       "git" "rev-parse" "--git-dir"))))
+        (or (file-exists-p (expand-file-name "rebase-merge" git-dir))
+            (file-exists-p (expand-file-name
+                            "rebase-apply/onto" git-dir)))))))
+
 (defun straight-vc-git--ensure-nothing-in-progress (local-repo)
-  "Ensure that no merge conflict is active in LOCAL-REPO.
+  "Ensure that no merge or rebase is unfinished in LOCAL-REPO.
 LOCAL-REPO is a string."
-  (let ((conflicted-files
-         (string-remove-suffix
-          "\n"
-          (straight--process-output "git" "ls-files" "--unmerged"))))
-    (or (string-empty-p conflicted-files)
-        (ignore
-         (straight-vc-git--popup
-           (format "Repository %S has a merge conflict:\n%s"
-                   local-repo
-                   (straight--split-and-trim
-                    conflicted-files 2))
-           ("a" "Abort merge"
-            (straight--process-output "git" "merge" "--abort")))))))
+  (cl-flet ((short-status () (straight--split-and-trim
+                              (straight--process-output
+                               "git" "status" "--short")
+                              2)))
+    (cond
+     ((straight-vc-git--rebase-in-progress-p)
+      (ignore
+       (straight-vc-git--popup
+         (format "Repository %S has an unfinished rebase:\n\n%s"
+                 local-repo (short-status))
+         ("a" "Abort rebase"
+          (straight--process-output "git" "rebase" "--abort")))))
+     ((not (string-empty-p
+            (straight--process-output "git" "ls-files" "--unmerged")))
+      (ignore
+       (straight-vc-git--popup
+         (format "Repository %S has a merge conflict:\n\n%s"
+                 local-repo (short-status))
+         ("a" "Abort merge"
+          (straight--process-output "git" "merge" "--abort")))))
+     (t t))))
 
 (cl-defun straight-vc-git--ensure-worktree (local-repo)
   "Ensure that LOCAL-REPO has a clean worktree.
@@ -2043,131 +2061,265 @@ LOCAL-REPO is a string."
            (and (straight--process-output "git" "reset" "--hard")
                 (straight--process-output "git" "clean" "-ffd"))))))))
 
-(cl-defun straight-vc-git--ensure-head (local-repo branch &optional ref)
-  "Ensure that LOCAL-REPO has BRANCH checked out.
-If REF is non-nil, instead ensure that BRANCH is ahead of REF.
-Any untracked files created by checkout will be deleted without
-confirmation, so this function should only be run after
-`straight-vc-git--ensure-worktree' has passed."
+(defun straight-vc-git--abbrev-ref (ref)
+  "Return the unambiguous, abbreviated name of REF."
+  (straight--process-with-result
+      (straight--process-run
+       "git" "rev-parse" "--verify" "--abbrev-ref" ref)
+    (cond
+     ;; When ref is ambiguous, rev-parse exits successfully but prints
+     ;; a warning to stderr.
+     ((or failure stderr)
+      (error "Failed to get unambiguous name for %S\n%s"
+             ref (concat stdout stderr)))
+     ((not stdout)
+      (error "Failed to get short name for %S\n%s"
+             ref (concat stdout stderr)))
+     (t (string-trim stdout)))))
+
+(defun straight-vc-git--local-branch (ref)
+  "Return branch named by REF if REF is a local branch.
+Otherwise, return nil. Returned ref may be ambiguous.
+This is useful when dealing with ambiguous refs: If the short name of
+a branch is 'xyz' and there's also a tag named 'xyz', the shortest
+unambiguous branch name is at least 'heads/xyz'. If you attempt to
+check out 'heads/xyz', you'll end up at the right commit, but in
+detached head state. To check out the branch, you need to use the
+short name as returned by this function. Git checkout will print a
+warning about the ambiguous name, but succeed."
+  (let ((full-ref (straight--process-output
+                   "git" "rev-parse" "--verify" "--symbolic-full-name" ref)))
+    (when (string-match-p "^refs/heads/.*$" full-ref)
+      (string-remove-prefix "refs/heads/" full-ref))))
+
+(defun straight-vc-git--compare-and-canonicalize (left right)
+  "Return plist describing relationship between refs LEFT and RIGHT."
+  (condition-case failure
+      (let* ((left (straight-vc-git--abbrev-ref left))
+             (right (straight-vc-git--abbrev-ref right))
+             (head (straight-vc-git--abbrev-ref "HEAD"))
+             (left-is-ancestor (straight--process-run-p
+                                "git" "merge-base" "--is-ancestor"
+                                left right))
+             (right-is-ancestor (straight--process-run-p
+                                 "git" "merge-base" "--is-ancestor"
+                                 right left)))
+        (list
+         ;; Canonical refs
+         :left-ref  left
+         :right-ref right
+         :head-ref  head
+         ;; Flags
+         :head-detached     (string= head "HEAD")
+         :left-is-ancestor  left-is-ancestor
+         :right-is-ancestor right-is-ancestor
+         :same              (and left-is-ancestor right-is-ancestor)
+         :diverged          (not (or left-is-ancestor right-is-ancestor))))
+    (error
+     (list :failure (cadr failure)))))
+
+(defun straight-vc-git--reconcile-interactively (local-repo status)
+  "Ask user how to update LOCAL-REPO.
+Present options to reconcile default-branch in LOCAL-REPO with another
+ref and HEAD. Refs are considered reconciled when HEAD is at
+default-branch and default-branch is a descendant of the other ref,
+called include-ref within this function.
+STATUS is the result of comparing default-branch with include-ref
+using `straight-vc-git--compare-and-canonicalize'.
+HEAD must be at default-branch or include-ref before calling this
+function, and default-branch should not already be pointing at
+include-ref.
+Return nil; this is a helper for
+`straight-vc-git--ensure-head-at-branch' and
+`straight-vc-git--ensure-default-branch-current', so if the chosen
+action is successful, those will detect the refs are reconciled the
+next time around."
   (ignore
-   (let* ((cur-branch (straight--process-output
-                       "git" "rev-parse" "--abbrev-ref" "HEAD"))
-          (head-detached-p (string= cur-branch "HEAD"))
-          (ref-name (or ref "HEAD"))
-          (quoted-ref-name (if ref (format "%S" ref) "HEAD")))
-     (cond
-      ((and ref (not (straight--process-run-p "git" "rev-parse" ref)))
-       (error "Branch %S does not exist" ref))
-      ((and (null ref) (string= branch cur-branch))
-       (cl-return-from straight-vc-git--ensure-head t))
-      ((and (null ref) head-detached-p)
-       ;; Detached HEAD, either attach to configured branch
-       ;; automatically or ask the user.
-       (if straight-vc-git-auto-fast-forward
-           (straight--process-output "git" "checkout" branch)
-         (straight-vc-git--popup
-           (format
-            "In repository %S, HEAD is even with branch %S, but detached."
-            local-repo branch)
-           ("a" (format "Attach HEAD to branch %S" branch)
-            (straight--process-output "git" "checkout" branch)))))
-      (t
-       ;; ref-ahead-p and ref-behind-p determine whether the local
-       ;; copy is ahead or behind ref. When the branch is different,
-       ;; though, it's not a question of being ahead or behind, the
-       ;; state can be more complex than that, so we consider it
-       ;; neither ahead nor behind.
-       (let ((ref-ahead-p (straight--process-run-p
-                           "git" "merge-base" "--is-ancestor"
-                           cur-branch ref-name))
-             (ref-behind-p (straight--process-run-p
-                            "git" "merge-base" "--is-ancestor"
-                            ref-name cur-branch)))
-         (when (and ref ref-behind-p)
-           (cl-return-from straight-vc-git--ensure-head t))
-         (when (and ref ref-ahead-p straight-vc-git-auto-fast-forward)
-           ;; Local is behind, catch up.
-           (straight--process-output "git" "reset" "--hard" ref-name)
-           ;; Return nil to signal that we're not quite done. In some
-           ;; cases a reset might leave untracked files.
-           (cl-return-from straight-vc-git--ensure-head nil))
-         (straight-vc-git--popup-raw
-          (concat
-           (format "In repository %S, " local-repo)
-           (if ref
-               (cond
-                (ref-behind-p
-                 (cl-return-from straight-vc-git--ensure-head t))
-                (ref-ahead-p
-                 (format "default branch %S is behind %S" branch ref))
-                (t (format "default branch %S has diverged from %S"
-                           branch ref)))
-             (let ((on-branch (if head-detached-p ""
-                                (format " (on branch %S)"
-                                        cur-branch))))
-               (cond
-                (ref-ahead-p
-                 (format "HEAD%s is ahead of default branch %S"
-                         on-branch branch))
-                (ref-behind-p
-                 (format "HEAD%s is behind default branch %S"
-                         on-branch branch))
-                (t (format "HEAD%s has diverged from default branch %S"
-                           on-branch branch))))))
-          ;; Here be dragons! Watch the quoting very carefully in
-          ;; order to get the lexical scoping to work right, and don't
-          ;; confuse this syntax with the syntax of the
-          ;; `straight--popup' macro.
-          `(,@(when (and ref-ahead-p ref)
-                `(("f" ,(format "Fast-forward branch %S to %s"
-                                cur-branch quoted-ref-name)
-                   ,(lambda ()
+   (straight--with-plist status
+       (head-ref head-detached left-is-ancestor right-is-ancestor diverged)
+     (let* ((default-branch (straight--plist-get status :left-ref nil))
+            (include-ref (straight--plist-get status :right-ref nil))
+            (head-at-default (string= head-ref default-branch))
+            (head-at-include (string= head-ref include-ref))
+            (other-ref (cond
+                        (head-at-default include-ref)
+                        (head-at-include default-branch)
+                        (t (error (concat
+                                   "Expected either default-branch %S or"
+                                   " include-ref %S to be checked out, but"
+                                   " HEAD is at %S")
+                                  default-branch include-ref head-ref))))
+            (head-ahead (or (and left-is-ancestor head-at-include)
+                            (and right-is-ancestor head-at-default)))
+            (prompt (concat
+                     (format "In repository %S," local-repo)
+                     (if head-detached
+                         " detached HEAD"
+                       (format " HEAD on %s%S"
+                               (if head-at-default "default branch " "")
+                               head-ref))
+                     (cond
+                      (diverged " has diverged from")
+                      (head-ahead " is ahead of")
+                      (t " is behind"))
+                     (format " %s%S"
+                             (if head-at-default "" "default branch ")
+                             other-ref)))
+            (range (cond
+                    (diverged   (format "%s...%s" head-ref other-ref))
+                    (head-ahead (format "%s..%s" other-ref head-ref))
+                    (t          (format "%s..%s" head-ref other-ref))))
+            ;; If we can rebase and include-ref is a local branch,
+            ;; we'll offer to rebase it onto default-branch.
+            ;; Otherwise, we'll fall back to rebasing the
+            ;; default-branch onto include-ref, like when its a remote
+            ;; ref.
+            (include-branch (and diverged
+                                 (straight-vc-git--local-branch include-ref))))
+       (straight-vc-git--popup-raw
+        prompt
+        ;; Here be dragons! Watch the quoting very carefully in
+        ;; order to get the lexical scoping to work right, and don't
+        ;; confuse this syntax with the syntax of the
+        ;; `straight--popup' macro.
+        `(,@(unless head-at-default
+              `(("c" ,(format "Checkout %S" default-branch)
+                 ,(lambda ()
+                    (straight--process-output
+                     "git" "checkout" default-branch)))))
+          ,@(when (and left-is-ancestor (not head-detached))
+              `(("f" ,(format "Fast-forward %S to %S"
+                              default-branch include-ref)
+                 ,(lambda ()
+                    (unless head-at-default
                       (straight--process-output
-                       "git" "reset" "--hard" ref-name)))))
-            ,@(when (and ref-behind-p (null ref))
-                `(("c" ,(format "Checkout branch %S" branch)
-                   ,(lambda ()
-                      (straight--process-output "git" "checkout" branch)))))
-            ,@(unless (or ref-ahead-p ref-behind-p)
-                `(("m" ,(format "Merge %s to branch %S" quoted-ref-name branch)
-                   ,(lambda ()
-                      (if ref
-                          (straight--process-run-p "git" "merge" ref)
-                        (let ((orig-head (straight--process-output
-                                          "git" "rev-parse" "HEAD")))
-                          (straight--process-output
-                           "git" "checkout" branch)
-                          ;; Merge might not succeed, so don't throw
-                          ;; on error.
-                          (straight--process-run-p "git" "merge" orig-head)))))
-                  ("r" ,(format "Reset branch %S to %s"
-                                branch quoted-ref-name)
-                   ,(lambda ()
+                       "git" "checkout" default-branch))
+                    (straight--process-output
+                     "git" "merge" "--ff-only" include-ref)))))
+          ,@(when (and diverged (not head-detached))
+              `(("m" ,(format "Merge %S into %S" include-ref default-branch)
+                 ,(lambda ()
+                    (unless head-at-default
                       (straight--process-output
-                       "git" "reset" "--hard" ref-name)))
-                  ,@(unless ref
-                      `(("c" ,(format "Checkout branch %S" branch)
+                       "git" "checkout" default-branch))
+                    ;; If merge fails due to conflict,
+                    ;; `straight-vc-git--ensure-nothing-in-progress'
+                    ;; will detect the failed merge and pause for us
+                    ;; to clean it up. NOTE however, that if we then
+                    ;; choose to abort the merge, HEAD will remain at
+                    ;; default-branch.
+                    (straight--process-run-p "git" "merge" include-ref)))
+                ,@(if include-branch
+                      `(("r" ,(format (concat "Rebase %S onto %S, then "
+                                              "checkout and fast-forward %S")
+                                      include-branch default-branch
+                                      default-branch)
                          ,(lambda ()
-                            (straight--process-output
-                             "git" "checkout" branch)))))
-                  ,(if ref
-                       `("R" ,(format "Rebase branch %S onto %S" branch ref)
-                         ,(lambda ()
-                            ;; Rebase might fail, don't throw on error.
-                            (straight--process-run-p "git" "rebase"
-                                                     ref branch)))
-                     `("R" ,(format (concat "Rebase HEAD onto branch %S "
-                                            "and fast-forward %S to HEAD")
-                                    branch branch)
+                            ;; If the rebase encounters a conflict, no
+                            ;; sweat: the possibility of a fast-forward
+                            ;; will be detected elsewhere in this
+                            ;; function the next time around. But we
+                            ;; might as well finish the job if we can.
+                            (when (straight--process-run-p
+                                   "git" "rebase"
+                                   default-branch include-branch)
+                              (straight--process-output
+                               "git" "checkout" default-branch)
+                              ;; Fast-forward to include-branch, but
+                              ;; specify its ref with include-ref
+                              ;; because that is unambiguous.
+                              (straight--process-output
+                               "git" "merge" "--ff-only" include-ref)))))
+                    `(("r" ,(format "Rebase %S onto %S"
+                                    default-branch include-ref)
                        ,(lambda ()
-                          ;; If the rebase encounters a conflict, no
-                          ;; sweat: the possibility of a fast-forward
-                          ;; will be detected elsewhere in this
-                          ;; function the next time around. But we
-                          ;; might as well finish the job if we can.
-                          (and (straight--process-run-p "git" "rebase" branch)
-                               (straight--process-output
-                                "git" "reset" "--hard" ref-name)))))))))))))))
+                          ;; Again, rebase might fail, but don't throw
+                          ;; on error.
+                          (straight--process-run
+                           "git" "rebase" include-ref default-branch)))))
+                ("x" ,(format "Reset %S to %S" default-branch include-ref)
+                 ,(lambda ()
+                    (unless head-at-default
+                      (straight--process-output
+                       "git" "checkout" default-branch))
+                    (straight--process-output
+                     "git" "reset" "--hard" include-ref)))))
+          ("l" ,(format "Magit log %S and open recursive edit" range)
+           ,(lambda ()
+              (when (and (straight--ensure-magit-p 'magit-log)
+                         (fboundp 'magit-log-setup-buffer)
+                         (fboundp 'magit-log-arguments))
+                (let ((args (car (magit-log-arguments)))
+                      (default-directory straight--default-directory))
+                  (when (and diverged
+                             (not (member "--left-right" args)))
+                    (setq args (cons "--left-right" args)))
+                  (magit-log-setup-buffer (list range) args nil)
+                  (straight--recursive-edit)))))))))))
+
+(defun straight-vc-git--ensure-head-at-branch (local-repo default-branch)
+  "Ensure that LOCAL-REPO has its DEFAULT-BRANCH checked out.
+Untracked files may cause conflicts on checkout or be deleted without
+confirmation by reset, so this function should only be run after
+`straight-vc-git--ensure-worktree' has passed."
+  (let ((status (straight-vc-git--compare-and-canonicalize
+                 default-branch "HEAD")))
+    (straight--with-plist status
+        (left-ref head-ref same head-detached failure)
+      (cond
+       (failure
+        (straight-vc-git--popup
+          (format "In repository %S, failed to get status:\n\n%s"
+                  local-repo (straight--split-and-trim failure 2))))
+       ((not same)
+        (straight-vc-git--reconcile-interactively local-repo status))
+       ;; Else if we're at the right commit but on the wrong branch:
+       ((not (string= head-ref left-ref))
+        (if straight-vc-git-auto-fast-forward
+            (straight--process-output "git" "checkout" left-ref)
+          (straight-vc-git--popup
+            (concat (format "In repository %S, " local-repo)
+                    (if head-detached
+                        "detached HEAD"
+                      (format "HEAD on %S" head-ref))
+                    (format " is even with default branch %S."
+                            left-ref))
+            ("c" (if head-detached
+                     (format "Attach HEAD to %S" left-ref)
+                   (format "Checkout %S" left-ref))
+             (straight--process-output "git" "checkout" left-ref)))))
+       ;; Else done; default branch is checked out:
+       (t t)))))
+
+(defun straight-vc-git--ensure-default-branch-current
+    (local-repo default-branch remote-branch)
+  "Ensure LOCAL-REPO's DEFAULT-BRANCH is ahead of REMOTE-BRANCH.
+DEFAULT-BRANCH must be checked out, so this function typically runs
+after e.g. `straight-vc-git--ensure-local'.
+Untracked files may cause conflicts on checkout or be deleted without
+confirmation by reset, so this function should only be run after
+`straight-vc-git--ensure-worktree' has passed."
+  (let ((status (straight-vc-git--compare-and-canonicalize
+                 default-branch remote-branch)))
+    (straight--with-plist status
+        (head-ref left-ref right-ref left-is-ancestor right-is-ancestor
+                  failure)
+      (cond
+       (failure
+        (straight-vc-git--popup
+          (format "In repository %S, failed to get status:\n\n%s"
+                  local-repo (straight--split-and-trim failure 2))))
+       ((not (string= head-ref left-ref))
+        (error (concat "Error: In repository %S, expected default branch"
+                       " %S but %S is checked out instead")
+               local-repo default-branch head-ref))
+       ;; Upstream is at or behind tracking branch.
+       (right-is-ancestor t)
+       ;; Auto fast-forward when tracking branch is behind upstream.
+       ((and left-is-ancestor straight-vc-git-auto-fast-forward)
+        (straight--process-output "git" "merge" "--ff-only" right-ref)
+        t)
+       (t (straight-vc-git--reconcile-interactively local-repo status))))))
 
 (cl-defun straight-vc-git--merge-from-remote-raw (recipe remote remote-branch)
   "Using straight.el-style RECIPE, merge from REMOTE.
@@ -2182,7 +2334,7 @@ name."
                               remote local-repo))))
       (while t
         (and (straight-vc-git--ensure-local recipe)
-             (or (straight-vc-git--ensure-head
+             (or (straight-vc-git--ensure-default-branch-current
                   local-repo remote-branch
                   (format "%s/%s" remote remote-branch))
                  (straight-register-repo-modification local-repo))
@@ -2257,7 +2409,7 @@ communication is done with the remotes."
     (and (straight-vc-git--ensure-remotes recipe)
          (or (and (straight-vc-git--ensure-nothing-in-progress local-repo)
                   (straight-vc-git--ensure-worktree local-repo)
-                  (straight-vc-git--ensure-head
+                  (straight-vc-git--ensure-head-at-branch
                    local-repo
                    (or branch (straight-vc-git--default-remote-branch
                                remote local-repo))))
