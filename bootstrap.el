@@ -43,9 +43,9 @@
         ;; `emacs-version-changed' if the version of Emacs has changed
         ;; since the last time it was byte-compiled. This prevents us
         ;; from accidentally loading invalid byte-code, hopefully.
-        (load (expand-file-name (concat straight.el "c")
-                                default-directory)
-              nil 'nomessage 'nosuffix)
+        (load (file-name-sans-extension
+               (expand-file-name straight.el default-directory))
+              nil 'nomessage)
         (setq emacs-version-changed nil))
       (when emacs-version-changed
         ;; In safe mode, sacrifice performance for safety.
@@ -54,9 +54,9 @@
           ;; Don't use the optional LOAD argument for
           ;; `byte-compile-file' because it emits a message.
           (byte-compile-file straight.el)
-          (load (expand-file-name (concat straight.el "c")
-                                  default-directory)
-                nil 'nomessage 'nosuffix))))))
+          (load (file-name-sans-extension
+                 (expand-file-name straight.el default-directory))
+                nil 'nomessage))))))
 
 ;; This assures the byte-compiler that we know what we are doing when
 ;; we reference functions and variables from straight.el below. It
