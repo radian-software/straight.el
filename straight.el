@@ -2961,6 +2961,33 @@ Return a list of package names as strings."
         (setq recipes (nconc recipes (straight-recipes
                                       'list source cause)))))))
 
+(defcustom straight-built-in-pseudo-packages '(emacs nadvice python)
+  "List of built-in packages that aren't real packages.
+If any of these are specified as dependencies, straight.el will
+just skip them instead of looking for a recipe.
+
+Another application of this variable is to correctly handle the
+situation where a package is built-in but Emacs incorrectly
+claims that it's not (see
+<https://github.com/raxod502/straight.el/issues/548>).
+
+Note that straight.el can deal with built-in packages even if
+this variable is set to nil. This just allows you to tell
+straight.el to not even bother cloning recipe repositories to
+look for recipes for these packages."
+  :type '(repeat symbol))
+
+(defun straight-recipe-source (package)
+  "Return recipe respository used to obtain PACKAGE recipe.
+If package is not found in any `straight-recipe-repositories', return nil."
+  (unless (member (intern package)
+                  (append straight-built-in-pseudo-packages '(straight)))
+    (cl-some
+     (lambda (repo)
+       (let ((recipe-repo (gethash repo straight--recipe-lookup-cache)))
+         (and (gethash package recipe-repo) repo)))
+     straight-recipe-repositories)))
+
 ;;;;;; Org
 (defcustom straight-byte-compilation-buffer "*straight-byte-compilation*"
   "Name of the byte compilation log buffer.
@@ -3376,22 +3403,6 @@ uses one of the Git fetchers, return it; otherwise return nil."
   1)
 
 ;;;;; Recipe conversion
-
-(defcustom straight-built-in-pseudo-packages '(emacs nadvice python)
-  "List of built-in packages that aren't real packages.
-If any of these are specified as dependencies, straight.el will
-just skip them instead of looking for a recipe.
-
-Another application of this variable is to correctly handle the
-situation where a package is built-in but Emacs incorrectly
-claims that it's not (see
-<https://github.com/raxod502/straight.el/issues/548>).
-
-Note that straight.el can deal with built-in packages even if
-this variable is set to nil. This just allows you to tell
-straight.el to not even bother cloning recipe repositories to
-look for recipes for these packages."
-  :type '(repeat symbol))
 
 (defvar straight--build-keywords '(:build
                                    :files
@@ -6657,8 +6668,7 @@ Interactively, or when MESSAGE is non-nil, show in the echo area."
   "Name of the bug report subprocess buffer.")
 
 (defvar straight-bug-report--setup
-  '((setq straight-repository-branch "develop")
-    (setq debug-on-error t))
+  '((setq straight-repository-branch "develop"))
   "Static setup portion of bug report metaprogram.")
 
 (defun straight-bug-report--format (&rest preamble)
@@ -6713,6 +6723,42 @@ If PREAMBLE is non-nil, it is inserted after the instructions."
       (emacs-lisp-mode)
       (indent-region (point-min) (point-max))
       (buffer-substring-no-properties (point-min) (point-max)))))
+
+(defun straight-bug-report-package-info ()
+  "Return info for each built package.
+Info is a plist of form:
+  (:package PACKAGE :source SOURCE :version VERSION)"
+  (mapcar
+   (lambda (cell)
+     (let* ((package (car cell))
+            (repo (cdr cell))
+            (source (straight-recipe-source package))
+            (version
+             (when repo
+               (let ((default-directory (straight--repos-dir repo)))
+                 (format "%s %s"
+                         (straight-vc-git--local-branch "HEAD")
+                         (straight--process-output
+                          "git" "show" "-s" "--format=%h %cs"))))))
+       (append
+        (list :package package)
+        (when source (list :source source))
+        (when version (list :version version)))))
+   (let ((cells '()))
+     (maphash
+      (lambda (key val)
+        (setq cells (push (cons key (plist-get (nth 2 val) :local-repo))
+                          cells)))
+      straight--build-cache)
+     (nreverse cells))))
+
+(defun straight-bug-report--format-package-info (info)
+  "Return Formatted `straight-bug-report-package-info' INFO."
+  (mapconcat (lambda (info)
+               (straight--with-plist info
+                   (package (source "n/a") (version "n/a"))
+                 (format "%-25S %-20s %s" package source version)))
+             info "\n"))
 
 ;;;###autoload
 (defmacro straight-bug-report (&rest args)
@@ -6803,21 +6849,31 @@ locally bound plist, straight-bug-report-args."
                   ;; Add full path of user-dir.
                   (setq plist (plist-put plist :executable executable))
                   (setq plist (plist-put plist :user-dir temp-dir))))
-         (program (let ((print-level nil)
-                        (print-length nil))
-                    (pp-to-string
-                     ;; The top-level `let' is an intentional local
-                     ;; variable binding. We want users of
-                     ;; `straight-bug-report' to have access to their
-                     ;; args within :pre/:post-bootstrap programs. Since
-                     ;; we are binding with the package namespace, this
-                     ;; should not overwrite other user bindings.
-                     (append `(let ((straight-bug-report-args ',pargs)))
-                             `((setq user-emacs-directory ,temp-dir))
-                             straight-bug-report--setup
-                             (alist-get :pre-bootstrap keywords)
-                             straight-bug-report--bootstrap
-                             (alist-get :post-bootstrap keywords))))))
+         (program
+          (let ((print-level nil)
+                (print-length nil))
+            (pp-to-string
+             ;; The top-level `let' is an intentional local
+             ;; variable binding. We want users of
+             ;; `straight-bug-report' to have access to their
+             ;; args within :pre/:post-bootstrap programs. Since
+             ;; we are binding with the package namespace, this
+             ;; should not overwrite other user bindings.
+             (append
+              '(with-demoted-errors "Error: %S")
+              `(,(append
+                  `(let ((straight-bug-report-args ',pargs)))
+                  `((setq user-emacs-directory ,temp-dir))
+                  straight-bug-report--setup
+                  (alist-get :pre-bootstrap keywords)
+                  straight-bug-report--bootstrap
+                  `(,(append
+                      '(unwind-protect)
+                      `((progn ,@(alist-get :post-bootstrap keywords)))
+                      '((message
+                         "Packages:\n%s\n"
+                         (straight-bug-report--format-package-info
+                          (straight-bug-report-package-info)))))))))))))
     `(let* ((,preserve-files    ,(car (alist-get :preserve keywords)))
             (,interactive       ,(car (alist-get :interactive keywords)))
             (,emacs-executable  ,executable)
