@@ -85,6 +85,9 @@
       (error "The `straight-repository-branch' must be a string (was: %S)"
              straight-repository-branch)))
 
+  (unless (executable-find "git")
+    (user-error "Git executable not found. straight.el requires git"))
+
   ;; Load some libraries.
   (require 'cl-lib)
   (require 'url-http)
