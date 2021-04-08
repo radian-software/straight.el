@@ -3495,10 +3495,13 @@ for dependency resolution."
                         (cl-return-from straight--convert-recipe
                           `(:type built-in :package
                                   ,(symbol-name melpa-style-recipe)))
-                      (error (concat "Could not find package %S "
-                                     "in recipe repositories: %S")
-                             melpa-style-recipe
-                             straight-recipe-repositories))))))
+                      (error
+                       (concat "Could not find package %S. "
+                               "Updating recipe repositories: %S "
+                               "with `straight-pull-recipe-repositories' "
+                               "may fix this")
+                       melpa-style-recipe
+                       straight-recipe-repositories))))))
         ;; MELPA-style recipe format is a list whose car is the
         ;; package name as a symbol, and whose cdr is a plist.
 
