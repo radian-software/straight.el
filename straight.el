@@ -5842,7 +5842,8 @@ packages will have their build directories deleted."
     ;; paranoid with recursive deletes.)
     (unless (or (string-match-p "^\\.\\.?$" package)
                 (gethash package straight--profile-cache))
-      (delete-directory (straight--build-dir package) 'recursive))))
+      (delete-directory (straight--build-dir package) 'recursive)
+      (message "%s pruned from build directory" package))))
 
 ;;;###autoload
 (defun straight-prune-build ()
