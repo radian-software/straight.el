@@ -2252,13 +2252,18 @@ next time around."
               (when (and (straight--ensure-magit-p 'magit-log)
                          (fboundp 'magit-log-setup-buffer)
                          (fboundp 'magit-log-arguments))
-                (let ((args (car (magit-log-arguments)))
-                      (default-directory straight--default-directory))
+                ;; `magit-log-arguments' and `magit-log-setup-buffer'
+                ;; must run in the git repo's local directory.
+                (let* ((default-directory straight--default-directory)
+                       (args (car (magit-log-arguments))))
                   (when (and diverged
                              (not (member "--left-right" args)))
                     (setq args (cons "--left-right" args)))
-                  (magit-log-setup-buffer (list range) args nil)
-                  (straight--recursive-edit)))))))))))
+                  (magit-log-setup-buffer (list range) args nil))
+                ;; Be careful not to bind `default-directory' around
+                ;; recursive edit, see docstring for
+                ;; `straight--default-directory'.
+                (straight--recursive-edit))))))))))
 
 (defun straight-vc-git--ensure-head-at-branch (local-repo default-branch)
   "Ensure that LOCAL-REPO has its DEFAULT-BRANCH checked out.
