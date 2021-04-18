@@ -5816,7 +5816,7 @@ autoloads discarded."
     (unless (gethash package straight--profile-cache)
       (remhash package straight--build-cache)
       (remhash package straight--autoloads-cache)
-      (message "%s pruned from build cache" package)))
+      (message "Pruned %s from build cache" package)))
   (dolist (source (hash-table-keys straight--recipe-lookup-cache))
     (if (gethash (symbol-name source) straight--profile-cache)
         (let ((table (gethash source straight--recipe-lookup-cache)))
