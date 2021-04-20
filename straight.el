@@ -2466,7 +2466,7 @@ clone of everything."
                 (apply #'straight--process-output
                        "git" "remote" "add" remote url
                        (when branch `("--master" ,branch)))
-                (when (not branch)
+                (unless branch
                   (straight--process-output
                    "git" "branch" "-m"
                    (straight-vc-git--default-remote-branch remote repo-dir)))
