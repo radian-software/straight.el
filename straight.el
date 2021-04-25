@@ -2461,10 +2461,15 @@ clone of everything."
               (make-directory repo-dir)
               (let ((straight--default-directory nil)
                     (default-directory repo-dir))
-                (straight--process-output "git" "init")
+                (apply #'straight--process-output
+                       "git" "init" (when branch `("-b" ,branch)))
                 (apply #'straight--process-output
                        "git" "remote" "add" remote url
                        (when branch `("--master" ,branch)))
+                (unless branch
+                  (straight--process-output
+                   "git" "branch" "-m"
+                   (straight-vc-git--default-remote-branch remote repo-dir)))
                 (straight--process-output
                  "git" "fetch" remote commit
                  "--depth" (number-to-string depth)
