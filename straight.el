@@ -5034,7 +5034,6 @@ individual package recipe."
                   (string-match-p re file))
                 comp-deferred-compilation-deny-list)))
 
-
 (defun straight--build-native-compile (recipe)
   "Queue native compilation for the symlinked package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
@@ -5042,7 +5041,9 @@ function only modifies the build folder, not the original
 repository. Also note that native compilation occurs
 asynchronously, and will continue in the background after
 `straight-use-package' returns."
-  (when (and (fboundp 'native-compile-async)
+  (when (and (fboundp 'native-comp-available-p)
+             (native-comp-available-p)
+             (fboundp 'native-compile-async) ; Silences byte-compiler.
              (member 'straight--build-compile straight--build-functions))
     (require 'comp)
     (straight--with-plist recipe (package)
