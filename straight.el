@@ -2429,7 +2429,10 @@ communication is done with the remotes."
 The value should be the symbol `full' or an integer. If the value
 is `full', clone the whole history of repositories. If the value
 is an integer N, remote repositories are cloned with the options
---depth N --no-single-branch --no-tags."
+--depth N --no-single-branch --no-tags.
+
+The value may also be a list containing one of the above values and
+the symbol `single-branch' to override the --no-single-branch option."
   :group 'straight
   :type '(choice integer (const full)))
 
@@ -2441,6 +2444,9 @@ If DEPTH is the symbol `full', clone the whole history of the
 repository. If DEPTH is an integer, pass it to the --depth option
 of git-clone to perform a shallow clone. If this fails, try again
 to clone without the option --depth and --branch, as a fallback.
+If DEPTH is a list, it may specify whether or not to clone a single branch.
+e.g. '(full single-branch) translates to --single-branch, whereas
+\\='(full) translates to --no-single-branch.
 
 REMOTE is the name of the remote to use \(e.g. \"origin\"; see
 `straight-vc-git-default-remote-name'). URL and REPO-DIR are the
@@ -2451,53 +2457,58 @@ per --no-checkout).
 If COMMIT is non-nil and DEPTH is not `full', then try to clone
 only that specific commit from the remote. Fall back to doing a
 clone of everything."
-  (cond
-   ((eq depth 'full)
-    ;; Clone the whole history of the repository.
-    (apply #'straight--process-output
-           "git" "clone" "--origin" remote
-           "--no-checkout" url repo-dir
-           (when branch `("--branch" ,branch))))
-   ((integerp depth)
-    ;; Do a shallow clone.
-    (condition-case nil
-        (if commit
-            (progn
-              (make-directory repo-dir)
-              (let ((straight--default-directory nil)
-                    (default-directory repo-dir))
-                (apply #'straight--process-output
-                       "git" "init" (when branch `("-b" ,branch)))
-                (apply #'straight--process-output
-                       "git" "remote" "add" remote url
-                       (when branch `("--master" ,branch)))
-                (unless branch
+  (let ((single-branch-p (when (listp depth)
+                           (prog1
+                               (eq (cadr depth) 'single-branch)
+                             (setq depth (pop depth))))))
+    (cond
+     ((eq depth 'full)
+      ;; Clone the whole history of the repository.
+      (apply #'straight--process-output
+             "git" "clone" "--origin" remote
+             "--no-checkout" url repo-dir
+             (if single-branch-p "--single-branch" "--no-single-branch")
+             (when branch `("--branch" ,branch))))
+     ((integerp depth)
+      ;; Do a shallow clone.
+      (condition-case nil
+          (if commit
+              (progn
+                (make-directory repo-dir)
+                (let ((straight--default-directory nil)
+                      (default-directory repo-dir))
+                  (apply #'straight--process-output
+                         "git" "init" (when branch `("-b" ,branch)))
+                  (apply #'straight--process-output
+                         "git" "remote" "add" remote url
+                         (when branch `("--master" ,branch)))
+                  (unless branch
+                    (straight--process-output
+                     "git" "branch" "-m"
+                     (straight-vc-git--default-remote-branch remote repo-dir)))
                   (straight--process-output
-                   "git" "branch" "-m"
-                   (straight-vc-git--default-remote-branch remote repo-dir)))
-                (straight--process-output
-                 "git" "fetch" remote commit
-                 "--depth" (number-to-string depth)
-                 "--no-tags")))
-          (when (file-exists-p repo-dir)
-            (delete-directory repo-dir 'recursive))
-          (apply #'straight--process-output
-                 "git" "clone" "--origin" remote
-                 "--no-checkout" url repo-dir
-                 "--depth" (number-to-string depth)
-                 "--no-single-branch"
-                 "--no-tags"
-                 (when branch `("--branch" ,branch))))
-      ;; Fallback for dumb http protocol.
-      (error
-       (when (file-exists-p repo-dir)
-         (delete-directory repo-dir 'recursive))
-       (straight-vc-git--clone-internal :depth 'full
-                                        :remote remote
-                                        :url url
-                                        :repo-dir repo-dir
-                                        :branch branch))))
-   (t (error "Invalid value %S of depth for %s" depth url))))
+                   "git" "fetch" remote commit
+                   "--depth" (number-to-string depth)
+                   "--no-tags")))
+            (when (file-exists-p repo-dir)
+              (delete-directory repo-dir 'recursive))
+            (apply #'straight--process-output
+                   "git" "clone" "--origin" remote
+                   "--no-checkout" url repo-dir
+                   "--depth" (number-to-string depth)
+                   (if single-branch-p "--single-branch" "--no-single-branch")
+                   "--no-tags"
+                   (when branch `("--branch" ,branch))))
+        ;; Fallback for dumb http protocol.
+        (error
+         (when (file-exists-p repo-dir)
+           (delete-directory repo-dir 'recursive))
+         (straight-vc-git--clone-internal :depth 'full
+                                          :remote remote
+                                          :url url
+                                          :repo-dir repo-dir
+                                          :branch branch))))
+     (t (error "Invalid value %S of depth for %s" depth url)))))
 
 ;;;;;; API
 
