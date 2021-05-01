@@ -218,7 +218,9 @@ inheritance enabled.
 
 \\='(package :fork (:repo \"my-user/repo\"))
 
-\\='(package :fork \"my-user/repo\")"
+\\='(package :fork \"my-user/repo\")
+
+The `:inherit' keyword overrides this option on a per-recipe basis."
   :type 'boolean)
 
 (defcustom straight-safe-mode nil
@@ -3528,39 +3530,44 @@ for dependency resolution."
           ;; override the default value (which is determined according
           ;; to the selected VC backend).
           ;;
-          (when straight-allow-recipe-inheritance
-            ;; To keep overridden recipes simple, some keywords can be
-            ;; inherited from the original recipe. This is done by
-            ;; looking in original and finding all keywords that are
-            ;; not present in the override and adding them there.
-            (let* ((sources (plist-get plist :source))
-                   (default
-                     (or
-                      (when-let ((retrieved (straight-recipes-retrieve
-                                             package
-                                             (if (listp sources)
-                                                 sources
-                                               (list sources)))))
-                        ;; Recipes retrieved from files may be backquoted.
-                        (cdr (if (straight--quoted-form-p retrieved)
-                                 (eval retrieved) retrieved)))
-                      plist))
-                   (type (or (plist-get default :type) 'git))
-                   (keywords
-                    (append straight--build-keywords
-                            (unless (eq type 'built-in)
-                              (straight-vc-keywords type)))))
-              ;; Compute :fork repo name
-              (when-let ((fork (plist-get plist :fork)))
-                (straight--put default :fork fork)
-                ;; Covers cases where :fork is a string or t
-                (unless (listp fork) (setq fork '()))
-                (straight--put fork :repo (straight-vc-git--fork-repo default))
-                (straight--put plist :fork fork))
-              (dolist (keyword keywords)
-                (unless (plist-member plist keyword)
-                  (when-let ((value (plist-get default keyword)))
-                    (setq plist (plist-put plist keyword value)))))))
+          (let* ((inherit (plist-member plist :inherit))
+                 (inheritance (if inherit
+                                  (cadr inherit)
+                                straight-allow-recipe-inheritance)))
+            (when inheritance
+              ;; To keep overridden recipes simple, some keywords can be
+              ;; inherited from the original recipe. This is done by
+              ;; looking in original and finding all keywords that are
+              ;; not present in the override and adding them there.
+              (let* ((sources (plist-get plist :source))
+                     (default
+                       (or
+                        (when-let ((retrieved (straight-recipes-retrieve
+                                               package
+                                               (if (listp sources)
+                                                   sources
+                                                 (list sources)))))
+                          ;; Recipes retrieved from files may be backquoted.
+                          (cdr (if (straight--quoted-form-p retrieved)
+                                   (eval retrieved) retrieved)))
+                        plist))
+                     (type (or (plist-get default :type) 'git))
+                     (keywords
+                      (append straight--build-keywords
+                              (unless (eq type 'built-in)
+                                (straight-vc-keywords type)))))
+                ;; Compute :fork repo name
+                (when-let ((fork (plist-get plist :fork)))
+                  (straight--put default :fork fork)
+                  ;; Covers cases where :fork is a string or t
+                  (unless (listp fork) (setq fork '()))
+                  (straight--put fork :repo
+                                 (straight-vc-git--fork-repo default))
+                  (straight--put plist :fork fork))
+                (dolist (keyword keywords)
+                  (unless (plist-member plist keyword)
+                    (when-let ((value (plist-get default keyword)))
+                      (setq plist (plist-put plist keyword value))))))))
           ;; The normalized recipe format will have the package name
           ;; as a string, not a symbol.
           (let ((package (symbol-name package)))
