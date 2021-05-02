@@ -435,10 +435,8 @@ integer, and any lines past that many are discarded."
     ;; Add indentation.
     (if indent
         (let ((indent (make-string (or indent 0) ? )))
-          (string-join (mapcar (lambda (part)
-                                 (concat indent part))
-                               parts)
-                       "\n"))
+          (mapconcat (lambda (part) (concat indent part))
+                     parts "\n"))
       parts)))
 
 (cl-defun straight--uniquify (prefix taken)
@@ -6186,11 +6184,9 @@ according to the value of `straight-profiles'."
                  (straight-are-you-sure
                   (format (concat "The following packages were not pushed:"
                                   "\n\n  %s\n\nReally write lockfiles?")
-                          (string-join
-                           (mapcar (lambda (recipe)
-                                     (plist-get recipe :local-repo))
-                                   unpushed-recipes)
-                           ", ")))))))
+                          (mapconcat
+                           (lambda (recipe) (plist-get recipe :local-repo))
+                           unpushed-recipes ", ")))))))
     (straight--map-repos
      (lambda (recipe)
        (straight--with-plist recipe
@@ -6716,26 +6712,25 @@ If PREAMBLE is non-nil, it is inserted after the instructions."
       (erase-buffer)
       (when (fboundp 'markdown-mode) (markdown-mode))
       (insert
-       (string-join
-        (mapcar
-         (lambda (el) (apply #'format el))
-         `(("<!-- copy entire buffer output and paste in an issue at:")
-           ("https://github.com/raxod502/straight.el/issues/new/choose -->")
-           ,@(when preamble
-               `(("<details><summary>Test Case</summary>")
-                 ("\n```emacs-lisp")
-                 ("%s" ,@preamble)
-                 ("```")
-                 ("</details>\n")))
-           ,(list (format-time-string "- Test run at: `%Y-%m-%d %H:%M:%S`"))
-           ("- system-type: `%s`" ,system-type)
-           ("- straight-version: `%s`" ,(straight-version))
-           ("- emacs-version: `%s`" ,(emacs-version))
-           ("\n<details><summary>Output</summary>")
-           ("\n```emacs-lisp")
-           ("%s" ,output)
-           ("```")
-           ("</details>")))
+       (mapconcat
+        (lambda (el) (apply #'format el))
+        `(("<!-- copy entire buffer output and paste in an issue at:")
+          ("https://github.com/raxod502/straight.el/issues/new/choose -->")
+          ,@(when preamble
+              `(("<details><summary>Test Case</summary>")
+                ("\n```emacs-lisp")
+                ("%s" ,@preamble)
+                ("```")
+                ("</details>\n")))
+          ,(list (format-time-string "- Test run at: `%Y-%m-%d %H:%M:%S`"))
+          ("- system-type: `%s`" ,system-type)
+          ("- straight-version: `%s`" ,(straight-version))
+          ("- emacs-version: `%s`" ,(emacs-version))
+          ("\n<details><summary>Output</summary>")
+          ("\n```emacs-lisp")
+          ("%s" ,output)
+          ("```")
+          ("</details>"))
         "\n")))))
 
 (defun straight-bug-report--report-form (form)
