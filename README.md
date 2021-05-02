@@ -2089,6 +2089,12 @@ Its value may also be a list of symbols indicating multiple packages:
 (straight-use-package '(example :includes (foo bar)))
 ```
 
+* `:inherit`
+
+Overrides `straight-allow-recipe-inheritance` on a per-recipe basis.
+If its value is non-nil, inheritance is enabled for the recipe.
+Otherwise it is not.
+
 #### Version-control backends
 
 Defining a version-control backend consists of declaring a number of
