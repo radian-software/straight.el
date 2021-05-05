@@ -3090,7 +3090,7 @@ Otherwise return nil."
 
 (defun straight-recipes-org-elpa-list ()
   "Return a list of Org ELPA pseudo-packages, as a list of strings."
-  (list "org" "org-plus-contrib"))
+  (list "org" "org-contrib"))
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
