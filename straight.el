@@ -1835,6 +1835,9 @@ See also `straight-vc-git--decode-url'."
   (pcase host
     ('nil repo)
     ((or 'github 'gitlab 'bitbucket)
+     (when (string-match-p ":" repo)
+       (error "Malformed protocol detected: (:host %S :repo %S)"
+              host repo))
      (let ((domain (pcase host
                      ('bitbucket "bitbucket.org")
                      (_ (format "%s.com" host)))))
