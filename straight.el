@@ -5070,33 +5070,25 @@ This can be overridden by the `:build' property of an
 individual package recipe."
   :type 'boolean)
 
-(defun straight--native-compile-file-p (file)
-  "Predicate to check whether FILE should be native-compiled."
-  (not (cl-some (lambda (re)
-                  (string-match-p re file))
-                native-comp-deferred-compilation-deny-list)))
-
 (defun straight--build-native-compile (recipe)
-  "Queue native compilation for the symlinked package specified by RECIPE.
-RECIPE should be a straight.el-style plist. Note that this
-function only modifies the build folder, not the original
-repository. Also note that native compilation occurs
-asynchronously, and will continue in the background after
-`straight-use-package' returns."
+  "Queue native compilation for RECIPE's package.
+RECIPE should be a straight.el-style plist.
+Native compilation occurs asynchronously, and will continue in the
+background after `straight-use-package' returns."
   (when (and straight--native-comp-available
              (member 'straight--build-compile straight--build-functions))
     (require 'comp)
     (straight--with-plist recipe (package)
-      ;; Queue compilation for this package
-      (let ((inhibit-message t)
-            (message-log-max nil))
-        (native-compile-async
-         (straight--build-dir package)
-         'recursively nil
-         #'straight--native-compile-file-p))
-      ;; Prevent compilation of this package
-      (add-to-list 'native-comp-deferred-compilation-deny-list
-                   (format "^%s" (straight--build-dir package))))))
+      (let ((build-dir (straight--build-dir package)))
+        (when (and straight--build-cache
+                   (gethash package straight--build-cache))
+          (let ((regexp (format "^%s" build-dir)))
+            (setq native-comp-deferred-compilation-deny-list
+                  (cl-remove-if (lambda (denied) (string= denied regexp))
+                                native-comp-deferred-compilation-deny-list))))
+        (let ((inhibit-message t)
+              (message-log-max nil))
+          (native-compile-async build-dir 'recursively))))))
 
 ;;;;; Info compilation
 
@@ -5683,6 +5675,14 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
                (straight--add-package-to-load-path recipe))
              (run-hook-with-args
               'straight-use-package-prepare-functions package)
+             ;; Prevent deferred native compilation of packages which
+             ;; explicitly disable it.
+             (when-let ((build (cadr (plist-member recipe :build))))
+               (when (and (eq (car-safe build) :not)
+                          (member 'native-compile (cdr build)))
+                 (cl-pushnew (format "^%s" (straight--build-dir package))
+                             native-comp-deferred-compilation-deny-list
+                             :test #'string=)))
              (when (and modified (not no-build))
                (run-hook-with-args
                 'straight-use-package-pre-build-functions package)
