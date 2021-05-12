@@ -72,7 +72,7 @@ They are still logged to the *Messages* buffer.")))
 ;;;; Functions from other packages
 
 ;; `comp'
-(defvar comp-deferred-compilation-deny-list)
+(defvar native-comp-deferred-compilation-deny-list)
 
 ;; `finder-inf'
 (defvar package--builtins)
@@ -5068,7 +5068,7 @@ individual package recipe."
   "Predicate to check whether FILE should be native-compiled."
   (not (cl-some (lambda (re)
                   (string-match-p re file))
-                comp-deferred-compilation-deny-list)))
+                native-comp-deferred-compilation-deny-list)))
 
 (defun straight--build-native-compile (recipe)
   "Queue native compilation for the symlinked package specified by RECIPE.
@@ -5091,7 +5091,7 @@ asynchronously, and will continue in the background after
          'recursively nil
          #'straight--native-compile-file-p))
       ;; Prevent compilation of this package
-      (add-to-list 'comp-deferred-compilation-deny-list
+      (add-to-list 'native-comp-deferred-compilation-deny-list
                    (format "^%s" (straight--build-dir package))))))
 
 ;;;;; Info compilation
