@@ -5058,7 +5058,8 @@ repository."
 (define-obsolete-variable-alias 'straight-disable-native-compilation
   'straight-disable-native-compile "2021-01-01")
 
-(defcustom straight-disable-native-compile nil
+(defcustom straight-disable-native-compile
+  (not (and (fboundp 'native-comp-available-p) (native-comp-available-p)))
   "Non-nil means do not `native-compile' packages by default.
 This can be overridden by the `:build' property of an
 individual package recipe."
