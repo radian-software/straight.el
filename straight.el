@@ -72,6 +72,7 @@ They are still logged to the *Messages* buffer.")))
 ;;;; Functions from other packages
 
 ;; `comp'
+(declare-function native-compile-async "comp.el")
 (defvar native-comp-deferred-compilation-deny-list)
 
 ;; `finder-inf'
@@ -5058,8 +5059,12 @@ repository."
 (define-obsolete-variable-alias 'straight-disable-native-compilation
   'straight-disable-native-compile "2021-01-01")
 
+(defconst straight--native-comp-available
+  (and (fboundp 'native-comp-available-p) (native-comp-available-p))
+  "Non-nil if Emacs was compiled with native compilation support.")
+
 (defcustom straight-disable-native-compile
-  (not (and (fboundp 'native-comp-available-p) (native-comp-available-p)))
+  (not straight--native-comp-available)
   "Non-nil means do not `native-compile' packages by default.
 This can be overridden by the `:build' property of an
 individual package recipe."
@@ -5078,9 +5083,7 @@ function only modifies the build folder, not the original
 repository. Also note that native compilation occurs
 asynchronously, and will continue in the background after
 `straight-use-package' returns."
-  (when (and (fboundp 'native-comp-available-p)
-             (native-comp-available-p)
-             (fboundp 'native-compile-async) ; Silences byte-compiler.
+  (when (and straight--native-comp-available
              (member 'straight--build-compile straight--build-functions))
     (require 'comp)
     (straight--with-plist recipe (package)
