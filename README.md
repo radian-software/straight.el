@@ -777,7 +777,7 @@ packages anywhere, like Cask does. Instead, it determines what
 packages are to be loaded implicitly, by your invocations of
 `straight-use-package` during Emacs initialization. Furthermore,
 `straight.el` allows you to install packages after initialization
-using `M-x straight-install-package` (or even by evaluating
+using `M-x straight-use-package` (or even by evaluating
 `straight-use-package` forms). However, `straight.el` still provides
 advanced features such as bulk package management and version locking.
 This creates some interesting challenges which other package managers
@@ -1955,10 +1955,11 @@ meaning in a recipe (unknown keywords are ignored but preserved):
 ```emacs-lisp
 (example :build (:not compile info))
 ```
-    Steps may be disabled globally for recipes which do not explicilty
-    declare their `:build` via the defcustom variables named
-    `straight--build-SYMBOL`. e.g. The last example but for all recipes
-    without a `:build`:
+
+   Steps may be disabled globally for recipes which do not explicilty
+   declare their `:build` via the defcustom variables named
+   `straight--build-SYMBOL`. e.g. The last example but for all recipes
+   without a `:build`:
 
 ```emacs-lisp
 (setq straight-disable-compile t
@@ -1992,7 +1993,7 @@ In the absence of a `:build` keyword, `straight--build-default-steps` are run.
 ```emacs-lisp
 (straight-use-package
  '( example :type git :host github :repo "user/example.el"
-    :pre-build ("make all")))
+    :pre-build ("make" "all")))
 
 (straight-use-package
  `( example :type git :host github :repo "user/example.el"
@@ -2088,6 +2089,12 @@ Its value may also be a list of symbols indicating multiple packages:
 (straight-use-package '(example :includes (foo bar)))
 ```
 
+* `:inherit`
+
+Overrides `straight-allow-recipe-inheritance` on a per-recipe basis.
+If its value is non-nil, inheritance is enabled for the recipe.
+Otherwise it is not.
+
 #### Version-control backends
 
 Defining a version-control backend consists of declaring a number of
@@ -2140,8 +2147,23 @@ These are the keywords meaningful for the `git` backend:
 
 * `:repo`: the clone URL for the Git repository.
 * `:host`: either nil or one of the symbols `github`, `gitlab`,
-  `bitbucket`. If non-nil, then `:repo` should just be a string
-  "username/repo", and the URL is constructed automatically.
+  `bitbucket`.
+    * If nil, then `:repo` should be a string which is the full URL of
+    the target repository. For example:
+
+    ```emacs-lisp
+    ( :package "package" :host nil :type git
+      :repo "http://myhost.tld/repo")
+    ```
+
+    * If non-nil, then `:repo` should be a string "username/repo",
+    and the URL is constructed automatically.  For example:
+
+    ```emacs-lisp
+    ( :package "package" :host github :type git
+      :repo "username/repo")
+    ```
+
 * `:branch`: the name of the branch used for primary development, as a
   string. If your version lockfiles do not specify a commit to check
   out when the repository is cloned, then this branch is checked out,

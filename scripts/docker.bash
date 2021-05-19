@@ -3,11 +3,6 @@
 set -e
 set -o pipefail
 
-if [[ -n "$1" && "$1" != master && ! "$1" =~ [0-9]+\.[0-9]+ ]]; then
-    echo "docker.bash: malformed tag: $1" >&2
-    exit 1
-fi
-
 tag="${1:-latest}"
 
 args=(bash)
