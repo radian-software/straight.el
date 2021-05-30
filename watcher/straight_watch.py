@@ -47,7 +47,16 @@ def write_process_data(pid_file):
 def start_watch(repos_dir, modified_dir):
     callback_cmd = [CALLBACK_SCRIPT, repos_dir, modified_dir]
     callback_sh = " ".join(map(shlex.quote, callback_cmd))
-    cmd = ["watchexec", "--no-vcs-ignore", "-p", "-d", "100", callback_sh]
+    cmd = [
+        "watchexec",
+        "--no-vcs-ignore",
+        "-p",
+        "-d",
+        "100",
+        "-w",
+        repos_dir,
+        callback_sh,
+    ]
     cmd_sh = " ".join(map(shlex.quote, cmd))
     print("$ " + cmd_sh, file=sys.stderr)
     subprocess.run(cmd, cwd=repos_dir, check=True)
