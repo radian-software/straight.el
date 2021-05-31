@@ -2075,12 +2075,12 @@ In the absence of a `:build` keyword, `straight--build-default-steps` are run.
 * `:includes`
 
 Informs `straight.el` that a package is a superset of another package.
-For example `org-plus-contrib` includes `org`.
-The following will prevent `straight.el` from attempting to install `org`
-after `org-plus-contrib` has been installed:
+For example `org-contrib` includes `ol-vm`.
+The following will prevent `straight.el` from attempting to install `ol-vm`
+after `org-contrib` has been installed:
 
 ```emacs-lisp
-(straight-use-package '(org-plus-contrib :includes org))
+(straight-use-package '(org-contrib :includes ol-vm))
 ```
 
 Its value may also be a list of symbols indicating multiple packages:
@@ -3257,7 +3257,7 @@ with `require` or `load`, or find in files. For example, `org-agenda`
 and `org-capture` are features. Packages, on the other hand, can
 provide one or more features. They are what are listed on MELPA et al.
 or by `M-x straight-get-recipe`. For example, `org` and
-`org-plus-contrib` are packages.
+`org-contrib` are packages.
 
 When you write `(use-package foo ...)`, the `foo` is a *feature*, not
 a package. You can give a different package name `bar` by saying
@@ -3373,10 +3373,8 @@ Emacs ships an obsolete version of Org, (3) many users want to use the
 up-to-date version, and (4) Org breaks backwards compatibility
 frequently. To solve it, simply make sure that you invoke
 `(straight-use-package 'org)` or `(straight-use-package
-'org-plus-contrib)` before running any code that could load Org,
-including installing any package that lists it as a dependency. See
-also the [integration with Org][#user/integration/org] section for
-more fun problems you can encounter with Org.
+'org-contrib)` before running any code that could load Org,
+including installing any package that lists it as a dependency.
 
 See [this issue][#236] for discussion about ways of mitigating the bad
 UX of this situation.
@@ -3432,8 +3430,8 @@ version:
 
 ```emacs-lisp
 (let ((straight-current-profile 'pinned))
-  (straight-use-package 'org-plus-contrib)
   (straight-use-package 'org)
+  (straight-use-package 'org-contrib)
   ;; Pin org-mode version.
   (add-to-list 'straight-x-pinned-packages
                '("org" . "924308a150ab82014b69c46c04d1ab71e874a2e6")))
@@ -3524,7 +3522,6 @@ savings on network bandwidth and disk space.
   [#user/lockfiles/profiles]: #the-profile-system
  [#user/integration]: #integration-with-other-packages
   [#user/integration/use-package]: #integration-with-use-package-1
-  [#user/integration/org]: #integration-with-org
 [#dev]: #developer-manual
  [#dev/vc-backends]: #developer-manual
  [#dev/recipe-formats]: #developer-manual
