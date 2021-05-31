@@ -5677,12 +5677,13 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
               'straight-use-package-prepare-functions package)
              ;; Prevent deferred native compilation of packages which
              ;; explicitly disable it.
-             (when-let ((build (cadr (plist-member recipe :build))))
-               (when (and (eq (car-safe build) :not)
-                          (member 'native-compile (cdr build)))
-                 (cl-pushnew (format "^%s" (straight--build-dir package))
-                             native-comp-deferred-compilation-deny-list
-                             :test #'string=)))
+             (when (boundp 'native-comp-deferred-compilation-deny-list)
+               (when-let ((build (cadr (plist-member recipe :build))))
+                 (when (and (eq (car-safe build) :not)
+                            (member 'native-compile (cdr build)))
+                   (cl-pushnew (format "^%s" (straight--build-dir package))
+                               native-comp-deferred-compilation-deny-list
+                               :test #'string=))))
              (when (and modified (not no-build))
                (run-hook-with-args
                 'straight-use-package-pre-build-functions package)
