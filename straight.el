@@ -2468,7 +2468,7 @@ clone of everything."
     (cond
      ((eq depth 'full)
       ;; Clone the whole history of the repository.
-      (apply #'straight--process-output
+      (apply #'straight--process-run
              "git" "clone" "--origin" remote
              "--no-checkout" url repo-dir
              (if single-branch-p "--single-branch" "--no-single-branch")
@@ -2481,22 +2481,23 @@ clone of everything."
                 (make-directory repo-dir)
                 (let ((straight--default-directory nil)
                       (default-directory repo-dir))
-                  (apply #'straight--process-output
-                         "git" "init" (when branch `("-b" ,branch)))
-                  (apply #'straight--process-output
+                  (apply #'straight--process-run "git" "init")
+                  (when branch
+                    (straight--process-run "git" "branch" "-m" branch))
+                  (apply #'straight--process-run
                          "git" "remote" "add" remote url
                          (when branch `("--master" ,branch)))
                   (unless branch
-                    (straight--process-output
+                    (straight--process-run
                      "git" "branch" "-m"
                      (straight-vc-git--default-remote-branch remote repo-dir)))
-                  (straight--process-output
+                  (straight--process-run
                    "git" "fetch" remote commit
                    "--depth" (number-to-string depth)
                    "--no-tags")))
             (when (file-exists-p repo-dir)
               (delete-directory repo-dir 'recursive))
-            (apply #'straight--process-output
+            (apply #'straight--process-run
                    "git" "clone" "--origin" remote
                    "--no-checkout" url repo-dir
                    "--depth" (number-to-string depth)
