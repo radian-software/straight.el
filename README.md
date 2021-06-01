@@ -3372,9 +3372,8 @@ This problem commonly occurs with Org, since (1) Org is popular, (2)
 Emacs ships an obsolete version of Org, (3) many users want to use the
 up-to-date version, and (4) Org breaks backwards compatibility
 frequently. To solve it, simply make sure that you invoke
-`(straight-use-package 'org)` or `(straight-use-package
-'org-contrib)` before running any code that could load Org,
-including installing any package that lists it as a dependency.
+`(straight-use-package 'org)` before running any code that could load
+Org, including installing any package that lists it as a dependency.
 
 See [this issue][#236] for discussion about ways of mitigating the bad
 UX of this situation.
