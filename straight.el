@@ -2475,44 +2475,38 @@ clone of everything."
              (when branch `("--branch" ,branch))))
      ((integerp depth)
       ;; Do a shallow clone.
-      (condition-case nil
-          (if commit
-              (progn
-                (make-directory repo-dir)
-                (let ((straight--default-directory nil)
-                      (default-directory repo-dir))
-                  (apply #'straight--process-run "git" "init")
-                  (when branch
-                    (straight--process-run "git" "branch" "-m" branch))
-                  (apply #'straight--process-run
-                         "git" "remote" "add" remote url
-                         (when branch `("--master" ,branch)))
-                  (unless branch
-                    (straight--process-run
-                     "git" "branch" "-m"
-                     (straight-vc-git--default-remote-branch remote repo-dir)))
-                  (straight--process-run
-                   "git" "fetch" remote commit
-                   "--depth" (number-to-string depth)
-                   "--no-tags")))
-            (when (file-exists-p repo-dir)
-              (delete-directory repo-dir 'recursive))
+      (if commit
+          (let ((straight--default-directory nil) (default-directory repo-dir))
+            (make-directory repo-dir)
+            (apply #'straight--process-run "git" "init")
+            (when branch (straight--process-run "git" "branch" "-m" branch))
             (apply #'straight--process-run
-                   "git" "clone" "--origin" remote
-                   "--no-checkout" url repo-dir
-                   "--depth" (number-to-string depth)
-                   (if single-branch-p "--single-branch" "--no-single-branch")
-                   "--no-tags"
-                   (when branch `("--branch" ,branch))))
-        ;; Fallback for dumb http protocol.
-        (error
-         (when (file-exists-p repo-dir)
-           (delete-directory repo-dir 'recursive))
-         (straight-vc-git--clone-internal :depth 'full
-                                          :remote remote
-                                          :url url
-                                          :repo-dir repo-dir
-                                          :branch branch))))
+                   "git" "remote" "add" remote url
+                   (when branch `("--master" ,branch)))
+            (unless branch
+              (straight--process-run
+               "git" "branch" "-m"
+               (straight-vc-git--default-remote-branch remote repo-dir)))
+            (straight--process-run "git" "fetch" remote commit
+                                   "--depth" (number-to-string depth)
+                                   "--no-tags"))
+        (when (file-exists-p repo-dir) (delete-directory repo-dir 'recursive))
+        (unless (apply #'straight--process-run-p
+                       "git" "clone" "--origin" remote
+                       "--no-checkout" url repo-dir
+                       "--depth" (number-to-string depth)
+                       (if single-branch-p "--single-branch"
+                         "--no-single-branch")
+                       "--no-tags"
+                       (when branch `("--branch" ,branch)))
+          ;; Fallback for dumb http protocol.
+          (when (file-exists-p repo-dir)
+            (delete-directory repo-dir 'recursive))
+          (straight-vc-git--clone-internal :depth 'full
+                                           :remote remote
+                                           :url url
+                                           :repo-dir repo-dir
+                                           :branch branch))))
      (t (error "Invalid value %S of depth for %s" depth url)))))
 
 ;;;;;; API
