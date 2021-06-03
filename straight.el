@@ -2478,7 +2478,7 @@ clone of everything."
       (if commit
           (let ((straight--default-directory nil) (default-directory repo-dir))
             (make-directory repo-dir)
-            (apply #'straight--process-run "git" "init")
+            (straight--process-run "git" "init")
             (when branch (straight--process-run "git" "branch" "-m" branch))
             (apply #'straight--process-run
                    "git" "remote" "add" remote url
