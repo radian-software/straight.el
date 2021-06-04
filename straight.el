@@ -2440,6 +2440,8 @@ the symbol `single-branch' to override the --no-single-branch option."
   :group 'straight
   :type '(choice integer (const full)))
 
+;;@TODO: clean this function up. We can probably refactor to avoid
+;; repetition.
 (cl-defun straight-vc-git--clone-internal
     (&key depth remote url repo-dir branch commit)
   "Clone a remote repository from URL.
@@ -2468,15 +2470,21 @@ clone of everything."
     (cond
      ((eq depth 'full)
       ;; Clone the whole history of the repository.
-      (apply #'straight--process-run
-             "git" "clone" "--origin" remote
-             "--no-checkout" url repo-dir
-             (if single-branch-p "--single-branch" "--no-single-branch")
-             (when branch `("--branch" ,branch))))
+      ;; Binding default directory here to prevent process invocation
+      ;; failure if we are recursing due to a failed shallow
+      ;; fetch/clone. The previous call will have set the default
+      ;; directory to the repo-dir, which no longer exists.
+      (let ((default-directory (straight--repos-dir)))
+        (apply #'straight--process-run
+               "git" "clone" "--origin" remote
+               "--no-checkout" url repo-dir
+               (if single-branch-p "--single-branch" "--no-single-branch")
+               (when branch `("--branch" ,branch)))))
      ((integerp depth)
       ;; Do a shallow clone.
       (if commit
-          (let ((straight--default-directory nil) (default-directory repo-dir))
+          (let ((straight--default-directory nil)
+                (default-directory repo-dir))
             (make-directory repo-dir)
             (straight--process-run "git" "init")
             (when branch (straight--process-run "git" "branch" "-m" branch))
@@ -2487,9 +2495,17 @@ clone of everything."
               (straight--process-run
                "git" "branch" "-m"
                (straight-vc-git--default-remote-branch remote repo-dir)))
-            (straight--process-run "git" "fetch" remote commit
-                                   "--depth" (number-to-string depth)
-                                   "--no-tags"))
+            (unless (straight--process-run-p "git" "fetch" remote commit
+                                             "--depth" (number-to-string depth)
+                                             "--no-tags")
+              (when (file-exists-p repo-dir)
+                (delete-directory repo-dir 'recursive))
+              (straight-vc-git--clone-internal :depth 'full
+                                               :remote remote
+                                               :url url
+                                               :repo-dir repo-dir
+                                               :branch branch
+                                               :commit commit)))
         (when (file-exists-p repo-dir) (delete-directory repo-dir 'recursive))
         (unless (apply #'straight--process-run-p
                        "git" "clone" "--origin" remote
