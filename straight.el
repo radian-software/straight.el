@@ -48,8 +48,12 @@
            ,(eval-when-compile (emacs-version)))
     (throw 'emacs-version-changed nil)))
 
-(unless (executable-find "git")
-  (user-error "Git executable not found. straight.el requires git"))
+(defun straight--executable-find (name)
+  "`executable-find' NAME. If not found, throw an error."
+  (or (executable-find name)
+      (error "Straight unable to find required executable: %S" name)))
+
+(straight--executable-find "git")
 
 ;;;; Libraries
 
@@ -5109,13 +5113,22 @@ This can be overridden by the `:build' property of an individual
 package recipe."
   :type 'boolean)
 
+(defcustom straight-makeinfo-executable (executable-find "makeinfo")
+  "Location of the makeinfo executable."
+  :type 'string)
+
+(defcustom straight-install-info-executable
+  (executable-find "install-info")
+  "Location of the install-info executable."
+  :type 'string)
+
 (defun straight--build-info (recipe)
   "Compile .texi files into .info files for package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build directory, not the original
 repository."
-  (when (and (executable-find "makeinfo")
-             (executable-find "install-info"))
+  (when (and straight-install-info-executable
+             straight-makeinfo-executable)
     (straight--with-plist recipe
         (package local-repo files flavor)
       (let (infos)
