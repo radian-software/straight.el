@@ -2468,11 +2468,12 @@ clone of everything."
     (cond
      ((eq depth 'full)
       ;; Clone the whole history of the repository.
-      (apply #'straight--process-run
-             "git" "clone" "--origin" remote
-             "--no-checkout" url repo-dir
-             (if single-branch-p "--single-branch" "--no-single-branch")
-             (when branch `("--branch" ,branch))))
+      (let ((default-directory user-emacs-directory))
+        (apply #'straight--process-run
+               "git" "clone" "--origin" remote
+               "--no-checkout" url repo-dir
+               (if single-branch-p "--single-branch" "--no-single-branch")
+               (when branch `("--branch" ,branch)))))
      ((integerp depth)
       ;; Do a shallow clone.
       (if commit
