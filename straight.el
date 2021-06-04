@@ -2487,9 +2487,17 @@ clone of everything."
               (straight--process-run
                "git" "branch" "-m"
                (straight-vc-git--default-remote-branch remote repo-dir)))
-            (straight--process-run "git" "fetch" remote commit
-                                   "--depth" (number-to-string depth)
-                                   "--no-tags"))
+            (unless (straight--process-run-p "git" "fetch" remote commit
+                                             "--depth" (number-to-string depth)
+                                             "--no-tags")
+              (when (file-exists-p repo-dir)
+                (delete-directory repo-dir 'recursive))
+              (straight-vc-git--clone-internal :depth 'full
+                                               :remote remote
+                                               :url url
+                                               :repo-dir repo-dir
+                                               :branch branch
+                                               :commit commit)))
         (when (file-exists-p repo-dir) (delete-directory repo-dir 'recursive))
         (unless (apply #'straight--process-run-p
                        "git" "clone" "--origin" remote
