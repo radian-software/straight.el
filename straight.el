@@ -2440,6 +2440,8 @@ the symbol `single-branch' to override the --no-single-branch option."
   :group 'straight
   :type '(choice integer (const full)))
 
+;;@TODO: clean this function up. We can probably refactor to avoid
+;; repetition.
 (cl-defun straight-vc-git--clone-internal
     (&key depth remote url repo-dir branch commit)
   "Clone a remote repository from URL.
@@ -2468,7 +2470,11 @@ clone of everything."
     (cond
      ((eq depth 'full)
       ;; Clone the whole history of the repository.
-      (let ((default-directory user-emacs-directory))
+      ;; Binding default directory here to prevent process invocation
+      ;; failure if we are recursing due to a failed shallow
+      ;; fetch/clone. The previous call will have set the default
+      ;; directory to the repo-dir, which no longer exists.
+      (let ((default-directory (straight--repos-dir)))
         (apply #'straight--process-run
                "git" "clone" "--origin" remote
                "--no-checkout" url repo-dir
@@ -2477,7 +2483,8 @@ clone of everything."
      ((integerp depth)
       ;; Do a shallow clone.
       (if commit
-          (let ((straight--default-directory nil) (default-directory repo-dir))
+          (let ((straight--default-directory nil)
+                (default-directory repo-dir))
             (make-directory repo-dir)
             (straight--process-run "git" "init")
             (when branch (straight--process-run "git" "branch" "-m" branch))
