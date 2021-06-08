@@ -129,12 +129,10 @@
   (dotimes (_ straight-x-process-limit)
     (straight-x-start-process)))
 
-(defun straight-x-clean-unused-repos ()
-  (interactive)
-  (dolist (repo (straight--directory-files (straight--repos-dir)))
-    (unless (or (straight--checkhash repo straight--repo-cache)
-                (not (y-or-n-p (format "Delete repository %S?" repo))))
-      (delete-directory (straight--repos-dir repo) 'recursive 'trash))))
+(define-obsolete-function-alias 'straight-x-clean-unused-repos
+  'straight-remove-unused-repos
+  "2021-06-08")
+
 
 ;; Version pinning
 

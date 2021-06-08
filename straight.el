@@ -5426,6 +5426,26 @@ local repository is already on disk."
    action))
 
 ;;;; User-facing functions
+;;;;; Removing unused repositories
+
+;;;###autoload
+(defun straight-remove-unused-repos (&optional force)
+  "Remove unused repositories from the repos directory.
+A repo is considered \"unused\" if it was not explicitly requested via
+`straight-use-package' during the current Emacs session.
+If FORCE is non-nil do not prompt before deleting repos."
+  (interactive "P")
+  (let ((r '()))
+    (dolist (repo (straight--directory-files
+                   (straight--repos-dir) nil nil 'sort))
+      (unless (straight--checkhash repo straight--repo-cache)
+        (when (or force (y-or-n-p (format "Delete repository %S? " repo)))
+          (delete-directory (straight--repos-dir repo) 'recursive 'trash)
+          (push repo r))))
+    (message (concat "%d " (if (eq (length r) 1) "repository" "repositories")
+                     " deleted" (if r ": %s" "."))
+             (length r) (nreverse r))))
+
 ;;;;; Recipe acquiry
 
 ;;;###autoload
