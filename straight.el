@@ -7005,6 +7005,65 @@ locally bound plist, straight-bug-report-args."
                         (delete-directory ,temp-emacs-dir 'recursive)))))
        (message "Testing straight.el in directory: %s"
                 ,temp-emacs-dir))))
+
+;;;; Dependency Info
+
+;;;###autoload
+(defun straight-dependencies (&optional package)
+  "Return a list of PACKAGE's dependencies."
+  (interactive (list
+                (straight--select-package
+                 "Dependencies of"
+                 ;; Only offer candidates which have dependencies.
+                 (lambda (recipe)
+                   (and (straight--installed-p recipe)
+                        (cl-remove-if (lambda (p) (string= p "emacs"))
+                                      (nth 1 (gethash
+                                              (plist-get recipe :package)
+                                              straight--build-cache))))))))
+  (let ((dependencies
+         (mapcar (lambda (dependency)
+                   (if-let ((transitive (straight-dependencies dependency)))
+                       (append (list dependency) transitive)
+                     dependency))
+                 (cl-remove-if
+                  (lambda (p) (string= p "emacs"))
+                  (nth 1 (gethash package straight--build-cache))))))
+    (if (called-interactively-p 'interactive)
+        (message "Dependencies of %S: %S" package dependencies)
+      dependencies)))
+
+(defun straight--dependencies ()
+  "Return a list of dependencies from `straight--build-cache'."
+  (let ((dependencies))
+    (maphash (lambda (_ val) (push (nth 1 val) dependencies))
+             straight--build-cache)
+    (cl-remove-if (lambda (p) (string= p "emacs"))
+                  (delete-dups
+                   (delq nil
+                         (cl-reduce #'append dependencies))))))
+
+;;;###autoload
+(defun straight-dependents (&optional package)
+  "Return a list PACKAGE's dependents."
+  (interactive
+   (list (straight--select-package
+          "Dependents of"
+          ;; Only offer cached dependencies.
+          (lambda (recipe) (member (plist-get recipe :package)
+                                   (straight--dependencies))))))
+  (let (dependents)
+    (maphash (lambda (key val)
+               (when (member package (nth 1 val))
+                 (push (if-let ((transitive (straight-dependents key)))
+                           (append (list key) transitive)
+                         key)
+                       dependents)))
+             straight--build-cache)
+    (if (called-interactively-p 'interactive)
+        (message "%S" dependents)
+      (nreverse dependents))))
+
 ;;;; Closing remarks
 
 (provide 'straight)
