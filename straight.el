@@ -7061,7 +7061,7 @@ locally bound plist, straight-bug-report-args."
                        dependents)))
              straight--build-cache)
     (if (called-interactively-p 'interactive)
-        (message "%S" dependents)
+        (message "Dependents of %S: %S" package dependents)
       (nreverse dependents))))
 
 ;;;; Closing remarks
