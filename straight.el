@@ -48,8 +48,12 @@
            ,(eval-when-compile (emacs-version)))
     (throw 'emacs-version-changed nil)))
 
-(unless (executable-find "git")
-  (user-error "Git executable not found. straight.el requires git"))
+(defun straight--executable-find (name)
+  "`executable-find' NAME. If not found, throw an error."
+  (or (executable-find name)
+      (error "Straight unable to find required executable: %S" name)))
+
+(straight--executable-find "git")
 
 ;;;; Libraries
 
@@ -2440,6 +2444,8 @@ the symbol `single-branch' to override the --no-single-branch option."
   :group 'straight
   :type '(choice integer (const full)))
 
+;;@TODO: clean this function up. We can probably refactor to avoid
+;; repetition.
 (cl-defun straight-vc-git--clone-internal
     (&key depth remote url repo-dir branch commit)
   "Clone a remote repository from URL.
@@ -2468,50 +2474,59 @@ clone of everything."
     (cond
      ((eq depth 'full)
       ;; Clone the whole history of the repository.
-      (apply #'straight--process-output
-             "git" "clone" "--origin" remote
-             "--no-checkout" url repo-dir
-             (if single-branch-p "--single-branch" "--no-single-branch")
-             (when branch `("--branch" ,branch))))
+      ;; Binding default directory here to prevent process invocation
+      ;; failure if we are recursing due to a failed shallow
+      ;; fetch/clone. The previous call will have set the default
+      ;; directory to the repo-dir, which no longer exists.
+      (let ((default-directory (straight--repos-dir)))
+        (apply #'straight--process-run
+               "git" "clone" "--origin" remote
+               "--no-checkout" url repo-dir
+               (if single-branch-p "--single-branch" "--no-single-branch")
+               (when branch `("--branch" ,branch)))))
      ((integerp depth)
       ;; Do a shallow clone.
-      (condition-case nil
-          (if commit
-              (progn
-                (make-directory repo-dir)
-                (let ((straight--default-directory nil)
-                      (default-directory repo-dir))
-                  (apply #'straight--process-output
-                         "git" "init" (when branch `("-b" ,branch)))
-                  (apply #'straight--process-output
-                         "git" "remote" "add" remote url
-                         (when branch `("--master" ,branch)))
-                  (unless branch
-                    (straight--process-output
-                     "git" "branch" "-m"
-                     (straight-vc-git--default-remote-branch remote repo-dir)))
-                  (straight--process-output
-                   "git" "fetch" remote commit
-                   "--depth" (number-to-string depth)
-                   "--no-tags")))
-            (when (file-exists-p repo-dir)
-              (delete-directory repo-dir 'recursive))
-            (apply #'straight--process-output
-                   "git" "clone" "--origin" remote
-                   "--no-checkout" url repo-dir
-                   "--depth" (number-to-string depth)
-                   (if single-branch-p "--single-branch" "--no-single-branch")
-                   "--no-tags"
-                   (when branch `("--branch" ,branch))))
-        ;; Fallback for dumb http protocol.
-        (error
-         (when (file-exists-p repo-dir)
-           (delete-directory repo-dir 'recursive))
-         (straight-vc-git--clone-internal :depth 'full
-                                          :remote remote
-                                          :url url
-                                          :repo-dir repo-dir
-                                          :branch branch))))
+      (if commit
+          (let ((straight--default-directory nil)
+                (default-directory repo-dir))
+            (make-directory repo-dir)
+            (straight--process-run "git" "init")
+            (when branch (straight--process-run "git" "branch" "-m" branch))
+            (apply #'straight--process-run
+                   "git" "remote" "add" remote url
+                   (when branch `("--master" ,branch)))
+            (unless branch
+              (straight--process-run
+               "git" "branch" "-m"
+               (straight-vc-git--default-remote-branch remote repo-dir)))
+            (unless (straight--process-run-p "git" "fetch" remote commit
+                                             "--depth" (number-to-string depth)
+                                             "--no-tags")
+              (when (file-exists-p repo-dir)
+                (delete-directory repo-dir 'recursive))
+              (straight-vc-git--clone-internal :depth 'full
+                                               :remote remote
+                                               :url url
+                                               :repo-dir repo-dir
+                                               :branch branch
+                                               :commit commit)))
+        (when (file-exists-p repo-dir) (delete-directory repo-dir 'recursive))
+        (unless (apply #'straight--process-run-p
+                       "git" "clone" "--origin" remote
+                       "--no-checkout" url repo-dir
+                       "--depth" (number-to-string depth)
+                       (if single-branch-p "--single-branch"
+                         "--no-single-branch")
+                       "--no-tags"
+                       (when branch `("--branch" ,branch)))
+          ;; Fallback for dumb http protocol.
+          (when (file-exists-p repo-dir)
+            (delete-directory repo-dir 'recursive))
+          (straight-vc-git--clone-internal :depth 'full
+                                           :remote remote
+                                           :url url
+                                           :repo-dir repo-dir
+                                           :branch branch))))
      (t (error "Invalid value %S of depth for %s" depth url)))))
 
 ;;;;;; API
@@ -5098,13 +5113,22 @@ This can be overridden by the `:build' property of an individual
 package recipe."
   :type 'boolean)
 
+(defcustom straight-makeinfo-executable (executable-find "makeinfo")
+  "Location of the makeinfo executable."
+  :type 'string)
+
+(defcustom straight-install-info-executable
+  (executable-find "install-info")
+  "Location of the install-info executable."
+  :type 'string)
+
 (defun straight--build-info (recipe)
   "Compile .texi files into .info files for package specified by RECIPE.
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build directory, not the original
 repository."
-  (when (and (executable-find "makeinfo")
-             (executable-find "install-info"))
+  (when (and straight-install-info-executable
+             straight-makeinfo-executable)
     (straight--with-plist recipe
         (package local-repo files flavor)
       (let (infos)
@@ -5402,6 +5426,26 @@ local repository is already on disk."
    action))
 
 ;;;; User-facing functions
+;;;;; Removing unused repositories
+
+;;;###autoload
+(defun straight-remove-unused-repos (&optional force)
+  "Remove unused repositories from the repos directory.
+A repo is considered \"unused\" if it was not explicitly requested via
+`straight-use-package' during the current Emacs session.
+If FORCE is non-nil do not prompt before deleting repos."
+  (interactive "P")
+  (let ((r '()))
+    (dolist (repo (straight--directory-files
+                   (straight--repos-dir) nil nil 'sort))
+      (unless (straight--checkhash repo straight--repo-cache)
+        (when (or force (y-or-n-p (format "Delete repository %S? " repo)))
+          (delete-directory (straight--repos-dir repo) 'recursive 'trash)
+          (push repo r))))
+    (message (concat "%d " (if (eq (length r) 1) "repository" "repositories")
+                     " deleted" (if r ": %s" "."))
+             (length r) (nreverse r))))
+
 ;;;;; Recipe acquiry
 
 ;;;###autoload
@@ -5677,12 +5721,13 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
               'straight-use-package-prepare-functions package)
              ;; Prevent deferred native compilation of packages which
              ;; explicitly disable it.
-             (when-let ((build (cadr (plist-member recipe :build))))
-               (when (and (eq (car-safe build) :not)
-                          (member 'native-compile (cdr build)))
-                 (cl-pushnew (format "^%s" (straight--build-dir package))
-                             native-comp-deferred-compilation-deny-list
-                             :test #'string=)))
+             (when (boundp 'native-comp-deferred-compilation-deny-list)
+               (when-let ((build (cadr (plist-member recipe :build))))
+                 (when (and (eq (car-safe build) :not)
+                            (member 'native-compile (cdr build)))
+                   (cl-pushnew (format "^%s" (straight--build-dir package))
+                               native-comp-deferred-compilation-deny-list
+                               :test #'string=))))
              (when (and modified (not no-build))
                (run-hook-with-args
                 'straight-use-package-pre-build-functions package)
@@ -6960,6 +7005,65 @@ locally bound plist, straight-bug-report-args."
                         (delete-directory ,temp-emacs-dir 'recursive)))))
        (message "Testing straight.el in directory: %s"
                 ,temp-emacs-dir))))
+
+;;;; Dependency Info
+
+;;;###autoload
+(defun straight-dependencies (&optional package)
+  "Return a list of PACKAGE's dependencies."
+  (interactive (list
+                (straight--select-package
+                 "Dependencies of"
+                 ;; Only offer candidates which have dependencies.
+                 (lambda (recipe)
+                   (and (straight--installed-p recipe)
+                        (cl-remove-if (lambda (p) (string= p "emacs"))
+                                      (nth 1 (gethash
+                                              (plist-get recipe :package)
+                                              straight--build-cache))))))))
+  (let ((dependencies
+         (mapcar (lambda (dependency)
+                   (if-let ((transitive (straight-dependencies dependency)))
+                       (append (list dependency) transitive)
+                     dependency))
+                 (cl-remove-if
+                  (lambda (p) (string= p "emacs"))
+                  (nth 1 (gethash package straight--build-cache))))))
+    (if (called-interactively-p 'interactive)
+        (message "Dependencies of %S: %S" package dependencies)
+      dependencies)))
+
+(defun straight--dependencies ()
+  "Return a list of dependencies from `straight--build-cache'."
+  (let ((dependencies))
+    (maphash (lambda (_ val) (push (nth 1 val) dependencies))
+             straight--build-cache)
+    (cl-remove-if (lambda (p) (string= p "emacs"))
+                  (delete-dups
+                   (delq nil
+                         (cl-reduce #'append dependencies))))))
+
+;;;###autoload
+(defun straight-dependents (&optional package)
+  "Return a list PACKAGE's dependents."
+  (interactive
+   (list (straight--select-package
+          "Dependents of"
+          ;; Only offer cached dependencies.
+          (lambda (recipe) (member (plist-get recipe :package)
+                                   (straight--dependencies))))))
+  (let (dependents)
+    (maphash (lambda (key val)
+               (when (member package (nth 1 val))
+                 (push (if-let ((transitive (straight-dependents key)))
+                           (append (list key) transitive)
+                         key)
+                       dependents)))
+             straight--build-cache)
+    (if (called-interactively-p 'interactive)
+        (message "%S" dependents)
+      (nreverse dependents))))
+
 ;;;; Closing remarks
 
 (provide 'straight)
