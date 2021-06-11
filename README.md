@@ -1924,7 +1924,7 @@ meaning in a recipe (unknown keywords are ignored but preserved):
   This specifies the steps taken on the files symlinked within a
   package's straight/build/PACKAGE directory. It may be any of the
   following values:
-  
+
   - nil, in which case nothing is done.
     This also prevents :pre/:post-build commands from running.
 
@@ -1934,7 +1934,7 @@ meaning in a recipe (unknown keywords are ignored but preserved):
 
   - t, runs the steps listed in `straight--build-default-steps`.
     Note this ignores all `straight-disable-SYMBOL` keywords.
-  
+
 ```emacs-lisp
 (example :build t)
 ```
@@ -1943,7 +1943,7 @@ meaning in a recipe (unknown keywords are ignored but preserved):
     `straight--build-SYMBOL`.
     The function is passed the recipe as its sole argument.
     Steps are exectuted in the order they are listed. e.g.
-    
+
 ```emacs-lisp
 (example :build (autoloads compile native-compile info))
 ```
@@ -1951,7 +1951,7 @@ meaning in a recipe (unknown keywords are ignored but preserved):
   - A list which has `:not` as its car and step symbols as its cdr.
     This eliminates the listed steps from the default steps. e.g.
     The following recipe will not be compiled or have its texinfo generated:
-    
+
 ```emacs-lisp
 (example :build (:not compile info))
 ```
@@ -2012,7 +2012,7 @@ In the absence of a `:build` keyword, `straight--build-default-steps` are run.
   it accepts and how it is executed.
 
     For example:
-    
+
 ```emacs-lisp
 (straight-use-package
  '( example :type git :host github :repo "user/example.el"
