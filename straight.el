@@ -3969,9 +3969,9 @@ empty values (all packages will be rebuilt, with no caching)."
   (let ((needs-immediate-save nil))
     (ignore-errors
       (with-temp-buffer
-        ;; Using `insert-file-contents-literally' avoids
-        ;; `find-file-hook', etc.
-        (insert-file-contents-literally
+        ;; Can't use `insert-file-contents-literally', see
+        ;; https://github.com/raxod502/straight.el/issues/780.
+        (insert-file-contents
          (straight--build-cache-file))
         (let ((version (read (current-buffer)))
               (last-emacs-version (read (current-buffer)))
