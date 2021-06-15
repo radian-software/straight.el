@@ -6,6 +6,20 @@
 (defvar straight-test-default-recipe '( :package "package"
                                         :host github :type git
                                         :repo "upstream/repo"))
+
+;;adapted from json.el's json-alist-p
+(defun straight--alist-p (list &optional restriction)
+  "Return non-nil if LIST is an alist.
+RESTRICTION is an optionaly unary function which tests each element of
+the list. If any element returns nil when passed to RESTRICTION,
+return nil."
+  (while (and (consp (car-safe list))
+              (atom (caar list))
+              (funcall (if restriction restriction #'identity)
+                       (car-safe list))
+              (setq list (cdr list))))
+  (null list))
+
 (defun straight--hash-equal (a b)
   "Return t if hash A and B are equal, else nil."
   (and (= (hash-table-count a)
@@ -15,6 +29,194 @@
                                    (throw 'flag nil)))
                              a)
               t)))
+
+(describe "defusctom :type specifications"
+  (describe "straight-allow-recipe-inheritance"
+    (it "defaults to a boolean"
+      (expect (booleanp straight-allow-recipe-inheritance) :to-be t)))
+  (describe "straight-arrow"
+    (it "defaults to a string"
+      (expect (stringp straight-arrow) :to-be t)))
+  (describe "straight-base-dir"
+    (it "defaults to a string"
+      (expect (stringp straight-base-dir) :to-be t)))
+  (describe "straight-build-cache-fixed-name"
+    (it "defaults to nil or a string"
+      (expect (or (null straight-build-cache-fixed-name)
+                  (stringp straight-build-cache-fixed-name))
+              :to-be t)))
+  (describe "straight-build-dir"
+    (it "defaults to a string"
+      (expect (stringp straight-build-dir)) :to-be t))
+  (describe "straight-built-in-pseudo-packages"
+    (it "defaults to a list of symbols"
+      (expect (and (listp straight-built-in-pseudo-packages)
+                   (cl-every #'symbolp straight-built-in-pseudo-packages)
+                   :to-be t))))
+  (describe "straight-byte-compilation-buffer"
+    (it "defaults to a string or nil"
+      (expect (or (stringp straight-byte-compilation-buffer)
+                  (null straight-byte-compilation-buffer))
+              :to-be t)))
+  (describe "straight-cache-autoloads"
+    (it "defaults to a boolean"
+      (expect (booleanp straight-cache-autoloads) :to-be t)))
+  (describe "straight-check-for-modifications"
+    (it "defaults to a list of any of the following symbols:
+    - find-at-startup
+    - find-when-checking
+    - check-on-save
+    - watch-files"
+      (expect (and (listp straight-check-for-modifications)
+                   (null (cl-remove-if (lambda (el)
+                                         (member el '(find-at-startup
+                                                      find-when-checking
+                                                      check-on-save
+                                                      watch-files)))
+                                       straight-check-for-modifications)))
+              :to-be t)))
+  (describe "straight-current-profile"
+    (it "defaults to a symbol"
+      (expect (symbolp straight-current-profile) :to-be t)))
+  (describe "straight-default-vc"
+    (it "defaults to a symbol"
+      (expect (symbolp straight-default-vc) :to-be t)))
+  (describe "straight-disable-autoloads"
+    (it "defaults to a boolean"
+      (expect (booleanp straight-disable-autoloads) :to-be t)))
+  (describe "straight-disable-compile"
+    (it "defaults to a boolean"
+      (expect (booleanp straight-disable-compile) :to-be t)))
+  (describe "straight-disable-info"
+    (it "defaults to a boolean"
+      (expect (booleanp straight-disable-info) :to-be t)))
+  (describe "straight-disable-native-compile"
+    (it "defaults to a boolean"
+      (expect (booleanp straight-disable-native-compile) :to-be t)))
+  (describe "straight-enable-package-integration"
+    (it "defaults to a boolean"
+      (expect (booleanp straight-enable-package-integration) :to-be t)))
+  (describe "straight-enable-use-package-integration"
+    (it "defaults to a boolean"
+      (expect (booleanp straight-enable-use-package-integration) :to-be t)))
+  (describe "straight-find-executable"
+    (it "defaults to a string"
+      (expect (stringp straight-find-executable) :to-be t)))
+  (describe "straight-find-flavor"
+    (it "defaults to :guess or a list of symbols"
+      (expect (or (equal straight-find-flavor :guess)
+                  (listp straight-find-flavor))
+              :to-be t)))
+  (describe "straight-fix-flycheck"
+    (it "defaults to a boolean"
+      (expect (booleanp straight-fix-flycheck) :to-be t)))
+  (describe "straight-host-usernames"
+    (it "defaults to nil or an alist of form (SYMBOL . STRING)"
+      (expect (or
+               (straight--alist-p straight-host-usernames
+                                  (lambda (cell)
+                                    (and (symbolp (car cell))
+                                         (stringp (cdr cell)))))
+               (null straight-host-usernames))
+              :to-be t)))
+  (describe "straight-install-info-executable"
+    (it "defaults to a string"
+      (expect (stringp straight-install-info-executable) :to-be t)))
+  (describe "straight-makeinfo-executable"
+    (it "defaults to a string"
+      (expect (stringp straight-makeinfo-executable) :to-be t)))
+  (describe "straight-process-buffer"
+    (it "defaults to a string"
+      (expect (stringp straight-process-buffer) :to-be t)))
+  (describe "straight-profiles"
+    (it "defaults to an alist of form (SYMBOL . STRING)"
+      (expect (straight--alist-p straight-profiles
+                                 (lambda (cell) (and (symbolp (car cell))
+                                                     (stringp (cdr cell)))))
+              :to-be t)))
+  (describe "straight-recipe-overrides"
+    (it "defaults to an alist of form (SYMBOL . STRING)"
+      (expect (or
+               (straight--alist-p
+                straight-recipe-overrides
+                (lambda (cell)
+                  (and (symbolp (car cell))
+                       (straight--alist-p
+                        (cdr cell)
+                        (lambda (cell)
+                          (and (symbolp (car cell))
+                               ;;@INCOMPLETE: we could be more precise
+                               ;; here if we had a `recipe-p` predicate.
+                               (listp (cdr cell))))))))
+               (nullp straight-recipe-overrides)))
+      :to-be t))
+  (describe "straight-recipe-repositories"
+    (it "defaults to a list of symbols or nil"
+      (expect (or (null straight-recipe-repositories)
+                  (null (cl-remove-if #'symbolp straight-recipe-repositories)))
+              :to-be t)))
+  (describe "straight-recipes-emacsmirror-use-mirror"
+    (it "defaults to a boolean"
+      (expect (booleanp straight-recipes-emacsmirror-use-mirror) :to-be t)))
+  (describe "straight-recipes-gnu-elpa-ignored-packages"
+    (it "defaults to a list of symbols or nil"
+      (expect
+       (or (null straight-recipes-gnu-elpa-ignored-packages)
+           (null (cl-remove-if #'symbolp
+                               straight-recipes-gnu-elpa-ignored-packages)))
+       :to-be t)))
+  (describe "straight-recipes-gnu-elpa-url"
+    (it "defaults to a string"
+      (expect (stringp straight-recipes-gnu-elpa-url) :to-be t)))
+  (describe "straight-recipes-gnu-elpa-use-mirror"
+    (it "defaults to a boolean"
+      (expect (booleanp straight-recipes-gnu-elpa-use-mirror) :to-be t)))
+  (describe "straight-repository-branch"
+    (it "defaults to a string"
+      (expect (stringp straight-repository-branch) :to-be t)))
+  (describe "straight-repository-user"
+    (it "defaults to a string"
+      (expect (stringp straight-repository-user) :to-be t)))
+  (describe "straight-use-package-by-default"
+    (it "defaults to a boolean"
+      (expect (booleanp straight-use-package-by-default) :to-be t)))
+  (describe "straight-use-package-version"
+    (it "defaults to a symbol (straight or ensure)"
+      (expect (member straight-use-package-version
+                      '(straight ensure))
+              :not :to-be nil)))
+  (describe "straight-use-symlinks"
+    (it "defaults to a boolean"
+      (expect (booleanp straight-use-symlinks) :to-be t)))
+  (describe "straight-vc-git-auto-fast-forward"
+    (it "defaults to a boolean"
+      (expect (booleanp straight-vc-git-auto-fast-forward) :to-be t)))
+  (describe "straight-vc-git-default-clone-depth"
+    (it "defaults to a symbol, interger, or list"
+      (expect (or
+               (eq 'full straight-vc-git-default-clone-depth)
+               (integerp straight-vc-git-default-clone-depth)
+               (and (listp straight-vc-git-default-clone-depth)
+                    (member 'single-branch straight-vc-git-default-clone-depth)
+                    (cl-some (lambda (el) (or (booleanp el) (integerp el)))
+                             straight-vc-git-default-clone-depth))))
+      :to-be t))
+  (describe "straight-vc-git-default-fork-name"
+    (it "defaults to a string"
+      (expect (stringp straight-vc-git-default-fork-name) :to-be t)))
+  (describe "straight-vc-git-default-protocol"
+    (it "defaults to either the symbol `ssh` or `https`"
+      (expect (member straight-vc-git-default-protocol '(ssh https))
+              :not :to-be nil)))
+  (describe "straight-vc-git-default-remote-name"
+    (it "defaults to a string"
+      (expect (stringp straight-vc-git-default-remote-name) :to-be t)))
+  (describe "straight-vc-git-force-protocol"
+    (it "defaults to a boolean"
+      (expect (booleanp straight-vc-git-force-protocol) :to-be t)))
+  (describe "straight-watcher-process-buffer"
+    (it "defaults to a string"
+      (expect (stringp straight-watcher-process-buffer) :to-be t))))
 
 (describe "straight--normalize-alist"
   (describe "(alist)"
