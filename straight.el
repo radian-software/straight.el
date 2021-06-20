@@ -1154,6 +1154,9 @@ the functions recorded in it."
   ;; listed below.
   (when (zerop (recursion-depth))
     (let ((alist straight--transaction-alist))
+      ;; Remove transaction's ID symbols from symbol namespace.
+      (mapc (lambda (cell) (unintern (car cell) obarray))
+            straight--transaction-alist)
       (setq straight--transaction-alist nil)
       (remove-hook 'post-command-hook #'straight--transaction-finalize)
       (dolist (end-func (mapcar #'cdr alist))
@@ -5625,7 +5628,7 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
        ;; recipes or build settings, and in that case re-check
        ;; everything.
        (intern (format "use-package-%S-%S-%S"
-                       recipe
+                       (secure-hash 'md5 (prin1-to-string recipe 'noescape))
                        ;; If the NO-CLONE and NO-BUILD functions
                        ;; compute their values dynamically, force
                        ;; package rebuilding so the changed values may
