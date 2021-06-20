@@ -1129,7 +1129,7 @@ non-nil if the user confirms; nil if they abort."
 See `straight--transaction-exec'. The cars are their IDs, and the
 cdrs are their END-FUNCs.
 
-If nil, no transaction is not live.")
+If nil, no transaction is live.")
 
 (defun straight--transaction-finalize-at-top-level ()
   "Schedule to finalize the current transaction when appropriate.
