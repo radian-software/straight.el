@@ -104,6 +104,15 @@ They are still logged to the *Messages* buffer.")))
 (declare-function use-package-only-one "use-package")
 (declare-function use-package-process-keywords "use-package")
 
+;; `package.el'
+(defvar package-enable-at-startup)
+
+;; `straight--bootstrap`
+(defvar straight--bootstrapped nil
+  "Non-nil if `straight-bootstrap' has been run.")
+(defvar straight--bootstrapping nil
+  "Non-nil if `straight-bootstrap' is running.")
+
 ;;;; Customization variables
 
 (defgroup straight nil
@@ -6580,12 +6589,6 @@ for the other case."
 
 ;;;;;; Bootstrap
 
-(defvar straight--bootstrapped nil
-  "Non-nil if `straight-bootstrap' has been run.")
-
-(defvar straight--bootstrapping nil
-  "Non-nil if `straight-bootstrap' is running.")
-
 ;;;###autoload
 (defun straight-bootstrap ()
   "Bootstrap straight."
@@ -6652,7 +6655,9 @@ for the other case."
     (straight-package-neutering-mode -1))
 
   (if straight-enable-use-package-integration
-      (straight-use-package-mode +1)
+      (progn
+        (straight-use-package 'use-package)
+        (straight-use-package-mode +1))
     (straight-use-package-mode -1))
 
   (setq straight--bootstrapped t
