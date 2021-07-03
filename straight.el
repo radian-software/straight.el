@@ -5593,9 +5593,14 @@ hint about how to install the package permanently.
 
 Return non-nil if package was actually installed, and nil
 otherwise (this can only happen if NO-CLONE is non-nil)."
+
   (interactive
    (list (straight-get-recipe (when current-prefix-arg 'interactive))
          nil nil nil 'interactive))
+
+  (if (and (not straight--bootstrapped) (not straight--bootstrapping))
+      (straight-bootstrap))
+
   (let ((recipe (straight--convert-recipe
                  (or
                   (straight--get-overridden-recipe
@@ -6572,6 +6577,86 @@ for the other case."
   (if (plist-get rest :straight)
       (use-package-process-keywords name rest state)
     (funcall handler name keyword args rest state)))
+
+;;;;;; Bootstrap
+
+(defvar straight--bootstrapped nil
+  "Non-nil if `straight-bootstrap' has been run.")
+
+(defvar straight--bootstrapping nil
+  "Non-nil if `straight-bootstrap' is running.")
+
+;;;###autoload
+(defun straight-bootstrap ()
+  "Bootstrap straight."
+
+  (interactive)
+  (setq straight--bootstrapping t)
+
+  ;; In case this is a reinit, and straight.el was already loaded, we
+  ;; have to explicitly clear the caches.
+  (straight--reset-caches)
+
+  ;; We start by registering the default recipe repositories. This is
+  ;; done first so that any dependencies of straight.el can be looked up
+  ;; correctly.
+
+  ;; This is kind of aggressive but we really don't have a good
+  ;; mechanism at present for customizing the default recipe
+  ;; repositories anyway. So don't even try to cater to that use case.
+  (setq straight-recipe-repositories nil)
+
+  (straight-use-recipes '(org-elpa :local-repo nil))
+
+  (straight-use-recipes '(melpa :type git :host github
+                                :repo "melpa/melpa"
+                                :build nil))
+
+  (if straight-recipes-gnu-elpa-use-mirror
+      (straight-use-recipes
+       '(gnu-elpa-mirror :type git :host github
+                         :repo "emacs-straight/gnu-elpa-mirror"
+                         :build nil))
+    (straight-use-recipes `(gnu-elpa :type git
+                                     :repo ,straight-recipes-gnu-elpa-url
+                                     :local-repo "elpa"
+                                     :build nil)))
+
+  (straight-use-recipes '(el-get :type git :host github
+                                 :repo "dimitri/el-get"
+                                 :build nil))
+
+  (if straight-recipes-emacsmirror-use-mirror
+      (straight-use-recipes
+       '(emacsmirror-mirror :type git :host github
+                            :repo "emacs-straight/emacsmirror-mirror"
+                            :build nil))
+    (straight-use-recipes '(emacsmirror :type git :host github
+                                        :repo "emacsmirror/epkgs"
+                                        :nonrecursive t
+                                        :build nil)))
+
+  (if (straight--modifications 'check-on-save)
+      (straight-live-modifications-mode +1)
+    (straight-live-modifications-mode -1))
+
+  (when (straight--modifications 'watch-files)
+    (straight-watcher-start))
+
+  (if straight-use-symlinks
+      (straight-symlink-emulation-mode -1)
+    (straight-symlink-emulation-mode +1))
+
+  (if straight-enable-package-integration
+      (straight-package-neutering-mode +1)
+    (straight-package-neutering-mode -1))
+
+  (if straight-enable-use-package-integration
+      (straight-use-package-mode +1)
+    (straight-use-package-mode -1))
+
+  (setq straight--bootstrapped t
+        straight--bootstrapping nil))
 
 ;;;;;; Mode definition
 
