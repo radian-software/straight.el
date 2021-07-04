@@ -107,12 +107,6 @@ They are still logged to the *Messages* buffer.")))
 ;; `package.el'
 (defvar package-enable-at-startup)
 
-;; `straight--bootstrap`
-(defvar straight--bootstrapped nil
-  "Non-nil if `straight-bootstrap' has been run.")
-(defvar straight--bootstrapping nil
-  "Non-nil if `straight-bootstrap' is running.")
-
 ;;;; Customization variables
 
 (defgroup straight nil
@@ -5607,9 +5601,6 @@ otherwise (this can only happen if NO-CLONE is non-nil)."
    (list (straight-get-recipe (when current-prefix-arg 'interactive))
          nil nil nil 'interactive))
 
-  (if (and (not straight--bootstrapped) (not straight--bootstrapping))
-      (straight-bootstrap))
-
   (let ((recipe (straight--convert-recipe
                  (or
                   (straight--get-overridden-recipe
@@ -6594,7 +6585,6 @@ for the other case."
   "Bootstrap straight."
 
   (interactive)
-  (setq straight--bootstrapping t)
 
   ;; In case this is a reinit, and straight.el was already loaded, we
   ;; have to explicitly clear the caches.
@@ -6658,10 +6648,7 @@ for the other case."
       (progn
         (straight-use-package 'use-package)
         (straight-use-package-mode +1))
-    (straight-use-package-mode -1))
-
-  (setq straight--bootstrapped t
-        straight--bootstrapping nil))
+    (straight-use-package-mode -1)))
 
 ;;;;;; Mode definition
 
