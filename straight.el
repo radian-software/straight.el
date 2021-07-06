@@ -302,6 +302,15 @@ compatibility."
   :type 'hook)
 
 ;;;; Utility functions
+;;;;; Lists
+
+(defun straight--flatten (list)
+  "Return a flattened copy of LIST.
+Backward compatible shim for `flatten-tree'."
+  (if (listp list)
+      (apply 'append (mapcar #'straight--flatten list))
+    (list list)))
+
 ;;;;; Association lists
 
 (defun straight--normalize-alist (alist &optional test)
@@ -3405,12 +3414,6 @@ Return nil if no :build/* commands are available."
                      (el-get-dir (straight--repos-dir)))
              (pcase system-type ,@systems)))))
 
-(defun straight--el-get-flatten (arg)
-  "Return a version of ARG as a one-level list."
-  (if (listp arg)
-      (apply 'append (mapcar #'straight--el-get-flatten arg))
-    (list arg)))
-
 (defun straight-recipes-el-get-retrieve (package)
   "Look up a an `el-get' PACKAGE's recipe.
 PACKAGE must be a symbol. If the package has an `el-get' recipe that
@@ -3452,9 +3455,8 @@ uses one of the Git fetchers, return it; otherwise return nil."
                (append '(:defaults)
                        (cl-remove-if (lambda (file)
                                        (string= "." file))
-                                     (straight--el-get-flatten load-path))))
+                                     (straight--flatten load-path))))
               (list '\` (cons name plist)))))))))
-
 
 (defun straight-recipes-el-get-list ()
   "Return a list of recipes available in `el-get', as a list of strings."
