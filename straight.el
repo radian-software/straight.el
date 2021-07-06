@@ -5050,8 +5050,7 @@ individual package recipe."
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
-  (let* ((dir (straight--build-dir (or (plist-get recipe :local-repo)
-                                       (plist-get recipe :package))))
+  (let* ((dir (straight--build-dir (plist-get recipe :package)))
          (emacs (concat invocation-directory invocation-name))
          (program (format "(let ((default-directory %S))
   (normal-top-level-add-subdirs-to-load-path)
