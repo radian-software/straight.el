@@ -5050,27 +5050,22 @@ individual package recipe."
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
-  (let* ((package (plist-get recipe :package))
-         (dir (straight--build-dir package))
-         (program (concat invocation-directory invocation-name))
-         (args
-          `("-Q" "-L" ,dir
-            ,@(apply #'append
-                     (mapcar (lambda (d)
-                               (let ((d (straight--build-dir d)))
-                                 (when (file-exists-p d) (list "-L" d))))
-                             (straight--get-dependencies package)))
-            "--batch" "--eval"
-            ,(format "(byte-recompile-directory %S 0 'force)" dir))))
+  (let* ((dir (straight--build-dir (or (plist-get recipe :local-repo)
+                                       (plist-get recipe :package))))
+         (emacs (concat invocation-directory invocation-name))
+         (program (format "(let ((default-directory %S))
+  (normal-top-level-add-subdirs-to-load-path)
+  (byte-recompile-directory %S 0 'force))"
+                          (straight--build-dir) dir))
+         (args (list "-Q" "-L" dir "--batch" "--eval" program)))
     (when straight-byte-compilation-buffer
       (with-current-buffer (get-buffer-create straight-byte-compilation-buffer)
-        (insert "\n$ " (replace-regexp-in-string
-                        "\\(-L [^z-a]*? \\)"
-                        "\\1\\\\ \n  "
-                        (string-join `(,program ,@args) " "))
-                "\n")))
-    (apply #'call-process
-           `(,program nil ,straight-byte-compilation-buffer nil ,@args))))
+        (insert (format "\n$ %s %s %s \\\n %S\n" emacs
+                        (string-join (cl-subseq args 0 3) " ")
+                        (string-join (cl-subseq args 3 5) " ")
+                        program)))
+      (apply #'call-process
+             `(,emacs nil ,straight-byte-compilation-buffer nil ,@args)))))
 
 ;;;;; Native compilation
 
