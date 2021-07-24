@@ -33,7 +33,13 @@ return nil."
 (describe "defcustom :type specifications"
   (dolist (group
            (cons 'straight (mapcar #'car (custom-group-members 'straight t))))
-    (dolist (var (mapcar #'car (cl-remove 'custom-group (custom-group-members group nil) :key #'cdr)))
+    (dolist (var
+             (mapcar
+              #'car
+              (cl-remove
+               'custom-group
+               (custom-group-members group nil)
+               :key #'cdr)))
       (describe (format "%S" var)
         (it "has a default value matching its :type specification"
           (expect

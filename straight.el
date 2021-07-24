@@ -3047,7 +3047,9 @@ If package is not found in any `straight-recipe-repositories', return nil."
 (defcustom straight-byte-compilation-buffer "*straight-byte-compilation*"
   "Name of the byte compilation log buffer.
 If nil, output is discarded."
-  :type '(choice (string :tag "Buffer name") (const :tag "Discard output" nil)))
+  :type '(choice
+          (string :tag "Buffer name")
+          (const :tag "Discard output" nil)))
 
 (make-obsolete-variable
  'straight-fix-org
