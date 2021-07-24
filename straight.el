@@ -106,15 +106,15 @@ They are still logged to the *Messages* buffer.")))
 
 ;;;; Customization variables
 
-(defgroup straight nil
-  "Next-generation, purely functional package manager for the Emacs hacker."
-  :group 'applications
-  :prefix "straight-")
-
 (defgroup straight-faces nil
   "Faces used in straight.el."
   :group 'straight
   :group 'faces)
+
+(defgroup straight nil
+  "Next-generation, purely functional package manager for the Emacs hacker."
+  :group 'applications
+  :prefix "straight-")
 
 (defface straight-process-error
   '((t (:weight bold :foreground "red")))
@@ -3047,7 +3047,7 @@ If package is not found in any `straight-recipe-repositories', return nil."
 (defcustom straight-byte-compilation-buffer "*straight-byte-compilation*"
   "Name of the byte compilation log buffer.
 If nil, output is discarded."
-  :type '(or (string :tag "Buffer name") (const :tag "Discard output" nil)))
+  :type '(choice (string :tag "Buffer name") (const :tag "Discard output" nil)))
 
 (make-obsolete-variable
  'straight-fix-org
@@ -3198,7 +3198,7 @@ development version but rather an obsolete forwards-compatibility
 package designed for use with Emacs 24.2 and earlier. See
 <https://github.com/raxod502/straight.el/issues/531> for some
 discussion."
-  :type '(list symbol))
+  :type '(repeat symbol))
 
 ;;;;;;; GNU ELPA mirror
 
