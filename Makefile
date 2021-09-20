@@ -11,10 +11,12 @@ BUTTERCUP ?= ../emacs-buttercup/
 # The order is important for compilation.
 for_compile := straight.el bootstrap.el install.el straight-x.el	\
 	benchmark/straight-bench.el
-for_checkdoc := straight.el
+for_checkdoc := straight.el straight-bug-report.el
 for_longlines := $(wildcard *.el *.md *.yml benchmark/*.el	\
 	scripts/*.bash) Makefile
 for_checkindent := $(wildcard *.el benchmark/*.el)
+#indentation broken because we can't load yodel
+for_checkindent := $(filter-out straight-bug-report.el, $(for_checkindent))
 
 # excludes benchmarking, smoke and unit tests
 .PHONY: all

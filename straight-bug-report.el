@@ -111,11 +111,13 @@ locally bound plist, straight-bug-report-args."
     `(let ((yodel-process-buffer straight-bug-report--process-buffer))
        (yodel
          :formatter straight-bug-report-formatter
-         :user-dir ,(let ((user-dir (plist-get args :user-dir)))
-                      (expand-file-name (or user-dir (make-temp-name "straight-bug-report."))
-                                        ;;@MAYBE: Always expand against temporary-file-directory
-                                        ;; We only need to use `default-directory' during `yodel-file'.
-                                        (if user-dir default-directory temporary-file-directory)))
+         :user-dir
+         ,(let ((user-dir (plist-get args :user-dir)))
+            (expand-file-name
+             (or user-dir (make-temp-name "straight-bug-report."))
+             ;;@MAYBE: Always expand against temporary-file-directory
+             ;; We only need to use `default-directory' during `yodel-file'.
+             (if user-dir default-directory temporary-file-directory)))
          :pre*
          (yodel-file "./bugstrap.el"
            :save t
@@ -140,8 +142,9 @@ locally bound plist, straight-bug-report-args."
                            yodel-args
                            :straight
                            (list :parent-version (straight-version)
-                                 :form ,(prin1-to-string
-                                         (append '(straight-bug-report) form)))))
+                                 :form
+                                 ,(prin1-to-string
+                                   (append '(straight-bug-report) form)))))
          :post*
          (progn ,@(if-let ((pre (plist-get args :pre-bootstrap*)))
                       pre
@@ -166,27 +169,35 @@ locally bound plist, straight-bug-report-args."
                              (source (straight-recipe-source key))
                              (url (when (and repo host)
                                     (format "https://%s.com/%s"
-                                            (alist-get host '((github . "github")
-                                                              (gitlab . "gitlab")))
+                                            (alist-get host
+                                                       '((github . "github")
+                                                         (gitlab . "gitlab")))
                                             repo)))
                              (version
                               (when local-repo
-                                (let  ((default-directory (straight--repos-dir local-repo)))
+                                (let  ((default-directory
+                                         (straight--repos-dir local-repo)))
                                   (when (file-exists-p default-directory)
-                                    (let* ((info (split-string
-                                                  (straight--process-output
-                                                   "git" "show" "-s" "--format=%H %cs")
-                                                  " "))
+                                    (let* ((info
+                                            (split-string
+                                             (straight--process-output
+                                              "git" "show" "-s"
+                                              "--format=%H %cs")
+                                             " "))
                                            (commit (car info)))
-                                      (list :branch (straight-vc-git--local-branch "HEAD")
-                                            :commit commit
-                                            :commit-url
-                                            (when url
-                                              (pcase host
-                                                ('github (concat url "/commit/" commit))
-                                                ('gitlab (concat url "/-/commit/" commit))
-                                                (_ commit)))
-                                            :date   (cadr info))))))))
+                                      (list
+                                       :branch
+                                       (straight-vc-git--local-branch "HEAD")
+                                       :commit commit
+                                       :commit-url
+                                       (when url
+                                         (pcase host
+                                           ('github
+                                            (concat url "/commit/" commit))
+                                           ('gitlab
+                                            (concat url "/-/commit/" commit))
+                                           (_ commit)))
+                                       :date   (cadr info))))))))
                            (nth 2 val)
                          (push (list :name key :source source :repo repo
                                      :local-repo local-repo :host host
