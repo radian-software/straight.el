@@ -3048,11 +3048,13 @@ This is to avoid relying on `make` on Windows.
 See: https://github.com/raxod502/straight.el/issues/707"
   (let* ((default-directory (straight--repos-dir "org" "lisp"))
          (orgversion
-          (straight--process-output
-           "emacs" "-Q" "--batch"
-           "--eval" "(require 'lisp-mnt)"
-           "--visit" "org.el"
-           "--eval" "(princ (lm-header \"version\"))"))
+          (replace-regexp-in-string
+           "-dev" ""
+           (straight--process-output
+            "emacs" "-Q" "--batch"
+            "--eval" "(require 'lisp-mnt)"
+            "--visit" "org.el"
+            "--eval" "(princ (lm-header \"version\"))")))
          (gitversion
           (concat orgversion "-g" (straight--process-output
                                    "git" "rev-parse" "--short=6" "HEAD")))
