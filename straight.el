@@ -3048,10 +3048,11 @@ This is to avoid relying on `make` on Windows.
 See: https://github.com/raxod502/straight.el/issues/707"
   (let* ((default-directory (straight--repos-dir "org" "lisp"))
          (orgversion
-          (replace-regexp-in-string
-           "release_" ""
-           (straight--process-output "git" "describe" "--match" "release*"
-                                     "--abbrev=0" "HEAD")))
+          (straight--process-output
+           "emacs" "-Q" "--batch"
+           "--eval" "(require 'lisp-mnt)"
+           "--visit" "org.el"
+           "--eval" "(princ (lm-header \"version\"))"))
          (gitversion
           (concat orgversion "-g" (straight--process-output
                                    "git" "rev-parse" "--short=6" "HEAD")))
@@ -3076,7 +3077,7 @@ Otherwise return nil."
     ('org
      (list package
            :type 'git
-           :repo "https://code.orgmode.org/bzg/org-mode.git"
+           :repo "https://git.savannah.gnu.org/git/emacs/org-mode.git"
            :local-repo "org"
            ;; `org-version' depends on repository tags.
            :depth 'full
@@ -3113,7 +3114,7 @@ Otherwise return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  9)
+  10)
 
 ;;;;;; MELPA
 
