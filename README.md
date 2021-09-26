@@ -218,6 +218,15 @@ set **before** the bootstrap code runs, if they might affect how
   default, `straight.el` clones over HTTPS. If you need packages from
   private Git repositories in your configuration, then you might want
   to use SSH instead.
+* `straight-base-dir` --
+  by default, straight's main directory, containing it's build files and
+  package repos, is located in `user-emacs-directory`. You can change
+  the location of straight's base directory via this variable.
+* `straight-build-dir` --
+  by default, the directory in which packages are built is located at
+  `straight-base-dir`/build. Changing this variable will change the name
+  of that directory and the name of the build cache file (unless
+  `straight-build-cache-fixed-name` is non-nil).
 
 You should remove any code that relates to `package.el`; for example,
 references to `package-initialize`, `package-archives`, and (if you're
