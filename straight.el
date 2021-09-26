@@ -3048,13 +3048,21 @@ This is to avoid relying on `make` on Windows.
 See: https://github.com/raxod502/straight.el/issues/707"
   (let* ((default-directory (straight--repos-dir "org" "lisp"))
          (orgversion
-          (replace-regexp-in-string
-           "-dev" ""
-           (straight--process-output
-            "emacs" "-Q" "--batch"
-            "--eval" "(require 'lisp-mnt)"
-            "--visit" "org.el"
-            "--eval" "(princ (lm-header \"version\"))")))
+          (straight--process-with-result
+              (straight--process-run "git" "describe" "--match" "release*"
+                                     "--abbrev=0" "HEAD")
+            (if failure
+                ;; backup in case Org repo has no tags
+                (straight--process-with-result
+                    (straight--process-run
+                     "emacs" "-Q" "--batch"
+                     "--eval" "(require 'lisp-mnt)"
+                     "--visit" "org.el"
+                     "--eval" "(princ (lm-header \"version\"))")
+                  (if failure
+                      (error "Failed to parse ORGVERSION")
+                    (replace-regexp-in-string "-dev" "" stdout)))
+              (string-trim (replace-regexp-in-string "release_" "" stdout)))))
          (gitversion
           (concat orgversion "-g" (straight--process-output
                                    "git" "rev-parse" "--short=6" "HEAD")))
@@ -3116,7 +3124,7 @@ Otherwise return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  10)
+  11)
 
 ;;;;;; MELPA
 
