@@ -3088,6 +3088,7 @@ Otherwise return nil."
      (list package
            :type 'git
            :repo "https://git.savannah.gnu.org/git/emacs/org-mode.git"
+           :branch "main"
            :local-repo "org"
            ;; `org-version' depends on repository tags.
            :depth 'full
