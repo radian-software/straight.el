@@ -3324,10 +3324,8 @@ decide you want to use that package again later then you won't have to
 redownload it.)
 
 If you really want to uninstall a package, simply delete its local
-repository from `~/.emacs.d/straight/repos`. To automate the process
-of deleting packages that aren't mentioned by your init-file, you can
-load the `straight-x` library and try out the user-contributed
-function `straight-x-clean-unused-repos`.
+repository from `~/.emacs.d/straight/repos` or run the
+`straight-remove-unused-repos` command.
 
 ### The wrong version of my package was loaded
 
