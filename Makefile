@@ -18,7 +18,7 @@ for_checkindent := $(wildcard *.el benchmark/*.el)
 
 # excludes benchmarking, smoke and unit tests
 .PHONY: all
-all: clean lint
+all: clean compile test lint
 
 .PHONY: help
 help: ## Show this message
@@ -104,5 +104,6 @@ docker: ## Start a Docker shell; e.g. make docker VERSION=25.3
 
 .PHONY: test
 test: straight.elc
-	$(EMACS) -Q --batch -L . -L $(BUTTERCUP) \
-		-l buttercup -f buttercup-run-discover
+	$(EMACS) -Q --batch -L . -l ert -l ./tests/straight-test.el \
+--eval "(let ((ert-quiet t)) \
+(require 'straight-ert-print-hack) (ert-run-tests-batch-and-exit))"
