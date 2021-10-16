@@ -45,6 +45,7 @@ for BINDINGS."
         (autotags
          (delq nil
                (list
+                object
                 (if (string-match-p "--" (symbol-name object))
                     'private 'public)
                 (if (macrop object) 'macro))))
@@ -63,9 +64,13 @@ for BINDINGS."
                ,(or doc (when (fboundp object) (documentation object)))
                ,@(when tags `(:tags ',tags))
                ,@(when expected-result `(:expected-result ,expected-result))
-               ,@(when before-each before-each)
+               ,@(when before-each (if (cl-every #'listp before-each)
+                                       before-each
+                                     (list before-each)))
                ,test
-               ,@(when after-each after-each)))
+               ,@(when after-each (if (cl-every #'listp after-each)
+                                      after-each
+                                    (list after-each)))))
           tests))))
 
 (defun straight-test-enable-fontlocking ()
@@ -103,15 +108,15 @@ return nil."
 
 ;; Tests which assert a comparison should consistinently compare
 ;; EXPECTED to ACTUAL. This makes reading otuput of failed tests
-;; easier. e.g. (should (eq EXPECTED ACTUAL))
+;; easier. e.g. (should (eq EXPECTED ACTUAL)).
 
-;; Test default types of customizations.
+;;;; Customizations
 (dolist (group (cons 'straight
                      (mapcar #'car (custom-group-members 'straight t))))
   (let ((vars (mapcar #'car (cl-remove 'custom-group
                                        (custom-group-members group nil)
                                        :key #'cadr))))
-    ;;CI env does not have install-info or makeinfo installed
+    ;; CI env does not have install-info or makeinfo installed.
     (when straight-test-docker
       (setq vars (cl-remove-if
                   (lambda (var)
@@ -130,25 +135,23 @@ return nil."
                        :match
                        (eval (car (get ',var 'standard-value)) t)))))))))
 
-(ert-deftest straight--functionp ()
-  (let ((fn #'straight-use-package))
-    (should (straight--functionp fn)))
-  (declare-function straight--not-a-function "straight-test") ;;stub
-  (let ((fn #'straight--not-a-function))
-    (should-not (straight--functionp fn))))
+(defvar straight-test-mock-user-emacs-dir "./mocks/.emacs.d"
+  "Mock `user-emacs-dir'.")
 
-(ert-deftest straight--executable-find ()
-  (declare-function executable-find "files.el")
-  (should (equal (executable-find "emacs")
-                 (straight--executable-find "emacs")))
-  (should-error (straight--executable-find "not-an-executable")))
+(defun straight-test-trim-to-mocks (path)
+  "Trim PATH up to and including './mocks'."
+  (string-remove-prefix (expand-file-name "./mocks/") path))
 
-(straight-deftest straight--flatten
-  ( :tags (compatibility)
-    :before-each ((skip-unless (version<= "27.1" emacs-version))))
-  (should (equal (flatten-tree ',in) (straight--flatten ',in)))
-  (in)
-  t nil () (()) 1 ((1)) ((1) (2)) (((1))))
+;;;; Unit Tests
+(straight-deftest straight--add-package-to-info-path
+  (:before-each (defvar Info-directory-list))
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir)
+        (Info-directory-list '()))
+    (straight--add-package-to-info-path
+     '(:package "straight-mock-repo" :local-repo "./test-repo"))
+    (should (string= ".emacs.d/straight/build/straight-mock-repo/"
+                     (straight-test-trim-to-mocks
+                      (car Info-directory-list))))))
 
 (straight-deftest straight--alist-set ()
   (should (equal ',out (straight--alist-set ,@in)))
@@ -157,79 +160,32 @@ return nil."
   ("a" 'd  '(("a" . b) ("a" . c)))     (("a" . d) ("a" . c))
   ("a" 'a  '((a . b) (a . c)) 'symbol) (("a" . a) (a . b) (a . c)))
 
-(straight-deftest straight--with-plist ()
-  (should (eq 8 (let ((plist '(:a 1 :b 2 :c 3)))
-                  (straight--with-plist plist (a b ((:c d)) (e 2))
-                    (+ a b d e))))))
+(straight-deftest straight--autoloads-file ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= ".emacs.d/straight/build/test/test-autoloads.el"
+                     (straight-test-trim-to-mocks
+                      (straight--autoloads-file "test"))))))
 
-(straight-deftest straight--put ()
-  (should (equal (let ((plist '(:a 1 :b 2 :c 3)))
-                   (straight--put plist :a 0) plist)
-                 '(:a 0 :b 2 :c 3))))
+(straight-deftest straight--build-cache-file ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= ".emacs.d/straight/build-cache.el"
+                     (straight-test-trim-to-mocks
+                      (straight--build-cache-file))))))
 
-(straight-deftest straight--remq ()
-  (let* ((plist '(:a 1 :b 2 "string" 3))
-         (original (copy-tree plist)))
-    (ignore original) ;;pacify byte-compiler
-    (should (equal (straight--remq plist ',in) ,out)))
-  (in        out)
-  (:a :b)    '("string" 3)
-  ("string") original)
+(straight-deftest straight--build-dir ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= (file-name-as-directory
+                      (format ".emacs.d/straight/build/%s" ,in))
+                     (straight-test-trim-to-mocks
+                      (straight--build-dir ,in)))))
+  (in) "" "test")
 
-(straight-deftest straight--plist-get ()
-  (let ((plist '(:a 1 :b 2 :c 3)))
-    (should (equal (straight--plist-get plist ,@in) ',out)))
-  (in           out)
-  (:a nil)      1
-  (:d 'default) default)
-
-(straight-deftest straight--insert ()
-  ;;Don't use #s reader syntax here. We want to ensure fresh tables.
-  (let ((table      (make-hash-table :test #'equal))
-        (test-table (make-hash-table :test #'equal)))
-    ;;initialize tables
-    (puthash "a" '("b") test-table)
-    (cl-loop for (key val) on ',out by #'cddr
-             do (puthash key val table))
-    (should (straight--hash-equal
-             (straight--insert ,@in test-table) table)))
-  (in         out)
-  (0 "c" "d") ("a" ("b") "c" ("d"))
-  (2 "a" "c") ("a" ("b" nil "c")))
-
-(straight-deftest straight--checkhash ()
-  (let ((table (make-hash-table :test #'equal)))
-    (puthash "found" '("not-a-key") table)
-    (should (eq (straight--checkhash ,in table) ,out)))
-  (in         out)
-  "found"     t
-  "not-a-key" nil)
-
-(straight-deftest straight-vc-git--fork-repo ()
-  (let ((recipe '( :package "package"
-                   :host    github
-                   :repo    "upstream/repo"))
-        (straight-host-usernames
-         '((github    . "githubUser")
-           (gitlab    . "gitlabUser")
-           (bitbucket . "bitbucketUser"))))
-    (should (equal (straight-vc-git--fork-repo
-                    (plist-put recipe :fork ',in))
-                   ,out)))
-  (in                                  out)
-  nil                                  "upstream/repo"
-  t                                    "githubUser/repo"
-  "fork"                               "fork/repo"
-  "fork/"                              "fork/repo"
-  "/rename"                            "githubUser/rename"
-  "fork/rename"                        "fork/rename"
-  (:host bitbucket)                    "bitbucketUser/repo"
-  (:repo "/rename")                    "githubUser/rename"
-  (:host github :repo "user/")         "user/repo"
-  (:host gitlab :repo "full/override") "full/override"
-  ;; https://github.com/raxod502/straight.el/issues/592
-  (:host nil :repo "/local/repo")      "/local/repo"
-  (:branch "feature")                  "githubUser/repo")
+(straight-deftest straight--build-disabled-p ()
+  (should (eq ,out (straight--build-disabled-p ',recipe)))
+  (recipe      out)
+  ()           nil
+  (:build t)   nil
+  (:build nil) t)
 
 (straight-deftest straight--build-steps ()
   (let* ((defaults
@@ -246,11 +202,10 @@ return nil."
          (straight-disable-native-compile
           (member 'native-compile ,disabled)))
     (ignore defaults) ;;pacify byte-compiler
-    (should (equal (mapcar
-                    (lambda (step)
-                      (intern (format "straight--build-%s"
-                                      (symbol-name step))))
-                    ,steps)
+    (should (equal (mapcar (lambda (step)
+                             (intern (format "straight--build-%s"
+                                             (symbol-name step))))
+                           ,steps)
                    (straight--build-steps
                     '(:package "test" :build ,build)))))
   (disabled       build            steps)
@@ -263,6 +218,113 @@ return nil."
   nil             (:not compile)   '(autoloads native-compile info)
   defaults        (:not compile)   nil
   '(info)         (:not compile)   '(autoloads native-compile))
+
+(straight-deftest straight--buildable-p ()
+  (should (eq ,out (straight--buildable-p ',in)))
+  (in          out)
+  ()           t
+  (:build t)   t
+  (:build nil) nil)
+
+(straight-deftest straight--catching-quit ()
+  (,assert (straight--catching-quit ,in))
+  (assert      in)
+  should       t
+  should-not   (signal 'quit nil)
+  should-error (signal 'wrong-type-argument nil))
+
+(straight-deftest straight--checkhash ()
+  (let ((table (make-hash-table :test #'equal)))
+    (puthash "found" '("not-a-key") table)
+    (should (eq ,out (straight--checkhash ,in table))))
+  (in         out)
+  "found"     t
+  "not-a-key" nil)
+
+(ert-deftest straight--functionp ()
+  (let ((fn #'straight-use-package))
+    (should (straight--functionp fn)))
+  (declare-function straight--not-a-function "straight-test") ; stub
+  (let ((fn #'straight--not-a-function))
+    (should-not (straight--functionp fn))))
+
+(ert-deftest straight--executable-find ()
+  (declare-function executable-find "files.el")
+  (should (equal (executable-find "emacs")
+                 (straight--executable-find "emacs")))
+  (should-error (straight--executable-find "not-an-executable")))
+
+(straight-deftest straight--flatten
+  ( :tags (compatibility)
+    :before-each (skip-unless (version<= "27.1" emacs-version)))
+  (should (equal (flatten-tree ',in) (straight--flatten ',in)))
+  (in)
+  t nil () (()) 1 ((1)) ((1) (2)) (((1))))
+
+(straight-deftest straight--with-plist ()
+  (should (eq 8 (let ((plist '(:a 1 :b 2 :c 3)))
+                  (straight--with-plist plist (a b ((:c d)) (e 2))
+                    (+ a b d e))))))
+
+(straight-deftest straight--put ()
+  (should (equal '(:a 0 :b 2 :c 3)
+                 (let ((plist '(:a 1 :b 2 :c 3)))
+                   (straight--put plist :a 0) plist))))
+
+(straight-deftest straight--remq ()
+  (let* ((plist '(:a 1 :b 2 "string" 3))
+         (original (copy-tree plist)))
+    (ignore original) ;;pacify byte-compiler
+    (should (equal ,out (straight--remq plist ',in))))
+  (in        out)
+  (:a :b)    '("string" 3)
+  ("string") original)
+
+(straight-deftest straight--plist-get ()
+  (let ((plist '(:a 1 :b 2 :c 3)))
+    (should (equal ',out (straight--plist-get plist ,@in))))
+  (in           out)
+  (:a nil)      1
+  (:d 'default) default)
+
+(straight-deftest straight--insert ()
+  ;;Don't use #s reader syntax here. We want to ensure fresh tables.
+  (let ((table      (make-hash-table :test #'equal))
+        (test-table (make-hash-table :test #'equal)))
+    ;;initialize tables
+    (puthash "a" '("b") test-table)
+    (cl-loop for (key val) on ',out by #'cddr
+             do (puthash key val table))
+    (should (straight--hash-equal table (straight--insert ,@in test-table))))
+  (in         out)
+  (0 "c" "d") ("a" ("b") "c" ("d"))
+  (2 "a" "c") ("a" ("b" nil "c")))
+
+(straight-deftest straight-vc-git--fork-repo ()
+  (let ((recipe '( :package "package"
+                   :host    github
+                   :repo    "upstream/repo"))
+        (straight-host-usernames
+         '((github    . "githubUser")
+           (gitlab    . "gitlabUser")
+           (bitbucket . "bitbucketUser"))))
+    (should (equal ,out (straight-vc-git--fork-repo
+                         (plist-put recipe :fork ',in)))))
+  (in                                  out)
+  nil                                  "upstream/repo"
+  t                                    "githubUser/repo"
+  "fork"                               "fork/repo"
+  "fork/"                              "fork/repo"
+  "/rename"                            "githubUser/rename"
+  "fork/rename"                        "fork/rename"
+  (:host bitbucket)                    "bitbucketUser/repo"
+  (:repo "/rename")                    "githubUser/rename"
+  (:host github :repo "user/")         "user/repo"
+  (:host gitlab :repo "full/override") "full/override"
+  ;; https://github.com/raxod502/straight.el/issues/592
+  (:host nil :repo "/local/repo")      "/local/repo"
+  (:branch "feature")                  "githubUser/repo")
+
 
 (provide 'straight-test)
 
