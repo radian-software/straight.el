@@ -196,7 +196,7 @@ return nil."
 
 ;;@TODO: mock plain symbol that triggers recipe lookup
 (straight-deftest straight--convert-recipe ()
-   (should (equal ',out (straight--convert-recipe ',in)))
+  (should (equal ',out (straight--convert-recipe ',in)))
   (in out)
 
   (doct :repo "progfolio/doct" :fetcher github)
