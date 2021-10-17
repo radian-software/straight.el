@@ -7040,7 +7040,7 @@ locally bound plist, straight-bug-report-args."
     (cl-remove-if (lambda (p) (string= p "emacs"))
                   (delete-dups
                    (delq nil
-                         (cl-reduce #'append dependencies))))))
+                         (cl-reduce #'append (nreverse dependencies)))))))
 
 ;;;###autoload
 (defun straight-dependents (&optional package)
