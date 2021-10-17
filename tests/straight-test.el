@@ -187,6 +187,25 @@ return nil."
   (:build t)   nil
   (:build nil) t)
 
+(straight-deftest straight--build-file ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= (format ".emacs.d/straight/build/%s" ,in)
+                     (straight-test-trim-to-mocks
+                      (straight--build-file ,in)))))
+  (in) "test.el")
+
+;;@TODO: mock plain symbol that triggers recipe lookup
+(straight-deftest straight--convert-recipe ()
+   (should (equal ',out (straight--convert-recipe ',in)))
+  (in out)
+
+  (doct :repo "progfolio/doct" :fetcher github)
+  (:repo "progfolio/doct" :fetcher github :package "doct"
+         :type git :local-repo "doct")
+
+  emacs
+  (:type built-in :package "emacs"))
+
 (straight-deftest straight--build-steps ()
   (let* ((defaults
            (mapcar (lambda (sym)
