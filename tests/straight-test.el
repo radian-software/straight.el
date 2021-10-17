@@ -206,6 +206,18 @@ return nil."
   emacs
   (:type built-in :package "emacs"))
 
+(straight-deftest straight--dependencies ()
+  (let ((straight--build-cache (make-hash-table :test #'equal)))
+    (cl-loop for (key val) on ',build-cache by #'cddr
+             do (puthash key val straight--build-cache))
+    (should (equal ',dependencies (straight--dependencies))))
+  (build-cache                                       dependencies)
+  ("p" ())                                           nil
+  ("p" (nil ("emacs")))                              nil
+  ("p" (nil ("dependency")))                         ("dependency")
+  ("p" (nil ("a" "b" "c")))                          ("a" "b" "c")
+  ("p" (nil ("a" "b" "c")) "p2" (nil ("b" "c" "d"))) ("a" "b" "c" "d"))
+
 (straight-deftest straight--build-steps ()
   (let* ((defaults
            (mapcar (lambda (sym)
