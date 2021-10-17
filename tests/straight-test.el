@@ -359,4 +359,8 @@ return nil."
 
 (provide 'straight-test)
 
+;; Local Variables:
+;; compile-command: "make -C ../"
+;; End:
+
 ;;; straight-test.el ends here
