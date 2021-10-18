@@ -135,12 +135,24 @@ return nil."
                        :match
                        (eval (car (get ',var 'standard-value)) t)))))))))
 
-(defvar straight-test-mock-user-emacs-dir "./mocks/.emacs.d"
+(defun straight-test--mock-file (&rest segments)
+  "SEGMENTS."
+  (expand-file-name
+   (string-join segments "/")
+   (expand-file-name "./tests/mocks/"
+                     ;; These tests can be run interactively from this
+                     ;; file, and from the Makefile in the parent
+                     ;; directory.
+                     (locate-dominating-file "./" "straight.el"))))
+
+(defvar straight-test-mock-user-emacs-dir
+  (straight-test--mock-file ".emacs.d/")
   "Mock `user-emacs-dir'.")
 
 (defun straight-test-trim-to-mocks (path)
   "Trim PATH up to and including './mocks'."
-  (string-remove-prefix (expand-file-name "./mocks/") path))
+  (string-remove-prefix
+   (file-name-as-directory (straight-test--mock-file)) path))
 
 ;;;; Unit Tests
 (straight-deftest straight--add-package-to-info-path
@@ -194,30 +206,6 @@ return nil."
                       (straight--build-file ,in)))))
   (in) "test.el")
 
-;;@TODO: mock plain symbol that triggers recipe lookup
-(straight-deftest straight--convert-recipe ()
-  (should (equal ',out (straight--convert-recipe ',in)))
-  (in out)
-
-  (doct :repo "progfolio/doct" :fetcher github)
-  (:repo "progfolio/doct" :fetcher github :package "doct"
-         :type git :local-repo "doct")
-
-  emacs
-  (:type built-in :package "emacs"))
-
-(straight-deftest straight--dependencies ()
-  (let ((straight--build-cache (make-hash-table :test #'equal)))
-    (cl-loop for (key val) on ',build-cache by #'cddr
-             do (puthash key val straight--build-cache))
-    (should (equal ',dependencies (straight--dependencies))))
-  (build-cache                                       dependencies)
-  ("p" ())                                           nil
-  ("p" (nil ("emacs")))                              nil
-  ("p" (nil ("dependency")))                         ("dependency")
-  ("p" (nil ("a" "b" "c")))                          ("a" "b" "c")
-  ("p" (nil ("a" "b" "c")) "p2" (nil ("b" "c" "d"))) ("a" "b" "c" "d"))
-
 (straight-deftest straight--build-steps ()
   (let* ((defaults
            (mapcar (lambda (sym)
@@ -257,6 +245,20 @@ return nil."
   (:build t)   t
   (:build nil) nil)
 
+;;@TODO: mock plain symbol that triggers recipe lookup
+(straight-deftest straight--convert-recipe ()
+  (let ((straight-recipe-repositories nil))
+    (should (equal ',out (straight--convert-recipe ',in))))
+  (in out)
+  (doct :repo "progfolio/doct" :fetcher github)
+  ( :repo "progfolio/doct"
+    :fetcher github
+    :package "doct"
+    :type git
+    :local-repo "doct")
+  emacs
+  (:type built-in :package "emacs"))
+
 (straight-deftest straight--catching-quit ()
   (,assert (straight--catching-quit ,in))
   (assert      in)
@@ -272,6 +274,51 @@ return nil."
   "found"     t
   "not-a-key" nil)
 
+(straight-deftest straight--dependencies ()
+  (let ((straight--build-cache (make-hash-table :test #'equal)))
+    (cl-loop for (key val) on ',build-cache by #'cddr
+             do (puthash key val straight--build-cache))
+    (should (equal ',dependencies (straight--dependencies))))
+  (build-cache                                       dependencies)
+  ("p" ())                                           nil
+  ("p" (nil ("emacs")))                              nil
+  ("p" (nil ("dependency")))                         ("dependency")
+  ("p" (nil ("a" "b" "c")))                          ("a" "b" "c")
+  ("p" (nil ("a" "b" "c")) "p2" (nil ("b" "c" "d"))) ("a" "b" "c" "d"))
+
+(straight-deftest straight--dir ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= (file-name-as-directory
+                      (format ".emacs.d/straight/%s" ,in))
+                     (straight-test-trim-to-mocks (straight--dir ,in)))))
+  (in) "" "test")
+
+(straight-deftest straight--emacs-dir ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= (file-name-as-directory
+                      (format ".emacs.d/%s" ,in))
+                     (straight-test-trim-to-mocks
+                      (straight--emacs-dir ,in)))))
+  (in) "" "test")
+
+(straight-deftest straight--emacs-file ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= ,out
+                     (straight-test-trim-to-mocks
+                      (straight--emacs-file ,@in)))))
+  (in       out)
+  ("a")     ".emacs.d/a"
+  ("a" "b") ".emacs.d/a/b")
+
+(straight-deftest straight--file ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= ,out
+                     (straight-test-trim-to-mocks
+                      (straight--file ,@in)))))
+  (in       out)
+  ("a")     ".emacs.d/straight/a"
+  ("a" "b") ".emacs.d/straight/a/b")
+
 (ert-deftest straight--functionp ()
   (let ((fn #'straight-use-package))
     (should (straight--functionp fn)))
@@ -285,12 +332,57 @@ return nil."
                  (straight--executable-find "emacs")))
   (should-error (straight--executable-find "not-an-executable")))
 
+;;@Incomplete: 'melpa style expansions, cons cells not tested yet
+(straight-deftest straight--expand-files-directive-internal ()
+  (let* ((straight-base-dir straight-test-mock-user-emacs-dir)
+         (mock-repo (straight--repos-dir "straight-mock-repo"))
+         (default-directory mock-repo))
+    (should (equal ',out (straight--expand-files-directive-internal
+                          ,@in))))
+  (in                    out)
+  ('()                   mock-repo nil nil) (nil)
+  ('()                   mock-repo "p" nil) (nil)
+  ('("*.none")           mock-repo nil nil) (nil)
+  ('("nonexistant-file") mock-repo nil nil) (nil)
+
+  ('(:defaults) mock-repo nil nil)
+  ((("not.el" . "not.el") ("straight-mock-repo.el" . "straight-mock-repo.el")))
+
+  ('(:defaults) mock-repo "prefix/" nil)
+  ((("not.el" . "prefix/not.el")
+    ("straight-mock-repo.el" . "prefix/straight-mock-repo.el")))
+
+  ('("*.el") mock-repo nil nil)
+  ((("not.el" . "not.el") ("straight-mock-repo.el" . "straight-mock-repo.el")))
+
+  ('("subdir/*.el") mock-repo nil nil)
+  ((("subdir/a.el" . "a.el") ("subdir/b.el" . "b.el")))
+
+  ('(:defaults (:exclude "not.el")) mock-repo nil nil)
+  ((("straight-mock-repo.el" . "straight-mock-repo.el"))
+   "not.el")
+
+  ('((:exclude "*")) mock-repo nil nil)
+  (nil "not.el" "straight-mock-repo.el" "subdir"))
+
 (straight-deftest straight--flatten
   ( :tags (compatibility)
     :before-each (skip-unless (version<= "27.1" emacs-version)))
   (should (equal (flatten-tree ',in) (straight--flatten ',in)))
   (in)
   t nil () (()) 1 ((1)) ((1) (2)) (((1))))
+
+(straight-deftest straight--get-dependencies ()
+  (let ((straight--build-cache (make-hash-table :test #'equal))
+        (data '("p" () "p2" (nil ("emacs")) "p3" (nil ("p2")))))
+    (cl-loop for (key val) on data by #'cddr
+             do (puthash key val straight--build-cache))
+    (should (equal ',dependencies (straight--get-dependencies ,package))))
+  (package dependencies)
+  "p"      nil
+  "p2"     ("emacs")
+  ;; Doesn't resolve transitive dependencies on its own.
+  "p3"     ("p2"))
 
 (straight-deftest straight--with-plist ()
   (should (eq 8 (let ((plist '(:a 1 :b 2 :c 3)))
@@ -355,7 +447,6 @@ return nil."
   ;; https://github.com/raxod502/straight.el/issues/592
   (:host nil :repo "/local/repo")      "/local/repo"
   (:branch "feature")                  "githubUser/repo")
-
 
 (provide 'straight-test)
 
