@@ -293,6 +293,36 @@ return nil."
                      (straight-test-trim-to-mocks (straight--dir ,in)))))
   (in) "" "test")
 
+(straight-deftest straight--directory-files ()
+  (cl-flet ((mock (&rest args) (apply #'straight-test--mock-file args)))
+    (let ((default-directory straight-test-mock-user-emacs-dir))
+      (should (equal ,files (straight--directory-files ,@args)))))
+  (args                           files)
+  ()                              '("straight")
+  ("../../" ".*.el")              '("straight-test.el")
+  ((mock) nil 'full)              `(,(mock ".emacs.d"))
+  ((mock ".emacs.d" "straight") nil nil #'string<) '("build" "repos"))
+
+(straight-deftest straight--el-get-emacs ()
+  (should (equal (concat invocation-directory invocation-name)
+                 (straight--el-get-emacs))))
+
+(straight-deftest straight--ensure-blank-lines ()
+  (cl-flet ((buffer-with-point-at (s n)
+              (with-temp-buffer
+                (insert s)
+                (goto-char (point-min))
+                (when (search-forward "|" nil t)
+                  (delete-region (match-beginning 0)
+                                 (match-end 0)))
+                (straight--ensure-blank-lines n)
+                (buffer-string))))
+    (should (equal ,buffer-string (buffer-with-point-at ,string ,n))))
+  (string n buffer-string)
+  "|beginning-of-buffer" 1 "beginning-of-buffer"
+  "a|b" 1 "a\nb"
+  "a|b" 2 "a\n\nb")
+
 (straight-deftest straight--emacs-dir ()
   (let ((straight-base-dir straight-test-mock-user-emacs-dir))
     (should (string= (file-name-as-directory
@@ -384,6 +414,25 @@ return nil."
   ;; Doesn't resolve transitive dependencies on its own.
   "p3"     ("p2"))
 
+(straight-deftest straight--get-overridden-recipe ()
+  (let ((straight-profiles '((test . nil)))
+        (straight-recipe-overrides '((test . ((package t))))))
+    (should (equal '(package t) (straight--get-overridden-recipe 'package)))))
+
+(straight-deftest straight--get-transitive-dependencies ()
+  (let ((straight--build-cache (make-hash-table :test #'equal))
+        (data '("p" () "p2" (nil ("emacs")) "p3" (nil ("p2")))))
+    (cl-loop for (key val) on data by #'cddr
+             do (puthash key val straight--build-cache))
+    ;; If we don't sort the return values are inconsistent on Emacs 25
+    (should (equal (sort ',dependencies #'string<)
+                   (sort (straight--get-transitive-dependencies ,package)
+                         #'string<))))
+  (package dependencies)
+  "p"      ("p")
+  "p2"     ("p2" "emacs")
+  "p3"     ("p3" "p2" "emacs"))
+
 (straight-deftest straight--with-plist ()
   (should (eq 8 (let ((plist '(:a 1 :b 2 :c 3)))
                   (straight--with-plist plist (a b ((:c d)) (e 2))
@@ -402,6 +451,13 @@ return nil."
   (in        out)
   (:a :b)    '("string" 3)
   ("string") original)
+
+(straight-deftest straight--process-call ()
+  (should (equal ',out (straight--process-call ,@args)))
+  (args                                        out)
+  ("echo" "hi")                                (0 "hi\n" nil)
+  ("bash" "-c" "echo err 1>&2")                (0 nil "err\n")
+  ("bash" "-c" "straight.el-test &>/dev/null") (127 nil nil))
 
 (straight-deftest straight--plist-get ()
   (let ((plist '(:a 1 :b 2 :c 3)))
@@ -452,6 +508,8 @@ return nil."
 
 ;; Local Variables:
 ;; compile-command: "make -C ../"
+;; create-lockfiles: nil
+;; auto-save-default: nil
 ;; End:
 
 ;;; straight-test.el ends here
