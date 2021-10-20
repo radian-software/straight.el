@@ -425,7 +425,7 @@ return nil."
     (cl-loop for (key val) on data by #'cddr
              do (puthash key val straight--build-cache))
     ;; If we don't sort the return values are inconsistent on Emacs 25
-    (should (equal (sort ',dependencies #'string<)
+    (should (equal (sort (copy-tree ',dependencies) #'string<)
                    (sort (straight--get-transitive-dependencies ,package)
                          #'string<))))
   (package dependencies)
@@ -479,6 +479,62 @@ return nil."
   (0 "c" "d") ("a" ("b") "c" ("d"))
   (2 "a" "c") ("a" ("b" nil "c")))
 
+(straight-deftest straight--modified-dir ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= (file-name-as-directory
+                      (format ".emacs.d/straight/modified/%s" ,in))
+                     (straight-test-trim-to-mocks
+                      (straight--modified-dir ,in)))))
+  (in) "" "test")
+
+(straight-deftest straight--modified-file ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= (format ".emacs.d/straight/modified/%s" ,in)
+                     (straight-test-trim-to-mocks
+                      (straight--modified-file ,in)))))
+  (in) "test.el")
+
+(straight-deftest straight--mtimes-dir ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= (file-name-as-directory
+                      (format ".emacs.d/straight/mtimes/%s" ,in))
+                     (straight-test-trim-to-mocks
+                      (straight--mtimes-dir ,in)))))
+  (in) "" "test")
+
+(straight-deftest straight--mtimes-file ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= (format ".emacs.d/straight/mtimes/%s" ,in)
+                     (straight-test-trim-to-mocks
+                      (straight--mtimes-file ,in)))))
+  (in) "test.el")
+
+(straight-deftest straight--path-prefix-p ()
+  (should (straight--path-prefix-p
+           (straight-test--mock-file) (straight-test--mock-file ".emacs.d"))))
+
+(straight-deftest straight--repos-dir ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= (file-name-as-directory
+                      (format ".emacs.d/straight/repos/%s" ,in))
+                     (straight-test-trim-to-mocks
+                      (straight--repos-dir ,in)))))
+  (in) "" "test")
+
+(straight-deftest straight--repos-file ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= (format ".emacs.d/straight/repos/%s" ,in)
+                     (straight-test-trim-to-mocks
+                      (straight--repos-file ,in)))))
+  (in) "test.el")
+
+(straight-deftest straight--uniquify ()
+  (should (equal ,out (straight--uniquify ,@args)))
+  (args                       out)
+  ("test" '())                "test"
+  ("test" '("test"))          "test-1"
+  ("test" '("test" "test-1")) "test-2")
+
 (straight-deftest straight-vc-git--fork-repo ()
   (let ((recipe '( :package "package"
                    :host    github
@@ -503,6 +559,36 @@ return nil."
   ;; https://github.com/raxod502/straight.el/issues/592
   (:host nil :repo "/local/repo")      "/local/repo"
   (:branch "feature")                  "githubUser/repo")
+
+(straight-deftest straight--versions-dir ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= (file-name-as-directory
+                      (format ".emacs.d/straight/versions/%s" ,in))
+                     (straight-test-trim-to-mocks
+                      (straight--versions-dir ,in)))))
+  (in) "" "test")
+
+(straight-deftest straight--versions-file ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= (format ".emacs.d/straight/versions/%s" ,in)
+                     (straight-test-trim-to-mocks
+                      (straight--versions-file ,in)))))
+  (in) "test.el")
+
+(straight-deftest straight--watcher-dir ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= (file-name-as-directory
+                      (format ".emacs.d/straight/watcher/%s" ,in))
+                     (straight-test-trim-to-mocks
+                      (straight--watcher-dir ,in)))))
+  (in) "" "test")
+
+(straight-deftest straight--watcher-file ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (should (string= (format ".emacs.d/straight/watcher/%s" ,in)
+                     (straight-test-trim-to-mocks
+                      (straight--watcher-file ,in)))))
+  (in) "test.el")
 
 (provide 'straight-test)
 
