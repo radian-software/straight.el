@@ -5281,6 +5281,36 @@ RECIPE is a straight.el-style plist."
 ;;;; Interactive helpers
 ;;;;; Package selection
 
+(defconst straight--recipe-completion-metadata
+  `((category . straight-recipe))
+  "Metadata to be passed to `completing-read' when selecting packages.")
+
+(defun straight--recipe-completion (recipes)
+  "Completion function for recipe names listed in RECIPES."
+  (lambda (string pred action)
+    (pcase action
+      ('metadata
+       (cons 'metadata straight--recipe-completion-metadata))
+      (_
+       (complete-with-action action recipes string pred)))))
+
+(defun straight--cached-recipe-completion (&optional filter)
+  "Completion function for cached recipe names.
+Candidates are the keys of `straight--recipe-cache'.
+
+See documentation of `straight--select-package' for a description
+of FILTER."
+  (lambda (string pred action)
+    (pcase action
+      ('metadata
+       (cons 'metadata straight--recipe-completion-metadata))
+      (_
+       (complete-with-action
+        action straight--recipe-cache string
+        (lambda (package recipe)
+          (and (or (null filter) (funcall filter recipe))
+               (or (null pred) (funcall pred package)))))))))
+
 (defun straight--select-package (message &optional filter)
   "Use `completing-read' to select a package.
 MESSAGE is displayed as the prompt; it should not end in punctuation
@@ -5290,14 +5320,8 @@ FILTER is a function accepting one argument: a straight style recipe plist.
 If it returns nil, the package is not considered a selection candidate."
   (completing-read
    (concat message ": ")
-   (let ((packages nil))
-     (maphash (lambda (package recipe)
-                (when (or (null filter)
-                          (funcall filter (plist-put recipe :package package)))
-                  (push package packages)))
-              straight--recipe-cache)
-     (nreverse packages))
-   (lambda (_) t)
+   (straight--cached-recipe-completion filter)
+   nil
    'require-match))
 
 ;;;;; Bookkeeping
@@ -5474,24 +5498,25 @@ action, just return it)."
                      straight-recipe-repositories
                      nil
                      'require-match)))))
-  (let ((sources (or sources straight-recipe-repositories)))
-    (let* ((package (intern
-                     (completing-read
-                      "Which recipe? "
-                      (straight-recipes-list sources)
-                      (lambda (_) t)
-                      'require-match)))
-           ;; No need to provide a `cause' to
-           ;; `straight-recipes-retrieve'; it should not be printing
-           ;; any messages.
-           (recipe (straight-recipes-retrieve package sources)))
-      (unless recipe
-        (user-error "Recipe for %S is malformed" package))
-      (pcase action
-        ('insert (insert (format "%S" recipe)))
-        ('copy (kill-new (format "%S" recipe))
-               (straight--output "Copied \"%S\" to kill ring" recipe))
-        (_ recipe)))))
+  (let* ((sources (or sources straight-recipe-repositories))
+         (package
+          (intern (completing-read
+                   "Which recipe? "
+                   (straight--recipe-completion
+                    (straight-recipes-list sources))
+                   nil
+                   'require-match)))
+         ;; No need to provide a `cause' to
+         ;; `straight-recipes-retrieve'; it should not be printing
+         ;; any messages.
+         (recipe (straight-recipes-retrieve package sources)))
+    (unless recipe
+      (user-error "Recipe for %S is malformed" package))
+    (pcase action
+      ('insert (insert (format "%S" recipe)))
+      ('copy (kill-new (format "%S" recipe))
+             (straight--output "Copied \"%S\" to kill ring" recipe))
+      (_ recipe))))
 
 ;;;;; Update recipe repositories
 (defun straight-pull-recipe-repositories (&optional sources)
