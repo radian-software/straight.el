@@ -5297,9 +5297,8 @@ If it returns nil, the package is not considered a selection candidate."
 ;;;;;; Completion functions
 
 (defun straight--package-completion (recipes &optional filter)
-  "Make a completion function for package names.
-RECIPES is a hash table like `straight--recipe-cache', mapping
-package name strings to recipes.
+  "Return a  package name completion function.
+RECIPES must be a hash table mapping package name strings to recipes.
 
 See documentation of `straight--select-package' for a description
 of FILTER."
@@ -5316,7 +5315,7 @@ of FILTER."
                 (or (null pred) (funcall pred package)))))))))
 
 (defun straight--recipe-completion (sources &optional cause)
-  "Make a completion function for recipes available in SOURCES.
+  "Return a completion function for recipes in SOURCES.
 The completion candidates are the same as those returned by
 `straight-recipes-list'.
 
@@ -5342,7 +5341,7 @@ to be cloned."
 ;;;;;; Annotation functions
 
 (defun straight--package-annotation (recipes)
-  "Make an annotation function for keys of RECIPES.
+  "Return an annotation function for RECIPES keys.
 See documentation of `straight--package-completion' for a
 description of RECIPES.
 
