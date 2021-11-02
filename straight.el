@@ -1506,16 +1506,18 @@ This method simply delegates to the relevant
 
 ;;;;; Built-in packages
 
-(defun straight-vc-built-in-get-commit (_local-repo)
-  "Get the currently checked-out commit object, given LOCAL-REPO name string.
-For built-in packages, this is always nil because there cannot
-actually be a local repository."
-  nil)
-
-(defun straight-vc-built-in-local-repo-name (_recipe)
-  "Generate a repository name from straight.el-style RECIPE.
-For built-in packages, this is always nil."
-  nil)
+(dolist (method (list "check-out-commit"
+                      "clone"
+                      "commit-present-p"
+                      "fetch-from-remote"
+                      "fetch-from-upstream"
+                      "get-commit"
+                      "keywords"
+                      "local-repo-name"
+                      "normalize"
+                      "push-to-remote"))
+  (defalias (intern (format "straight-vc-built-in-%s" method)) #'ignore
+    "Psuedo VC backend method for packages with :type built-in."))
 
 ;;;;; Git
 
