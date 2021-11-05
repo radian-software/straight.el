@@ -208,10 +208,10 @@ return nil."
 
 (straight-deftest straight--build-steps ()
   (let* ((defaults
-           (mapcar (lambda (sym)
-                     (intern (string-remove-prefix "straight-disable-"
-                                                   (symbol-name sym))))
-                   straight--build-default-steps))
+          (mapcar (lambda (sym)
+                    (intern (string-remove-prefix "straight-disable-"
+                                                  (symbol-name sym))))
+                  straight--build-default-steps))
          (straight-disable-info
           (member 'info           ,disabled))
          (straight-disable-compile
