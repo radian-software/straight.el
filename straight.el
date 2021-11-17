@@ -6789,7 +6789,7 @@ If PREAMBLE is non-nil, it is inserted after the instructions."
         `(("<!-- copy entire buffer output and paste in an issue at:")
           ("https://github.com/raxod502/straight.el/issues/new/choose -->")
           ,@(when preamble
-              `(("<details><summary>Test Case</summary>")
+              `(("<details open><summary>Test Case</summary>")
                 ("\n```emacs-lisp")
                 ("%s" ,@preamble)
                 ("```")
