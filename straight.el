@@ -1515,6 +1515,8 @@ This method simply delegates to the relevant
                       "keywords"
                       "local-repo-name"
                       "normalize"
+                      "merge-from-remote"
+                      "merge-from-upstream"
                       "push-to-remote"))
   (defalias (intern (format "straight-vc-built-in-%s" method)) #'ignore
     "Psuedo VC backend method for packages with :type built-in."))
