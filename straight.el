@@ -1504,6 +1504,24 @@ This method simply delegates to the relevant
 `straight-vc-TYPE-keywords' method."
   (straight-vc 'keywords type))
 
+;;;;; No VC management
+
+
+(dolist (method (list "check-out-commit"
+                      "clone"
+                      "commit-present-p"
+                      "fetch-from-remote"
+                      "fetch-from-upstream"
+                      "get-commit"
+                      "keywords"
+                      "local-repo-name"
+                      "normalize"
+                      "merge-from-remote"
+                      "merge-from-upstream"
+                      "push-to-remote"))
+  (defalias (intern (format "straight-vc-nil-%s" method)) #'ignore
+    "Psuedo VC backend method for packages with :type nil."))
+
 ;;;;; Built-in packages
 
 (dolist (method (list "check-out-commit"
@@ -3604,11 +3622,12 @@ for dependency resolution."
                           (cdr (if (straight--quoted-form-p retrieved)
                                    (eval retrieved) retrieved)))
                         plist))
-                     (type (or (plist-get default :type) 'git))
+                     (type (if (plist-member default :type)
+                               (plist-get default :type)
+                             straight-default-vc))
                      (keywords
                       (append straight--build-keywords
-                              (unless (eq type 'built-in)
-                                (straight-vc-keywords type)))))
+                              (straight-vc-keywords type))))
                 ;; Compute :fork repo name
                 (when-let ((fork (plist-get plist :fork)))
                   (straight--put default :fork fork)
