@@ -6326,9 +6326,6 @@ according to the value of `straight-profiles'."
 ;;;; Integration with other packages
 ;;;;; package.el "integration"
 
-(defvaralias 'straight-ಠ_ಠ 'straight-enable-package-integration
-  "The alias expresses how I feel about package.el sometimes.")
-
 (defcustom straight-enable-package-integration t
   "Whether to enable \"integration\" with package.el.
 This means that `package-enable-at-startup' is disabled, and
