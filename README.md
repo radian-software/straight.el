@@ -603,7 +603,9 @@ how to obtain it. This is done using the `straight-vc-clone` function,
 which delegates to one of the backend implementations of the `clone`
 operation, according to `:type`. (The option `:type built-in` is a
 special case that results in all version-control operations for the
-package being ignored.)
+package being ignored. You can also use `:type nil` to accomplish the
+same, but with the difference that the package is still loaded from
+its specified `:local-repo`.)
 
 However, even with a particular repository source specified, there is
 still the question of which version of the repository to use. This is
@@ -2052,6 +2054,10 @@ In the absence of a `:build` keyword, `straight--build-default-steps` are run.
 (straight-use-package '(org :type built-in))
 ```
 
+  You can also use `:type nil`, which has the same effect as `:type
+  'built-in`, except that the package is still loaded from its
+  configured `:local-repo`.
+
 * `:source`
 
  Overrides `straight-recipe-repositories` on a per-recipe basis.
@@ -2079,7 +2085,8 @@ In the absence of a `:build` keyword, `straight--build-default-steps` are run.
   how the package's repository is cloned and managed) will be
   meaningful. See the next section.
 
-  The `built-in` pseudo-backend does not take any other keywords.
+  The `built-in` and `nil` pseudo-backends do not take any other
+  keywords.
 
 * `:includes`
 
