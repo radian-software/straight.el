@@ -1506,38 +1506,21 @@ This method simply delegates to the relevant
 
 ;;;;; No VC management
 
-
-(dolist (method (list "check-out-commit"
-                      "clone"
-                      "commit-present-p"
-                      "fetch-from-remote"
-                      "fetch-from-upstream"
-                      "get-commit"
-                      "keywords"
-                      "local-repo-name"
-                      "normalize"
-                      "merge-from-remote"
-                      "merge-from-upstream"
-                      "push-to-remote"))
-  (defalias (intern (format "straight-vc-nil-%s" method)) #'ignore
-    "Psuedo VC backend method for packages with :type nil."))
-
-;;;;; Built-in packages
-
-(dolist (method (list "check-out-commit"
-                      "clone"
-                      "commit-present-p"
-                      "fetch-from-remote"
-                      "fetch-from-upstream"
-                      "get-commit"
-                      "keywords"
-                      "local-repo-name"
-                      "normalize"
-                      "merge-from-remote"
-                      "merge-from-upstream"
-                      "push-to-remote"))
-  (defalias (intern (format "straight-vc-built-in-%s" method)) #'ignore
-    "Psuedo VC backend method for packages with :type built-in."))
+(dolist (type '(nil built-in))
+  (dolist (method (list "check-out-commit"
+                        "clone"
+                        "commit-present-p"
+                        "fetch-from-remote"
+                        "fetch-from-upstream"
+                        "get-commit"
+                        "keywords"
+                        "local-repo-name"
+                        "normalize"
+                        "merge-from-remote"
+                        "merge-from-upstream"
+                        "push-to-remote"))
+    (defalias (intern (format "straight-vc-%S-%s" type method)) #'ignore
+      (format "Psuedo VC backend method for packages with :type %S." type))))
 
 ;;;;; Git
 
