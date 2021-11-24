@@ -6384,9 +6384,6 @@ is loaded, according to the value of
       (advice-remove #'package--save-selected-packages
                      #'straight-package-advice-save-selected-packages))))
 
-(defalias 'straight-ಠ_ಠ-mode #'straight-package-neutering-mode
-  "The alias expresses how I feel about package.el sometimes.")
-
 ;;;;; use-package integration
 
 (defcustom straight-enable-use-package-integration t
