@@ -5240,7 +5240,7 @@ The format is a list of Lisp forms to be evaluated."
     ;; in Emacs 26.
     (when (file-exists-p autoloads-file)
       (with-temp-buffer
-        (insert-file-contents-literally autoloads-file)
+        (insert-file-contents autoloads-file)
         (let (;; Make the $# reader macro expand to the correct
               ;; filename.
               (load-file-name autoloads-file)
