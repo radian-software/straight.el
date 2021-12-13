@@ -6722,7 +6722,6 @@ any `:around' advice."
 Interactively, or when MESSAGE is non-nil, show in the echo area."
   (interactive)
   (let* ((library (locate-library "straight.el"))
-         (default-directory (file-name-directory (file-truename library)))
          (declared (with-temp-buffer
                      (insert-file-contents-literally library)
                      (goto-char (point-min))
@@ -6732,11 +6731,19 @@ Interactively, or when MESSAGE is non-nil, show in the echo area."
                               nil 'no-error)
                          (substring-no-properties (match-string 1))))))
          (gitinfo
-          (straight--process-with-result
-              (straight--process-run "git" "show" "-s" "--format=%d %h %cs")
-            (if success
-                (string-trim (concat stdout stderr))
-              (format "Uknown version. See %s" straight-process-buffer))))
+          (if-let ((default-directory (ignore-errors
+                                        (file-name-directory
+                                         (if straight-use-symlinks
+                                             (file-truename library)
+                                           (straight-chase-emulated-symlink
+                                            library))))))
+              (straight--process-with-result
+                  (straight--process-run
+                   "git" "show" "-s" "--format=%d %h %cs")
+                (if success
+                    (string-trim (concat stdout stderr))
+                  (format "Uknown version. See %s" straight-process-buffer)))
+            "Unable to set `default-directory' for git info."))
          (version (format "%s %s" declared gitinfo)))
     (if (or message (called-interactively-p 'interactive))
         (message "%s" version)
