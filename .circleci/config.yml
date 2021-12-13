@@ -8,7 +8,7 @@ shared: &shared
     - run: >-
         make docker
         CMD="EMACS_DOCKER=t make -k compile checkdoc longlines
-        checkindent test smoke"
+        test smoke"
 jobs:
   emacs-25:
     <<: *shared
