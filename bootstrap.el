@@ -118,10 +118,6 @@
     (straight-live-modifications-mode +1)
   (straight-live-modifications-mode -1))
 
-(when (straight--modifications 'watch-files)
-  (declare-function straight-watcher-start "straight-watcher")
-  (straight-watcher-start))
-
 (if straight-use-symlinks
     (straight-symlink-emulation-mode -1)
   (straight-symlink-emulation-mode +1))
