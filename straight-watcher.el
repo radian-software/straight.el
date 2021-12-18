@@ -138,7 +138,8 @@ If the watcher fails to start, signal a warning and return nil."
   (unless straight-safe-mode
     (straight-watcher--add-watches
      (straight-watcher--directories)
-     #'straight-watcher--register-change-maybe)))
+     #'straight-watcher--register-change-maybe)
+    (message "straight file watcher process started")))
 
 ;;@INCOMPLETE:
 ;; - kill child process (once implemented)
