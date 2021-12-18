@@ -30,7 +30,7 @@
   "Length of time to wait before registering a change for a repo.
 See `run-at-time' for acceptable values."
   :group 'straight
-  :type (or 'string 'int 'float))
+  :type 'float)
 
 (defcustom straight-watcher-process-buffer "*straight-watcher*"
   "Name of buffer to use for the filesystem watcher."

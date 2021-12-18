@@ -62,9 +62,9 @@
 ;;@TODO: fix. This is complicated due to the current bootstrap method
 (declare-function straight-watcher-modified-repos  "straight-watcher")
 (declare-function straight-watcher-repo-modified-p "straight-watcher")
-(load-file (expand-file-name
-            "straight-watcher.el"
-            (file-name-directory (file-truename load-file-name))))
+;; (load-file (expand-file-name
+;;             "straight-watcher.el"
+;;             (file-name-directory (file-truename load-file-name))))
 
 ;;;; Backports
 

@@ -575,21 +575,6 @@ return nil."
                       (straight--versions-file ,in)))))
   (in) "test.el")
 
-(straight-deftest straight--watcher-dir ()
-  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
-    (should (string= (file-name-as-directory
-                      (format ".emacs.d/straight/watcher/%s" ,in))
-                     (straight-test-trim-to-mocks
-                      (straight--watcher-dir ,in)))))
-  (in) "" "test")
-
-(straight-deftest straight--watcher-file ()
-  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
-    (should (string= (format ".emacs.d/straight/watcher/%s" ,in)
-                     (straight-test-trim-to-mocks
-                      (straight--watcher-file ,in)))))
-  (in) "test.el")
-
 (provide 'straight-test)
 
 ;; Local Variables:
