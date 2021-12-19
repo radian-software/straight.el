@@ -987,7 +987,7 @@ If DISPLAY is non-nil, switch to `straight-process-buffer'."
           (concat (substring stderr 0 (min limit length))
                   (when (> length limit) "…"))))))
     (when display
-      (switch-to-buffer-other-window straight-process-buffer)
+      (pop-to-buffer straight-process-buffer)
       (goto-char (point-max)))))
 
 (defun straight--process-run (program &rest args)
@@ -4819,7 +4819,7 @@ The keyword's value is expected to be one of the following:
                   (unless (apply #'straight--process-run-p command)
                     (setq inhibit-startup-screen t
                           commanderror t)
-                    (switch-to-buffer-other-window straight-process-buffer)
+                    (pop-to-buffer straight-process-buffer)
                     (goto-char (point-max))
                     (error "%S" command))
                 (eval command))
@@ -7004,7 +7004,7 @@ locally bound plist, straight-bug-report-args."
                       (unless ,raw (straight-bug-report--format ,report))
                       (run-with-idle-timer
                        1 nil (lambda ()
-                               (switch-to-buffer-other-window
+                               (pop-to-buffer
                                 straight-bug-report--process-buffer))))
                     (unless ,preserve-files
                       (when (file-exists-p ,temp-emacs-dir)
