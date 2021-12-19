@@ -6842,11 +6842,13 @@ Info is a plist of form:
             (source (straight-recipe-source package))
             (version
              (when repo
-               (let ((default-directory (straight--repos-dir repo)))
-                 (format "%s %s"
-                         (straight-vc-git--local-branch "HEAD")
-                         (straight--process-output
-                          "git" "show" "-s" "--format=%h %cs"))))))
+               (ignore-errors
+                 (let ((default-directory (straight--repos-dir repo)))
+                   (format "%s %s"
+                           ;;@FIXME: shouldn't rely on vc-git specifically here
+                           (straight-vc-git--local-branch "HEAD")
+                           (straight--process-output
+                            "git" "show" "-s" "--format=%h %cs")))))))
        (append
         (list :package package)
         (when source (list :source source))
