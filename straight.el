@@ -5435,21 +5435,32 @@ local repository is already on disk."
 
 ;;;###autoload
 (defun straight-remove-unused-repos (&optional force)
-  "Remove unused repositories from the repos directory.
+  "Remove unused repositories from the repos and build directories.
 A repo is considered \"unused\" if it was not explicitly requested via
 `straight-use-package' during the current Emacs session.
 If FORCE is non-nil do not prompt before deleting repos."
   (interactive "P")
-  (let ((r '()))
+  (let ((deleted nil)
+        (builds  nil))
+    (maphash (lambda (package data)
+               (let ((recipe (nth 2 data)))
+                 (when-let ((local-repo (plist-get recipe :local-repo)))
+                   (push (cons local-repo package) builds))))
+             straight--build-cache)
     (dolist (repo (straight--directory-files
                    (straight--repos-dir) nil nil 'sort))
       (unless (straight--checkhash repo straight--repo-cache)
         (when (or force (y-or-n-p (format "Delete repository %S? " repo)))
           (delete-directory (straight--repos-dir repo) 'recursive 'trash)
-          (push repo r))))
-    (message (concat "%d " (if (eq (length r) 1) "repository" "repositories")
-                     " deleted" (if r ": %s" "."))
-             (length r) (nreverse r))))
+          ;; @COMPATIBILITY: Avoiding `alist-get' here because of
+          ;; Emacs 25 function signature mismatch. ~ NV 2021-12-20
+          (when-let ((pkg (cdr (assoc-string repo builds))))
+            (delete-directory (straight--build-dir pkg) 'recursive 'trash))
+          (push repo deleted))))
+    (let ((count (length deleted)))
+      (message (concat "%d " (if (eq count 1) "repository" "repositories")
+                       " deleted" (if deleted ": %s" "."))
+               count (nreverse deleted)))))
 
 ;;;;; Recipe acquiry
 
