@@ -5495,7 +5495,9 @@ action, just return it)."
     (let* ((package (intern
                      (completing-read
                       "Which recipe? "
-                      (straight-recipes-list sources)
+                      (cl-remove-if (lambda (pkg)
+                                      (gethash pkg straight--repo-cache))
+                      (straight-recipes-list sources))
                       (lambda (_) t)
                       'require-match)))
            ;; No need to provide a `cause' to
