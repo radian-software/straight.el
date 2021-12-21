@@ -3082,7 +3082,9 @@ See: https://github.com/raxod502/straight.el/issues/707"
      ;; Do we want autoloads here, or should straight handle it?
      "--eval" "(org-make-org-loaddefs)"
      "--eval" (format "(org-make-org-version %S %S)"
-                      orgversion gitversion))))
+                      orgversion gitversion)
+     "--eval" "(cd \"../doc\")"
+     "--eval" "(org-make-manuals)")))
 
 (defun straight-recipes-org-elpa-retrieve (package)
   "Look up a pseudo-PACKAGE recipe in Org ELPA.
@@ -3129,7 +3131,7 @@ Otherwise return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  11)
+  12)
 
 ;;;;;; MELPA
 
