@@ -2462,7 +2462,7 @@ of precedence, by customizing `straight-recipe-repositories`. The
 default value is:
 
 ```emacs-lisp
-(org-elpa melpa gnu-elpa-mirror emacsmirror)
+(org-elpa melpa gnu-elpa-mirror el-get emacsmirror)
 ```
 
 ##### GNU ELPA
@@ -2490,7 +2490,7 @@ You can customize the following user options:
   `straight-recipe-repositories` to shift to:
 
 ```emacs-lisp
-(org-elpa melpa gnu-elpa emacsmirror)
+(org-elpa melpa gnu-elpa el-get emacsmirror)
 ```
 
 ##### Emacsmirror
@@ -2512,7 +2512,7 @@ You can customize the following user option:
   `straight-recipe-repositories` to shift to:
 
 ```emacs-lisp
-(org-elpa melpa gnu-elpa-mirror emacsmirror-mirror)
+(org-elpa melpa gnu-elpa-mirror el-get emacsmirror-mirror)
 ```
 
 ##### Defining new recipe repositories
