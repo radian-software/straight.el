@@ -285,12 +285,12 @@ computes the fork as \"githubUser/fork\"."
     (gitlab . "gitlab.com")
     (bitbucket . "bitbucket.org"))
   "Alist mapping forge :host symbols to base URIs."
-  :type 'alist)
+  :type '(alist :key-type symbol :value-type (string :tag "URI")))
 
 (defcustom straight-host-git-suffix
   '(github gitlab bitbucket)
   "List of forge :host symbols that uses a .git suffix."
-  :type 'list)
+  :type '(repeat symbol))
 
 (defcustom straight-vc-git-post-clone-hook nil
   "Functions called after straight.el clones a git repository.
