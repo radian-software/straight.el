@@ -280,6 +280,16 @@ computes the fork as \"githubUser/fork\"."
                            (const :tag "bitbucket" bitbucket))
                 :value-type (string :tag "username")))
 
+(defcustom straight-hosts '((github "github.com" ".git")
+                            (gitlab "gitlab.com" ".git")
+                            (bitbucket "bitbucket.com" ".git"))
+  "Alist containing URI information for hosted forges.
+Each element is of the form: (HOST DOMAIN REPO-SUFFIX).
+HOST is a unique symbol meant to be used with the :host recipe keyword.
+DOMAIN is a string representing the domain and top-level domain.
+REPO-SUFFIX is appended to the repository name in the URI."
+  :type '(repeat sexp))
+
 (defcustom straight-vc-git-post-clone-hook nil
   "Functions called after straight.el clones a git repository.
 
@@ -1846,18 +1856,18 @@ it is omitted, it defaults to `straight-vc-git-default-protocol'.
 See also `straight-vc-git--decode-url'."
   (pcase host
     ('nil repo)
-    ((or 'github 'gitlab 'bitbucket)
+    ((pred (lambda (host) (alist-get host straight-hosts)))
      (when (string-match-p ":" repo)
        (error "Malformed protocol detected: (:host %S :repo %S)"
               host repo))
-     (let ((domain (pcase host
-                     ('bitbucket "bitbucket.org")
-                     (_ (format "%s.com" host)))))
+     (let* ((host (alist-get host straight-hosts))
+            (domain (car host))
+            (suffix (cadr host)))
        (pcase (or protocol straight-vc-git-default-protocol)
          ('https
-          (format "https://%s/%s.git" domain repo))
+          (format "https://%s/%s%s" domain repo suffix))
          ('ssh
-          (format "git@%s:%s.git" domain repo))
+          (format "git@%s:%s%s" domain repo suffix))
          (_ (error "Unknown protocol: %S" protocol)))))
     (_ (error "Unknown value for host: %S" host))))
 
