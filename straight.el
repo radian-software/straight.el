@@ -288,7 +288,7 @@ Each element is of the form: (HOST DOMAIN REPO-SUFFIX).
 HOST is a unique symbol meant to be used with the :host recipe keyword.
 DOMAIN is a string representing the domain and top-level domain.
 REPO-SUFFIX is appended to the repository name in the URI."
-  :type '(repeat list))
+  :type '(repeat sexp))
 
 (defcustom straight-vc-git-post-clone-hook nil
   "Functions called after straight.el clones a git repository.
