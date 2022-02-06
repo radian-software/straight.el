@@ -311,6 +311,10 @@ Backward compatible shim for `flatten-tree'."
       (apply 'append (mapcar #'straight--flatten list))
     (list list)))
 
+(defun straight--emacs-path ()
+  "Return path to currently running Emacs."
+  (expand-file-name invocation-name invocation-directory))
+
 ;;;;; Association lists
 
 (defun straight--alist-set (key val alist &optional symbol)
@@ -3060,7 +3064,7 @@ See: https://github.com/raxod502/straight.el/issues/707"
                 ;; backup in case Org repo has no tags
                 (straight--process-with-result
                     (straight--process-run
-                     "emacs" "-Q" "--batch"
+                     (straight--emacs-path) "-Q" "--batch"
                      "--eval" "(require 'lisp-mnt)"
                      "--visit" "org.el"
                      "--eval" "(princ (lm-header \"version\"))")
@@ -3131,7 +3135,7 @@ Otherwise return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  12)
+  13)
 
 ;;;;;; MELPA
 
@@ -3369,11 +3373,6 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
 ;; variables or functions to compute part of :build commands.
 ;; This is an incomplete list of shims, but it should handle most cases.
 
-(defun straight--el-get-emacs ()
-  "Return path to currently running Emacs.
-Shim for `el-get-emacs' variable."
-  (concat invocation-directory invocation-name))
-
 (defun straight--el-get-install-info ()
   "Shim for `el-get-install-info' variable."
   (or (executable-find "ginstall-info")
@@ -3416,7 +3415,7 @@ Return nil if no :build/* commands are available."
                       (lambda (package)
                         (straight--repos-dir (format "%S" package))))
                      (el-get-install-info (straight--el-get-install-info))
-                     (el-get-emacs (straight--el-get-emacs))
+                     (el-get-emacs (straight--emacs-path))
                      (el-get-dir (straight--repos-dir)))
              (pcase system-type ,@systems)))))
 
@@ -3471,7 +3470,7 @@ uses one of the Git fetchers, return it; otherwise return nil."
 
 (defun straight-recipes-el-get-version ()
   "Return the current version of the `el-get' retriever."
-  1)
+  2)
 
 ;;;;; Recipe conversion
 
