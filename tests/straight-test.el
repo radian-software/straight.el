@@ -303,9 +303,9 @@ return nil."
   ((mock) nil 'full)              `(,(mock ".emacs.d"))
   ((mock ".emacs.d" "straight") nil nil #'string<) '("build" "repos"))
 
-(straight-deftest straight--el-get-emacs ()
+(straight-deftest straight--emacs-path ()
   (should (equal (concat invocation-directory invocation-name)
-                 (straight--el-get-emacs))))
+                 (straight--emacs-path))))
 
 (straight-deftest straight--ensure-blank-lines ()
   (cl-flet ((buffer-with-point-at (s n)
