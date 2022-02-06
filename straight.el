@@ -3060,7 +3060,8 @@ See: https://github.com/raxod502/straight.el/issues/707"
                 ;; backup in case Org repo has no tags
                 (straight--process-with-result
                     (straight--process-run
-                     "emacs" "-Q" "--batch"
+                     (expand-file-name invocation-name invocation-directory)
+                     "-Q" "--batch"
                      "--eval" "(require 'lisp-mnt)"
                      "--visit" "org.el"
                      "--eval" "(princ (lm-header \"version\"))")
