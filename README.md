@@ -227,6 +227,11 @@ set **before** the bootstrap code runs, if they might affect how
   `straight-base-dir`/build. Changing this variable will change the name
   of that directory and the name of the build cache file (unless
   `straight-build-cache-fixed-name` is non-nil).
+* `straight-use-version-specific-build-dir` -- if non-nil, use an
+  Emacs-version-specific `straight-build-dir` directory to support
+  running multiple versions of Emacs against the same
+  `user-emacs-directory`. There is a minor performance penalty on
+  startup because `straight.el` will not be byte-compiled.
 
 You should remove any code that relates to `package.el`; for example,
 references to `package-initialize`, `package-archives`, and (if you're
