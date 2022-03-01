@@ -612,7 +612,7 @@ Setting `straight-build-dir' will override this behavior."
   :type 'boolean)
 
 (defcustom straight-build-dir (if straight-use-version-specific-build-dir
-                                  (format "build-%s" emacs-version)
+                                  (concat "build-" emacs-version)
                                 "build")
   "Name of the directory into which packages are built.
 Relative to the straight/ subdirectory of `straight-base-dir'.
