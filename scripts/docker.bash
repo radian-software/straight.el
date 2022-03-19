@@ -28,4 +28,5 @@ if [[ -t 0 ]]; then
     it+=(-it)
 fi
 
-docker run "${it[@]}" --rm -v "$PWD:/home/docker/src" "straight.el:$tag" "${args[@]}"
+docker run "${it[@]}" --rm -v "$PWD:/home/docker/src" \
+       "straight.el:$tag" "${args[@]}"
