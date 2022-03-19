@@ -3,8 +3,7 @@ for the [Emacs] hacker.
 
 **Please check out the [FAQ][#faq] and [news][#news] :)**
 
-[![Build status][circleci-badge]][circleci-build] [![Gitter
-chat][gitter-badge]][gitter]
+[![Gitter chat][gitter-badge]][gitter]
 
 <!-- longlines-start -->
 
@@ -962,21 +961,21 @@ And here is a brief list of the main reasons you might not want to use
   packages, or to override upstream package configuration, without
   forking the upstream. `package.el` has no such concept.
 * `straight.el` is developed openly on GitHub, using a modern [issue
-  tracker][issues] and continuous integration from [CircleCI
-  ][circleci-build]. It welcomes contributions of any type.
-  `straight.el` is licensed under the permissive MIT license and does
-  not require a copyright assignment. `straight.el` is developed
-  actively and has explicit support for installing development
-  versions of itself, as well as for contributing upstream changes.
-  `package.el` is maintained as a part of Emacs core, meaning that the
-  contribution process is poorly documented and discouraging. Releases
-  of `package.el` coincide with releases of Emacs, which are
-  infrequent and inflexible. There is no issue tracker specifically
-  for `package.el`, only the Emacs bug tracker and the emacs-devel
-  mailing list. Contributing to `package.el` requires a
-  poorly-documented, cumbersome copyright assignment process and is
-  done by submitting patches to an antiquated mailing list,
-  unsupported by modern code review tooling or continuous integration.
+  tracker][issues] and continuous integration from GitHub Actions. It
+  welcomes contributions of any type. `straight.el` is licensed under
+  the permissive MIT license and does not require a copyright
+  assignment. `straight.el` is developed actively and has explicit
+  support for installing development versions of itself, as well as
+  for contributing upstream changes. `package.el` is maintained as a
+  part of Emacs core, meaning that the contribution process is poorly
+  documented and discouraging. Releases of `package.el` coincide with
+  releases of Emacs, which are infrequent and inflexible. There is no
+  issue tracker specifically for `package.el`, only the Emacs bug
+  tracker and the emacs-devel mailing list. Contributing to
+  `package.el` requires a poorly-documented, cumbersome copyright
+  assignment process and is done by submitting patches to an
+  antiquated mailing list, unsupported by modern code review tooling
+  or continuous integration.
 
 #### Advantages of `package.el`
 
@@ -3569,9 +3568,6 @@ savings on network bandwidth and disk space.
 [auto-compile]: https://github.com/tarsius/auto-compile
 [borg]: https://github.com/emacscollective/borg
 [cask]: https://github.com/cask/cask
-[circleci]: https://circleci.com/
-[circleci-badge]: https://circleci.com/gh/raxod502/straight.el/tree/develop.svg?style=svg
-[circleci-build]: https://circleci.com/gh/raxod502/straight.el
 [develop]: https://github.com/raxod502/straight.el/tree/develop
 [docker]: https://www.docker.com/
 [early-init-file]: https://www.gnu.org/software/emacs/manual/html_node/emacs/Early-Init-File.html
