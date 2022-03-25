@@ -5039,7 +5039,10 @@ modifies the build folder, not the original repository."
               (write-file-functions nil)
               ;; Apparently fixes a bug in Emacs 27, see
               ;; <https://github.com/raxod502/straight.el/issues/434>.
-              (debug-on-error nil))
+              (debug-on-error nil)
+              ;; Non-nil interferes with autoload generation in Emacs < 29, see
+              ;; <https://github.com/raxod502/straight.el/issues/904>.
+              (left-margin 0))
           ;; Actually generate the autoload file.
           ;; Emacs > 28.1 replaces `update-directory-autoloads' with
           ;; `make-directory-autoloads'
