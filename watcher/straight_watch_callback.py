@@ -51,10 +51,7 @@ def main(args):
         die("straight_watch_callback.py: watchexec gave no modified files")
     if WATCHEXEC_VAR_COMMON in os.environ:
         common = os.environ[WATCHEXEC_VAR_COMMON]
-        # Yes, string concatentation. For some reason when a common
-        # prefix is used, the individual paths start with a slash even
-        # though they're actually relative to the prefix.
-        paths = [common + path for path in paths]
+        paths = [os.path.join(common, path) for path in paths]
     paths = [pathlib.Path(path).resolve() for path in paths]
     paths = sorted(set(paths))
     repos = set()
