@@ -902,6 +902,14 @@ eaten by a grue.")
   "Name of buffer used for process output."
   :type 'string)
 
+(defun straight--delete-stderr-file ()
+  "Remove `straight--process-stderr' file."
+  (when (and (boundp 'straight--process-stderr)
+             (file-exists-p straight--process-stderr))
+    (delete-file straight--process-stderr)))
+
+(add-hook 'kill-emacs-hook #'straight--delete-stderr-file)
+
 (defun straight--process-buffer ()
   "Return `straight-process-buffer' in `special-mode'."
   (with-current-buffer (get-buffer-create straight-process-buffer)
