@@ -5136,6 +5136,13 @@ modifies the build folder, not the original repository."
               ;; Apparently fixes a bug in Emacs 27, see
               ;; <https://github.com/radian-software/straight.el/issues/434>.
               (debug-on-error nil)
+              ;; In Emacs 28.1, if this is non-nil,
+              ;; `make-directory-autoloads' resolves symlinks in its
+              ;; second argument but not the first, and files cannot
+              ;; be loaded correctly. Unfortunately this bug crept
+              ;; into the release. See
+              ;; <https://github.com/raxod502/straight.el/issues/701>
+              (find-file-visit-truename nil)
               ;; Non-nil interferes with autoload generation in Emacs < 29, see
               ;; <https://github.com/radian-software/straight.el/issues/904>.
               (left-margin 0))
