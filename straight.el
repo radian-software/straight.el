@@ -1,10 +1,10 @@
 ;;; straight.el --- Next-generation package manager -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017-2019 Radon Rosborough and contributors
+;; Copyright (C) 2017-2022 Radian LLC and contributors
 
-;; Author: Radon Rosborough <radon.neon@gmail.com>
+;; Author: Radian LLC <contact+straight@radian.codes>
 ;; Created: 1 Jan 2017
-;; Homepage: https://github.com/raxod502/straight.el
+;; Homepage: https://github.com/radian-software/straight.el
 ;; Keywords: extensions
 ;; Package-Requires: ((emacs "25.1"))
 ;; SPDX-License-Identifier: MIT
@@ -27,7 +27,7 @@
 ;; straight.el will work with manually managed packages, if you prefer
 ;; to merge in packages as subtrees.
 
-;; Please see https://github.com/raxod502/straight.el for more
+;; Please see https://github.com/radian-software/straight.el for more
 ;; information.
 
 ;;; Code:
@@ -146,15 +146,15 @@ bind this variable to different symbols using `let' over
 different parts of your init-file."
   :type 'symbol)
 
-(defcustom straight-repository-user "raxod502"
+(defcustom straight-repository-user "radian-software"
   "String identifying the GitHub user from which to clone straight.el.
 You must set this variable before straight.el is bootstrapped for
 it to have an effect. (It is used in the default recipe for
 straight.el which is registered during bootstrap.)
 
-If you have forked raxod502/straight.el to your-name/straight.el,
-then to use your fork you should set `straight-repository-user'
-to \"your-name\"."
+If you have forked radian-software/straight.el to
+your-name/straight.el, then to use your fork you should set
+`straight-repository-user' to \"your-name\"."
   :type 'string)
 
 (defcustom straight-repository-branch "master"
@@ -1855,9 +1855,9 @@ edit. Otherwise, PROMPT and ACTIONS are as for
 (defun straight-vc-git--encode-url (repo host &optional protocol)
   "Generate a URL from a REPO depending on the value of HOST and PROTOCOL.
 REPO is a string which is either a URL or something of the form
-\"username/repo\", like \"raxod502/straight.el\". If HOST is one
-of the symbols `github', `gitlab', or `bitbucket', then REPO is
-transformed into a standard SSH URL for the corresponding
+\"username/repo\", like \"radian-software/straight.el\". If HOST
+is one of the symbols `github', `gitlab', or `bitbucket', then
+REPO is transformed into a standard SSH URL for the corresponding
 service; otherwise, HOST should be nil, and in that case REPO is
 returned unchanged. PROTOCOL must be either `https' or `ssh'; if
 it is omitted, it defaults to `straight-vc-git-default-protocol'.
@@ -3037,7 +3037,7 @@ just skip them instead of looking for a recipe.
 Another application of this variable is to correctly handle the
 situation where a package is built-in but Emacs incorrectly
 claims that it's not (see
-<https://github.com/raxod502/straight.el/issues/548>).
+<https://github.com/radian-software/straight.el/issues/548>).
 
 Note that straight.el can deal with built-in packages even if
 this variable is set to nil. This just allows you to tell
@@ -3072,7 +3072,7 @@ If nil, output is discarded."
 (defun straight-recipes-org-elpa--build ()
   "Generate `org-version.el`.
 This is to avoid relying on `make` on Windows.
-See: https://github.com/raxod502/straight.el/issues/707"
+See: https://github.com/radian-software/straight.el/issues/707"
   (let* ((default-directory (straight--repos-dir "org" "lisp"))
          (orgversion
           (straight--process-with-result
@@ -3178,7 +3178,7 @@ return nil."
                 ;; if it is present, but the `:files' directive might
                 ;; not include it (and doesn't need to, because MELPA
                 ;; always re-creates a *-pkg.el file regardless). See
-                ;; https://github.com/raxod502/straight.el/issues/336.
+                ;; https://github.com/radian-software/straight.el/issues/336.
                 (straight--put
                  plist :files
                  (append files (list (format "%S-pkg.el" package)))))
@@ -3224,8 +3224,8 @@ Such packages would break things if they were installed. For
 example, the `cl-lib' package from GNU ELPA is not the
 development version but rather an obsolete forwards-compatibility
 package designed for use with Emacs 24.2 and earlier. See
-<https://github.com/raxod502/straight.el/issues/531> for some
-discussion."
+<https://github.com/radian-software/straight.el/issues/531> for
+some discussion."
   :type '(repeat symbol))
 
 ;;;;;;; GNU ELPA mirror
@@ -3248,7 +3248,7 @@ Otherwise, return nil."
                  ;; then just link *everything*. As an FYI, if we
                  ;; don't do this, then AUCTeX suffers problems with
                  ;; style files, see
-                 ;; <https://github.com/raxod502/straight.el/issues/423>.
+                 ;; <https://github.com/radian-software/straight.el/issues/423>.
                  :files ("*" (:exclude ".git"))))))
 
 (defun straight-recipes-gnu-elpa-mirror-list ()
@@ -3999,7 +3999,7 @@ empty values (all packages will be rebuilt, with no caching)."
     (ignore-errors
       (with-temp-buffer
         ;; Can't use `insert-file-contents-literally', see
-        ;; https://github.com/raxod502/straight.el/issues/780.
+        ;; https://github.com/radian-software/straight.el/issues/780.
         (insert-file-contents
          (straight--build-cache-file))
         (let ((version (read (current-buffer)))
@@ -4325,7 +4325,7 @@ modified since their last builds.")
                   ;; See the following issue for an explanation about
                   ;; why an extra pair of single quotes is used on
                   ;; Windows:
-                  ;; <https://github.com/raxod502/straight.el/issues/393>
+                  ;; <https://github.com/radian-software/straight.el/issues/393>
                   (let ((newer-or-newermt nil)
                         (mtime-or-file nil))
                     (if (straight--find-supports 'newermt)
@@ -5030,7 +5030,7 @@ modifies the build folder, not the original repository."
           ;;
           ;; Note: we used to bind `noninteractive', like package.el,
           ;; but apparently that code was a bug in package.el. Sigh.
-          ;; See <https://github.com/raxod502/straight.el/issues/431>.
+          ;; See <https://github.com/radian-software/straight.el/issues/431>.
           (backup-inhibited t)
           (version-control 'never)
           ;; Tell Emacs to shut up.
@@ -5046,10 +5046,10 @@ modifies the build folder, not the original repository."
         (let ((find-file-hook nil)
               (write-file-functions nil)
               ;; Apparently fixes a bug in Emacs 27, see
-              ;; <https://github.com/raxod502/straight.el/issues/434>.
+              ;; <https://github.com/radian-software/straight.el/issues/434>.
               (debug-on-error nil)
               ;; Non-nil interferes with autoload generation in Emacs < 29, see
-              ;; <https://github.com/raxod502/straight.el/issues/904>.
+              ;; <https://github.com/radian-software/straight.el/issues/904>.
               (left-margin 0))
           ;; Actually generate the autoload file.
           ;; Emacs > 28.1 replaces `update-directory-autoloads' with
@@ -6335,7 +6335,7 @@ according to the value of `straight-profiles'."
               ;;
               ;; The version keyword comes after the versions alist so
               ;; that you can ignore it if you don't need it.
-              "(%s)\n:beta\n"
+              "(%s)\n:gamma\n"
               (mapconcat
                (apply-partially #'format "%S")
                versions-alist
@@ -6576,7 +6576,7 @@ NAME, KEYWORD, ARGS, REST, and STATE are explained by the
   ;; works when `:straight' is processed before `:ensure'. See below
   ;; for the other case.
   ;;
-  ;; See <https://github.com/raxod502/straight.el/issues/425>.
+  ;; See <https://github.com/radian-software/straight.el/issues/425>.
   (when args (straight--remq rest '(:ensure)))
   (append
    (mapcar (lambda (arg)
@@ -6708,8 +6708,8 @@ is loaded, according to the value of
 
 (defcustom straight-fix-flycheck nil
   "If non-nil, install a workaround for a problem with Flycheck.
-See <https://github.com/raxod502/straight.el/issues/508> for
-discussion.
+See <https://github.com/radian-software/straight.el/issues/508>
+for discussion.
 
 This variable must be set before straight.el is loaded (or
 re-loaded) in order to take effect."
@@ -6789,12 +6789,12 @@ Interactively, or when MESSAGE is non-nil, show in the echo area."
     (let ((bootstrap-file
            (expand-file-name "straight/repos/straight.el/bootstrap.el"
                              user-emacs-directory))
-          (bootstrap-version 5))
+          (bootstrap-version 6))
       (unless (file-exists-p bootstrap-file)
         (with-current-buffer
             (url-retrieve-synchronously
              (concat "https://raw.githubusercontent.com/"
-                     "raxod502/straight.el/develop/install.el")
+                     "radian-software/straight.el/develop/install.el")
              'silent 'inhibit-cookies)
           (goto-char (point-max))
           (eval-print-last-sexp)))
@@ -6825,7 +6825,7 @@ If PREAMBLE is non-nil, it is inserted after the instructions."
        (mapconcat
         (lambda (el) (apply #'format el))
         `(("<!-- copy entire buffer output and paste in an issue at:")
-          ("https://github.com/raxod502/straight.el/issues/new/choose -->")
+          ("https://github.com/radian-software/straight.el/issues/new/choose -->")
           ,@(when preamble
               `(("<details open><summary>Test Case</summary>")
                 ("\n```emacs-lisp")

@@ -556,7 +556,7 @@ return nil."
   (:repo "/rename")                    "githubUser/rename"
   (:host github :repo "user/")         "user/repo"
   (:host gitlab :repo "full/override") "full/override"
-  ;; https://github.com/raxod502/straight.el/issues/592
+  ;; https://github.com/radian-software/straight.el/issues/592
   (:host nil :repo "/local/repo")      "/local/repo"
   (:branch "feature")                  "githubUser/repo")
 
