@@ -3247,8 +3247,9 @@ Otherwise, return nil."
                  ;; put the correct files into the repository, and
                  ;; then just link *everything*. As an FYI, if we
                  ;; don't do this, then AUCTeX suffers problems with
-                 ;; style files, see
-                 ;; <https://github.com/radian-software/straight.el/issues/423>.
+                 ;; style files, see [1].
+                 ;;
+                 ;; [1]: https://github.com/radian-software/straight.el/issues/423
                  :files ("*" (:exclude ".git"))))))
 
 (defun straight-recipes-gnu-elpa-mirror-list ()
@@ -4322,10 +4323,10 @@ modified since their last builds.")
                   ;; for any files that are in a given local
                   ;; repository *and* have a new enough mtime.
                   ;;
-                  ;; See the following issue for an explanation about
-                  ;; why an extra pair of single quotes is used on
-                  ;; Windows:
-                  ;; <https://github.com/radian-software/straight.el/issues/393>
+                  ;; See [1] for an explanation about why an extra
+                  ;; pair of single quotes is used on Windows.
+                  ;;
+                  ;; [1]: https://github.com/radian-software/straight.el/issues/393
                   (let ((newer-or-newermt nil)
                         (mtime-or-file nil))
                     (if (straight--find-supports 'newermt)
@@ -6825,7 +6826,9 @@ If PREAMBLE is non-nil, it is inserted after the instructions."
        (mapconcat
         (lambda (el) (apply #'format el))
         `(("<!-- copy entire buffer output and paste in an issue at:")
-          ("https://github.com/radian-software/straight.el/issues/new/choose -->")
+          (,(concat
+             "https://github.com/radian-software/straight.el"
+             "/issues/new/choose -->"))
           ,@(when preamble
               `(("<details open><summary>Test Case</summary>")
                 ("\n```emacs-lisp")
