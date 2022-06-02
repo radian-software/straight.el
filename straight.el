@@ -5221,19 +5221,19 @@ package has already been built."
 RECIPE is a straight.el-style plist. It is assumed that the
 package has already been built. This function calls
 `info-initialize'."
-  (straight--with-plist recipe
-      (package)
-    ;; The `info-initialize' function is not autoloaded, for some
-    ;; reason. Do `eval-and-compile' for the byte-compiler.
-    (eval-and-compile
-      (require 'info))
-    ;; Initialize the `Info-directory-list' variable. We have to do
-    ;; this before adding to it, since otherwise the default paths
-    ;; won't get added later.
-    (info-initialize)
-    ;; Actually add the path. Only .info files at the top level will
-    ;; be seen, which is fine. (It's the way MELPA works.)
-    (add-to-list 'Info-directory-list (straight--build-dir package))))
+  (let ((package (plist-get recipe :package)))
+    (when (file-exists-p (straight--build-file package "dir"))
+      ;; The `info-initialize' function is not autoloaded, for some
+      ;; reason. Do `eval-and-compile' for the byte-compiler.
+      (eval-and-compile
+        (require 'info))
+      ;; Initialize the `Info-directory-list' variable. We have to do
+      ;; this before adding to it, since otherwise the default paths
+      ;; won't get added later.
+      (info-initialize)
+      ;; Actually add the path. Only .info files at the top level will
+      ;; be seen, which is fine. (It's the way MELPA works.)
+      (add-to-list 'Info-directory-list (straight--build-dir package)))))
 
 (defun straight--load-package-autoloads (package)
   "Load autoloads provided by PACKAGE, a string, from disk."
