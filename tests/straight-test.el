@@ -161,9 +161,8 @@ return nil."
         (Info-directory-list '()))
     (straight--add-package-to-info-path
      '(:package "straight-mock-repo" :local-repo "./test-repo"))
-    (should (string= ".emacs.d/straight/build/straight-mock-repo/"
-                     (straight-test-trim-to-mocks
-                      (car Info-directory-list))))))
+    ;; No "dir" file, so this directory does not get added
+    (should (null Info-directory-list))))
 
 (straight-deftest straight--alist-set ()
   (should (equal ',out (straight--alist-set ,@in)))
