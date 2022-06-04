@@ -2113,6 +2113,33 @@ LOCAL-REPO is a string."
              ref (concat stdout stderr)))
      (t (string-trim stdout)))))
 
+(defun straight-vc-git--ref-exists-p (ref)
+  "Return non-nil if REF exists in the current Git repository.
+Do not throw an error unless something unexpected happens."
+  (straight--process-with-result
+      (straight--process-run
+       "git" "rev-parse" "--verify" ref)
+    (not failure)))
+
+(defun straight-vc-git--ensure-branch-exists (local-repo branch start-point)
+  "In LOCAL-REPO, ensure that BRANCH exists.
+If it does not exist then it is created pointing at START-POINT,
+which may be a commit or ref. Return non-nil if and only if no
+changes were made."
+  (or (straight-vc-git--ref-exists-p branch)
+      (ignore
+       (if straight-vc-git-auto-fast-forward
+           (straight--process-output
+            "git" "branch" "--track" "--"
+            branch start-point)
+         (straight-vc-git--popup
+           (concat (format "In repository %S, " local-repo)
+                   (format " branch %S does not exist." branch))
+           ("c" (format "Create pointing at %S" start-point)
+            (straight--process-output
+             "git" "branch" "--track" "--"
+             branch start-point)))))))
+
 (defun straight-vc-git--local-branch (ref)
   "Return branch named by REF if REF is a local branch.
 Otherwise, return nil. Returned ref may be ambiguous.
@@ -2362,22 +2389,25 @@ confirmation by reset, so this function should only be run after
         t)
        (t (straight-vc-git--reconcile-interactively local-repo status))))))
 
-(cl-defun straight-vc-git--merge-from-remote-raw (recipe remote remote-branch)
-  "Using straight.el-style RECIPE, merge from REMOTE.
-REMOTE is a string. REMOTE-BRANCH is the branch in REMOTE that is
-used; it should be a string that is not prefixed with a remote
-name."
+(cl-defun straight-vc-git--merge-from-remote-raw
+    (recipe remote-to-merge remote-branch)
+  "Using straight.el-style RECIPE, merge from REMOTE-TO-MERGE.
+REMOTE is a string. REMOTE-BRANCH is the branch in
+REMOTE-TO-MERGE that is used; it should be a string that is not
+prefixed with a remote name."
   (straight-vc-git--destructure recipe
-      (local-repo branch)
+      (local-repo remote branch)
     (let ((remote-branch (or remote-branch
-                             branch
                              (straight-vc-git--default-remote-branch
-                              remote local-repo))))
+                              remote-to-merge local-repo)))
+          (default-branch (or branch
+                              (straight-vc-git--default-remote-branch
+                               remote local-repo))))
       (while t
         (and (straight-vc-git--ensure-local recipe)
              (or (straight-vc-git--ensure-default-branch-current
-                  local-repo remote-branch
-                  (format "%s/%s" remote remote-branch))
+                  local-repo default-branch
+                  (format "%s/%s" remote-to-merge remote-branch))
                  (straight-register-repo-modification local-repo))
              (cl-return-from straight-vc-git--merge-from-remote-raw t))))))
 
@@ -2446,15 +2476,34 @@ primary :branch is checked out. The reason for \"local\" in the
 name of this function is that for normal situations, no network
 communication is done with the remotes."
   (straight-vc-git--destructure recipe
-      (local-repo branch remote)
+      (local-repo branch remote upstream-branch upstream-remote fork)
     (and (straight-vc-git--ensure-remotes recipe)
-         (or (and (straight-vc-git--ensure-nothing-in-progress local-repo)
-                  (straight-vc-git--ensure-worktree local-repo)
-                  (straight-vc-git--ensure-head-at-branch
-                   local-repo
-                   (or branch (straight-vc-git--default-remote-branch
-                               remote local-repo))))
-             (straight-register-repo-modification local-repo)))))
+         (let ((branch (or branch (straight-vc-git--default-remote-branch
+                                   remote local-repo)))
+               (upstream-branch (if (null fork)
+                                    upstream-branch
+                                  (straight-vc-git--default-remote-branch
+                                   upstream-remote local-repo))))
+           (or (and (straight-vc-git--ensure-nothing-in-progress local-repo)
+                    (straight-vc-git--ensure-worktree local-repo)
+                    ;; Check fork before upstream so that if upstream
+                    ;; and fork branches are the same (the common case)
+                    ;; and the local branch ref does not exist, we
+                    ;; create it pointing at the fork rather than the
+                    ;; upstream. This will save updating it later in
+                    ;; `straight-vc-git--ensure-head-at-branch'.
+                    (or (null fork)
+                        (straight-vc-git--ensure-branch-exists
+                         local-repo
+                         branch
+                         (format "%s/%s" remote branch)))
+                    (straight-vc-git--ensure-branch-exists
+                     local-repo
+                     upstream-branch
+                     (format "%s/%s" upstream-remote upstream-branch))
+                    (straight-vc-git--ensure-head-at-branch
+                     local-repo branch))
+               (straight-register-repo-modification local-repo))))))
 
 (defcustom straight-vc-git-default-clone-depth 'full
   "The default value for `:depth' when `:type' is the symbol `git'.
