@@ -2130,7 +2130,7 @@ warning about the ambiguous name, but succeed."
 
 (defun straight-vc-git--compare-and-canonicalize (left right)
   "Return plist describing relationship between refs LEFT and RIGHT."
-  (condition-case failure
+  (condition-case-unless-debug failure
       (let* ((left (straight-vc-git--abbrev-ref left))
              (right (straight-vc-git--abbrev-ref right))
              (head (straight-vc-git--abbrev-ref "HEAD"))
