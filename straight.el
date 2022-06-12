@@ -2480,10 +2480,9 @@ communication is done with the remotes."
     (and (straight-vc-git--ensure-remotes recipe)
          (let ((branch (or branch (straight-vc-git--default-remote-branch
                                    remote local-repo)))
-               (upstream-branch (if (null fork)
-                                    upstream-branch
-                                  (straight-vc-git--default-remote-branch
-                                   upstream-remote local-repo))))
+               (upstream-branch (or upstream-branch
+                                    (straight-vc-git--default-remote-branch
+                                     upstream-remote local-repo))))
            (or (and (straight-vc-git--ensure-nothing-in-progress local-repo)
                     (straight-vc-git--ensure-worktree local-repo)
                     ;; Check fork before upstream so that if upstream
