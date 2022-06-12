@@ -1741,11 +1741,10 @@ recipes which do not explicitly disable byte-compilation via the
 
 ##### Native compilation
 
-Experimental support for native compilation of Emacs Lisp code is
-currently under development in the `feature/native-comp` branch of the
-official Emacs repository (see [gccemacs][gccemacs]). When running on
-this version of Emacs, `straight.el` will perform native compilation
-of packages.
+Experimental support for native compilation of Emacs Lisp code can be
+enabled in the latest `master` branch of the official Emacs repository
+(see [gccemacs][gccemacs]). When running on this version of Emacs,
+`straight.el` will perform native compilation of packages.
 
 By specifying a `:build (:not native-compile)` in a package's recipe,
 you may inhibit native compilation. You can also customize the
