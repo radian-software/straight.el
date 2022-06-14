@@ -93,6 +93,12 @@
                                    :local-repo "elpa"
                                    :build nil)))
 
+(straight-use-recipes
+ '(nongnu-elpa :type git
+               :repo "https://git.savannah.gnu.org/git/emacs/nongnu.git"
+               :local-repo "nongnu-elpa"
+               :build nil))
+
 (straight-use-recipes '(el-get :type git :host github
                                :repo "dimitri/el-get"
                                :build nil))
