@@ -3346,6 +3346,45 @@ Otherwise, return nil."
   "Return the current version of the GNU ELPA retriever."
   2)
 
+;;;;;; NonGNU ELPA
+
+(defun straight-recipes-nongnu-elpa--translate (recipe)
+  "Translate RECIPE into straight.el-style recipe."
+  (unless (null recipe)
+    (let ((name (pop recipe)))
+      `( ,(intern name)
+         :repo ,(plist-get recipe :url)
+         ,@(when-let ((ignored (plist-get recipe :ignored-files)))
+             `(:files (:defaults (:not ,@ignored))))))))
+
+(defun straight-recipes-nongnu-elpa--recipes ()
+  "Return list of NonGNU ELPA style recipes."
+  (let ((f "elpa-packages"))
+    (when (file-exists-p f)
+      (with-temp-buffer
+        (condition-case err
+            (progn
+              (insert-file-contents f)
+              (goto-char (point-min))
+              (read (current-buffer)))
+          ((error)
+           (error "Unable to read NonGNU ELPA packages: %S" err)))))))
+
+(defun straight-recipes-nongnu-elpa-retrieve (package)
+  "Return NonGNU ELPA PACKAGE recipe, or nil if not found."
+  (straight-recipes-nongnu-elpa--translate
+   (cl-find package
+            (straight-recipes-nongnu-elpa--recipes)
+            :key (lambda (it) (intern (car it))))))
+
+(defun straight-recipes-nongnu-elpa-list ()
+  "Return a list of NonGNU ELPA recipe names."
+  (mapcar #'car (straight-recipes-nongnu-elpa--recipes)))
+
+(defun straight-recipes-nongnu-elpa-version ()
+  "Return the current version of the NonGNU ELPA retriever."
+  1)
+
 ;;;;;; Emacsmirror
 
 (defcustom straight-recipes-emacsmirror-use-mirror t
