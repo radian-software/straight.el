@@ -3077,7 +3077,7 @@ Return a list of package names as strings."
         (setq recipes (nconc recipes (straight-recipes
                                       'list source cause)))))))
 
-(defcustom straight-built-in-pseudo-packages '(emacs nadvice python)
+(defcustom straight-built-in-pseudo-packages '(emacs nadvice python image-mode)
   "List of built-in packages that aren't real packages.
 If any of these are specified as dependencies, straight.el will
 just skip them instead of looking for a recipe.
