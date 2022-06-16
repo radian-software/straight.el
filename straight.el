@@ -2144,9 +2144,9 @@ changes were made."
   "Return branch named by REF if REF is a local branch.
 Otherwise, return nil. Returned ref may be ambiguous.
 This is useful when dealing with ambiguous refs: If the short name of
-a branch is 'xyz' and there's also a tag named 'xyz', the shortest
-unambiguous branch name is at least 'heads/xyz'. If you attempt to
-check out 'heads/xyz', you'll end up at the right commit, but in
+a branch is `xyz` and there's also a tag named `xyz`, the shortest
+unambiguous branch name is at least `heads/xyz`. If you attempt to
+check out `heads/xyz`, you'll end up at the right commit, but in
 detached head state. To check out the branch, you need to use the
 short name as returned by this function. Git checkout will print a
 warning about the ambiguous name, but succeed."
@@ -2523,12 +2523,12 @@ the symbol `single-branch' to override the --no-single-branch option."
     (&key depth remote url repo-dir branch commit)
   "Clone a remote repository from URL.
 
-If DEPTH is the symbol `full', clone the whole history of the
+If DEPTH is the symbol `full`, clone the whole history of the
 repository. If DEPTH is an integer, pass it to the --depth option
 of git-clone to perform a shallow clone. If this fails, try again
 to clone without the option --depth and --branch, as a fallback.
 If DEPTH is a list, it may specify whether or not to clone a single branch.
-e.g. '(full single-branch) translates to --single-branch, whereas
+e.g. \\='(full single-branch) translates to --single-branch, whereas
 \\='(full) translates to --no-single-branch.
 
 REMOTE is the name of the remote to use \(e.g. \"origin\"; see
@@ -7005,7 +7005,7 @@ ARGS may be any of the following keywords and their respective values:
 
   - :post-bootstrap (Form)...
       Forms evaluated in the testing environment after boostrapping.
-      e.g. (straight-use-package '(example :type git :host github))
+      e.g. (straight-use-package \\='(example :type git :host github))
 
   - :interactive Boolean
       If nil, the subprocess will immediately exit after the test.
