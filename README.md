@@ -1801,7 +1801,7 @@ since otherwise this cache file may grow quite large over time.
 
 #### Hooks run by `straight-use-package`
 
-Currently, `straight-use-package` supports three hooks:
+Currently, `straight-use-package` supports four hooks:
 
 * `straight-vc-git-post-clone-hook`: The functions in this hook are
   run just after cloning a git repository.  This allows users to
