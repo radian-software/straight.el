@@ -29,19 +29,19 @@
 ;;
 ;; After we get the appropriate branch name, we directly download that
 ;; branch's revision of straight.el (the file) from the official
-;; GitHub repository, radian-software/straight.el. Now, one of the goals of
-;; this implementation is that forking straight.el does not require
-;; any changes to this file as long as you do not make divergent
-;; changes to the interpretation of recipe fetch keywords. The fact
-;; that we download from the source rather than whatever fork is
-;; specified does not actually violate this goal, if you think about
-;; it. If the fork *does* make divergent changes to recipe
+;; GitHub repository, radian-software/straight.el. Now, one of the
+;; goals of this implementation is that forking straight.el does not
+;; require any changes to this file as long as you do not make
+;; divergent changes to the interpretation of recipe fetch keywords.
+;; The fact that we download from the source rather than whatever fork
+;; is specified does not actually violate this goal, if you think
+;; about it. If the fork *does* make divergent changes to recipe
 ;; interpretation, then all it needs to do is update the version
 ;; identifier in `straight-freeze-versions', tag a new branch with a
 ;; unique version identifier, and override the hardcoded
-;; radian-software/straight.el to the fork (this last part being necessary
-;; because otherwise the new branch could not be found; all previous
-;; branches would still be available, though).
+;; radian-software/straight.el to the fork (this last part being
+;; necessary because otherwise the new branch could not be found; all
+;; previous branches would still be available, though).
 ;;
 ;; After we get a copy of straight.el, it's just a matter of using it
 ;; to parse the recipe for straight.el itself, taking into account all
@@ -145,7 +145,7 @@
              (error "Malformed version lockfile: %S" lockfile-name))))))
     (unless version
       ;; If no lockfile present, use latest version.
-      (setq version :beta))
+      (setq version :gamma))
     (with-current-buffer
         (url-retrieve-synchronously
          (format

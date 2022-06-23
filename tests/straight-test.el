@@ -161,9 +161,8 @@ return nil."
         (Info-directory-list '()))
     (straight--add-package-to-info-path
      '(:package "straight-mock-repo" :local-repo "./test-repo"))
-    (should (string= ".emacs.d/straight/build/straight-mock-repo/"
-                     (straight-test-trim-to-mocks
-                      (car Info-directory-list))))))
+    ;; No "dir" file, so this directory does not get added
+    (should (null Info-directory-list))))
 
 (straight-deftest straight--alist-set ()
   (should (equal ',out (straight--alist-set ,@in)))
@@ -556,7 +555,7 @@ return nil."
   (:repo "/rename")                    "githubUser/rename"
   (:host github :repo "user/")         "user/repo"
   (:host gitlab :repo "full/override") "full/override"
-  ;; https://github.com/raxod502/straight.el/issues/592
+  ;; https://github.com/radian-software/straight.el/issues/592
   (:host nil :repo "/local/repo")      "/local/repo"
   (:branch "feature")                  "githubUser/repo")
 

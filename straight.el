@@ -1,10 +1,10 @@
 ;;; straight.el --- Next-generation package manager -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017-2019 Radon Rosborough and contributors
+;; Copyright (C) 2017-2022 Radian LLC and contributors
 
-;; Author: Radon Rosborough <radon.neon@gmail.com>
+;; Author: Radian LLC <contact+straight@radian.codes>
 ;; Created: 1 Jan 2017
-;; Homepage: https://github.com/raxod502/straight.el
+;; Homepage: https://github.com/radian-software/straight.el
 ;; Keywords: extensions
 ;; Package-Requires: ((emacs "25.1"))
 ;; SPDX-License-Identifier: MIT
@@ -27,7 +27,7 @@
 ;; straight.el will work with manually managed packages, if you prefer
 ;; to merge in packages as subtrees.
 
-;; Please see https://github.com/raxod502/straight.el for more
+;; Please see https://github.com/radian-software/straight.el for more
 ;; information.
 
 ;;; Code:
@@ -146,15 +146,15 @@ bind this variable to different symbols using `let' over
 different parts of your init-file."
   :type 'symbol)
 
-(defcustom straight-repository-user "raxod502"
+(defcustom straight-repository-user "radian-software"
   "String identifying the GitHub user from which to clone straight.el.
 You must set this variable before straight.el is bootstrapped for
 it to have an effect. (It is used in the default recipe for
 straight.el which is registered during bootstrap.)
 
-If you have forked raxod502/straight.el to your-name/straight.el,
-then to use your fork you should set `straight-repository-user'
-to \"your-name\"."
+If you have forked radian-software/straight.el to
+your-name/straight.el, then to use your fork you should set
+`straight-repository-user' to \"your-name\"."
   :type 'string)
 
 (defcustom straight-repository-branch "master"
@@ -1855,9 +1855,9 @@ edit. Otherwise, PROMPT and ACTIONS are as for
 (defun straight-vc-git--encode-url (repo host &optional protocol)
   "Generate a URL from a REPO depending on the value of HOST and PROTOCOL.
 REPO is a string which is either a URL or something of the form
-\"username/repo\", like \"raxod502/straight.el\". If HOST is one
-of the symbols `github', `gitlab', or `bitbucket', then REPO is
-transformed into a standard SSH URL for the corresponding
+\"username/repo\", like \"radian-software/straight.el\". If HOST
+is one of the symbols `github', `gitlab', or `bitbucket', then
+REPO is transformed into a standard SSH URL for the corresponding
 service; otherwise, HOST should be nil, and in that case REPO is
 returned unchanged. PROTOCOL must be either `https' or `ssh'; if
 it is omitted, it defaults to `straight-vc-git-default-protocol'.
@@ -2113,13 +2113,40 @@ LOCAL-REPO is a string."
              ref (concat stdout stderr)))
      (t (string-trim stdout)))))
 
+(defun straight-vc-git--ref-exists-p (ref)
+  "Return non-nil if REF exists in the current Git repository.
+Do not throw an error unless something unexpected happens."
+  (straight--process-with-result
+      (straight--process-run
+       "git" "rev-parse" "--verify" ref)
+    (not failure)))
+
+(defun straight-vc-git--ensure-branch-exists (local-repo branch start-point)
+  "In LOCAL-REPO, ensure that BRANCH exists.
+If it does not exist then it is created pointing at START-POINT,
+which may be a commit or ref. Return non-nil if and only if no
+changes were made."
+  (or (straight-vc-git--ref-exists-p branch)
+      (ignore
+       (if straight-vc-git-auto-fast-forward
+           (straight--process-output
+            "git" "branch" "--track" "--"
+            branch start-point)
+         (straight-vc-git--popup
+           (concat (format "In repository %S, " local-repo)
+                   (format " branch %S does not exist." branch))
+           ("c" (format "Create pointing at %S" start-point)
+            (straight--process-output
+             "git" "branch" "--track" "--"
+             branch start-point)))))))
+
 (defun straight-vc-git--local-branch (ref)
   "Return branch named by REF if REF is a local branch.
 Otherwise, return nil. Returned ref may be ambiguous.
 This is useful when dealing with ambiguous refs: If the short name of
-a branch is 'xyz' and there's also a tag named 'xyz', the shortest
-unambiguous branch name is at least 'heads/xyz'. If you attempt to
-check out 'heads/xyz', you'll end up at the right commit, but in
+a branch is `xyz` and there's also a tag named `xyz`, the shortest
+unambiguous branch name is at least `heads/xyz`. If you attempt to
+check out `heads/xyz`, you'll end up at the right commit, but in
 detached head state. To check out the branch, you need to use the
 short name as returned by this function. Git checkout will print a
 warning about the ambiguous name, but succeed."
@@ -2130,7 +2157,7 @@ warning about the ambiguous name, but succeed."
 
 (defun straight-vc-git--compare-and-canonicalize (left right)
   "Return plist describing relationship between refs LEFT and RIGHT."
-  (condition-case failure
+  (condition-case-unless-debug failure
       (let* ((left (straight-vc-git--abbrev-ref left))
              (right (straight-vc-git--abbrev-ref right))
              (head (straight-vc-git--abbrev-ref "HEAD"))
@@ -2362,22 +2389,25 @@ confirmation by reset, so this function should only be run after
         t)
        (t (straight-vc-git--reconcile-interactively local-repo status))))))
 
-(cl-defun straight-vc-git--merge-from-remote-raw (recipe remote remote-branch)
-  "Using straight.el-style RECIPE, merge from REMOTE.
-REMOTE is a string. REMOTE-BRANCH is the branch in REMOTE that is
-used; it should be a string that is not prefixed with a remote
-name."
+(cl-defun straight-vc-git--merge-from-remote-raw
+    (recipe remote-to-merge remote-branch)
+  "Using straight.el-style RECIPE, merge from REMOTE-TO-MERGE.
+REMOTE is a string. REMOTE-BRANCH is the branch in
+REMOTE-TO-MERGE that is used; it should be a string that is not
+prefixed with a remote name."
   (straight-vc-git--destructure recipe
-      (local-repo branch)
+      (local-repo remote branch)
     (let ((remote-branch (or remote-branch
-                             branch
                              (straight-vc-git--default-remote-branch
-                              remote local-repo))))
+                              remote-to-merge local-repo)))
+          (default-branch (or branch
+                              (straight-vc-git--default-remote-branch
+                               remote local-repo))))
       (while t
         (and (straight-vc-git--ensure-local recipe)
              (or (straight-vc-git--ensure-default-branch-current
-                  local-repo remote-branch
-                  (format "%s/%s" remote remote-branch))
+                  local-repo default-branch
+                  (format "%s/%s" remote-to-merge remote-branch))
                  (straight-register-repo-modification local-repo))
              (cl-return-from straight-vc-git--merge-from-remote-raw t))))))
 
@@ -2446,15 +2476,33 @@ primary :branch is checked out. The reason for \"local\" in the
 name of this function is that for normal situations, no network
 communication is done with the remotes."
   (straight-vc-git--destructure recipe
-      (local-repo branch remote)
+      (local-repo branch remote upstream-branch upstream-remote fork)
     (and (straight-vc-git--ensure-remotes recipe)
-         (or (and (straight-vc-git--ensure-nothing-in-progress local-repo)
-                  (straight-vc-git--ensure-worktree local-repo)
-                  (straight-vc-git--ensure-head-at-branch
-                   local-repo
-                   (or branch (straight-vc-git--default-remote-branch
-                               remote local-repo))))
-             (straight-register-repo-modification local-repo)))))
+         (let ((branch (or branch (straight-vc-git--default-remote-branch
+                                   remote local-repo)))
+               (upstream-branch (or upstream-branch
+                                    (straight-vc-git--default-remote-branch
+                                     upstream-remote local-repo))))
+           (or (and (straight-vc-git--ensure-nothing-in-progress local-repo)
+                    (straight-vc-git--ensure-worktree local-repo)
+                    ;; Check fork before upstream so that if upstream
+                    ;; and fork branches are the same (the common case)
+                    ;; and the local branch ref does not exist, we
+                    ;; create it pointing at the fork rather than the
+                    ;; upstream. This will save updating it later in
+                    ;; `straight-vc-git--ensure-head-at-branch'.
+                    (or (null fork)
+                        (straight-vc-git--ensure-branch-exists
+                         local-repo
+                         branch
+                         (format "%s/%s" remote branch)))
+                    (straight-vc-git--ensure-branch-exists
+                     local-repo
+                     upstream-branch
+                     (format "%s/%s" upstream-remote upstream-branch))
+                    (straight-vc-git--ensure-head-at-branch
+                     local-repo branch))
+               (straight-register-repo-modification local-repo))))))
 
 (defcustom straight-vc-git-default-clone-depth 'full
   "The default value for `:depth' when `:type' is the symbol `git'.
@@ -2475,12 +2523,12 @@ the symbol `single-branch' to override the --no-single-branch option."
     (&key depth remote url repo-dir branch commit)
   "Clone a remote repository from URL.
 
-If DEPTH is the symbol `full', clone the whole history of the
+If DEPTH is the symbol `full`, clone the whole history of the
 repository. If DEPTH is an integer, pass it to the --depth option
 of git-clone to perform a shallow clone. If this fails, try again
 to clone without the option --depth and --branch, as a fallback.
 If DEPTH is a list, it may specify whether or not to clone a single branch.
-e.g. '(full single-branch) translates to --single-branch, whereas
+e.g. \\='(full single-branch) translates to --single-branch, whereas
 \\='(full) translates to --no-single-branch.
 
 REMOTE is the name of the remote to use \(e.g. \"origin\"; see
@@ -3029,7 +3077,7 @@ Return a list of package names as strings."
         (setq recipes (nconc recipes (straight-recipes
                                       'list source cause)))))))
 
-(defcustom straight-built-in-pseudo-packages '(emacs nadvice python)
+(defcustom straight-built-in-pseudo-packages '(emacs nadvice python image-mode)
   "List of built-in packages that aren't real packages.
 If any of these are specified as dependencies, straight.el will
 just skip them instead of looking for a recipe.
@@ -3037,7 +3085,7 @@ just skip them instead of looking for a recipe.
 Another application of this variable is to correctly handle the
 situation where a package is built-in but Emacs incorrectly
 claims that it's not (see
-<https://github.com/raxod502/straight.el/issues/548>).
+<https://github.com/radian-software/straight.el/issues/548>).
 
 Note that straight.el can deal with built-in packages even if
 this variable is set to nil. This just allows you to tell
@@ -3072,7 +3120,7 @@ If nil, output is discarded."
 (defun straight-recipes-org-elpa--build ()
   "Generate `org-version.el`.
 This is to avoid relying on `make` on Windows.
-See: https://github.com/raxod502/straight.el/issues/707"
+See: https://github.com/radian-software/straight.el/issues/707"
   (let* ((default-directory (straight--repos-dir "org" "lisp"))
          (orgversion
           (straight--process-with-result
@@ -3126,24 +3174,24 @@ Otherwise return nil."
     ('org-contrib
      (list package
            :type 'git
-           :includes '(ob-arduino ; Intentionally short for indentation
-                       ob-clojure-literate ob-csharp ob-eukleides
-                       ob-fomus ob-julia ob-mathematica ob-mathomatic ob-oz
-                       ob-php ob-redis ob-sclang ob-smiles ob-spice ob-stata
+           :includes '(;; Intentionally blank for indentation.
+                       ob-csharp ob-eukleides
+                       ob-fomus ob-julia ob-mathomatic ob-oz
+                       ob-stata
                        ob-tcl ob-vbnet ol-bookmark ol-elisp-symbol ol-git-link
-                       ol-man ol-mew ol-notmuch ol-vm ol-wl org-annotate-file
-                       org-attach-embedded-images org-bibtex-extras
-                       org-checklist org-choose org-collector org-contacts
+                       ol-man ol-mew ol-vm ol-wl org-annotate-file
+                       org-bibtex-extras
+                       org-checklist org-choose org-collector
                        org-contribdir org-depend org-effectiveness org-eldoc
                        org-eval org-eval-light org-expiry
                        org-interactive-query org-invoice org-learn org-license
-                       org-mac-iCal org-mac-link org-mairix org-notify
-                       org-panel org-passwords org-registry org-screen
+                       org-mac-iCal org-mairix
+                       org-panel org-registry org-screen
                        org-screenshot org-secretary org-static-mathjax
                        org-sudoku orgtbl-sqlinsert org-toc org-track
-                       org-velocity org-wikinodes ox-bibtex ox-confluence
+                       org-wikinodes ox-bibtex ox-confluence
                        ox-deck ox-extra ox-freemind ox-groff ox-koma-letter
-                       ox-rss ox-s5 ox-taskjuggler)
+                       ox-s5 ox-taskjuggler)
            :repo "https://git.sr.ht/~bzg/org-contrib"
            :files '(:defaults "lisp/*.el")))))
 
@@ -3153,7 +3201,7 @@ Otherwise return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  13)
+  14)
 
 ;;;;;; MELPA
 
@@ -3178,7 +3226,7 @@ return nil."
                 ;; if it is present, but the `:files' directive might
                 ;; not include it (and doesn't need to, because MELPA
                 ;; always re-creates a *-pkg.el file regardless). See
-                ;; https://github.com/raxod502/straight.el/issues/336.
+                ;; https://github.com/radian-software/straight.el/issues/336.
                 (straight--put
                  plist :files
                  (append files (list (format "%S-pkg.el" package)))))
@@ -3224,8 +3272,8 @@ Such packages would break things if they were installed. For
 example, the `cl-lib' package from GNU ELPA is not the
 development version but rather an obsolete forwards-compatibility
 package designed for use with Emacs 24.2 and earlier. See
-<https://github.com/raxod502/straight.el/issues/531> for some
-discussion."
+<https://github.com/radian-software/straight.el/issues/531> for
+some discussion."
   :type '(repeat symbol))
 
 ;;;;;;; GNU ELPA mirror
@@ -3247,8 +3295,9 @@ Otherwise, return nil."
                  ;; put the correct files into the repository, and
                  ;; then just link *everything*. As an FYI, if we
                  ;; don't do this, then AUCTeX suffers problems with
-                 ;; style files, see
-                 ;; <https://github.com/raxod502/straight.el/issues/423>.
+                 ;; style files, see [1].
+                 ;;
+                 ;; [1]: https://github.com/radian-software/straight.el/issues/423
                  :files ("*" (:exclude ".git"))))))
 
 (defun straight-recipes-gnu-elpa-mirror-list ()
@@ -3296,6 +3345,45 @@ Otherwise, return nil."
 (defun straight-recipes-gnu-elpa-version ()
   "Return the current version of the GNU ELPA retriever."
   2)
+
+;;;;;; NonGNU ELPA
+
+(defun straight-recipes-nongnu-elpa--translate (recipe)
+  "Translate RECIPE into straight.el-style recipe."
+  (unless (null recipe)
+    (let ((name (pop recipe)))
+      `( ,(intern name)
+         :repo ,(plist-get recipe :url)
+         ,@(when-let ((ignored (plist-get recipe :ignored-files)))
+             `(:files (:defaults (:not ,@ignored))))))))
+
+(defun straight-recipes-nongnu-elpa--recipes ()
+  "Return list of NonGNU ELPA style recipes."
+  (let ((f "elpa-packages"))
+    (when (file-exists-p f)
+      (with-temp-buffer
+        (condition-case err
+            (progn
+              (insert-file-contents f)
+              (goto-char (point-min))
+              (read (current-buffer)))
+          ((error)
+           (error "Unable to read NonGNU ELPA packages: %S" err)))))))
+
+(defun straight-recipes-nongnu-elpa-retrieve (package)
+  "Return NonGNU ELPA PACKAGE recipe, or nil if not found."
+  (straight-recipes-nongnu-elpa--translate
+   (cl-find package
+            (straight-recipes-nongnu-elpa--recipes)
+            :key (lambda (it) (intern (car it))))))
+
+(defun straight-recipes-nongnu-elpa-list ()
+  "Return a list of NonGNU ELPA recipe names."
+  (mapcar #'car (straight-recipes-nongnu-elpa--recipes)))
+
+(defun straight-recipes-nongnu-elpa-version ()
+  "Return the current version of the NonGNU ELPA retriever."
+  1)
 
 ;;;;;; Emacsmirror
 
@@ -3999,7 +4087,7 @@ empty values (all packages will be rebuilt, with no caching)."
     (ignore-errors
       (with-temp-buffer
         ;; Can't use `insert-file-contents-literally', see
-        ;; https://github.com/raxod502/straight.el/issues/780.
+        ;; https://github.com/radian-software/straight.el/issues/780.
         (insert-file-contents
          (straight--build-cache-file))
         (let ((version (read (current-buffer)))
@@ -4322,10 +4410,10 @@ modified since their last builds.")
                   ;; for any files that are in a given local
                   ;; repository *and* have a new enough mtime.
                   ;;
-                  ;; See the following issue for an explanation about
-                  ;; why an extra pair of single quotes is used on
-                  ;; Windows:
-                  ;; <https://github.com/raxod502/straight.el/issues/393>
+                  ;; See [1] for an explanation about why an extra
+                  ;; pair of single quotes is used on Windows.
+                  ;;
+                  ;; [1]: https://github.com/radian-software/straight.el/issues/393
                   (let ((newer-or-newermt nil)
                         (mtime-or-file nil))
                     (if (straight--find-supports 'newermt)
@@ -5030,7 +5118,7 @@ modifies the build folder, not the original repository."
           ;;
           ;; Note: we used to bind `noninteractive', like package.el,
           ;; but apparently that code was a bug in package.el. Sigh.
-          ;; See <https://github.com/raxod502/straight.el/issues/431>.
+          ;; See <https://github.com/radian-software/straight.el/issues/431>.
           (backup-inhibited t)
           (version-control 'never)
           ;; Tell Emacs to shut up.
@@ -5046,10 +5134,10 @@ modifies the build folder, not the original repository."
         (let ((find-file-hook nil)
               (write-file-functions nil)
               ;; Apparently fixes a bug in Emacs 27, see
-              ;; <https://github.com/raxod502/straight.el/issues/434>.
+              ;; <https://github.com/radian-software/straight.el/issues/434>.
               (debug-on-error nil)
               ;; Non-nil interferes with autoload generation in Emacs < 29, see
-              ;; <https://github.com/raxod502/straight.el/issues/904>.
+              ;; <https://github.com/radian-software/straight.el/issues/904>.
               (left-margin 0))
           ;; Actually generate the autoload file.
           ;; Emacs > 28.1 replaces `update-directory-autoloads' with
@@ -5220,19 +5308,19 @@ package has already been built."
 RECIPE is a straight.el-style plist. It is assumed that the
 package has already been built. This function calls
 `info-initialize'."
-  (straight--with-plist recipe
-      (package)
-    ;; The `info-initialize' function is not autoloaded, for some
-    ;; reason. Do `eval-and-compile' for the byte-compiler.
-    (eval-and-compile
-      (require 'info))
-    ;; Initialize the `Info-directory-list' variable. We have to do
-    ;; this before adding to it, since otherwise the default paths
-    ;; won't get added later.
-    (info-initialize)
-    ;; Actually add the path. Only .info files at the top level will
-    ;; be seen, which is fine. (It's the way MELPA works.)
-    (add-to-list 'Info-directory-list (straight--build-dir package))))
+  (let ((package (plist-get recipe :package)))
+    (when (file-exists-p (straight--build-file package "dir"))
+      ;; The `info-initialize' function is not autoloaded, for some
+      ;; reason. Do `eval-and-compile' for the byte-compiler.
+      (eval-and-compile
+        (require 'info))
+      ;; Initialize the `Info-directory-list' variable. We have to do
+      ;; this before adding to it, since otherwise the default paths
+      ;; won't get added later.
+      (info-initialize)
+      ;; Actually add the path. Only .info files at the top level will
+      ;; be seen, which is fine. (It's the way MELPA works.)
+      (add-to-list 'Info-directory-list (straight--build-dir package)))))
 
 (defun straight--load-package-autoloads (package)
   "Load autoloads provided by PACKAGE, a string, from disk."
@@ -6335,7 +6423,7 @@ according to the value of `straight-profiles'."
               ;;
               ;; The version keyword comes after the versions alist so
               ;; that you can ignore it if you don't need it.
-              "(%s)\n:beta\n"
+              "(%s)\n:gamma\n"
               (mapconcat
                (apply-partially #'format "%S")
                versions-alist
@@ -6576,7 +6664,7 @@ NAME, KEYWORD, ARGS, REST, and STATE are explained by the
   ;; works when `:straight' is processed before `:ensure'. See below
   ;; for the other case.
   ;;
-  ;; See <https://github.com/raxod502/straight.el/issues/425>.
+  ;; See <https://github.com/radian-software/straight.el/issues/425>.
   (when args (straight--remq rest '(:ensure)))
   (append
    (mapcar (lambda (arg)
@@ -6708,8 +6796,8 @@ is loaded, according to the value of
 
 (defcustom straight-fix-flycheck nil
   "If non-nil, install a workaround for a problem with Flycheck.
-See <https://github.com/raxod502/straight.el/issues/508> for
-discussion.
+See <https://github.com/radian-software/straight.el/issues/508>
+for discussion.
 
 This variable must be set before straight.el is loaded (or
 re-loaded) in order to take effect."
@@ -6789,12 +6877,12 @@ Interactively, or when MESSAGE is non-nil, show in the echo area."
     (let ((bootstrap-file
            (expand-file-name "straight/repos/straight.el/bootstrap.el"
                              user-emacs-directory))
-          (bootstrap-version 5))
+          (bootstrap-version 6))
       (unless (file-exists-p bootstrap-file)
         (with-current-buffer
             (url-retrieve-synchronously
              (concat "https://raw.githubusercontent.com/"
-                     "raxod502/straight.el/develop/install.el")
+                     "radian-software/straight.el/develop/install.el")
              'silent 'inhibit-cookies)
           (goto-char (point-max))
           (eval-print-last-sexp)))
@@ -6825,7 +6913,9 @@ If PREAMBLE is non-nil, it is inserted after the instructions."
        (mapconcat
         (lambda (el) (apply #'format el))
         `(("<!-- copy entire buffer output and paste in an issue at:")
-          ("https://github.com/raxod502/straight.el/issues/new/choose -->")
+          (,(concat
+             "https://github.com/radian-software/straight.el"
+             "/issues/new/choose -->"))
           ,@(when preamble
               `(("<details open><summary>Test Case</summary>")
                 ("\n```emacs-lisp")
@@ -6915,7 +7005,7 @@ ARGS may be any of the following keywords and their respective values:
 
   - :post-bootstrap (Form)...
       Forms evaluated in the testing environment after boostrapping.
-      e.g. (straight-use-package '(example :type git :host github))
+      e.g. (straight-use-package \\='(example :type git :host github))
 
   - :interactive Boolean
       If nil, the subprocess will immediately exit after the test.
