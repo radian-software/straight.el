@@ -29,7 +29,7 @@
 ;;
 ;; After we get the appropriate branch name, we directly download that
 ;; branch's revision of straight.el (the file) from the official
-;; GitHub repository, raxod502/straight.el. Now, one of the goals of
+;; GitHub repository, radian-software/straight.el. Now, one of the goals of
 ;; this implementation is that forking straight.el does not require
 ;; any changes to this file as long as you do not make divergent
 ;; changes to the interpretation of recipe fetch keywords. The fact
@@ -39,7 +39,7 @@
 ;; interpretation, then all it needs to do is update the version
 ;; identifier in `straight-freeze-versions', tag a new branch with a
 ;; unique version identifier, and override the hardcoded
-;; raxod502/straight.el to the fork (this last part being necessary
+;; radian-software/straight.el to the fork (this last part being necessary
 ;; because otherwise the new branch could not be found; all previous
 ;; branches would still be available, though).
 ;;
@@ -62,7 +62,7 @@
 ;; straight.el, *always* use `bound-and-true-p' so as to avoid
 ;; regressions with old versions of straight.el that did not define
 ;; those variables; see
-;; <https://github.com/raxod502/straight.el/issues/407>.
+;; <https://github.com/radian-software/straight.el/issues/407>.
 
 ;; We have to wrap everything in a single form so that this file can
 ;; be evaluated with `eval-print-last-sexp', rather than
@@ -150,7 +150,7 @@
         (url-retrieve-synchronously
          (format
           (concat "https://raw.githubusercontent.com/"
-                  "raxod502/straight.el/install/%s/straight.el")
+                  "radian-software/straight.el/install/%s/straight.el")
           (substring (symbol-name version) 1))
          'silent 'inhibit-cookies)
       ;; In case of 404, that means the version identifier is unknown.
@@ -199,7 +199,7 @@
                       :repo ,(format
                               "%s/straight.el"
                               (or (bound-and-true-p straight-repository-user)
-                                  "raxod502"))
+                                  "radian-software"))
                       :branch ,(or (bound-and-true-p
                                     straight-repository-branch)
                                    "master")))
