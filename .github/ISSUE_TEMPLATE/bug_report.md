@@ -16,7 +16,7 @@ assignees: ''
 <!--
 Please give instructions for how to reproduce the behavior _starting from an empty `~/.emacs.d`_. Unfortunately, I simply don't have enough time to check out your bug report unless it has clear instructions for this.
 
-straight.el provides a macro, `straight-bug-report`, which can be used to easily create a minimal reproduction case in a clean Emacs environment. Please use this if possible. For instructions, see <https://github.com/raxod502/straight.el#debugging> and the `straight-bug-report` docstring.
+straight.el provides a macro, `straight-bug-report`, which can be used to easily create a minimal reproduction case in a clean Emacs environment. Please use this if possible. For instructions, see <https://github.com/radian-software/straight.el#debugging> and the `straight-bug-report` docstring.
 
 If `straight-bug-report` is not available or fails you can still create a reproduction case manually. To do this, start with an empty `~/.emacs.d/init.el`, add the bootstrap snippet, and then add any additional code from your init-file that's needed to set up the buggy behavior. Then include a list of steps to follow (commands to run, files to modify, whatever) after Emacs startup.
 
