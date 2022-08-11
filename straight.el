@@ -5660,9 +5660,11 @@ If SOURCES is nil, update sources in `straight-recipe-repositories'."
 (defun straight-visit-package (package &optional build)
   "Open PACKAGE's local repository directory.
 When BUILD is non-nil visit PACKAGE's build directory."
-  (interactive (list (straight--select-package "Package" #'straight--installed-p)
-                     current-prefix-arg))
-  (let ((dir (funcall (if build #'straight--build-dir #'straight--repos-dir) package)))
+  (interactive
+   (list (straight--select-package "Package" #'straight--installed-p)
+         current-prefix-arg))
+  (let ((dir (funcall (if build #'straight--build-dir #'straight--repos-dir)
+                      package)))
     (if (file-exists-p dir)
         (find-file dir)
       (user-error "Directory does not exist: %S" dir))))
