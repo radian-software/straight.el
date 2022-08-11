@@ -5655,7 +5655,6 @@ If SOURCES is nil, update sources in `straight-recipe-repositories'."
         ('gitlab (browse-url (format "https://gitlab.com/%s" repo)))
         (_ (browse-url (format "%s" repo)))))))
 
-;;;;; Open a package repo
 
 ;;;###autoload
 (defun straight-visit-package (package &optional build)
