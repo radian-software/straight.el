@@ -5655,6 +5655,16 @@ If SOURCES is nil, update sources in `straight-recipe-repositories'."
         ('gitlab (browse-url (format "https://gitlab.com/%s" repo)))
         (_ (browse-url (format "%s" repo)))))))
 
+;;;;; Open a package repo
+
+;;;###autoload
+(defun straight-visit-package-local-repo ()
+  "Interactively select a recipe, and open the package's local directory."
+  (interactive)
+  (find-file (straight--repos-dir
+              (straight--select-package "Package"
+                                        #'straight--installed-p))))
+  
 ;;;;; Package registration
 
 (defcustom straight-use-package-prepare-functions nil
