@@ -5668,7 +5668,7 @@ When BUILD is non-nil visit PACKAGE's build directory."
     (if (file-exists-p dir)
         (find-file dir)
       (user-error "Directory does not exist: %S" dir))))
-  
+
 ;;;;; Package registration
 
 (defcustom straight-use-package-prepare-functions nil
