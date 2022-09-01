@@ -261,6 +261,7 @@ For example, with the following alist:
   (setq straight-host-usernames
         \\='((github . \"githubUser\")
           (gitlab . \"gitlabUser\")
+          (codeberg . \"codebergUser\")
           (bitbucket . \"bitbucketUser\")))
 
   (straight-use-package
@@ -282,6 +283,7 @@ computes the fork as \"githubUser/fork\"."
 
 (defcustom straight-hosts '((github "github.com" ".git")
                             (gitlab "gitlab.com" ".git")
+                            (codeberg "codeberg.org" ".git")
                             (bitbucket "bitbucket.com" ".git"))
   "Alist containing URI information for hosted forges.
 Each element is of the form: (HOST DOMAIN REPO-SUFFIX).
@@ -1590,9 +1592,9 @@ basis using the `:remote' keyword in the `:fork' sub-plist."
 
 (defcustom straight-vc-git-default-protocol 'https
   "The default protocol to use for auto-generated URLs.
-This affects the URLs used when `:host' is `github', `gitlab', or
-`bitbucket'. It does not cause manually specified URLs to be
-translated.
+This affects the URLs used when `:host' is `github', `gitlab',
+`codeberg', or `bitbucket'. It does not cause manually specified
+URLs to be translated.
 
 This may be either `https' or `ssh'."
   :type '(choice (const :tag "HTTPS" https)
@@ -1856,12 +1858,13 @@ edit. Otherwise, PROMPT and ACTIONS are as for
   "Generate a URL from a REPO depending on the value of HOST and PROTOCOL.
 REPO is a string which is either a URL or something of the form
 \"username/repo\", like \"radian-software/straight.el\". If HOST
-is one of the symbols `github', `gitlab', or `bitbucket', then
-REPO is transformed into a standard SSH URL for the corresponding
-service; otherwise, HOST should be nil, and in that case REPO is
-returned unchanged. PROTOCOL must be either `https' or `ssh'; if
-it is omitted, it defaults to `straight-vc-git-default-protocol'.
-See also `straight-vc-git--decode-url'."
+is one of the symbols `github', `gitlab', `codeberg', or
+`bitbucket', then REPO is transformed into a standard SSH URL for
+the corresponding service; otherwise, HOST should be nil, and in
+that case REPO is returned unchanged. PROTOCOL must be either
+`https' or `ssh'; if it is omitted, it defaults to
+`straight-vc-git-default-protocol'.  See also
+`straight-vc-git--decode-url'."
   (pcase host
     ('nil repo)
     ((pred (lambda (host) (alist-get host straight-hosts)))
@@ -1883,11 +1886,12 @@ See also `straight-vc-git--decode-url'."
   "Separate a URL into a REPO, HOST, and PROTOCOL, returning a list of them.
 All common forms of HTTPS and SSH URLs are accepted for GitHub,
 GitLab, and Bitbucket. If one is recognized, then HOST is one of
-the symbols `github', `gitlab', or `bitbucket', and REPO is a
-string of the form \"username/repo\". Otherwise HOST is nil and
-REPO is just URL. In any case, PROTOCOL is either `https', `ssh',
-or nil (if the protocol cannot be determined, which happens when
-HOST is nil). See also `straight-vc-git--encode-url'."
+the symbols `github', `gitlab', `codeberg', or `bitbucket', and
+REPO is a string of the form \"username/repo\". Otherwise HOST is
+nil and REPO is just URL. In any case, PROTOCOL is either
+`https', `ssh', or nil (if the protocol cannot be determined,
+which happens when HOST is nil). See also
+`straight-vc-git--encode-url'."
   (let ((protocol nil)
         (matched t))
     (or (and (string-match
@@ -1909,6 +1913,7 @@ HOST is nil). See also `straight-vc-git--encode-url'."
     (pcase (and matched (match-string 1 url))
       ("github.com" (list (match-string 2 url) 'github protocol))
       ("gitlab.com" (list (match-string 2 url) 'gitlab protocol))
+      ("codeberg.org" (list (match-string 2 url) 'codeberg protocol))
       ("bitbucket.org" (list (match-string 2 url) 'bitbucket protocol))
       (_ (list url nil nil)))))
 
@@ -3234,7 +3239,7 @@ return nil."
                 (straight--put plist :branch branch))
               (pcase (plist-get melpa-plist :fetcher)
                 ('git (straight--put plist :repo (plist-get melpa-plist :url)))
-                ((or 'github 'gitlab)
+                ((or 'github 'gitlab 'codeberg)
                  (straight--put plist :host (plist-get melpa-plist :fetcher))
                  (straight--put plist :repo (plist-get melpa-plist :repo)))
                 ;; This error is caught by `condition-case', no need
@@ -5659,6 +5664,7 @@ If SOURCES is nil, update sources in `straight-recipe-repositories'."
       (pcase host
         ('github (browse-url (format "https://github.com/%s" repo)))
         ('gitlab (browse-url (format "https://gitlab.com/%s" repo)))
+        ('codeberg (browse-url (format "https://codeberg.org/%s" repo)))
         (_ (browse-url (format "%s" repo)))))))
 
 
