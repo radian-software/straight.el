@@ -559,6 +559,25 @@ return nil."
   (:host nil :repo "/local/repo")      "/local/repo"
   (:branch "feature")                  "githubUser/repo")
 
+(straight-deftest straight-vc-git--decode-url ()
+  (should (equal ,out (straight-vc-git--decode-url ,in)))
+  (in                                  out)
+  "test://test.org/user/test.git"
+  '("test://test.org/user/test.git" nil nil)
+  "git@github.com:user/test.git"       '("user/test" github ssh)
+  "https://codeberg.org/user/test.git" '("user/test" codeberg https)
+  "git@codeberg.org:user/test.git"     '("user/test" codeberg ssh))
+
+(straight-deftest straight-vc-git--encode-url ()
+  (let ((straight-vc-git-default-protocol 'https))
+    (should (equal ,out (straight-vc-git--encode-url "user/repo" ,@in))))
+  (in              out)
+  (nil)            "user/repo"
+  ('github)        "https://github.com/user/repo.git"
+  ('github 'ssh)   "git@github.com:user/repo.git"
+  ('codeberg)      "https://codeberg.org/user/repo.git"
+  ('codeberg 'ssh) "git@codeberg.org:user/repo.git")
+
 (straight-deftest straight--versions-dir ()
   (let ((straight-base-dir straight-test-mock-user-emacs-dir))
     (should (string= (file-name-as-directory
