@@ -1869,8 +1869,9 @@ differences from the user's point of view are:
 * We use `:host` instead of `:fetcher`.
 * We only support Git recipes by default, although the system is
   extensible to other VCs to be added in the future or in user
-  configurations. Thus the supported `:host` values are `nil` (any Git
-  repository), `github`, `gitlab`, and `bitbucket` (Git only).
+  configurations. Thus the supported `:host` values are:
+  * `nil` (any Git repository)
+  * `github`, `gitlab`, `sourcehut`, `codeberg`, or `bitbucket`.
 * We support `:branch`, but not `:commit` or `:version-regexp`. To
   lock a package to a specific commit, use a
   [lockfile][#user/lockfiles]. See also [#246] for discussion of
@@ -2161,7 +2162,7 @@ These are the keywords meaningful for the `git` backend:
 
 * `:repo`: the clone URL for the Git repository.
 * `:host`: either nil or one of the symbols `github`, `gitlab`,
-  `bitbucket`.
+  `bitbucket`, `codeberg`, or `sourcehut`.
     * If nil, then `:repo` should be a string which is the full URL of
     the target repository. For example:
 
@@ -2199,6 +2200,8 @@ These are the keywords meaningful for the `git` backend:
 ```emacs-lisp
 '((github    . "githubUser")
   (gitlab    . "gitlabUser")
+  (codeberg  . "codebergUser")
+  (sourcehut . "sourcehutUser")
   (bitbucket . "bitbucketUser")))
 ```
 
