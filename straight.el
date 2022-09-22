@@ -5663,17 +5663,17 @@ If SOURCES is nil, update sources in `straight-recipe-repositories'."
 ;;;;; Jump to package website
 
 ;;;###autoload
-(defun straight-visit-package-website ()
-  "Interactively select a recipe, and visit the package's website."
-  (interactive)
-  (let* ((melpa-recipe (straight-get-recipe))
-         (recipe (straight--convert-recipe melpa-recipe)))
-    (straight--with-plist recipe (host repo)
-      (when (eq host 'sourcehut) (setq repo (concat "~" repo)))
-      (let ((url (if-let ((domain (car (alist-get host straight-hosts))))
-                     (format "https://%s/%s" domain repo)
-                   (format "%s" repo))))
-        (browse-url url)))))
+(defun straight-visit-package-website (recipe)
+  "Visit the package RECIPE's website."
+  (interactive (list (intern (completing-read "Visit package website: "
+                                              (straight-recipes-list)))))
+  (straight--with-plist (straight--convert-recipe recipe) (host repo)
+    ;;@FIX: sourcehut may not always use this prefix in the future
+    (when (eq host 'sourcehut) (setq repo (concat "~" repo)))
+    (let ((url (if-let ((domain (car (alist-get host straight-hosts))))
+                   (format "https://%s/%s" domain repo)
+                 (format "%s" repo))))
+      (browse-url url))))
 
 ;;;###autoload
 (defun straight-visit-package (package &optional build)
