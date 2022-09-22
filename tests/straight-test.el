@@ -3,6 +3,7 @@
 (require 'straight)
 (require 'ert)
 (require 'cus-edit)
+(eval-when-compile (require 'subr-x))
 
 (defvar straight-test-docker (getenv "EMACS_DOCKER")
   "Condition tests on docker environment when non-nil.")

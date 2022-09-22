@@ -21,7 +21,7 @@
 ;;; Code:
 
 (require 'cl-lib)
-(require 'subr-x)
+(eval-when-compile (require 'subr-x))
 
 (require 'straight)
 

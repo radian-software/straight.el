@@ -58,7 +58,8 @@
 ;;;; Libraries
 
 (require 'cl-lib)
-(require 'subr-x)
+(eval-when-compile (require 'subr-x))
+(require 'subr)
 
 ;;;; Backports
 
@@ -5432,7 +5433,7 @@ If it returns nil, the package is not considered a selection candidate."
                   (push package packages)))
               straight--recipe-cache)
      (nreverse packages))
-   (lambda (_) t)
+   #'always
    'require-match))
 
 ;;;;; Bookkeeping
@@ -5627,7 +5628,7 @@ action, just return it)."
                       (cl-remove-if (lambda (pkg)
                                       (gethash pkg straight--repo-cache))
                       (straight-recipes-list sources))
-                      (lambda (_) t)
+                      #'always
                       'require-match)))
            ;; No need to provide a `cause' to
            ;; `straight-recipes-retrieve'; it should not be printing
