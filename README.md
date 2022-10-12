@@ -3585,8 +3585,8 @@ savings on network bandwidth and disk space.
 [gccemacs]: http://akrl.sdf.org/gccemacs.html
 [git]: https://git-scm.com/
 [git-credential-cache]: https://git-scm.com/docs/git-credential-cache
-[gitter-badge]: https://badges.gitter.im/radian-software/straight.el.svg
-[gitter]: https://gitter.im/radian-software/straight.el
+[gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg
+[gitter]: https://gitter.im/raxod502/straight.el
 [gnu-elpa-mirror-tool]: https://github.com/radian-software/gnu-elpa-mirror
 [gnu-elpa-mirror]: https://github.com/emacs-straight
 [gnu-elpa]: https://elpa.gnu.org/
