@@ -1547,7 +1547,7 @@ This method simply delegates to the relevant
                         "merge-from-upstream"
                         "push-to-remote"))
     (defalias (intern (format "straight-vc-%S-%s" type method)) #'ignore
-      (format "Psuedo VC backend method for packages with :type %S." type))))
+      (format "Pseudo VC backend method for packages with :type %S." type))))
 
 ;;;;; Git
 
