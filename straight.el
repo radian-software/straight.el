@@ -3135,26 +3135,21 @@ If nil, output is discarded."
 This is to avoid relying on `make` on Windows.
 See: https://github.com/radian-software/straight.el/issues/707"
   (let* ((default-directory (straight--repos-dir "org" "lisp"))
+         (emacs (straight--emacs-path))
          (orgversion
           (straight--process-with-result
-              (straight--process-run "git" "describe" "--match" "release*"
-                                     "--abbrev=0" "HEAD")
-            (if failure
-                ;; backup in case Org repo has no tags
-                (straight--process-with-result
-                    (straight--process-run
-                     (straight--emacs-path) "-Q" "--batch"
-                     "--eval" "(require 'lisp-mnt)"
-                     "--visit" "org.el"
-                     "--eval" "(princ (lm-header \"version\"))")
-                  (if failure
-                      (error "Failed to parse ORGVERSION")
-                    (replace-regexp-in-string "-dev" "" stdout)))
-              (string-trim (replace-regexp-in-string "release_" "" stdout)))))
+              (straight--process-run
+               emacs "-Q" "--batch"
+               "--eval" "(require 'lisp-mnt)"
+               "--visit" "org.el"
+               "--eval" "(princ (lm-header \"version\"))")
+            (when failure (error "Failed to parse ORGVERSION: %S" result))
+            (string-trim (replace-regexp-in-string "-dev" "" stdout))))
          (gitversion
-          (concat orgversion "-g" (straight--process-output
-                                   "git" "rev-parse" "--short=6" "HEAD")))
-         (emacs (concat invocation-directory invocation-name)))
+          (straight--process-with-result
+              (straight--process-run "git" "describe" "--match" "release*"
+                                     "--abbrev=6" "HEAD")
+            (if success (string-trim stdout) "N/A"))))
     (call-process
      emacs nil straight-byte-compilation-buffer nil
      "-Q" "--batch"
@@ -3164,8 +3159,7 @@ See: https://github.com/radian-software/straight.el/issues/707"
      "--eval" "(load \"../mk/org-fixup.el\")"
      ;; Do we want autoloads here, or should straight handle it?
      "--eval" "(org-make-org-loaddefs)"
-     "--eval" (format "(org-make-org-version %S %S)"
-                      orgversion gitversion)
+     "--eval" (format "(org-make-org-version %S %S)" orgversion gitversion)
      "--eval" "(cd \"../doc\")"
      "--eval" "(org-make-manuals)")))
 
@@ -3214,7 +3208,7 @@ Otherwise return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  14)
+  15)
 
 ;;;;;; MELPA
 
