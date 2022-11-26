@@ -5587,7 +5587,7 @@ If FORCE is non-nil do not prompt before deleting repos."
 ;;;;; Recipe acquiry
 
 ;;;###autoload
-(defun straight-get-recipe (&optional sources action)
+(defun straight-get-recipe (&optional sources action unfiltered)
   "Interactively select a recipe from one of the recipe repositories.
 All recipe repositories in `straight-recipe-repositories' will
 first be cloned. After the recipe is selected, it will be copied
@@ -5603,8 +5603,11 @@ symbol `interactive', then the user is prompted to select a
 recipe repository, and a list containing that recipe repository
 is used for the value of SOURCES. ACTION may be `copy' (copy
 recipe to the kill ring), `insert' (insert at point), or nil (no
-action, just return it)."
-  (interactive (list (when current-prefix-arg 'interactive) 'copy))
+action, just return it).
+
+If UNFILTERED is non-nil, offer all available recipes.
+Otherwise only uninstalled recipe candidates are offered."
+  (interactive (list (when current-prefix-arg 'interactive) 'copy 'unfiltered))
   (when (eq sources 'interactive)
     (setq sources (list
                    (intern
@@ -5617,9 +5620,11 @@ action, just return it)."
     (let* ((package (intern
                      (completing-read
                       "Which recipe? "
-                      (cl-remove-if (lambda (pkg)
-                                      (gethash pkg straight--repo-cache))
-                      (straight-recipes-list sources))
+                      (if unfiltered
+                          (straight-recipes-list sources)
+                        (cl-remove-if (lambda (pkg)
+                                        (gethash pkg straight--repo-cache))
+                                      (straight-recipes-list sources)))
                       (lambda (_) t)
                       'require-match)))
            ;; No need to provide a `cause' to
