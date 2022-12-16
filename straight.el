@@ -3361,7 +3361,9 @@ Otherwise, return nil."
     `( ,(pop recipe)
        :repo ,(plist-get recipe :url)
        ,@(when-let ((ignored (plist-get recipe :ignored-files)))
-           `(:files (:defaults (:exclude ,@ignored)))))))
+           `(:files (:defaults (:exclude ,@(if (listp ignored)
+                                               ignored
+                                             (list ignored)))))))))
 
 (defun straight-recipes-nongnu-elpa--recipes ()
   "Return list of NonGNU ELPA style recipes."
@@ -3389,7 +3391,7 @@ Otherwise, return nil."
 
 (defun straight-recipes-nongnu-elpa-version ()
   "Return the current version of the NonGNU ELPA retriever."
-  3)
+  4)
 
 ;;;;;; Emacsmirror
 
