@@ -1,11 +1,16 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - develop
+      - master
+  pull_request: {}
 jobs:
   ci:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        emacs_version: [25, 26, 27, "master"]
+        emacs_version: [25, 26, 27, 28]
     steps:
       - name: Checkout
         uses: actions/checkout@v2
