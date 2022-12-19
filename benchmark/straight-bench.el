@@ -247,13 +247,13 @@ SHALLOW nil means use the default behavior of full clones."
                     (expand-file-name
                      "straight/repos/straight.el/bootstrap.el"
                      user-emacs-directory))
-                   (bootstrap-version 5))
+                   (bootstrap-version 6))
                (unless (file-exists-p bootstrap-file)
                  (with-current-buffer
                      (url-retrieve-synchronously
                       (concat
                        "https://raw.githubusercontent.com"
-                       "/raxod502/straight.el/develop/install.el")
+                       "/radian-software/straight.el/develop/install.el")
                       'silent 'inhibit-cookies)
                    (goto-char (point-max))
                    (eval-print-last-sexp)))

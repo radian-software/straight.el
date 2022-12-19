@@ -27,6 +27,10 @@ npm
 # just in case we want root
 sudo
 
+# for testing ability of straight.el to build and install info
+texinfo
+install-info
+
 "
 
 export DEBIAN_FRONTEND=noninteractive

@@ -1,10 +1,10 @@
 ;;; straight-x.el --- Experimental extensions. -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017-2018 Radon Rosborough and contributors
+;; Copyright (C) 2017-2022 Radian LLC and contributors
 
-;; Author: Radon Rosborough <radon.neon@gmail.com>
+;; Author: Radian LLC <contact+straight@radian.codes>
 ;; Created: 1 Jan 2017
-;; Homepage: https://github.com/raxod502/straight.el
+;; Homepage: https://github.com/radian-software/straight.el
 ;; Keywords: extensions
 ;; Package-Requires: ((emacs "25.1"))
 ;; SPDX-License-Identifier: MIT
@@ -151,7 +151,7 @@
   (let ((lockfile-path (straight--versions-lockfile 'pinned)))
     (with-temp-file lockfile-path
       (insert
-       (format "(%s)\n:beta\n"
+       (format "(%s)\n:gamma\n"
                (mapconcat
                 (apply-partially #'format "%S")
                 straight-x-pinned-packages

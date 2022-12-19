@@ -161,9 +161,8 @@ return nil."
         (Info-directory-list '()))
     (straight--add-package-to-info-path
      '(:package "straight-mock-repo" :local-repo "./test-repo"))
-    (should (string= ".emacs.d/straight/build/straight-mock-repo/"
-                     (straight-test-trim-to-mocks
-                      (car Info-directory-list))))))
+    ;; No "dir" file, so this directory does not get added
+    (should (null Info-directory-list))))
 
 (straight-deftest straight--alist-set ()
   (should (equal ',out (straight--alist-set ,@in)))
@@ -556,9 +555,30 @@ return nil."
   (:repo "/rename")                    "githubUser/rename"
   (:host github :repo "user/")         "user/repo"
   (:host gitlab :repo "full/override") "full/override"
-  ;; https://github.com/raxod502/straight.el/issues/592
+  ;; https://github.com/radian-software/straight.el/issues/592
   (:host nil :repo "/local/repo")      "/local/repo"
   (:branch "feature")                  "githubUser/repo")
+
+(straight-deftest straight-vc-git--decode-url ()
+  (should (equal ,out (straight-vc-git--decode-url ,in)))
+  (in                                  out)
+  "x://x.y/user/x.git"                 '("x://x.y/user/x.git" nil nil)
+  "git@github.com:user/test.git"       '("user/test" github ssh)
+  "https://codeberg.org/user/test.git" '("user/test" codeberg https)
+  "git@codeberg.org:user/test.git"     '("user/test" codeberg ssh)
+  "git@git.sr.ht:~user/test"           '("user/test" sourcehut ssh)
+  "https://git.sr.ht/~user/test"       '("user/test" sourcehut https))
+
+(straight-deftest straight-vc-git--encode-url ()
+  (let ((straight-vc-git-default-protocol 'https))
+    (should (equal ,out (straight-vc-git--encode-url "user/repo" ,@in))))
+  (in               out)
+  (nil)             "user/repo"
+  ('github)         "https://github.com/user/repo.git"
+  ('github 'ssh)    "git@github.com:user/repo.git"
+  ('codeberg)       "https://codeberg.org/user/repo.git"
+  ('codeberg 'ssh)  "git@codeberg.org:user/repo.git"
+  ('sourcehut 'ssh) "git@git.sr.ht:~user/repo")
 
 (straight-deftest straight--versions-dir ()
   (let ((straight-base-dir straight-test-mock-user-emacs-dir))

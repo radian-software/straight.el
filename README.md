@@ -3,8 +3,7 @@ for the [Emacs] hacker.
 
 **Please check out the [FAQ][#faq] and [news][#news] :)**
 
-[![Build status][circleci-badge]][circleci-build] [![Gitter
-chat][gitter-badge]][gitter]
+[![Gitter chat][gitter-badge]][gitter]
 
 <!-- longlines-start -->
 
@@ -185,11 +184,11 @@ First, place the following bootstrap code in your init-file:
 (defvar bootstrap-version)
 (let ((bootstrap-file
        (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
-      (bootstrap-version 5))
+      (bootstrap-version 6))
   (unless (file-exists-p bootstrap-file)
     (with-current-buffer
         (url-retrieve-synchronously
-         "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
+         "https://raw.githubusercontent.com/radian-software/straight.el/develop/install.el"
          'silent 'inhibit-cookies)
       (goto-char (point-max))
       (eval-print-last-sexp)))
@@ -301,7 +300,7 @@ given package by running `M-x straight-get-recipe`. For example, the
 recipe for `el-patch` is:
 
 ```emacs-lisp
-(el-patch :type git :host github :repo "raxod502/el-patch")
+(el-patch :type git :host github :repo "radian-software/el-patch")
 ```
 
 So, if you have forked `el-patch` and you want to use your fork
@@ -317,7 +316,7 @@ package, since this is so common:
 
 ```emacs-lisp
 (straight-use-package
- '(el-patch :type git :host github :repo "raxod502/el-patch"
+ '(el-patch :type git :host github :repo "radian-software/el-patch"
             :fork (:host github
                    :repo "your-name/el-patch")))
 ```
@@ -331,7 +330,7 @@ specifying a fork is as simple as:
 
 ```emacs-lisp
 (straight-use-package
- '(el-patch :type git :host github :repo "raxod502/el-patch"
+ '(el-patch :type git :host github :repo "radian-software/el-patch"
             :fork t))
 ```
 
@@ -370,7 +369,7 @@ You can still provide a custom recipe for the package:
 
 ```emacs-lisp
 (use-package el-patch
-  :straight (el-patch :type git :host github :repo "raxod502/el-patch"
+  :straight (el-patch :type git :host github :repo "radian-software/el-patch"
                       :fork (:host github
                              :repo "your-name/el-patch")))
 ```
@@ -967,21 +966,21 @@ And here is a brief list of the main reasons you might not want to use
   packages, or to override upstream package configuration, without
   forking the upstream. `package.el` has no such concept.
 * `straight.el` is developed openly on GitHub, using a modern [issue
-  tracker][issues] and continuous integration from [CircleCI
-  ][circleci-build]. It welcomes contributions of any type.
-  `straight.el` is licensed under the permissive MIT license and does
-  not require a copyright assignment. `straight.el` is developed
-  actively and has explicit support for installing development
-  versions of itself, as well as for contributing upstream changes.
-  `package.el` is maintained as a part of Emacs core, meaning that the
-  contribution process is poorly documented and discouraging. Releases
-  of `package.el` coincide with releases of Emacs, which are
-  infrequent and inflexible. There is no issue tracker specifically
-  for `package.el`, only the Emacs bug tracker and the emacs-devel
-  mailing list. Contributing to `package.el` requires a
-  poorly-documented, cumbersome copyright assignment process and is
-  done by submitting patches to an antiquated mailing list,
-  unsupported by modern code review tooling or continuous integration.
+  tracker][issues] and continuous integration from GitHub Actions. It
+  welcomes contributions of any type. `straight.el` is licensed under
+  the permissive MIT license and does not require a copyright
+  assignment. `straight.el` is developed actively and has explicit
+  support for installing development versions of itself, as well as
+  for contributing upstream changes. `package.el` is maintained as a
+  part of Emacs core, meaning that the contribution process is poorly
+  documented and discouraging. Releases of `package.el` coincide with
+  releases of Emacs, which are infrequent and inflexible. There is no
+  issue tracker specifically for `package.el`, only the Emacs bug
+  tracker and the emacs-devel mailing list. Contributing to
+  `package.el` requires a poorly-documented, cumbersome copyright
+  assignment process and is done by submitting patches to an
+  antiquated mailing list, unsupported by modern code review tooling
+  or continuous integration.
 
 #### Advantages of `package.el`
 
@@ -1417,11 +1416,11 @@ care of all these details for you:
 (defvar bootstrap-version)
 (let ((bootstrap-file
        (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
-      (bootstrap-version 5))
+      (bootstrap-version 6))
   (unless (file-exists-p bootstrap-file)
     (with-current-buffer
         (url-retrieve-synchronously
-         "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
+         "https://raw.githubusercontent.com/radian-software/straight.el/develop/install.el"
          'silent 'inhibit-cookies)
       (goto-char (point-max))
       (eval-print-last-sexp)))
@@ -1502,7 +1501,7 @@ build the package. Here is an example:
 
 ```emacs-lisp
 (straight-use-package
- '(el-patch :type git :host github :repo "raxod502/el-patch"
+ '(el-patch :type git :host github :repo "radian-software/el-patch"
             :fork (:host github
                    :repo "your-name/el-patch")))
 ```
@@ -1747,11 +1746,10 @@ recipes which do not explicitly disable byte-compilation via the
 
 ##### Native compilation
 
-Experimental support for native compilation of Emacs Lisp code is
-currently under development in the `feature/native-comp` branch of the
-official Emacs repository (see [gccemacs][gccemacs]). When running on
-this version of Emacs, `straight.el` will perform native compilation
-of packages.
+Experimental support for native compilation of Emacs Lisp code can be
+enabled in the latest `master` branch of the official Emacs repository
+(see [gccemacs][gccemacs]). When running on this version of Emacs,
+`straight.el` will perform native compilation of packages.
 
 By specifying a `:build (:not native-compile)` in a package's recipe,
 you may inhibit native compilation. You can also customize the
@@ -1808,7 +1806,7 @@ since otherwise this cache file may grow quite large over time.
 
 #### Hooks run by `straight-use-package`
 
-Currently, `straight-use-package` supports three hooks:
+Currently, `straight-use-package` supports four hooks:
 
 * `straight-vc-git-post-clone-hook`: The functions in this hook are
   run just after cloning a git repository.  This allows users to
@@ -1876,8 +1874,9 @@ differences from the user's point of view are:
 * We use `:host` instead of `:fetcher`.
 * We only support Git recipes by default, although the system is
   extensible to other VCs to be added in the future or in user
-  configurations. Thus the supported `:host` values are `nil` (any Git
-  repository), `github`, `gitlab`, and `bitbucket` (Git only).
+  configurations. Thus the supported `:host` values are:
+  * `nil` (any Git repository)
+  * `github`, `gitlab`, `sourcehut`, `codeberg`, or `bitbucket`.
 * We support `:branch`, but not `:commit` or `:version-regexp`. To
   lock a package to a specific commit, use a
   [lockfile][#user/lockfiles]. See also [#246] for discussion of
@@ -2168,7 +2167,7 @@ These are the keywords meaningful for the `git` backend:
 
 * `:repo`: the clone URL for the Git repository.
 * `:host`: either nil or one of the symbols `github`, `gitlab`,
-  `bitbucket`.
+  `bitbucket`, `codeberg`, or `sourcehut`.
     * If nil, then `:repo` should be a string which is the full URL of
     the target repository. For example:
 
@@ -2206,6 +2205,8 @@ These are the keywords meaningful for the `git` backend:
 ```emacs-lisp
 '((github    . "githubUser")
   (gitlab    . "gitlabUser")
+  (codeberg  . "codebergUser")
+  (sourcehut . "sourcehutUser")
   (bitbucket . "bitbucketUser")))
 ```
 
@@ -3061,7 +3062,7 @@ And this:
 
 ```emacs-lisp
 (use-package el-patch
-  :straight (:host github :repo "raxod502/el-patch"
+  :straight (:host github :repo "radian-software/el-patch"
              :branch "develop"))
 ```
 
@@ -3069,7 +3070,7 @@ becomes:
 
 ```emacs-lisp
 (straight-use-package
- '(el-patch :host github :repo "raxod502/el-patch"
+ '(el-patch :host github :repo "radian-software/el-patch"
             :branch "develop"))
 ```
 
@@ -3242,9 +3243,9 @@ branch in any fork:
 ```
 
 For additional information, please see [the contributor guide for my
-projects](https://github.com/raxod502/contributor-guide). Note that
-`straight.el` has not yet had an initial release, so you don't have to
-worry about a changelog.
+projects](https://github.com/radian-software/contributor-guide). Note
+that `straight.el` has not yet had an initial release, so you don't
+have to worry about a changelog.
 
 ## FAQ
 ### My init time got slower
@@ -3549,35 +3550,32 @@ savings on network bandwidth and disk space.
  [#trivia/comments]: #comments-and-docstrings
 [#news]: #news
 
-[#9]: https://github.com/raxod502/straight.el/issues/9
-[#31]: https://github.com/raxod502/straight.el/issues/31
-[#51]: https://github.com/raxod502/straight.el/issues/51
-[#54]: https://github.com/raxod502/straight.el/issues/54
-[#58]: https://github.com/raxod502/straight.el/issues/58
-[#95-c1]: https://github.com/raxod502/straight.el/issues/95#issuecomment-316379495
-[#110]: https://github.com/raxod502/straight.el/issues/110
-[#115]: https://github.com/raxod502/straight.el/issues/115
-[#119]: https://github.com/raxod502/straight.el/issues/119
-[#211]: https://github.com/raxod502/straight.el/issues/211
-[#236]: https://github.com/raxod502/straight.el/issues/236
-[#246]: https://github.com/raxod502/straight.el/issues/246
-[#323]: https://github.com/raxod502/straight.el/issues/323
-[#334]: https://github.com/raxod502/straight.el/issues/334
-[#355]: https://github.com/raxod502/straight.el/issues/355
-[#356]: https://github.com/raxod502/straight.el/issues/356
-[#357]: https://github.com/raxod502/straight.el/issues/357
-[#425]: https://github.com/raxod502/straight.el/issues/425
-[#437]: https://github.com/raxod502/straight.el/issues/437
-[#508]: https://github.com/raxod502/straight.el/issues/508
-[#520]: https://github.com/raxod502/straight.el/issues/520
+[#9]: https://github.com/radian-software/straight.el/issues/9
+[#31]: https://github.com/radian-software/straight.el/issues/31
+[#51]: https://github.com/radian-software/straight.el/issues/51
+[#54]: https://github.com/radian-software/straight.el/issues/54
+[#58]: https://github.com/radian-software/straight.el/issues/58
+[#95-c1]: https://github.com/radian-software/straight.el/issues/95#issuecomment-316379495
+[#110]: https://github.com/radian-software/straight.el/issues/110
+[#115]: https://github.com/radian-software/straight.el/issues/115
+[#119]: https://github.com/radian-software/straight.el/issues/119
+[#211]: https://github.com/radian-software/straight.el/issues/211
+[#236]: https://github.com/radian-software/straight.el/issues/236
+[#246]: https://github.com/radian-software/straight.el/issues/246
+[#323]: https://github.com/radian-software/straight.el/issues/323
+[#334]: https://github.com/radian-software/straight.el/issues/334
+[#355]: https://github.com/radian-software/straight.el/issues/355
+[#356]: https://github.com/radian-software/straight.el/issues/356
+[#357]: https://github.com/radian-software/straight.el/issues/357
+[#425]: https://github.com/radian-software/straight.el/issues/425
+[#437]: https://github.com/radian-software/straight.el/issues/437
+[#508]: https://github.com/radian-software/straight.el/issues/508
+[#520]: https://github.com/radian-software/straight.el/issues/520
 
 [auto-compile]: https://github.com/tarsius/auto-compile
 [borg]: https://github.com/emacscollective/borg
 [cask]: https://github.com/cask/cask
-[circleci]: https://circleci.com/
-[circleci-badge]: https://circleci.com/gh/raxod502/straight.el/tree/develop.svg?style=svg
-[circleci-build]: https://circleci.com/gh/raxod502/straight.el
-[develop]: https://github.com/raxod502/straight.el/tree/develop
+[develop]: https://github.com/radian-software/straight.el/tree/develop
 [docker]: https://www.docker.com/
 [early-init-file]: https://www.gnu.org/software/emacs/manual/html_node/emacs/Early-Init-File.html
 [early-init-file-commit]: https://git.savannah.gnu.org/cgit/emacs.git/commit/?id=24acb31c04b4048b85311d794e600ecd7ce60d3b
@@ -3592,15 +3590,15 @@ savings on network bandwidth and disk space.
 [gccemacs]: http://akrl.sdf.org/gccemacs.html
 [git]: https://git-scm.com/
 [git-credential-cache]: https://git-scm.com/docs/git-credential-cache
-[gitter-badge]: https://badges.gitter.im/raxod502/straight.el.svg
-[gitter]: https://gitter.im/raxod502/straight.el
-[gnu-elpa-mirror-tool]: https://github.com/raxod502/gnu-elpa-mirror
+[gitter-badge]: https://badges.gitter.im/radian-software/straight.el.svg
+[gitter]: https://gitter.im/radian-software/straight.el
+[gnu-elpa-mirror-tool]: https://github.com/radian-software/gnu-elpa-mirror
 [gnu-elpa-mirror]: https://github.com/emacs-straight
 [gnu-elpa]: https://elpa.gnu.org/
 [homebrew]: https://brew.sh/
 [hydra-wiki-straight-entry]: https://github.com/abo-abo/hydra/wiki/straight.el
 [hydra]: https://github.com/abo-abo/hydra
-[issues]: https://github.com/raxod502/straight.el/issues
+[issues]: https://github.com/radian-software/straight.el/issues
 [keyword arguments]: https://www.emacswiki.org/emacs/KeywordArguments
 [magit]: https://magit.vc/
 [markdown-toc]: https://github.com/jonschlinkert/markdown-toc
@@ -3612,7 +3610,7 @@ savings on network bandwidth and disk space.
 [property-lists]: https://www.gnu.org/software/emacs/manual/html_node/elisp/Property-Lists.html
 [python]: https://www.python.org/
 [quelpa]: https://github.com/quelpa/quelpa
-[radian]: https://github.com/raxod502/radian
+[radian]: https://github.com/radian-software/radian
 [spacemacs]: http://spacemacs.org/
 [ssh-agent]: https://www.ssh.com/ssh/agent
 [symlinks-creators]: https://blogs.windows.com/buildingapps/2016/12/02/symlinks-windows-10/
