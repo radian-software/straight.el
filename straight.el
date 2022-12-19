@@ -605,7 +605,20 @@ The warning message is obtained by passing MESSAGE and ARGS to
 Defaults to `user-emacs-directory'."
   :type 'string)
 
-(defcustom straight-build-dir "build"
+(defcustom straight-use-version-specific-build-dir nil
+  "If non-nil, use an Emacs-version-specific `straight-build-dir' directory.
+Normally, straight.el uses a single build directory and throws
+'emacs-version-changed when attempting to run the byte-compiled
+code in a different version of Emacs. This changes that behavior
+to use a per-Emacs-version build directory based upon the
+variable `emacs-version', for example 'build-27.2'.
+
+Setting `straight-build-dir' will override this behavior."
+  :type 'boolean)
+
+(defcustom straight-build-dir (if straight-use-version-specific-build-dir
+                                  (concat "build-" emacs-version)
+                                "build")
   "Name of the directory into which packages are built.
 Relative to the straight/ subdirectory of `straight-base-dir'.
 Defaults to \"build\".

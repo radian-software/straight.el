@@ -48,8 +48,12 @@
               nil 'nomessage)
         (setq emacs-version-changed nil))
       (when emacs-version-changed
-        ;; In safe mode, sacrifice performance for safety.
-        (if (bound-and-true-p straight-safe-mode)
+        ;; In safe mode, sacrifice performance for safety.  When using
+        ;; Emacs-version-specific build directories, do the same to
+        ;; avoid hitting the `emacs-version-changed' error due to a
+        ;; byte-compiled straight.el.
+        (if (or (bound-and-true-p straight-safe-mode)
+		(bound-and-true-p straight-use-version-specific-build-dir))
             (load straight.el nil 'nomessage 'nosuffix)
           ;; Don't use the optional LOAD argument for
           ;; `byte-compile-file' because it emits a message.
