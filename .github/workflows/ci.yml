@@ -1,5 +1,10 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - develop
+      - master
+  pull_request: {}
 jobs:
   ci:
     runs-on: ubuntu-latest
