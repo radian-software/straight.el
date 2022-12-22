@@ -5089,10 +5089,16 @@ this run of straight.el)."
                  ;; missing or malformed, we just assume the package
                  ;; has no dependencies.
                  (let ((case-fold-search t))
-                   (re-search-forward "^;* *Package-Requires *: *"))
-                 (when (looking-at "(")
-                   (straight--process-dependencies
-                    (read (current-buffer)))))))))
+                   (re-search-forward "^;* *Package-Requires *: *")
+                   (when-let ((required (list (buffer-substring-no-properties
+                                               (point) (line-end-position)))))
+                     (forward-line 1)
+                     ;; Borrowed from `lm-header-multiline'
+                     (while (looking-at "^;+\\(\t\\|[\t\s]\\{2,\\}\\)\\(.+\\)")
+                       (push (match-string-no-properties 2) required)
+                       (forward-line 1))
+                     (straight--process-dependencies
+                      (read (string-join (nreverse required) " "))))))))))
     (straight--insert 1 package dependencies straight--build-cache)))
 
 (defun straight--get-dependencies (package)
