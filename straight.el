@@ -5769,8 +5769,7 @@ non-nil if the function has been called interactively. It is for
 internal use only, and is used to determine whether to show a
 hint about how to install the package permanently.
 
-Return non-nil if package was actually installed, and nil
-otherwise (this can only happen if NO-CLONE is non-nil)."
+Return non-nil when package is initially installed, nil otherwise."
   (interactive
    (list (straight-get-recipe (when current-prefix-arg 'interactive))
          nil nil nil 'interactive))
