@@ -60,7 +60,7 @@ checkindent: ## Ensure that indentation is correct
 	    echo "[checkindent] $$file"; \
 	    $(EMACS) -Q --batch \
 	        --eval "(setq inhibit-message t)" \
-	        --eval "(load (expand-file-name \"indent.el\"  ) nil t)" \
+	        --eval "(load (expand-file-name \"scripts/indent.el\") nil t)" \
 	        --eval "(load (expand-file-name \"straight.el\") nil t)" \
 	        --eval "(find-file \"$$file\")" \
 	        --eval "(indent-region (point-min) (point-max))" \
