@@ -1,6 +1,6 @@
 ;;; straight-x.el --- Experimental extensions. -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017-2022 Radian LLC and contributors
+;; Copyright (C) 2017-2023 Radian LLC and contributors
 
 ;; Author: Radian LLC <contact+straight@radian.codes>
 ;; Created: 1 Jan 2017
