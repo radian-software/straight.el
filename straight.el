@@ -3399,7 +3399,11 @@ Otherwise, return nil."
 
 (defun straight-recipes-nongnu-elpa-list ()
   "Return a list of NonGNU ELPA recipe names."
-  (mapcar (lambda (it) (symbol-name (car it)))
+  (mapcar (lambda (it)
+            (setq it (car it))
+            (when (symbolp it)
+              (setq it (symbol-name it)))
+            it)
           (straight-recipes-nongnu-elpa--recipes)))
 
 (defun straight-recipes-nongnu-elpa-version ()
