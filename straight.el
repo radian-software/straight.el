@@ -5614,7 +5614,7 @@ If FORCE is non-nil do not prompt before deleting repos."
 ;;;;; Recipe acquiry
 
 ;;;###autoload
-(defun straight-get-recipe (&optional sources action unfiltered)
+(defun straight-get-recipe (&optional sources action filter)
   "Interactively select a recipe from one of the recipe repositories.
 All recipe repositories in `straight-recipe-repositories' will
 first be cloned. After the recipe is selected, it will be copied
@@ -5632,9 +5632,10 @@ is used for the value of SOURCES. ACTION may be `copy' (copy
 recipe to the kill ring), `insert' (insert at point), or nil (no
 action, just return it).
 
-If UNFILTERED is non-nil, offer all available recipes.
-Otherwise only uninstalled recipe candidates are offered."
-  (interactive (list (when current-prefix-arg 'interactive) 'copy 'unfiltered))
+Optional arg FILTER must be a unary function.
+It takes a package name as its sole argument.
+If it returns nil the candidate is excluded."
+  (interactive (list (when current-prefix-arg 'interactive) 'copy))
   (when (eq sources 'interactive)
     (setq sources (list
                    (intern
@@ -5647,11 +5648,10 @@ Otherwise only uninstalled recipe candidates are offered."
     (let* ((package (intern
                      (completing-read
                       "Which recipe? "
-                      (if unfiltered
-                          (straight-recipes-list sources)
-                        (cl-remove-if (lambda (pkg)
-                                        (gethash pkg straight--repo-cache))
-                                      (straight-recipes-list sources)))
+                      (if filter
+                          (cl-remove-if-not filter
+                                            (straight-recipes-list sources))
+                        (straight-recipes-list sources))
                       (lambda (_) t)
                       'require-match)))
            ;; No need to provide a `cause' to
@@ -5777,7 +5777,13 @@ hint about how to install the package permanently.
 
 Return non-nil when package is initially installed, nil otherwise."
   (interactive
-   (list (straight-get-recipe (when current-prefix-arg 'interactive))
+   (list (straight-get-recipe
+          (when current-prefix-arg 'interactive) nil
+          (let ((installed nil))
+            ;; Cache keys are :local-repo. We want to compare :package.
+            (maphash (lambda (_ v) (push (plist-get v :package) installed))
+                     straight--repo-cache)
+            (lambda (pkg) (not (member pkg installed)))))
          nil nil nil 'interactive))
   (let ((recipe (straight--convert-recipe
                  (or
