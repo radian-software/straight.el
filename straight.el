@@ -78,6 +78,7 @@ They are still logged to the *Messages* buffer.")))
 ;; `comp'
 (declare-function native-compile-async "comp.el")
 (defvar native-comp-deferred-compilation-deny-list)
+(defvar native-comp-jit-compilation-deny-list)
 
 ;; `finder-inf'
 (defvar package--builtins)
@@ -5250,9 +5251,12 @@ background after `straight-use-package' returns."
         (when (and straight--build-cache
                    (gethash package straight--build-cache))
           (let ((regexp (format "^%s" build-dir)))
-            (setq native-comp-deferred-compilation-deny-list
-                  (cl-remove-if (lambda (denied) (string= denied regexp))
-                                native-comp-deferred-compilation-deny-list))))
+            (dolist (list-var '(native-comp-deferred-compilation-deny-list
+                                native-comp-jit-compilation-deny-list))
+              (when (boundp list-var)
+                (set list-var
+                     (cl-remove-if (lambda (denied) (string= denied regexp))
+                                   (symbol-value list-var)))))))
         (let ((inhibit-message t)
               (message-log-max nil))
           (native-compile-async build-dir 'recursively))))))
@@ -5913,13 +5917,17 @@ Return non-nil when package is initially installed, nil otherwise."
               'straight-use-package-prepare-functions package)
              ;; Prevent deferred native compilation of packages which
              ;; explicitly disable it.
-             (when (boundp 'native-comp-deferred-compilation-deny-list)
-               (when-let ((build (cadr (plist-member recipe :build))))
-                 (when (and (eq (car-safe build) :not)
-                            (member 'native-compile (cdr build)))
-                   (cl-pushnew (format "^%s" (straight--build-dir package))
-                               native-comp-deferred-compilation-deny-list
-                               :test #'string=))))
+             (dolist (list-var '(native-comp-deferred-compilation-deny-list
+                                 native-comp-jit-compilation-deny-list))
+               (when (boundp list-var)
+                 (when-let ((build (cadr (plist-member recipe :build))))
+                   (when (and (eq (car-safe build) :not)
+                              (member 'native-compile (cdr build)))
+                     (set list-var
+                          (cl-adjoin
+                           (format "^%s" (straight--build-dir package))
+                           (symbol-value list-var)
+                           :test #'string=))))))
              (when (and modified (not no-build))
                (run-hook-with-args
                 'straight-use-package-pre-build-functions package)
