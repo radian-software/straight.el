@@ -35,7 +35,7 @@ install-info
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y $(grep -v "^#" <<< "$packages")
+apt-get install --no-install-recommends -y $(grep -v "^#" <<< "$packages")
 rm -rf /var/lib/apt/lists/*
 
 npm install -g markdown-toc
