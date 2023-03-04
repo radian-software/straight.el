@@ -1410,7 +1410,7 @@ care of all these details for you:
 ```emacs-lisp
 (defvar bootstrap-version)
 (let ((bootstrap-file
-       (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
+       (locate-user-emacs-file "straight/repos/straight.el/bootstrap.el"))
       (bootstrap-version 6))
   (unless (file-exists-p bootstrap-file)
     (with-current-buffer
