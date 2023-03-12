@@ -218,7 +218,7 @@ set **before** the bootstrap code runs, if they might affect how
   private Git repositories in your configuration, then you might want
   to use SSH instead.
 * `straight-base-dir` --
-  by default, straight's main directory, containing it's build files and
+  by default, straight's main directory, containing its build files and
   package repos, is located in `user-emacs-directory`. You can change
   the location of straight's base directory via this variable.
 * `straight-build-dir` --
