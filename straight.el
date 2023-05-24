@@ -415,7 +415,7 @@ modified and returned."
 
 (defun straight--checkhash (key table)
   "Return non-nil if KEY is present in hash TABLE."
-  (let ((nf (make-symbol 'straight--not-found)))
+  (let ((nf (make-symbol "straight--not-found")))
     (not (eq nf (gethash key table nf)))))
 
 ;;;;; Strings
