@@ -413,23 +413,10 @@ modified and returned."
       (setcar (nthcdr n list) value))
     table))
 
-(defvar straight--not-present 'straight--not-present
-  "Value used as a default argument to `gethash'.")
-
-(defvar straight--not-present-paranoid 'straight--not-present-paranoid
-  "Value used as a default argument to `gethash'.
-Why do we need this? Because whoever wrote the Elisp hash table
-API didn't actually know how to write hash table APIs.")
-
-(defun straight--checkhash (key table &optional paranoid)
-  "Return non-nil if KEY is present in hash TABLE.
-If PARANOID is non-nil, ensure correctness even for hash tables
-that may contain `straight--not-present' as a value."
-  (not
-   (and (eq (gethash key table straight--not-present) straight--not-present)
-        (or paranoid
-            (eq (gethash key table straight--not-present-paranoid)
-                straight--not-present-paranoid)))))
+(defun straight--checkhash (key table)
+  "Return non-nil if KEY is present in hash TABLE."
+  (let ((nf (make-symbol 'straight--not-found)))
+    (not (eq nf (gethash key table nf)))))
 
 ;;;;; Strings
 
