@@ -7244,7 +7244,7 @@ locally bound plist, straight-bug-report-args."
 
 ;;;###autoload
 (defun straight-dependents (&optional package)
-  "Return a list PACKAGE's dependents."
+  "Return a list of PACKAGE's dependents."
   (interactive
    (list (straight--select-package
           "Dependents of"
