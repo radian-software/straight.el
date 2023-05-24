@@ -6916,15 +6916,9 @@ any `:around' advice."
   "Return straight.el version.
 Interactively, or when MESSAGE is non-nil, show in the echo area."
   (interactive)
+  (require 'lisp-mnt) ; for lm-version
   (let* ((library (locate-library "straight.el"))
-         (declared (with-temp-buffer
-                     (insert-file-contents-literally library)
-                     (goto-char (point-min))
-                     (save-match-data
-                       (when (re-search-forward
-                              "\\(?:;; Version: \\([^z-a]*?$\\)\\)"
-                              nil 'no-error)
-                         (substring-no-properties (match-string 1))))))
+         (declared (lm-version library))
          (gitinfo
           (if-let ((default-directory (ignore-errors
                                         (file-name-directory
