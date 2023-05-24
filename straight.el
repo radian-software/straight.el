@@ -66,7 +66,7 @@
 ;; otherwise libraries which load the byte-compiled version of this
 ;; file won't be able to use those macros.
 
-;; Not defined before Emacs 25.3
+;; Not defined before Emacs 25.1
 (eval-and-compile
   (unless (boundp 'inhibit-message)
     (defvar inhibit-message nil
