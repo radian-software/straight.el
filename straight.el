@@ -284,17 +284,67 @@ computes the fork as \"githubUser/fork\"."
                            (const :tag "bitbucket" bitbucket))
                 :value-type (string :tag "username")))
 
-(defcustom straight-hosts '((github "github.com" ".git")
-                            (gitlab "gitlab.com" ".git")
-                            (codeberg "codeberg.org" ".git")
-                            (sourcehut "git.sr.ht")
-                            (bitbucket "bitbucket.com" ".git"))
+(defun straight-host-like-github (name website)
+  "Make an entry for `straight-hosts' like GitHub's.
+This function exists to reduce duplication. NAME is a symbol to
+name the host, WEBSITE is the bare domain name. See the
+definition of `straight-hosts' for example usage."
+  `(,name :https ,(format "https://%s/user/repo.git" website)
+          :ssh ,(format "git@%s:user/repo.git" website)
+          :alt-https (,(format "https://%s/user/repo" website))
+          :alt-ssh (,(format "git@%s:user/repo" website)
+                    ,(format "ssh://git@%s:user/repo.git" website)
+                    ,(format "ssh://git@%s:user/repo" website))))
+
+(defun straight-host--like-legacy (host domain &optional repo-suffix)
+  "Convert legacy format for `straight-hosts'.
+The legacy format is a list (HOST DOMAIN [REPO-SUFFIX]). See the
+implementation for details of how it is interpreted."
+  (if repo-suffix
+      `(,host :https ,(format "https://%s/user/repo%s" domain repo-suffix)
+              :ssh ,(format "git@%s:user/repo%s" domain repo-suffix)
+              :alt-https (,(format "https://%s/user/repo" domain))
+              :alt-ssh (,(format "git@%s:user/repo" domain)
+                        ,(format "ssh://git@%s:user/repo%s" domain repo-suffix)
+                        ,(format "ssh://git@%s:user/repo" domain)))
+    `(,host :https ,(format "https://%s/user/repo" domain)
+            :ssh ,(format "git@%s:user/repo" domain)
+            :alt-ssh (,(format "ssh://git@%s:user/repo" domain)))))
+
+(defcustom straight-hosts `(,(straight-host-like-github 'github "github.com")
+                            ,(straight-host-like-github 'gitlab "gitlab.com")
+                            ,(straight-host-like-github
+                              'codeberg "codeberg.org")
+                            ,(straight-host-like-github
+                              'bitbucket "bitbucket.com")
+                            (sourcehut
+                             :https "https://git.sr.ht/~user/repo"
+                             :ssh "git@git.sr.ht:~user/repo"
+                             :alt-ssh ("ssh://git@git.sr.ht:~user/repo")))
   "Alist containing URI information for hosted forges.
-Each element is of the form: (HOST DOMAIN REPO-SUFFIX).
-HOST is a unique symbol meant to be used with the :host recipe keyword.
-DOMAIN is a string representing the domain and top-level domain.
-REPO-SUFFIX is appended to the repository name in the URI."
+Each element is a list whose car is a unique symbol that will be
+used to refer to the forge (see `:host' in the recipe plist
+format), and whose cdr is a plist. Refer to the default value of
+`straight-hosts' for examples. All keys are optional but it is
+required to give at least one of `:https' or `:ssh'. The keys
+show how to format HTTPS and SSH clone URLs for the \"user/repo\"
+example repository (\"user\" and \"repo\" will be replaced to
+generate a URL). You can optionally specify `:alt-https' and/or
+`:alt-ssh' to give additional formats that will be considered
+equivalent and also usable.
+
+There is also a legacy format supported for backwards
+compatibility, see `straight-host-like-legacy' for details."
   :type '(repeat sexp))
+
+(defun straight--host-spec (host)
+  "Given symbol HOST, get entry for `straight-hosts'.
+If it's in the legacy format, convert it using
+`straight-host--like-legacy'."
+  (let ((spec (alist-get host straight-hosts)))
+    (unless (cl-some #'keywordp spec)
+      (setq spec (apply #'straight-host--like-legacy spec)))
+    spec))
 
 (defcustom straight-vc-git-post-clone-hook nil
   "Functions called after straight.el clones a git repository.
@@ -417,6 +467,12 @@ modified and returned."
   "Return non-nil if KEY is present in hash TABLE."
   (let ((nf (make-symbol "straight--not-found")))
     (not (eq nf (gethash key table nf)))))
+
+;;;;; Symbols
+
+(defun straight--symbol-to-keyword (symbol)
+  "Convert SYMBOL `foo' to keyword `:foo'."
+  (intern (concat ":" (symbol-name symbol))))
 
 ;;;;; Strings
 
@@ -1862,69 +1918,76 @@ edit. Otherwise, PROMPT and ACTIONS are as for
   "Generate a URL from a REPO depending on the value of HOST and PROTOCOL.
 REPO is a string which is either a URL or something of the form
 \"username/repo\", like \"radian-software/straight.el\". If HOST
-is one of the symbols `github', `gitlab', `codeberg', `sourcehut', or
-`bitbucket', then REPO is transformed into a standard SSH URL for
-the corresponding service; otherwise, HOST should be nil, and in
-that case REPO is returned unchanged. PROTOCOL must be either
-`https' or `ssh'; if it is omitted, it defaults to
-`straight-vc-git-default-protocol'.  See also
-`straight-vc-git--decode-url'."
+is one of the symbols in `straight-hosts', then REPO is
+transformed into a standard URL for the corresponding service;
+otherwise, HOST should be nil, and in that case REPO is returned
+unchanged. PROTOCOL must be either `https' or `ssh'; if it is
+omitted, it defaults to `straight-vc-git-default-protocol'. See
+also `straight-vc-git--decode-url'."
   (pcase host
     ('nil repo)
     ((pred (lambda (host) (alist-get host straight-hosts)))
      (when (string-match-p ":" repo)
        (error "Malformed protocol detected: (:host %S :repo %S)"
               host repo))
-     (let* ((spec (alist-get host straight-hosts))
-            (domain (car spec))
-            (suffix (cadr spec)))
-       ;;@FIX: It is sloppy to hardcode the sourcehut case here.
-       (when (eq host 'sourcehut) (setq repo (concat "~" repo)))
-       (pcase (or protocol straight-vc-git-default-protocol)
-         ('https
-          (format "https://%s/%s%s" domain repo (or suffix "")))
-         ('ssh
-          (format "git@%s:%s%s" domain repo (or suffix "")))
-         (_ (error "Unknown protocol: %S" protocol)))))
+     (let* ((spec (straight--host-spec host))
+            (protocol (or protocol straight-vc-git-default-protocol))
+            (template (plist-get spec (straight--symbol-to-keyword protocol))))
+       (unless (memq protocol '(https ssh))
+         (error "Unknown protocol: %S" protocol))
+       (unless template
+         (error "Host %S does not support protocol %S" host protocol))
+       (replace-regexp-in-string
+        "user/repo" repo template 'fixedcase 'literal)))
     (_ (error "Unknown value for host: %S" host))))
 
 (defun straight-vc-git--decode-url (url)
   "Separate a URL into a REPO, HOST, and PROTOCOL, returning a list of them.
-All common forms of HTTPS and SSH URLs are accepted for GitHub,
-GitLab, and Bitbucket. If one is recognized, then HOST is one of
-the symbols `github', `gitlab', `codeberg', `sourcehut', or `bitbucket', and
-REPO is a string of the form \"username/repo\". Otherwise HOST is
-nil and REPO is just URL. In any case, PROTOCOL is either
-`https', `ssh', or nil (if the protocol cannot be determined,
-which happens when HOST is nil). See also
+This works for any host defined in `straight-hosts'. If the URL
+can't be matched to any of those hosts, it is returned as-is in
+REPO, with nil HOST and PROTOCOL. See also
 `straight-vc-git--encode-url'."
-  (let ((protocol nil)
-        (matched t))
-    (or (and (string-match
-              "^git@\\(.+?\\):\\(.+?\\)\\(?:\\.git\\)?$"
-              url)
-             (setq protocol 'ssh))
-        (and (string-match
-              "^ssh://git@\\(.+?\\)/\\(.+?\\)\\(?:\\.git\\)?$"
-              url)
-             (setq protocol 'ssh))
-        (and (string-match
-              "^https://\\(.+?\\)/\\(.+?\\)\\(?:\\.git\\)?$"
-              url)
-             (setq protocol 'https))
-        ;; We have to take care of this case separately because if
-        ;; `string-match' doesn't actually match anything, then
-        ;; `match-string' has undefined behavior.
-        (setq matched nil))
-    (pcase (and matched (match-string 1 url))
-      ("github.com"    (list (match-string 2 url) 'github protocol))
-      ("gitlab.com"    (list (match-string 2 url) 'gitlab protocol))
-      ("codeberg.org"  (list (match-string 2 url) 'codeberg protocol))
-      ("git.sr.ht"     (list (replace-regexp-in-string
-                              "^~" "" (match-string 2 url))
-                             'sourcehut protocol))
-      ("bitbucket.org" (list (match-string 2 url) 'bitbucket protocol))
-      (_ (list url nil nil)))))
+  (or
+   (cl-dolist (entry straight-hosts)
+     (let* ((host (car entry))
+            (spec (cdr entry))
+            (https-options
+             (cl-remove-if #'null (cons (plist-get spec :https)
+                                        (plist-get spec :alt-https))))
+            (ssh-options
+             (cl-remove-if #'null (cons (plist-get spec :ssh)
+                                        (plist-get spec :alt-ssh))))
+            (options
+             (append
+              (mapcar (lambda (elt)
+                        (cons elt 'https))
+                      https-options)
+              (mapcar (lambda (elt)
+                        (cons elt 'ssh))
+                      ssh-options)))
+            (matches nil))
+       (dolist (opt options)
+         (when (string-match
+                (format
+                 "^%s$"
+                 (replace-regexp-in-string
+                  "user/repo"
+                  "\\(.+?\\)"
+                  (regexp-quote (car opt))
+                  'fixedcase 'literal))
+                url)
+           (push (cons (match-string 1 url) (cdr opt)) matches)))
+       ;; In case more than one option matches, pick the one that
+       ;; gives the shortest repo string. This ensures we don't
+       ;; accidentally match a ".git" suffix into the repo, for
+       ;; example, and ensures that the order of the options doesn't
+       ;; matter (which would be a footgun).
+       (when matches
+         (let ((best-match (car (cl-sort
+                                 matches #'< :key (lambda (match)
+                                                    (length (car match)))))))
+           (cl-return (list (car best-match) host (cdr best-match)))))))
+   (list url nil nil)))
 
 (defun straight-vc-git--urls-compatible-p (url1 url2)
   "Return non-nil if URL1 and URL2 can be treated as equivalent.
@@ -5683,13 +5746,15 @@ If SOURCES is nil, update sources in `straight-recipe-repositories'."
   "Visit the package RECIPE's website."
   (interactive (list (intern (completing-read "Visit package website: "
                                               (straight-recipes-list)))))
-  (straight--with-plist (straight--convert-recipe recipe) (host repo)
-    ;;@FIX: sourcehut may not always use this prefix in the future
-    (when (eq host 'sourcehut) (setq repo (concat "~" repo)))
-    (let ((url (if-let ((domain (car (alist-get host straight-hosts))))
-                   (format "https://%s/%s" domain repo)
-                 (format "%s" repo))))
-      (browse-url url))))
+  (straight--with-plist (straight--convert-recipe recipe) (vc host repo)
+    (let ((saved-error nil))
+      (when (eq (or vc straight-default-vc) 'git)
+        (condition-case e
+            (setq repo (straight-vc-git--encode-url repo host 'https))
+          (error (setq saved-error (error-message-string e)))))
+      (unless (string-match-p "://" repo)
+        (error "%s" (or saved-error (format "Invalid URL: %s" repo))))
+      (browse-url repo))))
 
 ;;;###autoload
 (defun straight-visit-package (package &optional build)

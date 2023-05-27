@@ -559,15 +559,24 @@ return nil."
   (:host nil :repo "/local/repo")      "/local/repo"
   (:branch "feature")                  "githubUser/repo")
 
+;; longlines-start
 (straight-deftest straight-vc-git--decode-url ()
   (should (equal ,out (straight-vc-git--decode-url ,in)))
   (in                                  out)
   "x://x.y/user/x.git"                 '("x://x.y/user/x.git" nil nil)
   "git@github.com:user/test.git"       '("user/test" github ssh)
+  "git@github.com:user/test"           '("user/test" github ssh)
+  "ssh://git@github.com:user/test.git" '("user/test" github ssh)
+  "ssh://git@github.com:user/test"     '("user/test" github ssh)
   "https://codeberg.org/user/test.git" '("user/test" codeberg https)
+  "https://codeberg.org/user/test"     '("user/test" codeberg https)
   "git@codeberg.org:user/test.git"     '("user/test" codeberg ssh)
+  ;; on sourcehut, "test" and "test.git" are 2 different projects
   "git@git.sr.ht:~user/test"           '("user/test" sourcehut ssh)
-  "https://git.sr.ht/~user/test"       '("user/test" sourcehut https))
+  "git@git.sr.ht:~user/test.git"       '("user/test.git" sourcehut ssh)
+  "https://git.sr.ht/~user/test"       '("user/test" sourcehut https)
+  "https://git.sr.ht/~user/test.git"   '("user/test.git" sourcehut https))
+;; longlines-end
 
 (straight-deftest straight-vc-git--encode-url ()
   (let ((straight-vc-git-default-protocol 'https))
@@ -575,8 +584,10 @@ return nil."
   (in               out)
   (nil)             "user/repo"
   ('github)         "https://github.com/user/repo.git"
+  ('github 'https)  "https://github.com/user/repo.git"
   ('github 'ssh)    "git@github.com:user/repo.git"
   ('codeberg)       "https://codeberg.org/user/repo.git"
+  ('codeberg 'https)"https://codeberg.org/user/repo.git"
   ('codeberg 'ssh)  "git@codeberg.org:user/repo.git"
   ('sourcehut 'ssh) "git@git.sr.ht:~user/repo")
 
