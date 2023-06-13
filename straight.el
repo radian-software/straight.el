@@ -937,12 +937,10 @@ If the process is unable to start, return an elisp error object."
                   nil args)
            (let ((s (buffer-string)))
              (unless (string-empty-p s) s))
-           (with-current-buffer
-               (find-file-noselect straight--process-stderr
-                                   'nowarn 'raw)
-             (prog1 (let ((s (buffer-string)))
-                      (unless (string-empty-p s) s))
-               (kill-buffer)))))
+           (with-temp-buffer
+             (insert-file-contents straight--process-stderr)
+             (let ((s (buffer-string)))
+               (unless (string-empty-p s) s)))))
       (error e))))
 
 (defmacro straight--process-with-result (result &rest body)
