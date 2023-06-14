@@ -926,22 +926,21 @@ eaten by a grue.")
   "Run PROGRAM syncrhonously with ARGS.
 Return a list of form: (EXITCODE STDOUT STDERR).
 If the process is unable to start, return an elisp error object."
-  (let* ((program (if (string-match-p "/" program)
-                      (expand-file-name program)
-                    program)))
-    (condition-case e
-        (with-temp-buffer
-          (list
-           (apply #'call-process program nil
-                  (list (current-buffer) straight--process-stderr)
-                  nil args)
-           (let ((s (buffer-string)))
-             (unless (string-empty-p s) s))
-           (with-temp-buffer
-             (insert-file-contents straight--process-stderr)
-             (let ((s (buffer-string)))
-               (unless (string-empty-p s) s)))))
-      (error e))))
+  (when (string-match-p "/" program)
+    (setq program (expand-file-name program)))
+  (condition-case e
+      (with-temp-buffer
+        (list
+         (apply #'call-process program nil
+                (list t straight--process-stderr)
+                nil args)
+         (let ((s (buffer-substring-no-properties (point-min) (point-max))))
+           (unless (string-empty-p s) s))
+         (progn (insert-file-contents
+                 straight--process-stderr nil nil nil 'replace)
+                (let ((s (buffer-substring-no-properties (point-min) (point-max))))
+                  (unless (string-empty-p s) s)))))
+    (error e)))
 
 (defmacro straight--process-with-result (result &rest body)
   "Provide anaphoric RESULT bindings for duration of BODY.
