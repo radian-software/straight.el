@@ -936,10 +936,11 @@ If the process is unable to start, return an elisp error object."
                 nil args)
          (let ((s (buffer-substring-no-properties (point-min) (point-max))))
            (unless (string-empty-p s) s))
-         (progn (insert-file-contents
-                 straight--process-stderr nil nil nil 'replace)
-                (let ((s (buffer-substring-no-properties (point-min) (point-max))))
-                  (unless (string-empty-p s) s)))))
+         (progn
+           (insert-file-contents
+            straight--process-stderr nil nil nil 'replace)
+           (let ((s (buffer-substring-no-properties (point-min) (point-max))))
+             (unless (string-empty-p s) s)))))
     (error e)))
 
 (defmacro straight--process-with-result (result &rest body)
