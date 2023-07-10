@@ -2767,39 +2767,21 @@ managing your package's local repositories, using the configured
 [version-control backends][#user/recipes/vc-backends]. They are as
 follows:
 
-* `M-x straight-normalize-package`: normalize a package
-* `M-x straight-normalize-all`: normalize all packages
-* `M-x straight-fetch-package`: fetch from a package's configured
-  remote; with prefix argument, then for forks also fetch from the
-  upstream
-* `M-x straight-fetch-package-and-deps`: fetch from the configured
-  remotes of a package and all of its dependencies (including the
-  dependencies of its dependencies); with prefix argment, then for
-  forks also fetch from the upstream
-* `M-x straight-fetch-all`: fetch from all packages' configured
-  remotes; with prefix argument, then for forks also fetch from the
-  upstreams
-* `M-x straight-merge-package`: merge the latest version fetched from
-  a package's configured remote into the local copy; with prefix
-  argument, then for forks also merge from the upstream
-* `M-x straight-merge-package-and-deps`: merge the latest versions
-  fetched from the configured remotes of a package and all of its
-  dependencies (including the dependencies of its dependencies); with
-  prefix argment, then for forks also merge from the upstreams
-* `M-x straight-merge-all`: merge the latest versions fetched from
-  each package's configured remote into its local copy; with prefix
-  argument, then for forks also merge from the upstreams
-* `M-x straight-pull-package`: combination of `M-x
-  straight-fetch-package` and `M-x straight-merge-package`
-* `M-x straight-pull-package-and-deps`: combination of `M-x
-  straight-fetch-package-and-deps` and `M-x
-  straight-merge-package-and-deps`
-* `M-x straight-pull-all`: combination of `M-x straight-fetch-all` and
-  `M-x straight-merge-all`
-* `M-x straight-push-package`: push a package to its remote, if
-  necessary
-* `M-x straight-push-all`: push all packages to their remotes, if
-  necessary
+| Command                               | Description                                                                                                                                                                                                                 |
+|---------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `M-x straight-normalize-package`      | Normalize a package                                                                                                                                                                                                         |
+| `M-x straight-normalize-all`          | Normalize all packages                                                                                                                                                                                                      |
+| `M-x straight-fetch-package`          | Fetch from a package's configured    remote; with prefix argument, then for forks also fetch from the upstream                                                                                                              |
+| `M-x straight-fetch-package-and-deps` | Fetch from the configured remotes of a package and all of its dependencies (including the dependencies of its dependencies); with prefix argment, then for forks also fetch from the upstream                               |
+| `M-x straight-fetch-all`              | Fetch from all packages' configured remotes; with prefix argument, then for forks also fetch from the  upstreams                                                                                                            |
+| `M-x straight-merge-package`          | Merge the latest version fetched from a package's configured remote into the local copy; with prefix argument, then for forks also merge from the upstream                                                                  |
+| `M-x straight-merge-package-and-deps` | Merge the latest versions fetched from the configured remotes of a package and all of its dependencies (including the dependencies of its dependencies); with  prefix argment, then for forks also merge from the upstreams |
+| `M-x straight-merge-all`              | Merge the latest versions fetched from each package's configured remote into its local copy; with prefix argument, then for forks also merge from the upstreams                                                             |
+| `M-x straight-pull-package`           | Combination of `M-x straight-fetch-package` and `M-x straight-merge-package`                                                                                                                                                |
+| `M-x straight-pull-package-and-deps`  | Combination of `M-x straight-fetch-package-and-deps` and `M-x straight-merge-package-and-deps`                                                                                                                              |
+| `M-x straight-pull-all`               | Combination of `M-x straight-fetch-all` and `M-x straight-merge-all`                                                                                                                                                        |
+| `M-x straight-push-package`           | Push a package to its remote, if necessary                                                                                                                                                                                  |
+| `M-x straight-push-all`               | Push all packages to their remotes, if necessary                                                                                                                                                                            |
 
 See the sections on [version-control
 backends][#user/recipes/vc-backends] and the [Git
