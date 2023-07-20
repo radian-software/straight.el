@@ -195,6 +195,12 @@ First, place the following bootstrap code in your init-file:
   (load bootstrap-file nil 'nomessage))
 ```
 
+(If `raw.githubusercontent.com` is blocked by your ISP, try replacing
+the URL with
+`https://radian-software.github.io/straight.el/install.el`. Or you can
+clone `straight.el` manually to
+`~/.emacs.d/straight/repos/straight.el`.)
+
 <!-- longlines-stop -->
 
 Here are some variables you may be interested in (some of them must be
