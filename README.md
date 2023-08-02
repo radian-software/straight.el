@@ -2511,17 +2511,17 @@ You can customize the following user option:
 
 * `straight-recipes-emacsmirror-use-mirror`: Yes, there is also a
   mirror for Emacsmirror. This is because the [epkgs] repository
-  contains a (frequently updated) SQLite database in it, which means
-  the Git repository takes *forever* to clone (see [#356]). My
-  solution to this problem is to generate a new repository which
-  contains the information that `straight.el` needs but which is much
-  smaller. By default, `straight.el` uses the official [epkgs]
-  repository to find packages on Emacsmirror, but you can tell it to
-  use my mirror by configuring the value of this variable to non-nil.
-  You must do any customization of this variable *before* the
-  `straight.el` [bootstrap][#quickstart]. Note that setting the value
-  of this user option to non-nil causes the default value of
-  `straight-recipe-repositories` to shift to:
+  contains a fair amount of metadata, which means it can take a little
+  on the long side to clone with slow network connections (see [#356]
+  and [#700]). My solution to this problem is to generate a new
+  repository which contains the information that `straight.el` needs
+  but which is much smaller. By default, `straight.el` uses the
+  official [epkgs] repository to find packages on Emacsmirror, but you
+  can tell it to use my mirror by configuring the value of this
+  variable to non-nil. You must do any customization of this variable
+  *before* the `straight.el` [bootstrap][#quickstart]. Note that
+  setting the value of this user option to non-nil causes the default
+  value of `straight-recipe-repositories` to shift to:
 
 ```emacs-lisp
 (org-elpa melpa gnu-elpa-mirror el-get emacsmirror-mirror)
@@ -3577,6 +3577,7 @@ savings on network bandwidth and disk space.
 [#437]: https://github.com/radian-software/straight.el/issues/437
 [#508]: https://github.com/radian-software/straight.el/issues/508
 [#520]: https://github.com/radian-software/straight.el/issues/520
+[#700]: https://github.com/radian-software/straight.el/issues/700
 
 [auto-compile]: https://github.com/tarsius/auto-compile
 [borg]: https://github.com/emacscollective/borg
