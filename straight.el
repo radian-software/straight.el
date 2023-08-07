@@ -3141,6 +3141,7 @@ See: https://github.com/radian-software/straight.el/issues/707"
                emacs "-Q" "--batch"
                "--eval" "(require 'lisp-mnt)"
                "--visit" "org.el"
+               "--eval" "(message \"I am visiting: %S\" (buffer-file-name))"
                "--eval" "(princ (lm-header \"version\"))")
             (when failure (error "Failed to parse ORGVERSION: %S" result))
             (string-trim (replace-regexp-in-string "-dev" "" stdout))))
