@@ -3153,7 +3153,7 @@ See: https://github.com/radian-software/straight.el/issues/707"
      emacs nil straight-byte-compilation-buffer nil
      "-Q" "--batch"
      "--eval" "(setq vc-handled-backends nil org-startup-folded nil)"
-     "--eval" "(add-to-list 'load-path \".\")"
+     "--eval" (format "(add-to-list 'load-path %S)" default-directory)
      "--eval" "(load \"org-compat.el\")"
      "--eval" "(load \"../mk/org-fixup.el\")"
      ;; Do we want autoloads here, or should straight handle it?
@@ -5193,19 +5193,23 @@ function only modifies the build folder, not the original
 repository."
   (let* ((dir (straight--build-dir (plist-get recipe :package)))
          (emacs (concat invocation-directory invocation-name))
-         (program (format "(let ((default-directory %S))
-  (normal-top-level-add-subdirs-to-load-path)
-  (byte-recompile-directory %S 0 'force))"
-                          (straight--build-dir) dir))
-         (args (list "-Q" "-L" dir "--batch" "--eval" program)))
-    (when straight-byte-compilation-buffer
-      (with-current-buffer (get-buffer-create straight-byte-compilation-buffer)
-        (insert (format "\n$ %s %s %s \\\n %S\n" emacs
-                        (string-join (cl-subseq args 0 3) " ")
-                        (string-join (cl-subseq args 3 5) " ")
-                        program)))
-      (apply #'call-process
-             `(,emacs nil ,straight-byte-compilation-buffer nil ,@args)))))
+         (buffer straight-byte-compilation-buffer)
+         (print-circle nil)
+         (print-length nil)
+         (program
+          (format "%S" `(let ((default-directory ,(straight--build-dir))
+                              (lp load-path))
+                          (setq load-path (list default-directory))
+                          (normal-top-level-add-subdirs-to-load-path)
+                          (setq load-path (append (cons ,dir load-path)
+                                                  lp))
+                          (byte-recompile-directory ,dir 0 'force))))
+         (args (list "-Q" "--batch" "--eval" program)))
+    (when buffer (with-current-buffer (get-buffer-create buffer)
+                   (insert (format "\n$ %s %s \\\n %S\n" emacs
+                                   (string-join (butlast args) " ")
+                                   program))))
+    (apply #'call-process `(,emacs nil ,buffer nil ,@args))))
 
 ;;;;; Native compilation
 
