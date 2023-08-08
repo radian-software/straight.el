@@ -3153,7 +3153,7 @@ See: https://github.com/radian-software/straight.el/issues/707"
      emacs nil straight-byte-compilation-buffer nil
      "-Q" "--batch"
      "--eval" "(setq vc-handled-backends nil org-startup-folded nil)"
-     "--eval" "(add-to-list 'load-path \".\")"
+     "--eval" (format "(add-to-list 'load-path %S)" default-directory)
      "--eval" "(load \"org-compat.el\")"
      "--eval" "(load \"../mk/org-fixup.el\")"
      ;; Do we want autoloads here, or should straight handle it?
