@@ -317,6 +317,17 @@ list, and `&allow-other-keys' at the end to ensure forwards
 compatibility."
   :type 'hook)
 
+(defcustom straight-log nil
+  "Whether to enable diagnostic logging for straight.el.
+This can be used to report additional information which can be
+used to more effectively identify the source of a bug when it
+cannot be reproduced outside your system."
+  :type 'boolean)
+
+(defcustom straight-log-buffer "*straight-log*"
+  "Name of logging buffer when `straight-log' is non-nil."
+  :type 'string)
+
 ;;;; Utility functions
 ;;;;; Lists
 
@@ -537,6 +548,35 @@ The warning message is obtained by passing MESSAGE and ARGS to
 `format'."
   (ignore
    (display-warning 'straight (apply #'format message args))))
+
+(defun straight--log (category message &rest args)
+  "Log diagnostic message to `straight-log-buffer'.
+If `straight-log' is nil, this does nothing. CATEGORY is a symbol
+that can help in filtering the resulting log output. MESSAGE and
+ARGS are interpreted as in `message', except that any of ARGS can
+also be a function of no arguments which will be invoked to get
+the real value. This is helpful because the function won't be
+evaluated if logging is disabled. Only lambda functions are
+accepted, to avoid symbols being interpreted as callables by
+accident."
+  (when straight-log
+    (with-current-buffer (get-buffer-create straight-log-buffer)
+      (unless (derived-mode-p 'special-mode) (special-mode))
+      (save-excursion
+        (goto-char (point-max))
+        (let ((inhibit-read-only t)
+              (args (mapcar
+                     (lambda (arg)
+                       (if (and (listp arg)
+                                (functionp arg))
+                           (funcall arg)
+                         arg))
+                     args)))
+          (insert
+           (format
+            "%s <%S>: %s\n"
+            (format-time-string "%Y-%m-%d %H:%M:%S.%3N" (current-time))
+            category (apply #'format message args))))))))
 
 ;;;;; Buffers
 
@@ -4252,6 +4292,8 @@ you ought not to make any changes to it.)"
 (defun straight-register-repo-modification (local-repo)
   "Register a modification of the given LOCAL-REPO, a string.
 Always return nil, for convenience of usage."
+  (straight--log
+   'modification-detection "Registering repo modification for %s" local-repo)
   (unless straight-safe-mode
     (prog1 nil
       (unless (string-match-p "/" local-repo)
@@ -4295,6 +4337,8 @@ straight.el, according to the value of
 (cl-defun straight-watcher--virtualenv-setup ()
   "Set up the virtualenv for the filesystem watcher.
 If it fails, signal a warning and return nil."
+  (straight--log
+   'modification-detection "Setting up virtualenv for filesystem watcher")
   (let* ((virtualenv (straight--watcher-dir "virtualenv"))
          (python (straight--watcher-python))
          (straight-dir (file-name-directory straight--this-file))
@@ -4326,6 +4370,8 @@ This includes the case hwere it doesn't yet exist."
   "Start the filesystem watcher, killing any previous instance.
 If it fails, signal a warning and return nil."
   (interactive)
+  (straight--log
+   'modification-detection "Starting filesystem watcher")
   (unless straight-safe-mode
     (unless (executable-find "python3")
       (straight--warn
@@ -4388,6 +4434,8 @@ modified since their last builds.")
 
 (cl-defun straight--cache-package-modifications ()
   "Compute `straight--cached-package-modifications'."
+  (straight--log 'modification-detection
+                 "Using find(1) to scan for modified packages")
   (let (;; Keep track of which local repositories we've processed
         ;; already. This table maps repo names to booleans.
         (repos (make-hash-table :test #'equal))
@@ -4614,6 +4662,7 @@ RECIPE is a straight.el-style plist. CAUSE is a string indicating
 the reason this package is being built."
   (straight--with-plist recipe
       (package)
+    (straight--log 'build "Building package %S with recipe: %S" package recipe)
     (when straight-safe-mode
       (error "Building %s not allowed in safe mode" package))
     (let ((task (concat cause (when cause straight-arrow)
