@@ -79,13 +79,15 @@
        (directory-file-name dir))))))
 
 (when straight-log
-  (add-hook 'after-init-hook
-            (lambda ()
-              (straight--log 'init "Finished Emacs init")
-              (straight--log
-               'modification-detection
-               "Modification detection mode: %S"
-               straight-check-for-modifications)))
+  (straight--transaction-exec
+   'logging
+   :later
+   (lambda ()
+     (straight--log 'init "Finished Emacs init")
+     (straight--log
+      'modification-detection
+      "Modification detection mode: %S"
+      straight-check-for-modifications)))
 
   (mapatoms
    (lambda (func)
@@ -94,9 +96,9 @@
        (let ((advice-name (intern (format "straight--log-advice--%S" func))))
          (defalias
            advice-name
-           (lambda (&rest _)
+           (lambda (&rest args)
              (when (called-interactively-p 'any)
-               (straight--log 'ui "Invoked command: %S" func))))
+               (straight--log 'ui "Invoked command %S with args: %S" func args))))
          (advice-add func :before advice-name))))))
 
 ;; In case this is a reinit, and straight.el was already loaded, we

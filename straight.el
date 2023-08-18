@@ -1071,6 +1071,7 @@ emit a warning unless the variable `straight--process-warn' is nil."
   (let ((default-directory (or straight--default-directory default-directory)))
     (straight--process-with-result
         (apply #'straight--process-call program args)
+      (straight--log 'process "Got return status %S from command: %S" exit (cons program args))
       (when (or straight--process-log straight--process-warn)
         (let ((entry (list program args result default-directory)))
           (when straight--process-log (straight--process-log entry failure))
@@ -1368,6 +1369,9 @@ passed to the method.
 For example:
    (straight-vc \\='check-out-commit \\='git ...)
 => (straight-vc-git-check-out-commit ...)"
+  (unless (memq method '(keywords local-repo-name))
+    (straight--log
+     'vc "Invoking VC method %S of type %S with args: %S" method type args))
   (when (and straight-safe-mode
              (not (memq method '(local-repo-name keywords))))
     (error "VC operation `%S %S' not allowed in safe mode" type method))
@@ -4133,6 +4137,7 @@ This sets the variables `straight--build-cache' and
 `straight--eagerly-checked-packages'. If the build cache is
 malformed, don't signal an error, but set these variables to
 empty values (all packages will be rebuilt, with no caching)."
+  (straight--log 'modification-detection "Loading build cache")
   ;; Start by clearing the build cache. If the one on disk is
   ;; malformed (or outdated), these values will be used.
   (setq straight--build-cache (make-hash-table :test #'equal))
@@ -4212,6 +4217,10 @@ empty values (all packages will be rebuilt, with no caching)."
             (when-let ((repos (condition-case _ (straight--directory-files
                                                  (straight--modified-dir))
                                 (file-missing))))
+              (straight--log
+               'modification-detection
+               "Used modified dir to detect repos modified since last init: %S"
+               repos)
               ;; Cause live-modified repos to have their packages
               ;; rebuilt when appropriate. Just in case init is
               ;; interrupted, however, we won't clear out the
@@ -4247,6 +4256,7 @@ This uses the values of `straight--build-cache' and
 
 The name of the cache file is stored in
 `straight-build-cache-file'."
+  (straight--log 'modification-detection "Saving build cache")
   (unless straight-safe-mode
     (with-temp-buffer
       ;; Prevent mangling of the form being printed in the case that
