@@ -575,7 +575,7 @@ accident."
                                arg))
                            args)))
                 (setq body (apply #'format message args)))
-            (error (setq body (format "got error formatting log line %S: %s"
+            (error (setq body (format "Got error formatting log line %S: %s"
                                       message
                                       (error-message-string err)))))
           (insert
