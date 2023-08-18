@@ -2444,7 +2444,7 @@ confirmation by reset, so this function should only be run after
        ;; Auto fast-forward when tracking branch is behind upstream.
        ((and left-is-ancestor straight-vc-git-auto-fast-forward)
         (straight--process-output "git" "merge" "--ff-only" right-ref)
-        t)
+        nil)
        (t (straight-vc-git--reconcile-interactively local-repo status))))))
 
 (cl-defun straight-vc-git--merge-from-remote-raw
