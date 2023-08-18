@@ -1071,7 +1071,9 @@ emit a warning unless the variable `straight--process-warn' is nil."
   (let ((default-directory (or straight--default-directory default-directory)))
     (straight--process-with-result
         (apply #'straight--process-call program args)
-      (straight--log 'process "Got return status %S from command: %S" exit (cons program args))
+      (straight--log
+       'process "Got return status %S from command: %S"
+       exit (cons program args))
       (when (or straight--process-log straight--process-warn)
         (let ((entry (list program args result default-directory)))
           (when straight--process-log (straight--process-log entry failure))

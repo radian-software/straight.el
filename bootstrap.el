@@ -98,7 +98,8 @@
            advice-name
            (lambda (&rest args)
              (when (called-interactively-p 'any)
-               (straight--log 'ui "Invoked command %S with args: %S" func args))))
+               (straight--log
+                'ui "Invoked command %S with args: %S" func args))))
          (advice-add func :before advice-name))))))
 
 ;; In case this is a reinit, and straight.el was already loaded, we
