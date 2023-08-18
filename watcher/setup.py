@@ -10,4 +10,7 @@ setup(
     name="straight-watcher",
     url="https://github.com/radian-software/straight.el",
     version="1.0-dev",
+    # Must be specified explicitly from setuptools>=61
+    # https://github.com/pypa/setuptools/issues/4013
+    py_modules=["straight_watch", "straight_watch_callback"],
 )
