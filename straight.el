@@ -565,18 +565,24 @@ accident."
       (save-excursion
         (goto-char (point-max))
         (let ((inhibit-read-only t)
-              (args (mapcar
-                     (lambda (arg)
-                       (if (and (listp arg)
-                                (functionp arg))
-                           (funcall arg)
-                         arg))
-                     args)))
+              (body nil))
+          (condition-case err
+              (let ((args (mapcar
+                           (lambda (arg)
+                             (if (and (listp arg)
+                                      (functionp arg))
+                                 (funcall arg)
+                               arg))
+                           args)))
+                (setq body (apply #'format message args)))
+            (error (setq body (format "got error formatting log line %S: %s"
+                                      message
+                                      (error-message-string err)))))
           (insert
            (format
             "%s <%S>: %s\n"
             (format-time-string "%Y-%m-%d %H:%M:%S.%3N" (current-time))
-            category (apply #'format message args))))))))
+            category body)))))))
 
 ;;;;; Buffers
 
