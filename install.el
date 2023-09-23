@@ -261,6 +261,8 @@
                       nil '(t t) nil
                       "--batch" "--no-window-system" "--quick"
                       "--load" temp-file))
-            (error "straight.el bootstrap failed: %s" (buffer-string)))))))
+            (message "straight.el bootstrap failed: %s" (buffer-string))
+            (error
+             "straight.el bootstrap failed, see prior output for logs"))))))
 
   (message "Bootstrapping straight.el...done"))
