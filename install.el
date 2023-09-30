@@ -244,23 +244,30 @@
       (let ((temp-file (make-temp-file "straight.el~")))
         (write-region nil nil temp-file nil 'silent)
         (with-temp-buffer
-          (unless (= 0
-                     (call-process
-                      ;; Taken with love from package `restart-emacs'.
-                      (let ((emacs-binary-path
-                             (expand-file-name
-                              invocation-name invocation-directory))
-                            (runemacs-binary-path
-                             (when (straight--windows-os-p)
-                               (expand-file-name
-                                "runemacs.exe" invocation-directory))))
-                        (if (and runemacs-binary-path
-                                 (file-exists-p runemacs-binary-path))
-                            runemacs-binary-path
-                          emacs-binary-path))
-                      nil '(t t) nil
-                      "--batch" "--no-window-system" "--quick"
-                      "--load" temp-file))
-            (error "straight.el bootstrap failed: %s" (buffer-string)))))))
+          (let ((exit-status
+                 (call-process
+                  ;; Taken with love from package `restart-emacs'.
+                  (let ((emacs-binary-path
+                         (expand-file-name
+                          invocation-name invocation-directory))
+                        (runemacs-binary-path
+                         (when (straight--windows-os-p)
+                           (expand-file-name
+                            "runemacs.exe" invocation-directory))))
+                    (if (and runemacs-binary-path
+                             (file-exists-p runemacs-binary-path))
+                        runemacs-binary-path
+                      emacs-binary-path))
+                  nil '(t t) nil
+                  "--batch" "--no-window-system" "--quick"
+                  "--load" temp-file)))
+            (unless (= 0 exit-status)
+              (message
+               (concat
+                "straight.el bootstrap failed with status %s, "
+                "subprocess logs follow:\n------%s\n------")
+               exit-status
+               (buffer-string))
+              (error "straight.el bootstrap failed, see *Messages*")))))))
 
   (message "Bootstrapping straight.el...done"))
