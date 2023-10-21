@@ -3323,8 +3323,7 @@ does such a good job of discouraging contributions anyway."
 (defcustom straight-recipes-gnu-elpa-ignored-packages
   '(cl-generic
     cl-lib
-    nadvice
-    seq)
+    nadvice)
   "Packages from GNU ELPA that we should pretend don't exist.
 Such packages would break things if they were installed. For
 example, the `cl-lib' package from GNU ELPA is not the
