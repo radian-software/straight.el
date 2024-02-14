@@ -133,7 +133,7 @@
 
 (straight-use-recipes
  '(nongnu-elpa :type git
-               :repo "https://git.savannah.gnu.org/git/emacs/nongnu.git"
+               :repo ,straight-recipes-nongnu-elpa-url
                :depth (full single-branch)
                :local-repo "nongnu-elpa"
                :build nil))
