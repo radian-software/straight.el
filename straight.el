@@ -4260,11 +4260,17 @@ The name of the cache file is stored in
   (straight--log 'modification-detection "Saving build cache")
   (unless straight-safe-mode
     (with-temp-buffer
-      ;; Prevent mangling of the form being printed in the case that
-      ;; this function was called by an `eval-expression' invocation
-      ;; of `straight-use-package'.
-      (let ((print-level nil)
-            (print-length nil))
+      (let (;; Prevent mangling of the form being printed in the case that
+            ;; this function was called by an `eval-expression' invocation
+            ;; of `straight-use-package'.
+            (print-level nil)
+            (print-length nil)
+            ;; Print symbols with attached positions, which can occur
+            ;; during byte compilation, as bare symbols so they can be
+            ;; read when loading the cache.
+            (print-symbols-bare t))
+        ;; Stop the byte-compiler from complaining about unused binding.
+        (ignore print-symbols-bare)
         ;; The version of the build cache.
         (print straight--build-cache-version (current-buffer))
         ;; Record the current Emacs version. If a different version of
