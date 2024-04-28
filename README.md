@@ -95,6 +95,7 @@ for the [Emacs] hacker.
   * [Using `straight.el` to develop packages](#using-straightel-to-develop-packages)
   * [Integration with other packages](#integration-with-other-packages)
     + [Integration with `use-package`](#integration-with-use-package-1)
+      - [Loading packages conditionally](#loading-packages-conditionally)
     + ["Integration" with `package.el`](#integration-with-packageel)
     + [Integration with Flycheck](#integration-with-flycheck)
     + [Integration with Hydra](#integration-with-hydra)
@@ -3115,6 +3116,56 @@ this syntax instead by customizing `straight-use-package-version`.
 You can disable `use-package` integration entirely by customizing
 `straight-enable-use-package-integration`.
 
+##### Loading packages conditionally
+
+`use-package` has various features intended to support code being
+executed conditionally for a package. For example, the `:when` keyword
+lets you provide a form that will essentially disable the
+`use-package` form if it evaluates to nil.
+
+However, when using the `:straight` keyword, either explicitly or via
+`straight-use-package-by-default`, then `:when` has no effect on it.
+`straight.el` is invoked unconditionally. The reason for this behavior
+is that if you invoke `straight-use-package` on a different set of
+packages during different init sessions, then your version lockfile
+would end up containing different sets of packages depending on which
+session you generated it in.
+
+Currently, the officially recommended pattern for conditionally
+loading a package is the following:
+
+```elisp
+(straight-register-package 'foobar)
+(when some-condition
+  (use-package foobar
+    :straight t))
+```
+
+This ensures that the package is registered to `straight.el`, so it
+will be cloned if absent, and will be added to the lockfile, but it
+will not be compiled or loaded unless the subsequent `use-package`
+form is evaluated. You can also invoke `straight-register-package`
+only in the case that `some-condition` is nil; either way will produce
+the same result with roughly the same performance due to idempotency
+and caching.
+
+If you do this for a lot of packages, it may be advisable to wrap it
+in a macro, as [my own Emacs configuration Radian
+does][radian-use-package] in the macro `radian-use-package`. It would
+be a good idea if `straight.el` did this by default in its
+`use-package` integration but this has not been implemented yet.
+
+If you want to not even clone a package when it is disabled, you can
+also technically achieve it by simply making the entire `use-package`
+form conditional, without using `straight-register-package`. However,
+this is not recommended because it will cause the generated lockfile
+to be deterministic, so `straight.el` will not be changed to make
+`:when` act that way by default.
+
+It would be desirable if you could clone a package conditionally
+without breaking the lockfile functionality; this is a hopefully
+planned future feature, but it needs design work.
+
 #### "Integration" with `package.el`
 
 By default, `package.el` will automatically insert a call to
@@ -3624,6 +3675,7 @@ savings on network bandwidth and disk space.
 [python]: https://www.python.org/
 [quelpa]: https://github.com/quelpa/quelpa
 [radian]: https://github.com/radian-software/radian
+[radian-use-package]: https://github.com/radian-software/radian/blob/20c0c9d929a57836754559b470ba4c3c20f4212a/emacs/radian.el#L606-L619
 [spacemacs]: http://spacemacs.org/
 [ssh-agent]: https://www.ssh.com/ssh/agent
 [symlinks-creators]: https://blogs.windows.com/buildingapps/2016/12/02/symlinks-windows-10/
