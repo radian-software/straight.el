@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
 import os
-import psutil
 import shlex
 import signal
 import subprocess
 import sys
+
+from packaging.version import parse as parse_version
+import psutil
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CALLBACK_SCRIPT = os.path.join(SCRIPT_DIR, "straight_watch_callback.py")
@@ -44,12 +46,45 @@ def write_process_data(pid_file):
         print(create_time, file=f)
 
 
+def get_watchexec_version():
+    return parse_version(
+        subprocess.run(["watchexec", "--version"], stdout=subprocess.PIPE)
+        .stdout.decode()
+        .splitlines()[0]
+        .removeprefix("watchexec ")
+        .split()[0]
+    )
+
+
 def start_watch(repos_dir, modified_dir):
     callback_cmd = [CALLBACK_SCRIPT, repos_dir, modified_dir]
     callback_sh = " ".join(map(shlex.quote, callback_cmd))
     # Use --debounce explicitly as some versions of watchexec do not support -d
     # https://github.com/watchexec/watchexec/pull/513#issuecomment-1683304057
-    cmd = ["watchexec", "--no-vcs-ignore", "-p", "--debounce", "100", callback_sh]
+    #
+    # Use --emit-events-to=environment, which used to be the default
+    # but is no longer in watchexec 2.0. It is considered deprecated
+    # and we will replace it in the future with another approach, but
+    # for now I am leaving it as is.
+    #
+    # We have to make sure to only use --emit-events-to when the
+    # version of watchexec is 1.22.0 or later, I am keeping in support
+    # for the old version because it only came out in March 2023 and a
+    # lot of people have not upgraded yet.
+    watchexec_ver = get_watchexec_version()
+    cmd = [
+        "watchexec",
+        "--no-vcs-ignore",
+        "-p",
+        "--debounce",
+        "100ms",
+        *(
+            ["--emit-events-to=environment"]
+            if watchexec_ver >= parse_version("1.22.0")
+            else []
+        ),
+        callback_sh,
+    ]
     cmd_sh = " ".join(map(shlex.quote, cmd))
     print("$ " + cmd_sh, file=sys.stderr)
     subprocess.run(cmd, cwd=repos_dir, check=True)
