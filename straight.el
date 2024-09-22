@@ -3277,7 +3277,6 @@ return nil."
                 (plist nil))
             (cl-destructuring-bind (name . melpa-plist) melpa-recipe
               (straight--put plist :type 'git)
-              (straight--put plist :flavor 'melpa)
               (when-let ((files (plist-get melpa-plist :files)))
                 ;; We must include a *-pkg.el entry in the recipe
                 ;; because that file always needs to be linked over,
@@ -3285,9 +3284,16 @@ return nil."
                 ;; not include it (and doesn't need to, because MELPA
                 ;; always re-creates a *-pkg.el file regardless). See
                 ;; https://github.com/radian-software/straight.el/issues/336.
-                (straight--put
-                 plist :files
-                 (append files (list (format "%S-pkg.el" package)))))
+                (setq files (append files (list (format "%S-pkg.el" package))))
+                (setq files
+                      (mapcar
+                       (lambda (entry)
+                         (when (and (listp entry)
+                                    (eq (car entry) :rename))
+                           (setq entry (cons (nth 1 entry) (nth 2 entry))))
+                         entry)
+                       files))
+                (straight--put plist :files files))
               (when-let ((branch (plist-get melpa-plist :branch)))
                 (straight--put plist :branch branch))
               (pcase (plist-get melpa-plist :fetcher)
@@ -4942,16 +4948,20 @@ the MELPA recipe repository, with some minor differences:
   prefix created by enclosing lists is not respected.
 
 * Whenever a *.el.in file is linked in a MELPA recipe, the target
-  of the link is named as *.el.
+  of the link is named as *.el. (Only in older versions of MELPA.)
 
 * When using `:exclude' in a MELPA recipe, only links defined in
   the current list are subject to removal, and not links defined
   in higher-level lists.
 
-If FLAVOR is nil or omitted, then expansion takes place as
-described above. If FLAVOR is the symbol `melpa', then *.el.in
-files will be linked as *.el files as in MELPA. If FLAVOR is any
-other value, the behavior is not specified."
+* MELPA recipes support a `:rename' keyword that is not supported
+  here (because you can use cons cells to rename files).
+
+There is a legacy argument FLAVOR which is not recommended for
+use. If FLAVOR is the symbol `melpa', then for backwards
+compatibility reasons, *.el.in files will be linked as *.el
+files, which was the behavior on older versions of MELPA. If
+FLAVOR is any other non-nil value, the behavior is not specified."
   ;; We bind `default-directory' here so we don't have to do it
   ;; repeatedly in the recursive section.
   (let* ((default-directory src-dir)
