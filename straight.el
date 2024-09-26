@@ -3288,8 +3288,7 @@ return nil."
                 (setq files
                       (mapcar
                        (lambda (entry)
-                         (when (and (listp entry)
-                                    (eq (car entry) :rename))
+                         (when (eq (car-safe entry) :rename)
                            (setq entry (cons (nth 1 entry) (nth 2 entry))))
                          entry)
                        files))
