@@ -5272,19 +5272,22 @@ individual package recipe."
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
-  (let* ((dir (straight--build-dir (plist-get recipe :package)))
+  (let* ((pkg (plist-get recipe :package))
+         (dir (straight--build-dir pkg))
          (emacs (concat invocation-directory invocation-name))
          (buffer straight-byte-compilation-buffer)
+         (deps
+          (let ((tmp nil))
+            (dolist (dep (straight--flatten (straight-dependencies pkg))
+                         tmp)
+              (let ((build-dir (straight--build-dir dep)))
+                (when (file-exists-p build-dir) (push build-dir tmp))))))
          (print-circle nil)
          (print-length nil)
          (program
-          (format "%S" `(let ((default-directory ,(straight--build-dir))
-                              (lp load-path))
-                          (setq load-path (list default-directory))
-                          (normal-top-level-add-subdirs-to-load-path)
-                          (setq load-path (append (cons ,dir load-path)
-                                                  lp))
-                          (byte-recompile-directory ,dir 0 'force))))
+          (format
+           "%S" `(progn (setq load-path (append '(,dir) ',deps load-path))
+                        (byte-recompile-directory ,dir 0 'force))))
          (args (list "-Q" "--batch" "--eval" program)))
     (when buffer (with-current-buffer (get-buffer-create buffer)
                    (insert (format "\n$ %s %s \\\n %S\n" emacs
