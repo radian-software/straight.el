@@ -100,6 +100,8 @@ for the [Emacs] hacker.
     + [Integration with Flycheck](#integration-with-flycheck)
     + [Integration with Hydra](#integration-with-hydra)
   * [Miscellaneous](#miscellaneous)
+- [Troubleshooting](#troubleshooting)
+  * [Why are my packages always/never rebuilding?](#why-are-my-packages-alwaysnever-rebuilding)
 - [Developer manual](#developer-manual)
   * [Low-level functions](#low-level-functions)
 - [Trivia](#trivia)
@@ -3241,6 +3243,120 @@ Looking for cider recipe → Cloning melpa...
   of how this feature may be used to safely implement asynchronous
   byte-compilation of the init-file on successful startup, see
   [Radian].
+
+## Troubleshooting
+
+There are a couple of commonly encountered issues with `straight.el`.
+I would like to change things so these problems do not happen, or are
+repaired automatically. But, I can write documentation faster than I
+can fix code, so here are tips in the meantime.
+
+### Why are my packages always/never rebuilding?
+
+So, the first thing you have to check is the value of
+`straight-check-for-modifications`. You can set it to nil, obviously
+then `straight.el` will never rebuild anything, but that is probably
+not what you want. Based on the enabled checkers, we can dive into
+what is malfunctioning with the ones you have enabled. The basic
+principle is `straight.el` uses various methods to detect when the
+source repo of a package is changed, and if it has changed since the
+last time the package was built, then it is rebuilt on next Emacs init
+(or re-init).
+
+You should start by looking at the docstring of that variable and
+seeing if the enabled modes match the behavior you are *expecting* to
+see. This is because there are different limitations to the modes, for
+example if you only use `check-on-save`, then modifications will only
+register when you edit a file within Emacs, and not from an external
+program. The rest of this section will assume you have the user option
+set to what you want, and it is some technical bug that is preventing
+the rebuild system from working properly.
+
+You can probably ignore `check-on-save` and `find-when-checking`,
+neither of those have ever caused anyone problems that I have known
+of. The ones that are complicated (and thus prone to failure) are
+`find-at-startup` and `watch-files`.
+
+The way `find-at-startup` works is by using the `find` utility (GNU or
+BSD is supported) to scan for files in `~/.emacs.d/straight/repos`
+that are more recent than the corresponding packages were built. If a
+package directory contains files that have filesystem mtimes more
+recent than the timestamp of the last time `straight.el` rebuilt the
+package, another rebuild is triggered.
+
+So, a couple of ways this could fail:
+* filesystem doesn't support mtimes properly, or some tooling is
+  updating mtimes constantly instead of letting them be
+* maybe building a package causes its own files to get updated, so
+  `straight.el` thinks it needs to be rebuilt again
+    * normally this does not happen, because files are linked from the
+      source repo into the build directory, and then build steps are
+      run in the build directory
+    * however, custom code in the package could potentially reach back
+      into the source repo on purpose somehow, which can cause
+      problems. This is rare but I've seen it happen, especially with
+      big complicated packages like Org/AUCTeX
+* weird version of `find` installed? you can go to
+  `*straight-process*` and see the exact command that's being run, as
+  well as the output - this may give a clue as to what modifications
+  are being detected, as the filenames will be printed, or if there is
+  some kind of warning being printed by `find`
+    * try copying and pasting the `find` command to your terminal and
+      experimenting with it to find out why it is returning results
+      when it shouldn't be
+* `straight.el` is not completing the init process properly and
+  writing the build cache file, so next time it does not remember that
+  it built anything
+    * check `~/.emacs.d/straight/build-cache.el`, you can see the
+      recorded last build time of each package, is that getting
+      updated?
+
+Now let's talk `watch-files`, the most obvious failure condition for
+this is you don't have watchexec installed since that is a dependency.
+Get it from your distro package manager. Python 3 is also required, as
+well as the venv-whatever package that is needed on Ubuntu to run
+`python3 -m venv` succesfully.
+
+The filesystem watcher runs in the background and uses `nohup` to fork
+out and survive Emacs termination. The invocation of `nohup` itself
+logs to `*straight-watcher*`, but that will almost certainly just be
+empty. You really want to look in
+`~/.emacs.d/straight/watcher/nohup.out` which has the watchexec
+output. You might see warnings or fatal errors here. We should really
+be reporting those proactively but we don't currently.
+
+The most common cause that the filesystem watcher doesn't work, for me
+at least, is the virtualenv gets bricked. This seems to happen every
+time I upgrade Python versions, no matter what operating system I'm
+on. Thanks Python. You can always `rm -rf
+~/.emacs.d/straight/watcher/virtualenv` and it'll get re-created next
+Emacs startup. We really have to auto-detect and repair that. If this
+is the failure condition you should see a Python related error in
+`nohup.out`.
+
+It's also possible you have a wrong (or just different than expected)
+version of watchexec, maybe the command-line options we are passing.
+Check for warnings in the `nohup.out` log, maybe try out the watchexec
+invocation in your terminal and see if it works. You can also compare
+your `watchexec --version` and see the upstream changelog. Our
+watchexec invocation should be running the Python callback file for
+every file modification and that should be mapping it back to a
+`straight.el` repository.
+
+If that's working then the next step is that when a modification is
+detected, the callback script creates a file in
+`~/.emacs.d/straight/modified`. Each file in here corresponds to the
+name of a directory in `~/.emacs.d/straight/repo`, and the directory
+listing is read on Emacs startup to determine repos to rebuild. This
+is how the information is collected over time by the watcher but then
+collated into a place where it can be read in all at once quickly.
+
+One thing that's not super well tested is what happens with *either*
+`find-at-startup` or `watch-files` when you have custom repo
+locations. Custom base directory *should* work, but if you have
+specific repos with hardcoded absolute paths (instead of having them
+all in the `repos` base-dir), my scripting might not take that into
+account properly. That's an area for improvement.
 
 ## Developer manual
 
