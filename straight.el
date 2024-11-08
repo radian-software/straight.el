@@ -5503,11 +5503,22 @@ RECIPE is a straight.el-style plist."
                        straight--autoloads-cache)))
           ;; Some autoloads files expect to be loaded normally, rather
           ;; than read and evaluated separately. Fool them.
+          ;;
+          ;; We also need to abuse `current-load-list' so that
+          ;; autoload entries go properly into the current entry,
+          ;; since normally that is hardcoded to happen during `load'
+          ;; which we are not using here.
+          ;;
+          ;; https://github.com/radian-software/straight.el/issues/1150
+          ;; for information on that.
           (let ((load-file-name (straight--autoloads-file package))
-                (load-in-progress t))
+                (load-in-progress t)
+                (current-load-list nil))
             ;; car is the feature list, cdr is the autoloads.
             (dolist (form (cdr (gethash package straight--autoloads-cache)))
-              (eval form))))
+              (eval form))
+            (when current-load-list
+              (push (cons load-file-name current-load-list) load-history))))
       (straight--load-package-autoloads package))))
 
 ;;;; Interactive helpers
