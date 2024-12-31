@@ -566,8 +566,8 @@ return nil."
   "git@github.com:user/test.git"       '("user/test" github ssh)
   "https://codeberg.org/user/test.git" '("user/test" codeberg https)
   "git@codeberg.org:user/test.git"     '("user/test" codeberg ssh)
-  "git@git.sr.ht:~user/test"           '("user/test" sourcehut ssh)
-  "https://git.sr.ht/~user/test"       '("user/test" sourcehut https))
+  "git@sr.ht:~user/test"           '("user/test" sourcehut ssh)
+  "https://sr.ht/~user/test"       '("user/test" sourcehut https))
 
 (straight-deftest straight-vc-git--encode-url ()
   (let ((straight-vc-git-default-protocol 'https))
