@@ -287,7 +287,7 @@ computes the fork as \"githubUser/fork\"."
 (defcustom straight-hosts '((github "github.com" ".git")
                             (gitlab "gitlab.com" ".git")
                             (codeberg "codeberg.org" ".git")
-                            (sourcehut "git.sr.ht")
+                            (sourcehut "sr.ht")
                             (bitbucket "bitbucket.com" ".git"))
   "Alist containing URI information for hosted forges.
 Each element is of the form: (HOST DOMAIN REPO-SUFFIX).
