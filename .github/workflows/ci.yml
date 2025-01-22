@@ -27,3 +27,4 @@ jobs:
           make docker
           CMD="make -k compile checkdoc longlines test smoke"
           DOCKER_BASE=ghcr.io/radian-software/emacs-base
+          NO_SUDO_DOCKER=1
