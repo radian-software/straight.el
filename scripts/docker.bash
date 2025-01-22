@@ -11,7 +11,8 @@ if [[ -n "$2" ]]; then
 fi
 
 docker() {
-    if [[ "$OSTYPE" != darwin* ]] && [[ "$EUID" != 0 ]] && [[ -z "${NO_SUDO_DOCKER:-}" ]]; then
+    if [[ "$OSTYPE" != darwin* ]] && [[ "$EUID" != 0 ]] \
+    && [[ -z "${NO_SUDO_DOCKER:-}" ]]; then
         command sudo docker "$@"
     else
         command docker "$@"
