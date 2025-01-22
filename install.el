@@ -118,9 +118,10 @@
     ;; the recipe specification, and forgot to update which repository
     ;; their init-file downloaded install.el from).
     (dolist (lockfile-name (mapcar #'cdr straight-profiles))
-      (let ((lockfile-path (concat straight-install-dir
-                                   "straight/versions/"
-                                   lockfile-name)))
+      (let ((lockfile-path
+             (expand-file-name
+              lockfile-name
+              (concat straight-install-dir "straight/versions"))))
         (when (file-exists-p lockfile-path)
           (condition-case nil
               (with-temp-buffer
