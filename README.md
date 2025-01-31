@@ -1529,7 +1529,7 @@ to specify the components of the recipe that you want to override. All
 other components will still be looked up in the default recipe. In the
 example above, we are only interested in changing the `:fork`
 component. Therefore if `straight-allow-recipe-inheritance` is set,
-the recipe could be simplifed as follows:
+the recipe could be simplified as follows:
 
 ```emacs-lisp
 (straight-use-package
