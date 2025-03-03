@@ -2478,10 +2478,14 @@ updates: see [#323].
 The recipe repository system is designed to be extended. Firstly, you
 can control which recipe repositories are searched, and in what order
 of precedence, by customizing `straight-recipe-repositories`. The
-default value is:
+default value is defined by the `straight-use-recipes` declarations
+present in the file `bootstrap.el` in the `straight.el` version you
+are using, as customized by the user options you configure in your
+init-file before loading the bootstrap snippet. As of the time of this
+writing, with no custom user options set, that works out to be:
 
 ```emacs-lisp
-(org-elpa melpa gnu-elpa-mirror el-get emacsmirror)
+(org-elpa melpa gnu-elpa-mirror nongnu-elpa el-get emacsmirror-mirror)
 ```
 
 ##### GNU ELPA

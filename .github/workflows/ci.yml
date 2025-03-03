@@ -25,6 +25,6 @@ jobs:
           VERSION: ${{ matrix.emacs_version }}
         run: >-
           make docker
-          CMD="make -k compile checkdoc longlines test smoke"
+          CMD="make compile test smoke checkdoc longlines"
           DOCKER_BASE=ghcr.io/radian-software/emacs-base
           NO_SUDO_DOCKER=1

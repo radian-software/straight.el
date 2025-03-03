@@ -5238,19 +5238,33 @@ modifies the build folder, not the original repository."
               ;; Non-nil interferes with autoload generation in Emacs < 29, see
               ;; <https://github.com/radian-software/straight.el/issues/904>.
               (left-margin 0))
-          ;; Actually generate the autoload file. Emacs 28.1 replaces
-          ;; `update-directory-autoloads' with
-          ;; `make-directory-autoloads', and Emacs 29 with
-          ;; `loaddefs-generate’
-          (cond
-           ((fboundp 'loaddefs-generate)
-            (loaddefs-generate (straight--build-dir package)
-                               generated-autoload-file))
-           ((fboundp 'make-directory-autoloads)
-            (make-directory-autoloads (straight--build-dir package)
-                                      generated-autoload-file))
-           ((fboundp 'update-directory-autoloads)
-            (update-directory-autoloads (straight--build-dir package)))))
+          ;; In Emacs 27 when you try to generate autoloads for a file
+          ;; whose local variables block specifies a major mode whose
+          ;; function isn't defined, it errors out, contrary to the
+          ;; `find-file' behavior where it just messages "Ignoring
+          ;; unknown mode". Hack some internals to ensure such issues
+          ;; do not cause package builds to fail.
+          (cl-letf* ((orig-hack-one-local-variable
+                      (symbol-function #'hack-one-local-variable))
+                     ((symbol-function #'hack-one-local-variable)
+                      (lambda (var val)
+                        (ignore-errors
+                          (funcall
+                           orig-hack-one-local-variable
+                           var val)))))
+            ;; Actually generate the autoload file. Emacs 28.1
+            ;; replaces `update-directory-autoloads' with
+            ;; `make-directory-autoloads', and Emacs 29 with
+            ;; `loaddefs-generate’
+            (cond
+             ((fboundp 'loaddefs-generate)
+              (loaddefs-generate (straight--build-dir package)
+                                 generated-autoload-file))
+             ((fboundp 'make-directory-autoloads)
+              (make-directory-autoloads (straight--build-dir package)
+                                        generated-autoload-file))
+             ((fboundp 'update-directory-autoloads)
+              (update-directory-autoloads (straight--build-dir package))))))
         ;; And for some reason Emacs leaves a newly created buffer
         ;; lying around. Let's kill it.
         (when-let ((buf (find-buffer-visiting generated-autoload-file)))
