@@ -5887,6 +5887,15 @@ Return non-nil when package is initially installed, nil otherwise."
                      straight--repo-cache)
             (lambda (pkg) (not (member pkg installed)))))
          nil nil nil 'interactive))
+  ;; Do this unconditionally, at the very beginning, because we want
+  ;; to have caches loaded right away - they're needed even for
+  ;; `straight--convert-recipe', to populate the recipe lookup cache.
+  ;;
+  ;; Even for packages with `no-build' enabled, we will want the cache
+  ;; later, as well, since for those packages we still want to check
+  ;; for modifications and (if any) invalidate the relevant entry in
+  ;; the recipe lookup cache.
+  (straight--make-build-cache-available)
   (let ((recipe (straight--convert-recipe
                  (or
                   (straight--get-overridden-recipe
@@ -5956,11 +5965,6 @@ Return non-nil when package is initially installed, nil otherwise."
              ;; We didn't decide to abort, and the repository still
              ;; isn't available. Make it available.
              (straight--clone-repository recipe cause))
-           ;; Do this even for packages with `no-build' enabled, as we
-           ;; still want to check for modifications and (if any)
-           ;; invalidate the relevant entry in the recipe lookup
-           ;; cache.
-           (straight--make-build-cache-available)
            (let* ((no-build
                    (or
                     ;; Remember that `no-build' can come both from the
