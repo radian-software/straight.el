@@ -3410,6 +3410,11 @@ Otherwise, return nil."
 
 ;;;;;; NonGNU ELPA
 
+(defcustom straight-recipes-nongnu-elpa-url
+  "https://git.savannah.gnu.org/git/emacs/nongnu.git"
+  "URL of the Git repository for the NONGNU ELPA package repository."
+  :type 'string)
+
 (defun straight-recipes-nongnu-elpa--translate (recipe)
   "Translate RECIPE into straight.el-style recipe."
   (when recipe
