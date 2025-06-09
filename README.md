@@ -1913,6 +1913,9 @@ meaning in a recipe (unknown keywords are ignored but preserved):
   package. If a local repository by that name does not exist when you
   invoke `straight-use-package`, one will be cloned according to the
   package's [version-control settings][#user/recipes/vc-backends].
+  Note that the repository does not have to be version-controlled; it
+  can also just be a directory containing Emacs Lisp files (set `:type
+  nil` in this case).
 
   Multiple packages can use the same local repository. If so, then a
   change to the local repository will cause both packages to be
