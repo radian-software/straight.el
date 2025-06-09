@@ -95,10 +95,13 @@ for the [Emacs] hacker.
   * [Using `straight.el` to develop packages](#using-straightel-to-develop-packages)
   * [Integration with other packages](#integration-with-other-packages)
     + [Integration with `use-package`](#integration-with-use-package-1)
+      - [Loading packages conditionally](#loading-packages-conditionally)
     + ["Integration" with `package.el`](#integration-with-packageel)
     + [Integration with Flycheck](#integration-with-flycheck)
     + [Integration with Hydra](#integration-with-hydra)
   * [Miscellaneous](#miscellaneous)
+- [Troubleshooting](#troubleshooting)
+  * [Why are my packages always/never rebuilding?](#why-are-my-packages-alwaysnever-rebuilding)
 - [Developer manual](#developer-manual)
   * [Low-level functions](#low-level-functions)
 - [Trivia](#trivia)
@@ -183,8 +186,11 @@ First, place the following bootstrap code in your init-file:
 ```emacs-lisp
 (defvar bootstrap-version)
 (let ((bootstrap-file
-       (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
-      (bootstrap-version 6))
+       (expand-file-name
+        "straight/repos/straight.el/bootstrap.el"
+        (or (bound-and-true-p straight-base-dir)
+            user-emacs-directory)))
+      (bootstrap-version 7))
   (unless (file-exists-p bootstrap-file)
     (with-current-buffer
         (url-retrieve-synchronously
@@ -194,6 +200,12 @@ First, place the following bootstrap code in your init-file:
       (eval-print-last-sexp)))
   (load bootstrap-file nil 'nomessage))
 ```
+
+(If `raw.githubusercontent.com` is blocked by your ISP, try replacing
+the URL with
+`https://radian-software.github.io/straight.el/install.el`. Or you can
+clone `straight.el` manually to
+`~/.emacs.d/straight/repos/straight.el`.)
 
 <!-- longlines-stop -->
 
@@ -1415,8 +1427,11 @@ care of all these details for you:
 ```emacs-lisp
 (defvar bootstrap-version)
 (let ((bootstrap-file
-       (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
-      (bootstrap-version 6))
+       (expand-file-name
+        "straight/repos/straight.el/bootstrap.el"
+        (or (bound-and-true-p straight-base-dir)
+            user-emacs-directory)))
+      (bootstrap-version 7))
   (unless (file-exists-p bootstrap-file)
     (with-current-buffer
         (url-retrieve-synchronously
@@ -1516,7 +1531,7 @@ to specify the components of the recipe that you want to override. All
 other components will still be looked up in the default recipe. In the
 example above, we are only interested in changing the `:fork`
 component. Therefore if `straight-allow-recipe-inheritance` is set,
-the recipe could be simplifed as follows:
+the recipe could be simplified as follows:
 
 ```emacs-lisp
 (straight-use-package
@@ -2465,10 +2480,14 @@ updates: see [#323].
 The recipe repository system is designed to be extended. Firstly, you
 can control which recipe repositories are searched, and in what order
 of precedence, by customizing `straight-recipe-repositories`. The
-default value is:
+default value is defined by the `straight-use-recipes` declarations
+present in the file `bootstrap.el` in the `straight.el` version you
+are using, as customized by the user options you configure in your
+init-file before loading the bootstrap snippet. As of the time of this
+writing, with no custom user options set, that works out to be:
 
 ```emacs-lisp
-(org-elpa melpa gnu-elpa-mirror el-get emacsmirror)
+(org-elpa melpa gnu-elpa-mirror nongnu-elpa el-get emacsmirror-mirror)
 ```
 
 ##### GNU ELPA
@@ -2505,17 +2524,17 @@ You can customize the following user option:
 
 * `straight-recipes-emacsmirror-use-mirror`: Yes, there is also a
   mirror for Emacsmirror. This is because the [epkgs] repository
-  contains a (frequently updated) SQLite database in it, which means
-  the Git repository takes *forever* to clone (see [#356]). My
-  solution to this problem is to generate a new repository which
-  contains the information that `straight.el` needs but which is much
-  smaller. By default, `straight.el` uses the official [epkgs]
-  repository to find packages on Emacsmirror, but you can tell it to
-  use my mirror by configuring the value of this variable to non-nil.
-  You must do any customization of this variable *before* the
-  `straight.el` [bootstrap][#quickstart]. Note that setting the value
-  of this user option to non-nil causes the default value of
-  `straight-recipe-repositories` to shift to:
+  contains a fair amount of metadata, which means it can take a little
+  on the long side to clone with slow network connections (see [#356]
+  and [#700]). My solution to this problem is to generate a new
+  repository which contains the information that `straight.el` needs
+  but which is much smaller. By default, `straight.el` uses the
+  official [epkgs] repository to find packages on Emacsmirror, but you
+  can tell it to use my mirror by configuring the value of this
+  variable to non-nil. You must do any customization of this variable
+  *before* the `straight.el` [bootstrap][#quickstart]. Note that
+  setting the value of this user option to non-nil causes the default
+  value of `straight-recipe-repositories` to shift to:
 
 ```emacs-lisp
 (org-elpa melpa gnu-elpa-mirror el-get emacsmirror-mirror)
@@ -3103,6 +3122,56 @@ this syntax instead by customizing `straight-use-package-version`.
 You can disable `use-package` integration entirely by customizing
 `straight-enable-use-package-integration`.
 
+##### Loading packages conditionally
+
+`use-package` has various features intended to support code being
+executed conditionally for a package. For example, the `:when` keyword
+lets you provide a form that will essentially disable the
+`use-package` form if it evaluates to nil.
+
+However, when using the `:straight` keyword, either explicitly or via
+`straight-use-package-by-default`, then `:when` has no effect on it.
+`straight.el` is invoked unconditionally. The reason for this behavior
+is that if you invoke `straight-use-package` on a different set of
+packages during different init sessions, then your version lockfile
+would end up containing different sets of packages depending on which
+session you generated it in.
+
+Currently, the officially recommended pattern for conditionally
+loading a package is the following:
+
+```elisp
+(straight-register-package 'foobar)
+(when some-condition
+  (use-package foobar
+    :straight t))
+```
+
+This ensures that the package is registered to `straight.el`, so it
+will be cloned if absent, and will be added to the lockfile, but it
+will not be compiled or loaded unless the subsequent `use-package`
+form is evaluated. You can also invoke `straight-register-package`
+only in the case that `some-condition` is nil; either way will produce
+the same result with roughly the same performance due to idempotency
+and caching.
+
+If you do this for a lot of packages, it may be advisable to wrap it
+in a macro, as [my own Emacs configuration Radian
+does][radian-use-package] in the macro `radian-use-package`. It would
+be a good idea if `straight.el` did this by default in its
+`use-package` integration but this has not been implemented yet.
+
+If you want to not even clone a package when it is disabled, you can
+also technically achieve it by simply making the entire `use-package`
+form conditional, without using `straight-register-package`. However,
+this is not recommended because it will cause the generated lockfile
+to be deterministic, so `straight.el` will not be changed to make
+`:when` act that way by default.
+
+It would be desirable if you could clone a package conditionally
+without breaking the lockfile functionality; this is a hopefully
+planned future feature, but it needs design work.
+
 #### "Integration" with `package.el`
 
 By default, `package.el` will automatically insert a call to
@@ -3178,6 +3247,120 @@ Looking for cider recipe → Cloning melpa...
   of how this feature may be used to safely implement asynchronous
   byte-compilation of the init-file on successful startup, see
   [Radian].
+
+## Troubleshooting
+
+There are a couple of commonly encountered issues with `straight.el`.
+I would like to change things so these problems do not happen, or are
+repaired automatically. But, I can write documentation faster than I
+can fix code, so here are tips in the meantime.
+
+### Why are my packages always/never rebuilding?
+
+So, the first thing you have to check is the value of
+`straight-check-for-modifications`. You can set it to nil, obviously
+then `straight.el` will never rebuild anything, but that is probably
+not what you want. Based on the enabled checkers, we can dive into
+what is malfunctioning with the ones you have enabled. The basic
+principle is `straight.el` uses various methods to detect when the
+source repo of a package is changed, and if it has changed since the
+last time the package was built, then it is rebuilt on next Emacs init
+(or re-init).
+
+You should start by looking at the docstring of that variable and
+seeing if the enabled modes match the behavior you are *expecting* to
+see. This is because there are different limitations to the modes, for
+example if you only use `check-on-save`, then modifications will only
+register when you edit a file within Emacs, and not from an external
+program. The rest of this section will assume you have the user option
+set to what you want, and it is some technical bug that is preventing
+the rebuild system from working properly.
+
+You can probably ignore `check-on-save` and `find-when-checking`,
+neither of those have ever caused anyone problems that I have known
+of. The ones that are complicated (and thus prone to failure) are
+`find-at-startup` and `watch-files`.
+
+The way `find-at-startup` works is by using the `find` utility (GNU or
+BSD is supported) to scan for files in `~/.emacs.d/straight/repos`
+that are more recent than the corresponding packages were built. If a
+package directory contains files that have filesystem mtimes more
+recent than the timestamp of the last time `straight.el` rebuilt the
+package, another rebuild is triggered.
+
+So, a couple of ways this could fail:
+* filesystem doesn't support mtimes properly, or some tooling is
+  updating mtimes constantly instead of letting them be
+* maybe building a package causes its own files to get updated, so
+  `straight.el` thinks it needs to be rebuilt again
+    * normally this does not happen, because files are linked from the
+      source repo into the build directory, and then build steps are
+      run in the build directory
+    * however, custom code in the package could potentially reach back
+      into the source repo on purpose somehow, which can cause
+      problems. This is rare but I've seen it happen, especially with
+      big complicated packages like Org/AUCTeX
+* weird version of `find` installed? you can go to
+  `*straight-process*` and see the exact command that's being run, as
+  well as the output - this may give a clue as to what modifications
+  are being detected, as the filenames will be printed, or if there is
+  some kind of warning being printed by `find`
+    * try copying and pasting the `find` command to your terminal and
+      experimenting with it to find out why it is returning results
+      when it shouldn't be
+* `straight.el` is not completing the init process properly and
+  writing the build cache file, so next time it does not remember that
+  it built anything
+    * check `~/.emacs.d/straight/build-cache.el`, you can see the
+      recorded last build time of each package, is that getting
+      updated?
+
+Now let's talk `watch-files`, the most obvious failure condition for
+this is you don't have watchexec installed since that is a dependency.
+Get it from your distro package manager. Python 3 is also required, as
+well as the venv-whatever package that is needed on Ubuntu to run
+`python3 -m venv` succesfully.
+
+The filesystem watcher runs in the background and uses `nohup` to fork
+out and survive Emacs termination. The invocation of `nohup` itself
+logs to `*straight-watcher*`, but that will almost certainly just be
+empty. You really want to look in
+`~/.emacs.d/straight/watcher/nohup.out` which has the watchexec
+output. You might see warnings or fatal errors here. We should really
+be reporting those proactively but we don't currently.
+
+The most common cause that the filesystem watcher doesn't work, for me
+at least, is the virtualenv gets bricked. This seems to happen every
+time I upgrade Python versions, no matter what operating system I'm
+on. Thanks Python. You can always `rm -rf
+~/.emacs.d/straight/watcher/virtualenv` and it'll get re-created next
+Emacs startup. We really have to auto-detect and repair that. If this
+is the failure condition you should see a Python related error in
+`nohup.out`.
+
+It's also possible you have a wrong (or just different than expected)
+version of watchexec, maybe the command-line options we are passing.
+Check for warnings in the `nohup.out` log, maybe try out the watchexec
+invocation in your terminal and see if it works. You can also compare
+your `watchexec --version` and see the upstream changelog. Our
+watchexec invocation should be running the Python callback file for
+every file modification and that should be mapping it back to a
+`straight.el` repository.
+
+If that's working then the next step is that when a modification is
+detected, the callback script creates a file in
+`~/.emacs.d/straight/modified`. Each file in here corresponds to the
+name of a directory in `~/.emacs.d/straight/repo`, and the directory
+listing is read on Emacs startup to determine repos to rebuild. This
+is how the information is collected over time by the watcher but then
+collated into a place where it can be read in all at once quickly.
+
+One thing that's not super well tested is what happens with *either*
+`find-at-startup` or `watch-files` when you have custom repo
+locations. Custom base directory *should* work, but if you have
+specific repos with hardcoded absolute paths (instead of having them
+all in the `repos` base-dir), my scripting might not take that into
+account properly. That's an area for improvement.
 
 ## Developer manual
 
@@ -3571,6 +3754,7 @@ savings on network bandwidth and disk space.
 [#437]: https://github.com/radian-software/straight.el/issues/437
 [#508]: https://github.com/radian-software/straight.el/issues/508
 [#520]: https://github.com/radian-software/straight.el/issues/520
+[#700]: https://github.com/radian-software/straight.el/issues/700
 
 [auto-compile]: https://github.com/tarsius/auto-compile
 [borg]: https://github.com/emacscollective/borg
@@ -3611,6 +3795,7 @@ savings on network bandwidth and disk space.
 [python]: https://www.python.org/
 [quelpa]: https://github.com/quelpa/quelpa
 [radian]: https://github.com/radian-software/radian
+[radian-use-package]: https://github.com/radian-software/radian/blob/20c0c9d929a57836754559b470ba4c3c20f4212a/emacs/radian.el#L606-L619
 [spacemacs]: http://spacemacs.org/
 [ssh-agent]: https://www.ssh.com/ssh/agent
 [symlinks-creators]: https://blogs.windows.com/buildingapps/2016/12/02/symlinks-windows-10/

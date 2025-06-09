@@ -4,7 +4,7 @@ set -e
 set -o pipefail
 
 mkdir -p "$HOME/.emacs.d/straight/repos/"
-ln -sf "$PWD" "$HOME/.emacs.d/straight/repos/straight.el"
+ln -sfT "$PWD" "$HOME/.emacs.d/straight/repos/straight.el"
 
 # We need to test with a package that supports Emacs 25.1 here.
 emacs --batch -l "$HOME/.emacs.d/straight/repos/straight.el/bootstrap.el" \
