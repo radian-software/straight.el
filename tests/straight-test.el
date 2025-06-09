@@ -18,7 +18,7 @@ for BINDINGS."
         (list template)
       (let ((unbound (mod (length bindings) (length vars))))
         (unless (zerop unbound)
-          (error "Unven binding list: %S" (last bindings unbound)))
+          (error "Uneven binding list: %S" (last bindings unbound)))
         (let ((body nil)
               (bindings
                (eval
@@ -207,10 +207,10 @@ return nil."
 
 (straight-deftest straight--build-steps ()
   (let* ((defaults
-          (mapcar (lambda (sym)
-                    (intern (string-remove-prefix "straight-disable-"
-                                                  (symbol-name sym))))
-                  straight--build-default-steps))
+           (mapcar (lambda (sym)
+                     (intern (string-remove-prefix "straight-disable-"
+                                                   (symbol-name sym))))
+                   straight--build-default-steps))
          (straight-disable-info
           (member 'info           ,disabled))
          (straight-disable-compile
@@ -308,14 +308,14 @@ return nil."
 
 (straight-deftest straight--ensure-blank-lines ()
   (cl-flet ((buffer-with-point-at (s n)
-              (with-temp-buffer
-                (insert s)
-                (goto-char (point-min))
-                (when (search-forward "|" nil t)
-                  (delete-region (match-beginning 0)
-                                 (match-end 0)))
-                (straight--ensure-blank-lines n)
-                (buffer-string))))
+                                  (with-temp-buffer
+                                    (insert s)
+                                    (goto-char (point-min))
+                                    (when (search-forward "|" nil t)
+                                      (delete-region (match-beginning 0)
+                                                     (match-end 0)))
+                                    (straight--ensure-blank-lines n)
+                                    (buffer-string))))
     (should (equal ,buffer-string (buffer-with-point-at ,string ,n))))
   (string n buffer-string)
   "|beginning-of-buffer" 1 "beginning-of-buffer"
@@ -559,6 +559,38 @@ return nil."
   (:host nil :repo "/local/repo")      "/local/repo"
   (:branch "feature")                  "githubUser/repo")
 
+;; longlines-start
+(straight-deftest straight-vc-git--decode-url ()
+  (should (equal ,out (straight-vc-git--decode-url ,in)))
+  (in                                  out)
+  "x://x.y/user/x.git"                 '("x://x.y/user/x.git" nil nil)
+  "git@github.com:user/test.git"       '("user/test" github ssh)
+  "git@github.com:user/test"           '("user/test" github ssh)
+  "ssh://git@github.com:user/test.git" '("user/test" github ssh)
+  "ssh://git@github.com:user/test"     '("user/test" github ssh)
+  "https://codeberg.org/user/test.git" '("user/test" codeberg https)
+  "https://codeberg.org/user/test"     '("user/test" codeberg https)
+  "git@codeberg.org:user/test.git"     '("user/test" codeberg ssh)
+  ;; on sourcehut, "test" and "test.git" are 2 different projects
+  "git@git.sr.ht:~user/test"           '("user/test" sourcehut ssh)
+  "git@git.sr.ht:~user/test.git"       '("user/test.git" sourcehut ssh)
+  "https://git.sr.ht/~user/test"       '("user/test" sourcehut https)
+  "https://git.sr.ht/~user/test.git"   '("user/test.git" sourcehut https))
+;; longlines-end
+
+(straight-deftest straight-vc-git--encode-url ()
+  (let ((straight-vc-git-default-protocol 'https))
+    (should (equal ,out (straight-vc-git--encode-url "user/repo" ,@in))))
+  (in               out)
+  (nil)             "user/repo"
+  ('github)         "https://github.com/user/repo.git"
+  ('github 'https)  "https://github.com/user/repo.git"
+  ('github 'ssh)    "git@github.com:user/repo.git"
+  ('codeberg)       "https://codeberg.org/user/repo.git"
+  ('codeberg 'https)"https://codeberg.org/user/repo.git"
+  ('codeberg 'ssh)  "git@codeberg.org:user/repo.git"
+  ('sourcehut 'ssh) "git@git.sr.ht:~user/repo")
+
 (straight-deftest straight--versions-dir ()
   (let ((straight-base-dir straight-test-mock-user-emacs-dir))
     (should (string= (file-name-as-directory
@@ -588,6 +620,27 @@ return nil."
                      (straight-test-trim-to-mocks
                       (straight--watcher-file ,in)))))
   (in) "test.el")
+
+(straight-deftest straight-recipes-melpa-retrieve ()
+  (let ((straight-base-dir straight-test-mock-user-emacs-dir))
+    (let ((default-directory (straight--repos-dir "melpa")))
+      (should (equal (straight-recipes-melpa-retrieve ,in)
+                     ,out))))
+  (in out)
+  ;; package that isn't in our mocks
+  'doesnotexist nil
+  ;; package that uses :fetcher hg
+  'ditz-mode nil
+  ;; normal package
+  'git-link '(git-link :type git :host github :repo "sshaw/git-link")
+  ;; package with custom :files directive
+  'gitlab '(gitlab :type git :files ("gitlab*.el" "gitlab-pkg.el")
+                   :host github :repo "nlamirault/emacs-gitlab")
+  ;; package that uses :rename keyword
+  'bbdb '(bbdb :type git
+               :files (:defaults
+                       ("lisp/bbdb-site.el.in" . "bbdb-site.el") "bbdb-pkg.el")
+               :repo "https://git.savannah.nongnu.org/git/bbdb.git"))
 
 (provide 'straight-test)
 

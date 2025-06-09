@@ -48,8 +48,12 @@
               nil 'nomessage)
         (setq emacs-version-changed nil))
       (when emacs-version-changed
-        ;; In safe mode, sacrifice performance for safety.
-        (if (bound-and-true-p straight-safe-mode)
+        ;; In safe mode, sacrifice performance for safety.  When using
+        ;; Emacs-version-specific build directories, do the same to
+        ;; avoid hitting the `emacs-version-changed' error due to a
+        ;; byte-compiled straight.el.
+        (if (or (bound-and-true-p straight-safe-mode)
+		(bound-and-true-p straight-use-version-specific-build-dir))
             (load straight.el nil 'nomessage 'nosuffix)
           ;; Don't use the optional LOAD argument for
           ;; `byte-compile-file' because it emits a message.
@@ -63,6 +67,40 @@
 ;; does not actually do anything at runtime, since the `straight'
 ;; feature has already been provided by loading straight.elc above.
 (require 'straight)
+
+(straight--log 'init "Loading bootstrap.el")
+(straight--log
+ 'env "Git commit: %s"
+ (lambda ()
+   (let* ((dir (file-name-directory load-file-name))
+          (default-directory dir))
+     (straight-vc-git-get-commit
+      (file-name-nondirectory
+       (directory-file-name dir))))))
+
+(when straight-log
+  (straight--transaction-exec
+   'logging
+   :later
+   (lambda ()
+     (straight--log 'init "Finished Emacs init")
+     (straight--log
+      'modification-detection
+      "Modification detection mode: %S"
+      straight-check-for-modifications)))
+
+  (mapatoms
+   (lambda (func)
+     (when (and (commandp func)
+                (string-prefix-p "straight-" (symbol-name func)))
+       (let ((advice-name (intern (format "straight--log-advice--%S" func))))
+         (defalias
+           advice-name
+           (lambda (&rest args)
+             (when (called-interactively-p 'any)
+               (straight--log
+                'ui "Invoked command %S with args: %S" func args))))
+         (advice-add func :before advice-name))))))
 
 ;; In case this is a reinit, and straight.el was already loaded, we
 ;; have to explicitly clear the caches.
@@ -94,8 +132,9 @@
                                    :build nil)))
 
 (straight-use-recipes
- '(nongnu-elpa :type git
-               :repo "https://git.savannah.gnu.org/git/emacs/nongnu.git"
+ `(nongnu-elpa :type git
+               :repo ,straight-recipes-nongnu-elpa-url
+               :depth (full single-branch)
                :local-repo "nongnu-elpa"
                :build nil))
 

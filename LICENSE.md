@@ -1,6 +1,6 @@
 # MIT License
 
-Copyright (c) 2017–2022 [Radian LLC](https://radian.codes) and
+Copyright (c) 2017–2023 [Radian LLC](https://radian.codes) and
 contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

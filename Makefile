@@ -11,7 +11,7 @@ for_compile := straight.el bootstrap.el install.el straight-x.el	\
 for_checkdoc := straight.el
 for_longlines := $(wildcard *.el *.md *.yml benchmark/*.el	\
 	scripts/*.bash) Makefile
-for_checkindent := $(wildcard *.el benchmark/*.el)
+for_checkindent := $(wildcard *.el benchmark/*.el tests/*.el)
 
 # excludes benchmarking, smoke and unit tests
 .PHONY: all
@@ -62,6 +62,7 @@ checkindent: ## Ensure that indentation is correct
 	        --eval "(setq inhibit-message t)" \
 	        --eval "(load (expand-file-name \"indent.el\"  ) nil t)" \
 	        --eval "(load (expand-file-name \"straight.el\") nil t)" \
+		--eval "(load (expand-file-name \"tests/straight-test.el\") nil t)" \
 	        --eval "(find-file \"$$file\")" \
 	        --eval "(indent-region (point-min) (point-max))" \
 	        --eval "(write-file \"$$tmpdir/$$tmpfile\")"; \

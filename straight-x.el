@@ -1,6 +1,6 @@
 ;;; straight-x.el --- Experimental extensions. -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017-2022 Radian LLC and contributors
+;; Copyright (C) 2017-2023 Radian LLC and contributors
 
 ;; Author: Radian LLC <contact+straight@radian.codes>
 ;; Created: 1 Jan 2017
@@ -21,6 +21,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'seq)
 (require 'subr-x)
 
 (require 'straight)
@@ -207,6 +208,36 @@ those listed."
   (interactive)
   (straight-freeze-versions)
   (straight-x-freeze-pinned-versions))
+
+(defun straight-x-open-straight-package-readme (package-name)
+  "Open the README file of a straight package in read-only mode."
+  (interactive
+   (let* ((repos-dir (expand-file-name "straight/repos/" straight-base-dir))
+          (package-names
+           (if (file-directory-p repos-dir)
+               (cl-remove-if-not
+                (lambda (dir)
+                  (seq-some
+                   (lambda (file)
+                     (string-match-p "^README\\(?:\\..*\\)?$" file))
+                   (directory-files
+                    (expand-file-name dir repos-dir) nil "^[^.]+")))
+                (directory-files repos-dir nil "^[^.]+"))
+             (error "Repositories directory not found: %s" repos-dir))))
+     (list (completing-read "Enter package name: " package-names nil t))))
+  (let* ((repo-path (expand-file-name
+                     package-name
+                     (expand-file-name "straight/repos/" straight-base-dir)))
+         (readme-path (seq-some
+                       (lambda (file)
+                         (when (string-match-p "^README\\(?:\\..*\\)?$" file)
+                           (expand-file-name file repo-path)))
+                       (directory-files repo-path))))
+    (if readme-path
+        (let ((buffer (find-file-read-only readme-path)))
+          (message "Opened %s in read-only mode." readme-path)
+          buffer)
+      (message "No README file found for package: %s" package-name))))
 
 
 (provide 'straight-x)
