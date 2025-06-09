@@ -295,10 +295,10 @@ SHALLOW nil means use the default behavior of full clones."
 FUNC is an asynchronous function taking a callback of no args and
 one of ITEMS and performing some side effects."
   (cl-labels ((func-callback
-               ()
-               (if items
-                   (funcall func #'func-callback (pop items))
-                 (funcall callback))))
+                ()
+                (if items
+                    (funcall func #'func-callback (pop items))
+                  (funcall callback))))
     (func-callback)))
 
 (defun straight-bench-run-plan (callback)

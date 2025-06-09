@@ -207,10 +207,10 @@ return nil."
 
 (straight-deftest straight--build-steps ()
   (let* ((defaults
-           (mapcar (lambda (sym)
-                     (intern (string-remove-prefix "straight-disable-"
-                                                   (symbol-name sym))))
-                   straight--build-default-steps))
+          (mapcar (lambda (sym)
+                    (intern (string-remove-prefix "straight-disable-"
+                                                  (symbol-name sym))))
+                  straight--build-default-steps))
          (straight-disable-info
           (member 'info           ,disabled))
          (straight-disable-compile
@@ -308,14 +308,14 @@ return nil."
 
 (straight-deftest straight--ensure-blank-lines ()
   (cl-flet ((buffer-with-point-at (s n)
-                                  (with-temp-buffer
-                                    (insert s)
-                                    (goto-char (point-min))
-                                    (when (search-forward "|" nil t)
-                                      (delete-region (match-beginning 0)
-                                                     (match-end 0)))
-                                    (straight--ensure-blank-lines n)
-                                    (buffer-string))))
+              (with-temp-buffer
+                (insert s)
+                (goto-char (point-min))
+                (when (search-forward "|" nil t)
+                  (delete-region (match-beginning 0)
+                                 (match-end 0)))
+                (straight--ensure-blank-lines n)
+                (buffer-string))))
     (should (equal ,buffer-string (buffer-with-point-at ,string ,n))))
   (string n buffer-string)
   "|beginning-of-buffer" 1 "beginning-of-buffer"

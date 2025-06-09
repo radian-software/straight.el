@@ -1210,10 +1210,10 @@ regard to keybindings."
                 (format "%s\n %s%s %s" prompt
                         (make-string (- max-length (length key)) ? )
                         key desc)))
-        (define-key keymap (kbd key)
-          (lambda ()
-            (interactive)
-            (apply func args)))))
+        (keymap-set keymap key
+                    (lambda ()
+                      (interactive)
+                      (apply func args)))))
     (setq prompt (concat prompt "\n\n"))
     (let ((max-mini-window-height 1.0)
           (cursor-in-echo-area t))
@@ -3123,13 +3123,13 @@ For example:
         (straight--with-plist recipe
             (local-repo)
           (let ((default-directory
-                  ;; Only change directories if a local repository is
-                  ;; specified. If one is not, then we assume the
-                  ;; recipe repository code does not need to be in any
-                  ;; particular directory.
-                  (if local-repo
-                      (straight--repos-dir local-repo)
-                    default-directory))
+                 ;; Only change directories if a local repository is
+                 ;; specified. If one is not, then we assume the
+                 ;; recipe repository code does not need to be in any
+                 ;; particular directory.
+                 (if local-repo
+                     (straight--repos-dir local-repo)
+                   default-directory))
                 (func (intern (format "straight-recipes-%S-%S"
                                       name method))))
             (apply func args)))))))
@@ -3837,16 +3837,16 @@ for dependency resolution."
               ;; not present in the override and adding them there.
               (let* ((sources (plist-get plist :source))
                      (default
-                       (or
-                        (when-let ((retrieved (straight-recipes-retrieve
-                                               package
-                                               (if (listp sources)
-                                                   sources
-                                                 (list sources)))))
-                          ;; Recipes retrieved from files may be backquoted.
-                          (cdr (if (straight--quoted-form-p retrieved)
-                                   (eval retrieved) retrieved)))
-                        plist))
+                      (or
+                       (when-let ((retrieved (straight-recipes-retrieve
+                                              package
+                                              (if (listp sources)
+                                                  sources
+                                                (list sources)))))
+                         ;; Recipes retrieved from files may be backquoted.
+                         (cdr (if (straight--quoted-form-p retrieved)
+                                  (eval retrieved) retrieved)))
+                       plist))
                      (type (if (plist-member default :type)
                                (plist-get default :type)
                              straight-default-vc))
@@ -4696,7 +4696,7 @@ last time."
                         (setq mtime-or-file
                               (straight--make-mtime last-mtime)))
                       (let* ((default-directory
-                               (straight--repos-dir local-repo))
+                              (straight--repos-dir local-repo))
                              ;; This find(1) command ignores the .git
                              ;; directory, and prints the names of any
                              ;; files or directories with a newer
