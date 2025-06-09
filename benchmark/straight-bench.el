@@ -244,10 +244,9 @@ SHALLOW nil means use the default behavior of full clones."
                  '((setq straight-vc-git-default-clone-depth 1)))
              (defvar bootstrap-version)
              (let ((bootstrap-file
-                    (expand-file-name
-                     "straight/repos/straight.el/bootstrap.el"
-                     user-emacs-directory))
-                   (bootstrap-version 6))
+                    (locate-user-emacs-file
+                     "straight/repos/straight.el/bootstrap.el"))
+                   (bootstrap-version 7))
                (unless (file-exists-p bootstrap-file)
                  (with-current-buffer
                      (url-retrieve-synchronously

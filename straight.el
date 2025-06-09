@@ -6908,9 +6908,8 @@ Interactively, or when MESSAGE is non-nil, show in the echo area."
 (defvar straight-bug-report--bootstrap
   '((defvar bootstrap-version)
     (let ((bootstrap-file
-           (expand-file-name "straight/repos/straight.el/bootstrap.el"
-                             user-emacs-directory))
-          (bootstrap-version 6))
+           (locate-user-emacs-file "straight/repos/straight.el/bootstrap.el"))
+          (bootstrap-version 7))
       (unless (file-exists-p bootstrap-file)
         (with-current-buffer
             (url-retrieve-synchronously
