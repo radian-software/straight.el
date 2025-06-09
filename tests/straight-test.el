@@ -206,7 +206,7 @@ return nil."
   (in) "test.el")
 
 (straight-deftest straight--build-steps ()
-  (let* ((defaults
+  (let* ((dflts
           (mapcar (lambda (sym)
                     (intern (string-remove-prefix "straight-disable-"
                                                   (symbol-name sym))))
@@ -219,7 +219,7 @@ return nil."
           (member 'autoloads      ,disabled))
          (straight-disable-native-compile
           (member 'native-compile ,disabled)))
-    (ignore defaults) ;;pacify byte-compiler
+    (ignore dflts   ) ;;pacify byte-compiler
     (should (equal (mapcar (lambda (step)
                              (intern (format "straight--build-%s"
                                              (symbol-name step))))
@@ -228,13 +228,13 @@ return nil."
                     '(:package "test" :build ,build)))))
   (disabled       build            steps)
   nil             nil              nil
-  defaults        nil              nil
-  nil             t                defaults
-  defaults        t                defaults
+  dflts           nil              nil
+  nil             t                dflts
+  dflts           t                dflts
   nil             (compile)        '(compile)
-  defaults        (autoloads info) '(autoloads info)
+  dflts           (autoloads info) '(autoloads info)
   nil             (:not compile)   '(autoloads native-compile info)
-  defaults        (:not compile)   nil
+  dflts           (:not compile)   nil
   '(info)         (:not compile)   '(autoloads native-compile))
 
 (straight-deftest straight--buildable-p ()

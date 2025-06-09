@@ -3122,16 +3122,24 @@ For example:
       (let ((recipe (straight--convert-recipe name cause)))
         (straight--with-plist recipe
             (local-repo)
-          (let ((default-directory
-                 ;; Only change directories if a local repository is
-                 ;; specified. If one is not, then we assume the
-                 ;; recipe repository code does not need to be in any
-                 ;; particular directory.
-                 (if local-repo
-                     (straight--repos-dir local-repo)
-                   default-directory))
-                (func (intern (format "straight-recipes-%S-%S"
-                                      name method))))
+          ;; Strange construction here: Emacs 28 and below has a funny
+          ;; bug where it looks at a let-binding of default-directory
+          ;; and thinks it is a function declaration, because it sees
+          ;; an s-expression that starts with "def". So, if the value
+          ;; of the let-binding is wrapped to a new line, then it gets
+          ;; indented wrong. Avoid that so that the indentation linter
+          ;; passes on all Emacs versions.
+          (let* ((the-default-directory
+                  ;; Only change directories if a local repository is
+                  ;; specified. If one is not, then we assume the
+                  ;; recipe repository code does not need to be in any
+                  ;; particular directory.
+                  (if local-repo
+                      (straight--repos-dir local-repo)
+                    default-directory))
+                 (default-directory the-default-directory)
+                 (func (intern (format "straight-recipes-%S-%S"
+                                       name method))))
             (apply func args)))))))
 
 (defun straight-recipes-retrieve (package &optional sources cause)
@@ -3836,7 +3844,10 @@ for dependency resolution."
               ;; looking in original and finding all keywords that are
               ;; not present in the override and adding them there.
               (let* ((sources (plist-get plist :source))
-                     (default
+                     ;; Avoid using a variable name that starts with
+                     ;; "def" to avoid triggering indentation bug on
+                     ;; Emacs 28 and below.
+                     (dflt
                       (or
                        (when-let ((retrieved (straight-recipes-retrieve
                                               package
@@ -3847,23 +3858,23 @@ for dependency resolution."
                          (cdr (if (straight--quoted-form-p retrieved)
                                   (eval retrieved) retrieved)))
                        plist))
-                     (type (if (plist-member default :type)
-                               (plist-get default :type)
+                     (type (if (plist-member dflt :type)
+                               (plist-get dflt :type)
                              straight-default-vc))
                      (keywords
                       (append straight--build-keywords
                               (straight-vc-keywords type))))
                 ;; Compute :fork repo name
                 (when-let ((fork (plist-get plist :fork)))
-                  (straight--put default :fork fork)
+                  (straight--put dflt :fork fork)
                   ;; Covers cases where :fork is a string or t
                   (unless (listp fork) (setq fork '()))
                   (straight--put fork :repo
-                                 (straight-vc-git--fork-repo default))
+                                 (straight-vc-git--fork-repo dflt))
                   (straight--put plist :fork fork))
                 (dolist (keyword keywords)
                   (unless (plist-member plist keyword)
-                    (when-let ((value (plist-get default keyword)))
+                    (when-let ((value (plist-get dflt keyword)))
                       (setq plist (plist-put plist keyword value))))))))
           ;; The normalized recipe format will have the package name
           ;; as a string, not a symbol.
@@ -4695,8 +4706,11 @@ last time."
                         (setq newer-or-newermt "-newer")
                         (setq mtime-or-file
                               (straight--make-mtime last-mtime)))
-                      (let* ((default-directory
-                              (straight--repos-dir local-repo))
+                      (let* ((the-dir (straight--repos-dir local-repo))
+                             ;; Emacs 28 can't indent a multi-line let
+                             ;; binding for `default-directory'
+                             ;; correctly, so finagle
+                             (default-directory the-dir)
                              ;; This find(1) command ignores the .git
                              ;; directory, and prints the names of any
                              ;; files or directories with a newer
