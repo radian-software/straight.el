@@ -3277,7 +3277,6 @@ return nil."
                 (plist nil))
             (cl-destructuring-bind (name . melpa-plist) melpa-recipe
               (straight--put plist :type 'git)
-              (straight--put plist :flavor 'melpa)
               (when-let ((files (plist-get melpa-plist :files)))
                 ;; We must include a *-pkg.el entry in the recipe
                 ;; because that file always needs to be linked over,
@@ -3285,9 +3284,15 @@ return nil."
                 ;; not include it (and doesn't need to, because MELPA
                 ;; always re-creates a *-pkg.el file regardless). See
                 ;; https://github.com/radian-software/straight.el/issues/336.
-                (straight--put
-                 plist :files
-                 (append files (list (format "%S-pkg.el" package)))))
+                (setq files (append files (list (format "%S-pkg.el" package))))
+                (setq files
+                      (mapcar
+                       (lambda (entry)
+                         (when (eq (car-safe entry) :rename)
+                           (setq entry (cons (nth 1 entry) (nth 2 entry))))
+                         entry)
+                       files))
+                (straight--put plist :files files))
               (when-let ((branch (plist-get melpa-plist :branch)))
                 (straight--put plist :branch branch))
               (pcase (plist-get melpa-plist :fetcher)
@@ -4265,11 +4270,17 @@ The name of the cache file is stored in
   (straight--log 'modification-detection "Saving build cache")
   (unless straight-safe-mode
     (with-temp-buffer
-      ;; Prevent mangling of the form being printed in the case that
-      ;; this function was called by an `eval-expression' invocation
-      ;; of `straight-use-package'.
-      (let ((print-level nil)
-            (print-length nil))
+      (let (;; Prevent mangling of the form being printed in the case that
+            ;; this function was called by an `eval-expression' invocation
+            ;; of `straight-use-package'.
+            (print-level nil)
+            (print-length nil)
+            ;; Print symbols with attached positions, which can occur
+            ;; during byte compilation, as bare symbols so they can be
+            ;; read when loading the cache.
+            (print-symbols-bare t))
+        ;; Stop the byte-compiler from complaining about unused binding.
+        (ignore print-symbols-bare)
         ;; The version of the build cache.
         (print straight--build-cache-version (current-buffer))
         ;; Record the current Emacs version. If a different version of
@@ -4941,16 +4952,20 @@ the MELPA recipe repository, with some minor differences:
   prefix created by enclosing lists is not respected.
 
 * Whenever a *.el.in file is linked in a MELPA recipe, the target
-  of the link is named as *.el.
+  of the link is named as *.el. (Only in older versions of MELPA.)
 
 * When using `:exclude' in a MELPA recipe, only links defined in
   the current list are subject to removal, and not links defined
   in higher-level lists.
 
-If FLAVOR is nil or omitted, then expansion takes place as
-described above. If FLAVOR is the symbol `melpa', then *.el.in
-files will be linked as *.el files as in MELPA. If FLAVOR is any
-other value, the behavior is not specified."
+* MELPA recipes support a `:rename' keyword that is not supported
+  here (because you can use cons cells to rename files).
+
+There is a legacy argument FLAVOR which is not recommended for
+use. If FLAVOR is the symbol `melpa', then for backwards
+compatibility reasons, *.el.in files will be linked as *.el
+files, which was the behavior on older versions of MELPA. If
+FLAVOR is any other non-nil value, the behavior is not specified."
   ;; We bind `default-directory' here so we don't have to do it
   ;; repeatedly in the recursive section.
   (let* ((default-directory src-dir)
@@ -5228,19 +5243,33 @@ modifies the build folder, not the original repository."
               ;; Non-nil interferes with autoload generation in Emacs < 29, see
               ;; <https://github.com/radian-software/straight.el/issues/904>.
               (left-margin 0))
-          ;; Actually generate the autoload file. Emacs 28.1 replaces
-          ;; `update-directory-autoloads' with
-          ;; `make-directory-autoloads', and Emacs 29 with
-          ;; `loaddefs-generate’
-          (cond
-           ((fboundp 'loaddefs-generate)
-            (loaddefs-generate (straight--build-dir package)
-                               generated-autoload-file))
-           ((fboundp 'make-directory-autoloads)
-            (make-directory-autoloads (straight--build-dir package)
-                                      generated-autoload-file))
-           ((fboundp 'update-directory-autoloads)
-            (update-directory-autoloads (straight--build-dir package)))))
+          ;; In Emacs 27 when you try to generate autoloads for a file
+          ;; whose local variables block specifies a major mode whose
+          ;; function isn't defined, it errors out, contrary to the
+          ;; `find-file' behavior where it just messages "Ignoring
+          ;; unknown mode". Hack some internals to ensure such issues
+          ;; do not cause package builds to fail.
+          (cl-letf* ((orig-hack-one-local-variable
+                      (symbol-function #'hack-one-local-variable))
+                     ((symbol-function #'hack-one-local-variable)
+                      (lambda (var val)
+                        (ignore-errors
+                          (funcall
+                           orig-hack-one-local-variable
+                           var val)))))
+            ;; Actually generate the autoload file. Emacs 28.1
+            ;; replaces `update-directory-autoloads' with
+            ;; `make-directory-autoloads', and Emacs 29 with
+            ;; `loaddefs-generate’
+            (cond
+             ((fboundp 'loaddefs-generate)
+              (loaddefs-generate (straight--build-dir package)
+                                 generated-autoload-file))
+             ((fboundp 'make-directory-autoloads)
+              (make-directory-autoloads (straight--build-dir package)
+                                        generated-autoload-file))
+             ((fboundp 'update-directory-autoloads)
+              (update-directory-autoloads (straight--build-dir package))))))
         ;; And for some reason Emacs leaves a newly created buffer
         ;; lying around. Let's kill it.
         (when-let ((buf (find-buffer-visiting generated-autoload-file)))
@@ -5262,19 +5291,22 @@ individual package recipe."
 RECIPE should be a straight.el-style plist. Note that this
 function only modifies the build folder, not the original
 repository."
-  (let* ((dir (straight--build-dir (plist-get recipe :package)))
+  (let* ((pkg (plist-get recipe :package))
+         (dir (straight--build-dir pkg))
          (emacs (concat invocation-directory invocation-name))
          (buffer straight-byte-compilation-buffer)
+         (deps
+          (let ((tmp nil))
+            (dolist (dep (straight--flatten (straight-dependencies pkg))
+                         tmp)
+              (let ((build-dir (straight--build-dir dep)))
+                (when (file-exists-p build-dir) (push build-dir tmp))))))
          (print-circle nil)
          (print-length nil)
          (program
-          (format "%S" `(let ((default-directory ,(straight--build-dir))
-                              (lp load-path))
-                          (setq load-path (list default-directory))
-                          (normal-top-level-add-subdirs-to-load-path)
-                          (setq load-path (append (cons ,dir load-path)
-                                                  lp))
-                          (byte-recompile-directory ,dir 0 'force))))
+          (format
+           "%S" `(progn (setq load-path (append '(,dir) ',deps load-path))
+                        (byte-recompile-directory ,dir 0 'force))))
          (args (list "-Q" "--batch" "--eval" program)))
     (when buffer (with-current-buffer (get-buffer-create buffer)
                    (insert (format "\n$ %s %s \\\n %S\n" emacs
@@ -5490,11 +5522,22 @@ RECIPE is a straight.el-style plist."
                        straight--autoloads-cache)))
           ;; Some autoloads files expect to be loaded normally, rather
           ;; than read and evaluated separately. Fool them.
+          ;;
+          ;; We also need to abuse `current-load-list' so that
+          ;; autoload entries go properly into the current entry,
+          ;; since normally that is hardcoded to happen during `load'
+          ;; which we are not using here.
+          ;;
+          ;; https://github.com/radian-software/straight.el/issues/1150
+          ;; for information on that.
           (let ((load-file-name (straight--autoloads-file package))
-                (load-in-progress t))
+                (load-in-progress t)
+                (current-load-list nil))
             ;; car is the feature list, cdr is the autoloads.
             (dolist (form (cdr (gethash package straight--autoloads-cache)))
-              (eval form))))
+              (eval form))
+            (when current-load-list
+              (push (cons load-file-name current-load-list) load-history))))
       (straight--load-package-autoloads package))))
 
 ;;;; Interactive helpers
@@ -5849,6 +5892,15 @@ Return non-nil when package is initially installed, nil otherwise."
                      straight--repo-cache)
             (lambda (pkg) (not (member pkg installed)))))
          nil nil nil 'interactive))
+  ;; Do this unconditionally, at the very beginning, because we want
+  ;; to have caches loaded right away - they're needed even for
+  ;; `straight--convert-recipe', to populate the recipe lookup cache.
+  ;;
+  ;; Even for packages with `no-build' enabled, we will want the cache
+  ;; later, as well, since for those packages we still want to check
+  ;; for modifications and (if any) invalidate the relevant entry in
+  ;; the recipe lookup cache.
+  (straight--make-build-cache-available)
   (let ((recipe (straight--convert-recipe
                  (or
                   (straight--get-overridden-recipe
@@ -5918,11 +5970,6 @@ Return non-nil when package is initially installed, nil otherwise."
              ;; We didn't decide to abort, and the repository still
              ;; isn't available. Make it available.
              (straight--clone-repository recipe cause))
-           ;; Do this even for packages with `no-build' enabled, as we
-           ;; still want to check for modifications and (if any)
-           ;; invalidate the relevant entry in the recipe lookup
-           ;; cache.
-           (straight--make-build-cache-available)
            (let* ((no-build
                    (or
                     ;; Remember that `no-build' can come both from the

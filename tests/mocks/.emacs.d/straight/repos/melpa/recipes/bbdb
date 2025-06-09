@@ -1,0 +1,4 @@
+(bbdb
+ :fetcher git
+ :url "https://git.savannah.nongnu.org/git/bbdb.git"
+ :files (:defaults (:rename "lisp/bbdb-site.el.in" "bbdb-site.el")))
