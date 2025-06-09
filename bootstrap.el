@@ -132,7 +132,7 @@
                                    :build nil)))
 
 (straight-use-recipes
- '(nongnu-elpa :type git
+ `(nongnu-elpa :type git
                :repo ,straight-recipes-nongnu-elpa-url
                :depth (full single-branch)
                :local-repo "nongnu-elpa"
