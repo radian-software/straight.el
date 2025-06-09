@@ -1890,12 +1890,13 @@ meaning in a recipe (unknown keywords are ignored but preserved):
 
 * `:local-repo`
 
-  This is the name of the local repository (either a git directory on
-  the local file system or a plain directory on the local file system)
-  that is used for the package. If a local repository by that name
-  does not exist when you invoke `straight-use-package`, one will be
-  cloned according to the package's [version-control
-  settings][#user/recipes/vc-backends].
+  This is the name of the local repository that is used for the
+  package. If a local repository by that name does not exist when you
+  invoke `straight-use-package`, one will be cloned according to the
+  package's [version-control settings][#user/recipes/vc-backends].
+  Note that the repository does not have to be version-controlled; it
+  can also just be a directory containing Emacs Lisp files (set `:type
+  nil` in this case).
 
   Multiple packages can use the same local repository. If so, then a
   change to the local repository will cause both packages to be
@@ -1906,13 +1907,6 @@ meaning in a recipe (unknown keywords are ignored but preserved):
   derived from the [version-control
   settings][#user/recipes/vc-backends], or as a last resort the
   package name.
-
-  For example:
-
-  ```emacs-lisp
-  (straight-use-package
-   '( example :local-repo "/home/user/repos/example.el" ))
-  ```
 
 * `:files`
 
