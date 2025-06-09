@@ -5238,19 +5238,33 @@ modifies the build folder, not the original repository."
               ;; Non-nil interferes with autoload generation in Emacs < 29, see
               ;; <https://github.com/radian-software/straight.el/issues/904>.
               (left-margin 0))
-          ;; Actually generate the autoload file. Emacs 28.1 replaces
-          ;; `update-directory-autoloads' with
-          ;; `make-directory-autoloads', and Emacs 29 with
-          ;; `loaddefs-generate’
-          (cond
-           ((fboundp 'loaddefs-generate)
-            (loaddefs-generate (straight--build-dir package)
-                               generated-autoload-file))
-           ((fboundp 'make-directory-autoloads)
-            (make-directory-autoloads (straight--build-dir package)
-                                      generated-autoload-file))
-           ((fboundp 'update-directory-autoloads)
-            (update-directory-autoloads (straight--build-dir package)))))
+          ;; In Emacs 27 when you try to generate autoloads for a file
+          ;; whose local variables block specifies a major mode whose
+          ;; function isn't defined, it errors out, contrary to the
+          ;; `find-file' behavior where it just messages "Ignoring
+          ;; unknown mode". Hack some internals to ensure such issues
+          ;; do not cause package builds to fail.
+          (cl-letf* ((orig-hack-one-local-variable
+                      (symbol-function #'hack-one-local-variable))
+                     ((symbol-function #'hack-one-local-variable)
+                      (lambda (var val)
+                        (ignore-errors
+                          (funcall
+                           orig-hack-one-local-variable
+                           var val)))))
+            ;; Actually generate the autoload file. Emacs 28.1
+            ;; replaces `update-directory-autoloads' with
+            ;; `make-directory-autoloads', and Emacs 29 with
+            ;; `loaddefs-generate’
+            (cond
+             ((fboundp 'loaddefs-generate)
+              (loaddefs-generate (straight--build-dir package)
+                                 generated-autoload-file))
+             ((fboundp 'make-directory-autoloads)
+              (make-directory-autoloads (straight--build-dir package)
+                                        generated-autoload-file))
+             ((fboundp 'update-directory-autoloads)
+              (update-directory-autoloads (straight--build-dir package))))))
         ;; And for some reason Emacs leaves a newly created buffer
         ;; lying around. Let's kill it.
         (when-let ((buf (find-buffer-visiting generated-autoload-file)))
@@ -5503,11 +5517,22 @@ RECIPE is a straight.el-style plist."
                        straight--autoloads-cache)))
           ;; Some autoloads files expect to be loaded normally, rather
           ;; than read and evaluated separately. Fool them.
+          ;;
+          ;; We also need to abuse `current-load-list' so that
+          ;; autoload entries go properly into the current entry,
+          ;; since normally that is hardcoded to happen during `load'
+          ;; which we are not using here.
+          ;;
+          ;; https://github.com/radian-software/straight.el/issues/1150
+          ;; for information on that.
           (let ((load-file-name (straight--autoloads-file package))
-                (load-in-progress t))
+                (load-in-progress t)
+                (current-load-list nil))
             ;; car is the feature list, cdr is the autoloads.
             (dolist (form (cdr (gethash package straight--autoloads-cache)))
-              (eval form))))
+              (eval form))
+            (when current-load-list
+              (push (cons load-file-name current-load-list) load-history))))
       (straight--load-package-autoloads package))))
 
 ;;;; Interactive helpers
@@ -5862,6 +5887,15 @@ Return non-nil when package is initially installed, nil otherwise."
                      straight--repo-cache)
             (lambda (pkg) (not (member pkg installed)))))
          nil nil nil 'interactive))
+  ;; Do this unconditionally, at the very beginning, because we want
+  ;; to have caches loaded right away - they're needed even for
+  ;; `straight--convert-recipe', to populate the recipe lookup cache.
+  ;;
+  ;; Even for packages with `no-build' enabled, we will want the cache
+  ;; later, as well, since for those packages we still want to check
+  ;; for modifications and (if any) invalidate the relevant entry in
+  ;; the recipe lookup cache.
+  (straight--make-build-cache-available)
   (let ((recipe (straight--convert-recipe
                  (or
                   (straight--get-overridden-recipe
@@ -5931,11 +5965,6 @@ Return non-nil when package is initially installed, nil otherwise."
              ;; We didn't decide to abort, and the repository still
              ;; isn't available. Make it available.
              (straight--clone-repository recipe cause))
-           ;; Do this even for packages with `no-build' enabled, as we
-           ;; still want to check for modifications and (if any)
-           ;; invalidate the relevant entry in the recipe lookup
-           ;; cache.
-           (straight--make-build-cache-available)
            (let* ((no-build
                    (or
                     ;; Remember that `no-build' can come both from the
