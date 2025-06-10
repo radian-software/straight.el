@@ -73,6 +73,10 @@
       "Non-nil means calls to ‘message’ are not displayed.
 They are still logged to the *Messages* buffer.")))
 
+;; The indentation of `define-key' changes depending on Emacs version,
+;; define an alias which doesn't.
+(defalias 'straight--define-key #'define-key)
+
 ;;;; Functions from other packages
 
 ;; `comp'
@@ -1210,10 +1214,11 @@ regard to keybindings."
                 (format "%s\n %s%s %s" prompt
                         (make-string (- max-length (length key)) ? )
                         key desc)))
-        (keymap-set keymap key
-                    (lambda ()
-                      (interactive)
-                      (apply func args)))))
+        (straight--define-key
+         keymap (kbd key)
+         (lambda ()
+           (interactive)
+           (apply func args)))))
     (setq prompt (concat prompt "\n\n"))
     (let ((max-mini-window-height 1.0)
           (cursor-in-echo-area t))
