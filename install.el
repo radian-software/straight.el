@@ -146,7 +146,7 @@
              (error "Malformed version lockfile: %S" lockfile-name))))))
     (unless version
       ;; If no lockfile present, use latest version.
-      (setq version :gamma))
+      (setq version :delta))
     (with-current-buffer
         (url-retrieve-synchronously
          (format
@@ -185,7 +185,12 @@
                    (push sym vars))))
               (mapcar (lambda (var)
                         `(setq ,var ',(symbol-value var)))
-                      vars)))
+                      vars))
+          ;; Help with debugging. The user will not see any of these
+          ;; messages unless there is a catastrophic failure.
+          (setq straight-log t)
+          (setq straight-log-messages t)
+          (setq straight-process-messages t))
        (current-buffer))
       (goto-char (point-max))
       (print
