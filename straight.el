@@ -392,7 +392,8 @@ cannot be reproduced outside your system."
 
 (defcustom straight-log-messages nil
   "Non-nil means also write `straight-log-buffer' to `message'.
-This means all logging will also go to stderr in batch mode.")
+This means all logging will also go to stderr in batch mode."
+  :type 'boolean)
 
 ;;;; Utility functions
 ;;;;; Lists
