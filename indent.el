@@ -4,7 +4,41 @@
 ;; functions.
 ;;
 ;; Generally speaking, we use indentation rules from Emacs 30 to
-;; indent the straight.el source code.
+;; indent the straight.el source code. There are a few tricks to make
+;; this work:
+;;
+;; * Avoid let-binding a variable whose name begins with `def'. Doing
+;; so produces incorrect indentation in Emacs 28 and below, due to an
+;; overly broad heuristic in the lisp-indent code. If binding a
+;; lexical variable, try renaming the variable to something else. If
+;; binding a dynamic variable like `default-directory', the
+;; indentation is fine as long as the binding fits on a single line.
+;; To bind the variable to a longer value, try binding the value to a
+;; temporary name first, and then the variable to the temporary name
+;; on a single line.
+;;
+;; * In `cl-labels' and `cl-flet', make the local functions use names
+;; which begin with `def'. This will make them indent correctly in
+;; Emasc 28 and below, as a helpful side effect of the bug mentioned
+;; above. In later versions these forms are always indented correctly.
+;;
+;; * When writing a data list (i.e., a list that is not a function
+;; call) split over multiple lines, put a space between the opening
+;; paren and the first element. There is code in Emacs 28 and above to
+;; ensure that this convention forces the list to be indented the way
+;; you would expect (i.e. with all elements at the same indentation).
+;; In this file we backport that logic to Emacs 27 and below. Note
+;; that you have to put the first element on the same line as the
+;; opening paren for this to work, as later versions can do the same
+;; when the first line has a comment instead of the first elements,
+;; but earlier versions can't.
+;;
+;; * When using `define-key', use instead `straight--define-key',
+;; which is an alias whose indentation remains the same across Emacs
+;; versions, unlike `define-key' which changed in Emacs 29 due to the
+;; heuristic change mentioned above. (Avoid `keymap-set', until we
+;; drop support for Emacs 28 and prior, where that function doesn't
+;; exist yet.)
 
 (put #'if-let 'lisp-indent-function 2)
 (put #'when-let 'lisp-indent-function 1)
