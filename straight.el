@@ -73,6 +73,10 @@
       "Non-nil means calls to ‘message’ are not displayed.
 They are still logged to the *Messages* buffer.")))
 
+;; The indentation of `define-key' changes depending on Emacs version,
+;; define an alias which doesn't.
+(defalias 'straight--define-key #'define-key)
+
 ;;;; Functions from other packages
 
 ;; `comp'
@@ -1210,10 +1214,11 @@ regard to keybindings."
                 (format "%s\n %s%s %s" prompt
                         (make-string (- max-length (length key)) ? )
                         key desc)))
-        (define-key keymap (kbd key)
-          (lambda ()
-            (interactive)
-            (apply func args)))))
+        (straight--define-key
+         keymap (kbd key)
+         (lambda ()
+           (interactive)
+           (apply func args)))))
     (setq prompt (concat prompt "\n\n"))
     (let ((max-mini-window-height 1.0)
           (cursor-in-echo-area t))
@@ -3122,7 +3127,14 @@ For example:
       (let ((recipe (straight--convert-recipe name cause)))
         (straight--with-plist recipe
             (local-repo)
-          (let ((default-directory
+          ;; Strange construction here: Emacs 28 and below has a funny
+          ;; bug where it looks at a let-binding of default-directory
+          ;; and thinks it is a function declaration, because it sees
+          ;; an s-expression that starts with "def". So, if the value
+          ;; of the let-binding is wrapped to a new line, then it gets
+          ;; indented wrong. Avoid that so that the indentation linter
+          ;; passes on all Emacs versions.
+          (let* ((the-default-directory
                   ;; Only change directories if a local repository is
                   ;; specified. If one is not, then we assume the
                   ;; recipe repository code does not need to be in any
@@ -3130,8 +3142,9 @@ For example:
                   (if local-repo
                       (straight--repos-dir local-repo)
                     default-directory))
-                (func (intern (format "straight-recipes-%S-%S"
-                                      name method))))
+                 (default-directory the-default-directory)
+                 (func (intern (format "straight-recipes-%S-%S"
+                                       name method))))
             (apply func args)))))))
 
 (defun straight-recipes-retrieve (package &optional sources cause)
@@ -3295,24 +3308,24 @@ Otherwise return nil."
     ('org-contrib
      (list package
            :type 'git
-           :includes '(;; Intentionally blank for indentation.
-                       ob-csharp ob-eukleides
-                       ob-fomus ob-julia ob-mathomatic ob-oz
-                       ob-stata
-                       ob-tcl ob-vbnet ol-bookmark ol-elisp-symbol ol-git-link
-                       ol-man ol-mew ol-vm ol-wl org-annotate-file
-                       org-bibtex-extras
-                       org-checklist org-choose org-collector
-                       org-contribdir org-depend org-effectiveness org-eldoc
-                       org-eval org-eval-light org-expiry
-                       org-interactive-query org-invoice org-learn org-license
-                       org-mac-iCal org-mairix
-                       org-panel org-registry org-screen
-                       org-screenshot org-secretary org-static-mathjax
-                       org-sudoku orgtbl-sqlinsert org-toc org-track
-                       org-wikinodes ox-bibtex ox-confluence
-                       ox-deck ox-extra ox-freemind ox-groff ox-koma-letter
-                       ox-s5 ox-taskjuggler)
+           ;; Leading space for indentation.
+           :includes '( ob-csharp ob-eukleides
+                        ob-fomus ob-julia ob-mathomatic ob-oz
+                        ob-stata
+                        ob-tcl ob-vbnet ol-bookmark ol-elisp-symbol ol-git-link
+                        ol-man ol-mew ol-vm ol-wl org-annotate-file
+                        org-bibtex-extras
+                        org-checklist org-choose org-collector
+                        org-contribdir org-depend org-effectiveness org-eldoc
+                        org-eval org-eval-light org-expiry
+                        org-interactive-query org-invoice org-learn org-license
+                        org-mac-iCal org-mairix
+                        org-panel org-registry org-screen
+                        org-screenshot org-secretary org-static-mathjax
+                        org-sudoku orgtbl-sqlinsert org-toc org-track
+                        org-wikinodes ox-bibtex ox-confluence
+                        ox-deck ox-extra ox-freemind ox-groff ox-koma-letter
+                        ox-s5 ox-taskjuggler)
            :repo "https://git.sr.ht/~bzg/org-contrib"
            :files '(:defaults "lisp/*.el")))))
 
@@ -3836,34 +3849,37 @@ for dependency resolution."
               ;; looking in original and finding all keywords that are
               ;; not present in the override and adding them there.
               (let* ((sources (plist-get plist :source))
-                     (default
-                       (or
-                        (when-let ((retrieved (straight-recipes-retrieve
-                                               package
-                                               (if (listp sources)
-                                                   sources
-                                                 (list sources)))))
-                          ;; Recipes retrieved from files may be backquoted.
-                          (cdr (if (straight--quoted-form-p retrieved)
-                                   (eval retrieved) retrieved)))
-                        plist))
-                     (type (if (plist-member default :type)
-                               (plist-get default :type)
+                     ;; Avoid using a variable name that starts with
+                     ;; "def" to avoid triggering indentation bug on
+                     ;; Emacs 28 and below.
+                     (dflt
+                      (or
+                       (when-let ((retrieved (straight-recipes-retrieve
+                                              package
+                                              (if (listp sources)
+                                                  sources
+                                                (list sources)))))
+                         ;; Recipes retrieved from files may be backquoted.
+                         (cdr (if (straight--quoted-form-p retrieved)
+                                  (eval retrieved) retrieved)))
+                       plist))
+                     (type (if (plist-member dflt :type)
+                               (plist-get dflt :type)
                              straight-default-vc))
                      (keywords
                       (append straight--build-keywords
                               (straight-vc-keywords type))))
                 ;; Compute :fork repo name
                 (when-let ((fork (plist-get plist :fork)))
-                  (straight--put default :fork fork)
+                  (straight--put dflt :fork fork)
                   ;; Covers cases where :fork is a string or t
                   (unless (listp fork) (setq fork '()))
                   (straight--put fork :repo
-                                 (straight-vc-git--fork-repo default))
+                                 (straight-vc-git--fork-repo dflt))
                   (straight--put plist :fork fork))
                 (dolist (keyword keywords)
                   (unless (plist-member plist keyword)
-                    (when-let ((value (plist-get default keyword)))
+                    (when-let ((value (plist-get dflt keyword)))
                       (setq plist (plist-put plist keyword value))))))))
           ;; The normalized recipe format will have the package name
           ;; as a string, not a symbol.
@@ -4695,8 +4711,11 @@ last time."
                         (setq newer-or-newermt "-newer")
                         (setq mtime-or-file
                               (straight--make-mtime last-mtime)))
-                      (let* ((default-directory
-                               (straight--repos-dir local-repo))
+                      (let* ((the-dir (straight--repos-dir local-repo))
+                             ;; Emacs 28 can't indent a multi-line let
+                             ;; binding for `default-directory'
+                             ;; correctly, so finagle
+                             (default-directory the-dir)
                              ;; This find(1) command ignores the .git
                              ;; directory, and prints the names of any
                              ;; files or directories with a newer

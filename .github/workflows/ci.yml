@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        emacs_version: [25, 26, 27, 28, 29]
+        emacs_version: [25, 26, 27, 28, 29, 30]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,6 +25,6 @@ jobs:
           VERSION: ${{ matrix.emacs_version }}
         run: >-
           make docker
-          CMD="make compile test smoke checkdoc longlines"
+          CMD="make compile test smoke checkdoc longlines checkindent"
           DOCKER_BASE=ghcr.io/radian-software/emacs-base
           NO_SUDO_DOCKER=1
