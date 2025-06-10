@@ -106,58 +106,28 @@
 ;; have to explicitly clear the caches.
 (straight--reset-caches)
 
-;; We start by registering the default recipe repositories. This is
-;; done first so that any dependencies of straight.el can be looked up
-;; correctly.
-
-;; This is kind of aggressive but we really don't have a good
-;; mechanism at present for customizing the default recipe
-;; repositories anyway. So don't even try to cater to that use case.
-(setq straight-recipe-repositories nil)
-
-(straight-use-recipes '(org-elpa :local-repo nil))
-
-(straight-use-recipes '(melpa :type git :host github
-                              :repo "melpa/melpa"
-                              :build nil))
-
-(if straight-recipes-gnu-elpa-use-mirror
-    (straight-use-recipes
-     '(gnu-elpa-mirror :type git :host github
-                       :repo "emacs-straight/gnu-elpa-mirror"
-                       :build nil))
-  (straight-use-recipes `(gnu-elpa :type git
-                                   :repo ,straight-recipes-gnu-elpa-url
-                                   :local-repo "elpa"
-                                   :build nil)))
-
-(straight-use-recipes
- `(nongnu-elpa :type git
-               :repo ,straight-recipes-nongnu-elpa-url
-               :depth (full single-branch)
-               :local-repo "nongnu-elpa"
-               :build nil))
-
-(straight-use-recipes '(el-get :type git :host github
-                               :repo "dimitri/el-get"
-                               :build nil))
-
-(if straight-recipes-emacsmirror-use-mirror
-    (straight-use-recipes
-     '(emacsmirror-mirror :type git :host github
-                          :repo "emacs-straight/emacsmirror-mirror"
-                          :build nil))
-  (straight-use-recipes '(emacsmirror :type git :host github
-                                      :repo "emacsmirror/epkgs"
-                                      :nonrecursive t
-                                      :build nil)))
-
-;; Then we register (and build) straight.el itself.
+;; First we register (and build) straight.el itself.
 (straight-use-package `(straight :type git :host github
                                  :repo ,(format "%s/straight.el"
                                                 straight-repository-user)
                                  :files ("straight*.el")
                                  :branch ,straight-repository-branch))
+
+;; Reset the tracking variable for `straight-recipe-repositories'. The
+;; user can customize `straight-initial-recipe-repositories' to change
+;; what is added here, or set it to nil and then register their own
+;; recipe repositories later. Either way, it's a requirement that
+;; anything added to this variable be added during every init, so it's
+;; okay to clear this.
+(setq straight-recipe-repositories nil)
+
+;; Now let's clone any initially configured recipe repositories. We
+;; used to do this before straight.el, "so that any dependencies of
+;; straight.el can be looked up correctly", but straight.el doesn't
+;; have any dependencies :) so let's keep it simple, and especially
+;; make sure that any errors cloning the recipe repositories won't
+;; block straight.el itself from loading.
+(mapc #'straight-use-recipes straight-initial-recipe-repositories)
 
 (if (straight--modifications 'check-on-save)
     (straight-live-modifications-mode +1)

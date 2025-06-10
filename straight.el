@@ -3734,6 +3734,58 @@ uses one of the Git fetchers, return it; otherwise return nil."
   "Return the current version of the `el-get' retriever."
   2)
 
+;;;;; Initial recipe repository configuration
+
+;; This user option must be declared after the other user options for
+;; recipe repositories, because its default value depends on those
+;; other user options.
+(defcustom straight-initial-recipe-repositories
+  (list
+   '(org-elpa :local-repo nil)
+   '(melpa :type git :host github
+           :repo "melpa/melpa"
+           :build nil)
+   (if straight-recipes-gnu-elpa-use-mirror
+       '(gnu-elpa-mirror :type git :host github
+                         :repo "emacs-straight/gnu-elpa-mirror"
+                         :build nil)
+     `(gnu-elpa :type git
+                :repo ,straight-recipes-gnu-elpa-url
+                :local-repo "elpa"
+                :build nil))
+   `(nongnu-elpa :type git
+                 :repo ,straight-recipes-nongnu-elpa-url
+                 :depth (full single-branch)
+                 :local-repo "nongnu-elpa"
+                 :build nil)
+   '(el-get :type git :host github
+            :repo "dimitri/el-get"
+            :build nil)
+   (if straight-recipes-emacsmirror-use-mirror
+       '(emacsmirror-mirror :type git :host github
+                            :repo "emacs-straight/emacsmirror-mirror"
+                            :build nil)
+     '(emacsmirror :type git :host github
+                   :repo "emacsmirror/epkgs"
+                   :nonrecursive t
+                   :build nil)))
+  "List of recipe repositories to add automatically during init.
+You can set this to nil and provide all your recipes manually (including
+registering recipes for dependencies that are named in the packages you
+use). Otherwise, any recipe repositories named here will be passed to
+`straight-use-recipes' after straight.el is initialized.
+
+Note that the default value of this variable depends on the values of
+some other user options, which you should customize before loading
+straight.el if you wish to use them to control this user option.
+
+Because recipes are lists whose first element is a symbol naming them,
+this user option takes the form of an alist, and can be customized using
+alist functions, for example `setf' and `alist-get' to change the recipe
+for a given repository or to remove one."
+  :type '(alist :key-type symbol :value-type
+                (plist :key-type symbol :value-type sexp)))
+
 ;;;;; Recipe conversion
 
 (defvar straight--build-keywords '(:build
