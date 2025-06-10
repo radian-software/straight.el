@@ -637,8 +637,8 @@ accident."
           (condition-case err
               (let ((args (mapcar
                            (lambda (arg)
-                             (if (and (listp arg)
-                                      (functionp arg))
+                             (if (and (functionp arg)
+                                      (not (symbolp arg)))
                                  (funcall arg)
                                arg))
                            args)))
