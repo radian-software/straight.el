@@ -294,12 +294,14 @@ SHALLOW nil means use the default behavior of full clones."
   "Invoke CALLBACK with no args after mapping FUNC over ITEMS.
 FUNC is an asynchronous function taking a callback of no args and
 one of ITEMS and performing some side effects."
-  (cl-labels ((func-callback
+  ;; Use func name starting with "def" to workaround indentation bug
+  ;; in Emacs 28 and below
+  (cl-labels ((deffunc-callback
                 ()
                 (if items
-                    (funcall func #'func-callback (pop items))
+                    (funcall func #'deffunc-callback (pop items))
                   (funcall callback))))
-    (func-callback)))
+    (deffunc-callback)))
 
 (defun straight-bench-run-plan (callback)
   "Run all the tests in `straight-bench-test-plan'.

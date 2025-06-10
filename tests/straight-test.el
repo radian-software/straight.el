@@ -307,7 +307,9 @@ return nil."
                  (straight--emacs-path))))
 
 (straight-deftest straight--ensure-blank-lines ()
-  (cl-flet ((buffer-with-point-at (s n)
+  ;; Use func name starting with "def" to workaround indentation bug
+  ;; in Emacs 28 and below
+  (cl-flet ((defbuffer-with-point-at (s n)
               (with-temp-buffer
                 (insert s)
                 (goto-char (point-min))
@@ -316,7 +318,7 @@ return nil."
                                  (match-end 0)))
                 (straight--ensure-blank-lines n)
                 (buffer-string))))
-    (should (equal ,buffer-string (buffer-with-point-at ,string ,n))))
+    (should (equal ,buffer-string (defbuffer-with-point-at ,string ,n))))
   (string n buffer-string)
   "|beginning-of-buffer" 1 "beginning-of-buffer"
   "a|b" 1 "a\nb"
