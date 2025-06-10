@@ -77,6 +77,14 @@ They are still logged to the *Messages* buffer.")))
 ;; define an alias which doesn't.
 (defalias 'straight--define-key #'define-key)
 
+;; Set up indentation for some `use-package' functions that aren't
+;; autoloaded, because we don't actually eagerly load `use-package',
+;; but you won't be able to correctly indent straight.el source code
+;; if it's not loaded, unless we define the indentation manually.
+(dolist (func '(use-package-only-one use-package-process-keywords))
+  (unless (get func 'lisp-indent-function)
+    (put func 'lisp-indent-function 'defun)))
+
 ;;;; Functions from other packages
 
 ;; `comp'
