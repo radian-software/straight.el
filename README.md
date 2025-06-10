@@ -107,6 +107,7 @@ for the [Emacs] hacker.
 - [Trivia](#trivia)
   * [Comments and docstrings](#comments-and-docstrings)
 - [Contributing](#contributing)
+  * [CI administration](#ci-administration)
 - [FAQ](#faq)
   * [My init time got slower](#my-init-time-got-slower)
   * ["Could not find package in recipe repositories"](#could-not-find-package-in-recipe-repositories)
@@ -3432,6 +3433,31 @@ For additional information, please see [the contributor guide for my
 projects](https://github.com/radian-software/contributor-guide). Note
 that `straight.el` has not yet had an initial release, so you don't
 have to worry about a changelog.
+
+### CI administration
+
+Maintaining the GitHub Container Registry images used by CI looks like
+this for a given Emacs version. We have the base image:
+
+```
+docker pull silex/emacs:30
+docker tag silex/emacs:30 ghcr.io/radian-software/emacs-base:30
+docker push ghcr.io/radian-software/emacs-base:30
+```
+
+And the full image:
+
+```
+DOCKER_BASE=ghcr.io/radian-software/emacs-base  \
+  make docker VERSION=30 CMD="make lint test"
+docker tag straight.el:30 ghcr.io/radian-software/straight-ci:30
+docker push ghcr.io/radian-software/straight-ci:30
+```
+
+For this you of course need GHCR authentication, for example by
+generating a personal access token (classic) with the `packages:write`
+scope, and then `docker login https://ghcr.io -u yourlogin
+--password-stdin <<< yourtoken`.
 
 ## FAQ
 ### My init time got slower
