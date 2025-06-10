@@ -390,6 +390,11 @@ cannot be reproduced outside your system."
   "Name of logging buffer when `straight-log' is non-nil."
   :type 'string)
 
+(defcustom straight-log-messages nil
+  "Non-nil means also write `straight-log-buffer' to `message'.
+This means all logging will also go to stderr in batch mode."
+  :type 'boolean)
+
 ;;;; Utility functions
 ;;;;; Lists
 
@@ -633,7 +638,8 @@ accident."
       (save-excursion
         (goto-char (point-max))
         (let ((inhibit-read-only t)
-              (body nil))
+              (body nil)
+              (start (point)))
           (condition-case err
               (let ((args (mapcar
                            (lambda (arg)
@@ -650,7 +656,10 @@ accident."
            (format
             "%s <%S>: %s\n"
             (format-time-string "%Y-%m-%d %H:%M:%S.%3N" (current-time))
-            category body)))))))
+            category body))
+          (when straight-log-messages
+            (message "%s" (buffer-substring-no-properties
+                           start (point)))))))))
 
 ;;;;; Buffers
 
@@ -1022,6 +1031,12 @@ eaten by a grue.")
   "Name of buffer used for process output."
   :type 'string)
 
+(defcustom straight-process-messages nil
+  "Non-nil means also write `straight-process-buffer' to `message'.
+This means all process invocations and results will also go to stderr in
+batch mode."
+  :type 'boolean)
+
 (defun straight--delete-stderr-file ()
   "Remove `straight--process-stderr' file."
   (when (and (boundp 'straight--process-stderr)
@@ -1087,7 +1102,8 @@ ENTRY is a list of the form: (PROGRAM (ARGS...) (RESULT) DIRECTORY)
 If ERROR is non-nil, ENTRY's face is `straight-process-error'."
   (with-current-buffer (straight--process-buffer)
     (goto-char (point-max))
-    (pcase-let ((`(,program ,args ,result ,directory) entry))
+    (pcase-let ((`(,program ,args ,result ,directory) entry)
+                (start (point)))
       (straight--process-with-result result
         (let* ((inhibit-read-only t)
                (entry
@@ -1108,7 +1124,10 @@ If ERROR is non-nil, ENTRY's face is `straight-process-error'."
           (straight--ensure-blank-lines 2)
           (insert (if error
                       (propertize entry 'face 'straight-process-error)
-                    entry)))))))
+                    entry))))
+      (when straight-process-messages
+        (message "%s" (buffer-substring-no-properties
+                       start (point)))))))
 
 (defun straight--process-warn (entry &optional display)
   "Emit a warning for ENTRY.
@@ -1168,8 +1187,12 @@ If the command cannot be run or returns a nonzero exit code, throw an error."
         ;; Some programs may print to stderr even if they exit with 0.
         (let ((output (concat stdout stderr)))
           (if straight--process-trim (string-trim output) output))
-      (error "Failed to run %S; see buffer %s"
-             program straight-process-buffer))))
+      (error
+       "Failed to run %s, see %s"
+       (mapconcat #'shell-quote-argument (cons program args) " ")
+       (if straight-process-messages
+           "prior messages"
+         (format "buffer %s" straight-process-buffer))))))
 
 (defun straight--make-mtime (mtime)
   "Ensure that the `straight--mtimes-file' for MTIME (a string) exists.
@@ -6753,7 +6776,7 @@ according to the value of `straight-profiles'."
               ;;
               ;; The version keyword comes after the versions alist so
               ;; that you can ignore it if you don't need it.
-              "(%s)\n:gamma\n"
+              "(%s)\n:delta\n"
               (mapconcat
                (apply-partially #'format "%S")
                versions-alist
