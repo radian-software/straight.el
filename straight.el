@@ -2692,7 +2692,7 @@ clone of everything."
       ;; fetch/clone. The previous call will have set the default
       ;; directory to the repo-dir, which no longer exists.
       (let ((default-directory (straight--repos-dir)))
-        (apply #'straight--process-run
+        (apply #'straight--process-output
                "git" "clone" "--origin" remote
                "--no-checkout" url repo-dir
                (if single-branch-p "--single-branch" "--no-single-branch")
@@ -2703,13 +2703,13 @@ clone of everything."
           (let ((straight--default-directory nil)
                 (default-directory repo-dir))
             (make-directory repo-dir)
-            (straight--process-run "git" "init")
-            (when branch (straight--process-run "git" "branch" "-m" branch))
+            (straight--process-output "git" "init")
+            (when branch (straight--process-output "git" "branch" "-m" branch))
             (apply #'straight--process-run
                    "git" "remote" "add" remote url
                    (when branch `("--master" ,branch)))
             (unless branch
-              (straight--process-run
+              (straight--process-output
                "git" "branch" "-m"
                (straight-vc-git--default-remote-branch remote repo-dir)))
             (unless (straight--process-run-p "git" "fetch" remote commit
