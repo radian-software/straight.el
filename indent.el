@@ -48,6 +48,7 @@
 
 (when (version< emacs-version "28")
 
+  ;; longlines-start
   (defun straight--calculate-lisp-indent-emacs28 (&optional parse-start)
     "Return appropriate indentation for current line as Lisp code.
 In usual case returns an integer: the column to indent to.
@@ -201,6 +202,7 @@ is the buffer position of the start of the containing expression."
                 (desired-indent)
                 (t
                  normal-indent))))))
+  ;; longlines-end
 
   (advice-add #'calculate-lisp-indent :override
               #'straight--calculate-lisp-indent-emacs28))
