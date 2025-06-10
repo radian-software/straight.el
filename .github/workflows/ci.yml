@@ -26,5 +26,6 @@ jobs:
         run: >-
           make docker
           CMD="make compile test smoke checkdoc longlines checkindent"
-          DOCKER_BASE=ghcr.io/radian-software/emacs-base
+          DOCKER_BASE=ghcr.io/radian-software/straight-ci
+          NO_BUILD_DOCKER=1
           NO_SUDO_DOCKER=1
