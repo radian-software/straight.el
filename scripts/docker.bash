@@ -3,7 +3,7 @@
 set -e
 set -o pipefail
 
-tag="${1:-29}"
+tag="${1:-30}"
 
 args=(bash)
 if [[ -n "$2" ]]; then
