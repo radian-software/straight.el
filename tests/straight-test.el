@@ -650,6 +650,7 @@ return nil."
 ;; compile-command: "make -C ../"
 ;; create-lockfiles: nil
 ;; auto-save-default: nil
+;; indent-tabs-mode: nil
 ;; End:
 
 ;;; straight-test.el ends here

@@ -3303,24 +3303,24 @@ Otherwise return nil."
     ('org-contrib
      (list package
            :type 'git
-           :includes '(;; Intentionally blank for indentation.
-                       ob-csharp ob-eukleides
-                       ob-fomus ob-julia ob-mathomatic ob-oz
-                       ob-stata
-                       ob-tcl ob-vbnet ol-bookmark ol-elisp-symbol ol-git-link
-                       ol-man ol-mew ol-vm ol-wl org-annotate-file
-                       org-bibtex-extras
-                       org-checklist org-choose org-collector
-                       org-contribdir org-depend org-effectiveness org-eldoc
-                       org-eval org-eval-light org-expiry
-                       org-interactive-query org-invoice org-learn org-license
-                       org-mac-iCal org-mairix
-                       org-panel org-registry org-screen
-                       org-screenshot org-secretary org-static-mathjax
-                       org-sudoku orgtbl-sqlinsert org-toc org-track
-                       org-wikinodes ox-bibtex ox-confluence
-                       ox-deck ox-extra ox-freemind ox-groff ox-koma-letter
-                       ox-s5 ox-taskjuggler)
+           ;; Leading space for indentation.
+           :includes '( ob-csharp ob-eukleides
+                        ob-fomus ob-julia ob-mathomatic ob-oz
+                        ob-stata
+                        ob-tcl ob-vbnet ol-bookmark ol-elisp-symbol ol-git-link
+                        ol-man ol-mew ol-vm ol-wl org-annotate-file
+                        org-bibtex-extras
+                        org-checklist org-choose org-collector
+                        org-contribdir org-depend org-effectiveness org-eldoc
+                        org-eval org-eval-light org-expiry
+                        org-interactive-query org-invoice org-learn org-license
+                        org-mac-iCal org-mairix
+                        org-panel org-registry org-screen
+                        org-screenshot org-secretary org-static-mathjax
+                        org-sudoku orgtbl-sqlinsert org-toc org-track
+                        org-wikinodes ox-bibtex ox-confluence
+                        ox-deck ox-extra ox-freemind ox-groff ox-koma-letter
+                        ox-s5 ox-taskjuggler)
            :repo "https://git.sr.ht/~bzg/org-contrib"
            :files '(:defaults "lisp/*.el")))))
 
