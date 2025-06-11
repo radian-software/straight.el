@@ -3937,11 +3937,17 @@ for dependency resolution."
                      ;; Emacs 28 and below.
                      (dflt
                       (or
-                       (when-let ((retrieved (straight-recipes-retrieve
-                                              package
-                                              (if (listp sources)
-                                                  sources
-                                                (list sources)))))
+                       (when-let
+                           ((retrieved
+                             (straight-recipes-retrieve
+                              package
+                              (if (listp sources)
+                                  sources
+                                (list sources))
+                              (concat cause
+                                      (when cause straight-arrow)
+                                      (format
+                                       "Checking for recipe inheritance")))))
                          ;; Recipes retrieved from files may be backquoted.
                          (cdr (if (straight--quoted-form-p retrieved)
                                   (eval retrieved) retrieved)))
@@ -6311,8 +6317,14 @@ include a nil `:build' property, to unconditionally
 inhibit the build phase.
 
 This function also adds the recipe repository to
-`straight-recipe-repositories', at the end of the list."
-  (straight-use-package-lazy melpa-style-recipe)
+`straight-recipe-repositories', at the end of the list.
+
+Existing recipe repositories are not searched for a recipe for the
+recipe repository you are trying to register, because that is strange
+and confusing. If you explicitly want this behavior, you can use the
+`straight-use-package' API directly."
+  (let ((straight-recipe-repositories nil))
+    (straight-use-package-lazy melpa-style-recipe))
   (add-to-list 'straight-recipe-repositories
                (if (listp melpa-style-recipe)
                    (car melpa-style-recipe)
