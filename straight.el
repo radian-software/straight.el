@@ -4561,10 +4561,11 @@ This includes the case where it doesn't yet exist."
          (version-to (straight--watcher-file "version")))
     (not (straight--process-run-p "diff" "-q" version-from version-to))))
 
-(cl-defun straight-watcher-start ()
+(cl-defun straight-watcher-start (&optional force-setup)
   "Start the filesystem watcher, killing any previous instance.
-If it fails, signal a warning and return nil."
-  (interactive)
+If it fails, signal a warning and return nil. With prefix arg, force
+setup again, to fix a broken environment."
+  (interactive "P")
   (straight--log
    'modification-detection "Starting filesystem watcher")
   (unless straight-safe-mode
@@ -4576,7 +4577,7 @@ If it fails, signal a warning and return nil."
       (straight--warn
        "Cannot start filesystem watcher without 'watchexec' installed")
       (cl-return-from straight-watcher-start))
-    (when (straight-watcher--virtualenv-outdated)
+    (when (or force-setup (straight-watcher--virtualenv-outdated))
       (straight--output "Setting up filesystem watcher...")
       (unless (straight-watcher--virtualenv-setup)
         (straight--output "Setting up filesystem watcher...failed")
@@ -4585,6 +4586,8 @@ If it fails, signal a warning and return nil."
     (with-current-buffer (straight-watcher--make-process-buffer)
       (let* ((python (straight--watcher-python))
              (cmd (list
+                   ;; Add the nohup wrapper.
+                   python "-u" "-m" "straight_watch_nohup"
                    ;; Need to disable buffering, otherwise we don't
                    ;; get some important stuff printed.
                    python "-u" "-m" "straight_watch" "start"
@@ -4592,7 +4595,7 @@ If it fails, signal a warning and return nil."
                    (straight--repos-dir)
                    (straight--modified-dir)))
              (sh (concat
-                  "exec nohup "
+                  "exec "
                   (mapconcat #'shell-quote-argument cmd " "))))
         ;; Put the 'nohup.out' file in the ~/.emacs.d/straight/watcher/
         ;; directory.
@@ -4606,7 +4609,23 @@ If it fails, signal a warning and return nil."
         (start-file-process-shell-command
          "straight-watcher" straight-watcher-process-buffer sh)
         (set-process-query-on-exit-flag
-         (get-buffer-process (current-buffer)) nil)))))
+         (get-buffer-process (current-buffer)) nil)
+        (set-process-sentinel
+         (get-buffer-process (current-buffer))
+         (lambda (proc change)
+           (unless (process-live-p proc)
+             (when (buffer-live-p (process-buffer proc))
+               (with-current-buffer (process-buffer proc)
+                 (save-excursion
+                   (goto-char (point-min))
+                   (unless (search-forward
+                            "straight.el nohup initialized successfully\n"
+                            nil 'noerror)
+                     (straight--warn
+                      (concat
+                       "Filesystem watcher failed to start, "
+                       "try C-u M-x straight-watcher-start or "
+                       "check `straight-watcher-process-buffer'")))))))))))))
 
 (defun straight-watcher-stop ()
   "Kill the filesystem watcher, if it is running.
