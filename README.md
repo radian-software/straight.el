@@ -93,6 +93,8 @@ for the [Emacs] hacker.
     + [... in other packages](#-in-other-packages)
     + [... in `straight.el` itself](#-in-straightel-itself)
   * [Using `straight.el` to develop packages](#using-straightel-to-develop-packages)
+    + [Development on built-in packages](#development-on-built-in-packages)
+    + [Development on GNU ELPA packages](#development-on-gnu-elpa-packages)
   * [Integration with other packages](#integration-with-other-packages)
     + [Integration with `use-package`](#integration-with-use-package-1)
       - [Loading packages conditionally](#loading-packages-conditionally)
@@ -3062,6 +3064,70 @@ straightforward:
   directly in order to commit and possibly push them. I suggest using
   [Forge] to create pull requests directly from Emacs, with Magit
   integration.
+
+#### Development on built-in packages
+
+Unfortunately, you cannot edit packages that are built-in to Emacs in
+the same way as you can for external packages. However, there are a
+few options for how you can go about working on contributions to
+packages in Emacs core.
+
+* One option is to see if the package is distributed separately from
+  Emacs, in addition to being distributed in Emacs core. Believe it or
+  not this is the case for several packages, which is a frequent cause
+  of confusion. Typically in this case there is a most recent version
+  of the package available from a separate repository, versus an older
+  version vendored into Emacs core.
+    * In this case, you can load the package from the separate
+      repository using `straight.el` (making sure to register it with
+      `straight.el` *before* anything causes the built-in version of
+      the package to be `require`-ed or `load`-ed, else you will get
+      the wrong version already loaded). Then proceed with normal
+      development workflow.
+    * If the package is already pre-loaded during Emacs init before
+      your init-file even runs (check with `featurep`), you are sort
+      of out of luck here, as there is no way to run an external
+      version of the package instead. You might be able to
+      `unload-feature` and then load the external version, or maybe
+      just forcibly loading the external version on top of the
+      built-in version will work in some situations, however no
+      guarantees.
+* Another option is to switch to the development version of Emacs,
+  i.e. clone the Git repository and build it from source. Then you can
+  modify the built-in package files directly and commit your changes
+  to a branch.
+    * If you don't want to build from source, but you still want to
+      modify the package files in Emacs core directly, one option that
+      avoids the need to interfere with your system package manager is
+      to duplicate the files you want to modify, and put them
+      elsewhere, earlier on the `load-path` (or forcibly load them if
+      they are pre-loaded packages, as mentioned above). You can then
+      even version-control the copies, if you wish.
+* Alternatively, if you don't need to contribute changes upstream,
+  consider using hooks, advice, or `el-patch` to make internal changes
+  to packages directly within your configuration without the need for
+  source code modification. Emacs is extremely mutable, so you can
+  even overwrite internal functions directly in your configuration
+  without any additional framework or access to upstream.
+
+#### Development on GNU ELPA packages
+
+Development on GNU ELPA packages is somewhat complicated by the
+strange nature of GNU ELPA development, where some packages are copied
+out of Emacs core and into the repository, while others are copied
+from external repositories, while still others are maintained directly
+in the GNU ELPA repository itself, and all the packages are in the
+same repository but on different branches.
+
+Since `straight.el` does not have support for using Git worktrees at
+present (which is the only really reasonable way to deal with a
+one-package-per-worktree model), there are not too many good options,
+which is why GNU ELPA Mirror was created. However using GEM obviously
+does not allow external contributions back, since the source code is
+repackaged into a different (more convenient) format than is used for
+upstream development.
+
+Some work could be done here to find a good solution.
 
 ### Integration with other packages
 #### Integration with `use-package`
