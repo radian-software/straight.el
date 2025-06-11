@@ -5,6 +5,7 @@ import shlex
 import signal
 import subprocess
 import sys
+from typing import NoReturn
 
 from packaging.version import parse as parse_version
 import psutil
@@ -94,7 +95,7 @@ def handle_interrupt(signum, frame):
     sys.exit(0)
 
 
-def die(message):
+def die(message) -> NoReturn:
     print(message, file=sys.stderr)
     sys.exit(1)
 
@@ -109,18 +110,20 @@ usage: python -m straight_watch start <pid-file> <repos-dir> <modified-dir>
 def main(args):
     if not args:
         die(usage())
-    try:
-        if args[0] == "start":
-            [pid_file, repos_dir, modified_dir] = args[1:]
-        elif args[0] == "stop":
-            [pid_file] = args[1:]
-        else:
+    if args[0] == "start":
+        if len(args) != 4:
             die(usage())
-    except ValueError:
-        die(usage())
-    kill_previous_watcher(pid_file)
-    if args[0] == "stop":
+        _, pid_file, repos_dir, modified_dir = args
+        kill_previous_watcher(pid_file)
+        # Go to following code.
+    elif args[0] == "stop":
+        if len(args) != 2:
+            die(usage())
+        _, pid_file = args
+        kill_previous_watcher(pid_file)
         sys.exit(0)
+    else:
+        die(usage())
     # We will change the working directory for the callback script, so
     # make the paths absolute.
     repos_dir = os.path.abspath(repos_dir)
