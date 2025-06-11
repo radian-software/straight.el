@@ -3947,7 +3947,8 @@ for dependency resolution."
                               (concat cause
                                       (when cause straight-arrow)
                                       (format
-                                       "Checking for recipe inheritance")))))
+                                       "Computing recipe inheritance for %S"
+                                       package)))))
                          ;; Recipes retrieved from files may be backquoted.
                          (cdr (if (straight--quoted-form-p retrieved)
                                   (eval retrieved) retrieved)))
