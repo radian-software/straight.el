@@ -4563,8 +4563,8 @@ This includes the case where it doesn't yet exist."
 
 (cl-defun straight-watcher-start (&optional force-setup)
   "Start the filesystem watcher, killing any previous instance.
-If it fails, signal a warning and return nil. With prefix arg, force
-setup again, to fix a broken environment."
+If it fails, signal a warning and return nil. With prefix arg
+FORCE-SETUP, force setup again, to fix a broken environment."
   (interactive "P")
   (straight--log
    'modification-detection "Starting filesystem watcher")
@@ -4612,7 +4612,7 @@ setup again, to fix a broken environment."
          (get-buffer-process (current-buffer)) nil)
         (set-process-sentinel
          (get-buffer-process (current-buffer))
-         (lambda (proc change)
+         (lambda (proc _change)
            (unless (process-live-p proc)
              (when (buffer-live-p (process-buffer proc))
                (with-current-buffer (process-buffer proc)
