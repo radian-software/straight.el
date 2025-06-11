@@ -4554,7 +4554,7 @@ If it fails, signal a warning and return nil."
 
 (defun straight-watcher--virtualenv-outdated ()
   "Return non-nil if the watcher virtualenv needs to be set up again.
-This includes the case hwere it doesn't yet exist."
+This includes the case where it doesn't yet exist."
   (let* ((straight-dir (file-name-directory straight--this-file))
          (watcher-dir (expand-file-name "watcher" straight-dir))
          (version-from (expand-file-name "version" watcher-dir))
