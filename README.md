@@ -3096,6 +3096,19 @@ packages in Emacs core.
   i.e. clone the Git repository and build it from source. Then you can
   modify the built-in package files directly and commit your changes
   to a branch.
+    * If you don't want to build from source, but you still want to
+      modify the package files in Emacs core directly, one option that
+      avoids the need to interfere with your system package manager is
+      to duplicate the files you want to modify, and put them
+      elsewhere, earlier on the `load-path` (or forcibly load them if
+      they are pre-loaded packages, as mentioned above). You can then
+      even version-control the copies, if you wish.
+* Alternatively, if you don't need to contribute changes upstream,
+  consider using hooks, advice, or `el-patch` to make internal changes
+  to packages directly within your configuration without the need for
+  source code modification. Emacs is extremely mutable, so you can
+  even overwrite internal functions directly in your configuration
+  without any additional framework or access to upstream.
 
 #### Development on GNU ELPA packages
 
