@@ -3006,7 +3006,7 @@ return nil."
                                   (if (file-directory-p d) d
                                     default-directory))
                               default-directory))
-         (branch-list (straight--process-output "git" "branch" "-r")))
+         (branch-list (straight--process-output "git" "--no-pager" "branch" "-r")))
     (if (string-match "^.*origin/HEAD -> origin/\\(.*$\\)" branch-list)
         (match-string 1 branch-list)
       ;; git doesn't always have the default remote branch name
