@@ -6206,12 +6206,7 @@ hint about how to install the package permanently.
 Return non-nil when package is initially installed, nil otherwise."
   (interactive
    (list (straight-get-recipe
-          (when current-prefix-arg 'interactive) nil
-          (let ((installed nil))
-            ;; Cache keys are :local-repo. We want to compare :package.
-            (maphash (lambda (_ v) (push (plist-get v :package) installed))
-                     straight--repo-cache)
-            (lambda (pkg) (not (member pkg installed)))))
+          (when current-prefix-arg 'interactive) nil)
          nil nil nil 'interactive))
   ;; Do this unconditionally, at the very beginning, because we want
   ;; to have caches loaded right away - they're needed even for
