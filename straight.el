@@ -3247,6 +3247,12 @@ repositories.
 If you set this globally to something other than nil, beware of
 velociraptors.")
 
+(defvar straight--virtual-recipe-repositories nil
+  "List of these recipe repos that don't have actual repos.
+Do not register recipes, do not clone anything, and skip setting
+`default-directory' before invoking API methods. This is intended for
+let-binding around `straight-recipes' calls.")
+
 (defun straight-recipes (method name cause &rest args)
   "Call a recipe backend method.
 METHOD is a symbol naming a backend method, like symbol
@@ -3267,37 +3273,39 @@ For example:
    (straight-recipes \\='retrieve \\='melpa ...)
 => (straight-recipes-melpa-retrieve ...)"
   (unless (memq name straight--recipe-repository-stack)
-    (let ((straight--recipe-repository-stack
+    (let ((func (intern (format "straight-recipes-%S-%S"
+                                name method)))
+          (straight--recipe-repository-stack
            (cons name straight--recipe-repository-stack)))
-      ;; This is purely for cloning the recipe repository. It's
-      ;; explicitly *not* designed to support the use case of looking
-      ;; up the recipe for one recipe repository inside another recipe
-      ;; repository without first running `straight-register-package'
-      ;; for the first recipe repository ahead of time (doing so
-      ;; produces undefined behavior).
-      (straight-use-package name nil nil cause)
-      (let ((recipe (straight--convert-recipe name cause)))
-        (straight--with-plist recipe
-            (local-repo)
-          ;; Strange construction here: Emacs 28 and below has a funny
-          ;; bug where it looks at a let-binding of default-directory
-          ;; and thinks it is a function declaration, because it sees
-          ;; an s-expression that starts with "def". So, if the value
-          ;; of the let-binding is wrapped to a new line, then it gets
-          ;; indented wrong. Avoid that so that the indentation linter
-          ;; passes on all Emacs versions.
-          (let* ((the-default-directory
-                  ;; Only change directories if a local repository is
-                  ;; specified. If one is not, then we assume the
-                  ;; recipe repository code does not need to be in any
-                  ;; particular directory.
-                  (if local-repo
-                      (straight--repos-dir local-repo)
-                    default-directory))
-                 (default-directory the-default-directory)
-                 (func (intern (format "straight-recipes-%S-%S"
-                                       name method))))
-            (apply func args)))))))
+      (if (memq name straight--virtual-recipe-repositories)
+          (apply func args)
+        ;; This is purely for cloning the recipe repository. It's
+        ;; explicitly *not* designed to support the use case of looking
+        ;; up the recipe for one recipe repository inside another recipe
+        ;; repository without first running `straight-register-package'
+        ;; for the first recipe repository ahead of time (doing so
+        ;; produces undefined behavior).
+        (straight-use-package name nil nil cause)
+        (let ((recipe (straight--convert-recipe name cause)))
+          (straight--with-plist recipe
+              (local-repo)
+            ;; Strange construction here: Emacs 28 and below has a funny
+            ;; bug where it looks at a let-binding of default-directory
+            ;; and thinks it is a function declaration, because it sees
+            ;; an s-expression that starts with "def". So, if the value
+            ;; of the let-binding is wrapped to a new line, then it gets
+            ;; indented wrong. Avoid that so that the indentation linter
+            ;; passes on all Emacs versions.
+            (let* ((the-default-directory
+                    ;; Only change directories if a local repository is
+                    ;; specified. If one is not, then we assume the
+                    ;; recipe repository code does not need to be in any
+                    ;; particular directory.
+                    (if local-repo
+                        (straight--repos-dir local-repo)
+                      default-directory))
+                   (default-directory the-default-directory))
+              (apply func args))))))))
 
 (defun straight-recipes-retrieve (package &optional sources cause)
   "Look up a PACKAGE recipe in one or more SOURCES.
@@ -3396,7 +3404,27 @@ If package is not found in any `straight-recipe-repositories', return nil."
          (and (gethash package recipe-repo) repo)))
      straight-recipe-repositories)))
 
+;;;;;; Cache
+
+(defun straight-recipes-cache-retrieve (package)
+  "Look up an existing recipe for PACKAGE in the recipe cache.
+Note: the cache recipe repository does not conform to the standard API
+and is for internal use only."
+  (when (gethash (symbol-name package) straight--recipe-cache)
+    package))
+
+(defun straight-recipes-cache-list ()
+  "Return a list of existing packages in the recipe cache.
+Note: the cache recipe repository does not conform to the standard API
+and is for internal use only."
+  (hash-table-keys straight--recipe-cache))
+
+(defun straight-recipes-cache-version ()
+  "Return the current version of the recipe cache retriever."
+  1)
+
 ;;;;;; Org
+
 (defcustom straight-byte-compilation-buffer "*straight-byte-compilation*"
   "Name of the byte compilation log buffer.
 If nil, output is discarded."
@@ -4995,6 +5023,7 @@ Each function recieves the current recipe as its argument.")
                 (_ defaults))))))
 
 ;;;;; Main entry point
+
 (defun straight--build-package (recipe &optional cause)
   "Build the package specified by the RECIPE.
 This includes running RECIPE's `:pre-build` commands, symlinking the
@@ -6040,7 +6069,7 @@ If FORCE is non-nil do not prompt before deleting repos."
 ;;;;; Recipe acquiry
 
 ;;;###autoload
-(defun straight-get-recipe (&optional sources action filter)
+(defun straight-get-recipe (&optional sources action filter use-cache)
   "Interactively select a recipe from one of the recipe repositories.
 All recipe repositories in `straight-recipe-repositories' will
 first be cloned. After the recipe is selected, it will be copied
@@ -6060,39 +6089,56 @@ action, just return it).
 
 Optional arg FILTER must be a unary function.
 It takes a package name as its sole argument.
-If it returns nil the candidate is excluded."
+If it returns nil the candidate is excluded.
+
+USE-CACHE non-nil means respect the existing straight.el recipe cache,
+i.e. display also packages that have been registered in the current
+Emacs session even if not found in any recipe repository, and if such a
+package is selected, return just the package name as a symbol, instead
+of a recipe. (It is not possible to return an actual recipe, as the API
+for `straight-get-recipe' returns MELPA-style recipes, while cached
+recipes have already been converted into the internal format.)
+
+Within `straight-get-recipe', the symbol `cache' is treated as if it is
+also a member of `straight-recipe-repositories', and refers to the set
+of packages that have already been registered in the current Emacs
+session."
   (interactive (list (when current-prefix-arg 'interactive) 'copy))
-  (when (eq sources 'interactive)
-    (setq sources (list
-                   (intern
-                    (completing-read
-                     "Which recipe repository? "
-                     straight-recipe-repositories
-                     nil
-                     'require-match)))))
-  (let ((sources (or sources straight-recipe-repositories)))
-    (let* ((package (intern
-                     (completing-read
-                      "Which recipe? "
-                      (if filter
-                          (cl-remove-if-not filter
-                                            (straight-recipes-list sources))
-                        (straight-recipes-list sources))
-                      (lambda (_) t)
-                      'require-match)))
-           ;; No need to provide a `cause' to
-           ;; `straight-recipes-retrieve'; it should not be printing
-           ;; any messages.
-           (recipe (straight-recipes-retrieve package sources)))
-      (unless recipe
-        (user-error "Recipe for %S is malformed" package))
-      (pcase action
-        ('insert (insert (format "%S" recipe)))
-        ('copy (kill-new (format "%S" recipe))
-               (straight--output "Copied \"%S\" to kill ring" recipe))
-        (_ recipe)))))
+  (let ((interactive (eq sources 'interactive)))
+    (when (memq sources '(nil interactive))
+      (setq sources straight-recipe-repositories))
+    (when use-cache
+      (push 'cache sources))
+    (when interactive
+      (setq sources (list
+                     (intern
+                      (completing-read
+                       "Which recipe repository? "
+                       sources nil 'require-match))))))
+  (let* ((straight--virtual-recipe-repositories '(cache))
+         (package (intern
+                   (completing-read
+                    "Which recipe? "
+                    (if filter
+                        (cl-remove-if-not filter
+                                          (straight-recipes-list sources))
+                      (straight-recipes-list sources))
+                    (lambda (_) t)
+                    'require-match)))
+         ;; No need to provide a `cause' to
+         ;; `straight-recipes-retrieve'; it should not be printing
+         ;; any messages.
+         (recipe (straight-recipes-retrieve package sources)))
+    (unless recipe
+      (user-error "Recipe for %S is malformed" package))
+    (pcase action
+      ('insert (insert (format "%S" recipe)))
+      ('copy (kill-new (format "%S" recipe))
+             (straight--output "Copied \"%S\" to kill ring" recipe))
+      (_ recipe))))
 
 ;;;;; Update recipe repositories
+
 (defun straight-pull-recipe-repositories (&optional sources)
   "Update recipe repository SOURCES.
 When called with `\\[universal-argument]', prompt for SOURCES.
@@ -6203,10 +6249,18 @@ non-nil if the function has been called interactively. It is for
 internal use only, and is used to determine whether to show a
 hint about how to install the package permanently.
 
-Return non-nil when package is initially installed, nil otherwise."
+Return non-nil when package is initially installed, nil otherwise.
+
+Interactively, prompt with a list of available packages in currently
+registered recipe repositories. With prefix arg, prompt first for which
+recipe repository to list from. If a package has already been registered
+in the current Emacs session, the existing recipe is re-used rather than
+being looked up anew. With prefix arg, \"cache\" is displayed as one of
+the recipe repositories, and allows filtering to only already-registered
+packages."
   (interactive
    (list (straight-get-recipe
-          (when current-prefix-arg 'interactive) nil)
+          (when current-prefix-arg 'interactive) nil nil 'use-cache)
          nil nil nil 'interactive))
   ;; Do this unconditionally, at the very beginning, because we want
   ;; to have caches loaded right away - they're needed even for
