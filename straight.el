@@ -1003,6 +1003,23 @@ be interpreted later as a symlink."
                          link-name (file-symlink-p link-name) link-target))))))
 
 ;;;;; External processes
+
+(defcustom straight-display-subprocess-prompts nil
+  "Non-nil means display prompts received from subprocess invocations.
+For example, if a Git clone requires HTTPS or SSH passphrase to be
+entered, you will be prompted in the minibuffer, and your response will
+be passed back to Git. Nil means stdin will not be connected to
+subprocesses, so for example Git will fall back to non-tty
+authentication if possible, or fail otherwise.
+
+The default value is nil for now because the code for handling
+interactive subprocesses is much more complex, and might have unintended
+side effects, so it is currently being tested for robustness. Please
+report any bugs you find: performance regressions, execution hangs, and
+out-of-order command execution are the most likely unintended side
+effects of enabling this option."
+  :type 'boolean)
+
 (defvar straight--process-log t
   "If non-nil, log process output to `straight-process-buffer'.")
 
@@ -1019,6 +1036,62 @@ against the wrong repositories.
 
 If you set this globally to something other than nil, you may be
 eaten by a grue.")
+
+(defvar straight--process-output-counter 0
+  "Variable incremented each time output is received from a process.
+This is a way of seeing whether output was received from a process
+during a call to `accept-process-output'.")
+
+(defun straight--process-filter (proc string)
+  "Process filter for interactive processes spawned by straight.el.
+Outputs to the process buffer, but directs username and passphrase
+prompts to the minibuffer, like Magit. See [1] in comment below for
+information on PROC and STRING."
+  (cl-incf straight--process-output-counter)
+  ;; [1]: https://www.gnu.org/software/emacs/manual/html_node/elisp/Filter-Functions.html
+  (cl-block nil
+    (condition-case _
+        (when-let ((buf (process-buffer proc)))
+          (with-current-buffer buf
+            (save-excursion
+              (goto-char (point-max))
+              (let ((case-fold-search t)
+                    (inhibit-read-only t)
+                    (stdin (plist-get (process-plist proc) :stdin)))
+                ;; Here is the part where we try to emulate a very
+                ;; small part of the behavior of a real terminal
+                ;; emulator, and handle carriage returns correctly.
+                ;; (In other words, don't spew a bunch of garbage
+                ;; during a 'git clone' because of the progress bar
+                ;; messages.)
+                (let ((parts (split-string string "\r")))
+                  (insert (car parts))
+                  (dolist (part (cdr parts))
+                    (delete-region
+                     (line-beginning-position) (line-end-position))
+                    (insert part)))
+                (let ((prompt (thing-at-point 'line)))
+                  (when (string-match "username.*: $" prompt)
+                    (let ((username (read-string (thing-at-point 'line))))
+                      (insert username "\n")
+                      (ignore-errors
+                        (process-send-string stdin (concat username "\n")))
+                      (cl-return))))
+                (let ((prompt (thing-at-point 'line)))
+                  (when (string-match
+                         "\\(password\\|passphrase\\).*: $" prompt)
+                    (let ((password (read-passwd prompt)))
+                      (insert (make-string
+                               (length password)
+                               (or (bound-and-true-p read-hide-char) ?*)))
+                      (ignore-errors
+                        (process-send-string stdin (concat password "\n")))
+                      (clear-string password)
+                      (cl-return))))))))
+      (quit
+       (ignore-errors
+         (set-process-filter proc nil)
+         (interrupt-process proc))))))
 
 (defconst straight--process-stderr
   (expand-file-name (format "straight-stderr-%s" (emacs-pid))
@@ -1049,26 +1122,75 @@ batch mode."
     (unless (derived-mode-p 'special-mode) (special-mode))
     (current-buffer)))
 
+(defun straight--process-call-interactively (program &rest args)
+  "Run PROGRAM synchronously with ARGS.
+Return a list of form: (EXITCODE STDOUT STDERR)."
+  (let* ((stdout (get-buffer-create " *straight-proc-stdout*"))
+         (stderr (get-buffer-create " *straight-proc-stderr*"))
+         (_ (dolist (buf (list stdout stderr))
+              (let ((proc (get-buffer-process buf)))
+                (ignore-errors
+                  (set-process-filter proc #'ignore)
+                  (kill-process proc)))))
+         (stdout-proc (make-process
+                       :name "straight"
+                       :command (cons program args)
+                       :buffer stdout
+                       :stderr stderr
+                       :noquery t))
+         (stderr-proc (get-buffer-process stderr)))
+    (dolist (buf (list stdout stderr))
+      (with-current-buffer buf
+        (erase-buffer))
+      (let ((proc (get-buffer-process buf)))
+        (set-process-filter proc #'straight--process-filter)
+        (set-process-sentinel proc #'ignore)
+        (set-process-plist
+         proc (plist-put (process-plist proc) :stdin stdout-proc))))
+    (setq straight--process-output-counter 0)
+    (let ((last-output-counter -1))
+      (while (or (process-live-p stdout-proc)
+                 (process-live-p stderr-proc)
+                 (/= straight--process-output-counter
+                     last-output-counter))
+        ;; Save the previous value of the output counter, then run
+        ;; `accept-process-output'. If the counter doesn't increase
+        ;; when doing so, then no output was received, which according
+        ;; to the API of `accept-process-output' means that the
+        ;; connection must be closed, and we are done.
+        (setq last-output-counter straight--process-output-counter)
+        (accept-process-output stdout-proc)
+        (accept-process-output stderr-proc)))
+    (list
+     (process-exit-status stdout-proc)
+     (with-current-buffer stdout
+       (buffer-string))
+     (with-current-buffer stderr
+       (buffer-string)))))
+
 (defun straight--process-call (program &rest args)
-  "Run PROGRAM syncrhonously with ARGS.
+  "Run PROGRAM synchronously with ARGS.
 Return a list of form: (EXITCODE STDOUT STDERR).
 If the process is unable to start, return an elisp error object."
   (when (string-match-p "/" program)
     (setq program (expand-file-name program)))
-  (condition-case e
-      (with-temp-buffer
-        (list
-         (apply #'call-process program nil
-                (list t straight--process-stderr)
-                nil args)
-         (let ((s (buffer-substring-no-properties (point-min) (point-max))))
-           (unless (string-empty-p s) s))
-         (progn
-           (insert-file-contents
-            straight--process-stderr nil nil nil 'replace)
+  (if straight-display-subprocess-prompts
+      (apply #'straight--process-call-interactively program args)
+    (condition-case e
+        (with-temp-buffer
+          (list
+           (apply #'call-process program nil
+                  (list t straight--process-stderr)
+                  nil args)
            (let ((s (buffer-substring-no-properties (point-min) (point-max))))
-             (unless (string-empty-p s) s)))))
-    (error e)))
+             (unless (string-empty-p s) s))
+           (progn
+             (insert-file-contents
+              straight--process-stderr nil nil nil 'replace)
+             (let ((s (buffer-substring-no-properties
+                       (point-min) (point-max))))
+               (unless (string-empty-p s) s)))))
+      (error e))))
 
 (defmacro straight--process-with-result (result &rest body)
   "Provide anaphoric RESULT bindings for duration of BODY.
