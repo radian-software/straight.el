@@ -106,20 +106,25 @@
 ;; have to explicitly clear the caches.
 (straight--reset-caches)
 
-;; First we register (and build) straight.el itself.
-(straight-use-package `(straight :type git :host github
-                                 :repo ,(format "%s/straight.el"
-                                                straight-repository-user)
-                                 :files ("straight*.el")
-                                 :branch ,straight-repository-branch))
-
 ;; Reset the tracking variable for `straight-recipe-repositories'. The
 ;; user can customize `straight-initial-recipe-repositories' to change
 ;; what is added here, or set it to nil and then register their own
 ;; recipe repositories later. Either way, it's a requirement that
 ;; anything added to this variable be added during every init, so it's
 ;; okay to clear this.
+;;
+;; Need to clear the recipe repositories before registering the
+;; straight.el recipe, otherwise if recipe inheritance is enabled, the
+;; recipe repository names from last init may be looked up in
+;; themselves (looking at you el-get) which is no good.
 (setq straight-recipe-repositories nil)
+
+;; First we register (and build) straight.el itself.
+(straight-use-package `(straight :type git :host github
+                                 :repo ,(format "%s/straight.el"
+                                                straight-repository-user)
+                                 :files ("straight*.el")
+                                 :branch ,straight-repository-branch))
 
 ;; Now let's clone any initially configured recipe repositories. We
 ;; used to do this before straight.el, "so that any dependencies of
