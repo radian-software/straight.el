@@ -12,5 +12,5 @@ setup(
     version="1.0-dev",
     # Must be specified explicitly from setuptools>=61
     # https://github.com/pypa/setuptools/issues/4013
-    py_modules=["straight_watch", "straight_watch_callback"],
+    py_modules=["straight_watch", "straight_watch_callback", "straight_watch_nohup"],
 )
