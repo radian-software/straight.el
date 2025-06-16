@@ -3564,6 +3564,10 @@ return nil."
                 ;; This error is caught by `condition-case', no need
                 ;; for a message.
                 (_ (error "")))
+              (when (equal
+                     (plist-get melpa-plist :url)
+                     "https://git.savannah.gnu.org/git/emacs/nongnu.git")
+                (straight--put plist :local-repo (symbol-name package)))
               (cons name plist))))
       (error nil))))
 
@@ -3573,7 +3577,7 @@ return nil."
 
 (defun straight-recipes-melpa-version ()
   "Return the current version of the MELPA retriever."
-  2)
+  3)
 
 ;;;;;; GNU ELPA
 
