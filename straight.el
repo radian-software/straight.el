@@ -3645,38 +3645,46 @@ This is a list of strings."
                  "https://github.com/emacsmirror/gnu_elpa.git")
           (string :tag "Custom value")))
 
+(defun straight-recipe-gnu-elpa--list-packages ()
+  "Return list of packages (symbols) maintained in GNU ELPA source.
+This excludes the ones that are tracked in Emacs core."
+  (with-temp-buffer
+    (insert-file-contents "elpa-packages")
+    (goto-char (point-min))
+    (mapcar
+     #'car
+     (cl-remove-if
+      (lambda (entry)
+        (or (memq (car entry) straight-recipes-gnu-elpa-ignored-packages)
+            (memq :core entry)))
+      (read (current-buffer))))))
+
 (defun straight-recipes-gnu-elpa-retrieve (package)
   "Look up a PACKAGE recipe in GNU ELPA.
 PACKAGE should be a symbol. If the package is maintained in GNU
 ELPA (and should be retrieved from there, which isn't the case if
 the package is built in to Emacs), return a MELPA-style recipe.
 Otherwise, return nil."
-  (unless (memq package straight-recipes-gnu-elpa-ignored-packages)
-    (when (file-exists-p (expand-file-name (symbol-name package) "packages/"))
-      ;; All the packages in GNU ELPA are just subdirectories of the
-      ;; same repository.
-      `(,package :type git
-                 :repo ,straight-recipes-gnu-elpa-url
-                 :files (,(format "packages/%s/*.el"
-                                  (symbol-name package)))
-                 :local-repo "elpa"))))
+  (when (memq package (straight-recipe-gnu-elpa--list-packages))
+    `(,package :type git
+               :repo ,straight-recipes-gnu-elpa-url
+               :branch ,(format "externals/%s" (symbol-name package))
+               :depth (full single-branch)
+               :local-repo ,(symbol-name package))))
 
 (defun straight-recipes-gnu-elpa-list ()
   "Return a list of recipe names available in GNU ELPA, as a list of strings."
-  (cl-remove-if
-   (lambda (package)
-     (memq (intern package) straight-recipes-gnu-elpa-ignored-packages))
-   (straight--directory-files "packages/")))
+  (mapcar #'symbol-name (straight-recipe-gnu-elpa--list-packages)))
 
 (defun straight-recipes-gnu-elpa-version ()
   "Return the current version of the GNU ELPA retriever."
-  2)
+  3)
 
 ;;;;;; NonGNU ELPA
 
 (defcustom straight-recipes-nongnu-elpa-url
   "https://github.com/emacsmirror/nongnu_elpa.git"
-  "URL of the Git repository for the NONGNU ELPA package repository."
+  "URL of the Git repository for the NonGNU ELPA package repository."
   :type '(choice
           (const :tag "GNU repository"
                  "https://git.savannah.gnu.org/git/emacs/nongnu.git")
