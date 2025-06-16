@@ -6410,7 +6410,8 @@ packages."
                (run-hook-with-args
                 'straight-use-package-pre-build-functions package)
                (straight--build-package recipe cause)
-               ;; We've rebuilt the package, so its autoloads might have changed.
+               ;; We've rebuilt the package, so its autoloads might
+               ;; have changed.
                (remhash package straight--autoloads-cache))
              ;; We need to do this even if the package wasn't built,
              ;; so we can keep track of modifications.
