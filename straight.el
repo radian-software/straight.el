@@ -2992,7 +2992,7 @@ If RECIPE does not configure a fork, do nothing."
 
 (cl-defun straight-vc-git--default-remote-branch (remote &optional local-repo)
   "Return the default remote branch of LOCAL-REPO, with remote name REMOTE.
-If LOCAL-REPO is not specified, assume we are the correct
+If LOCAL-REPO is not specified, assume we are in the correct
 directory for the repository. If there is no remote repository,
 return nil."
   (let* ((process-environment
@@ -3018,8 +3018,11 @@ return nil."
         (straight--process-with-result
             (straight--process-run "git" "remote" "show" remote)
           (when success
-            (replace-regexp-in-string ".*: \\(.*\\)$" "\\1"
-                                      (nth 3 (split-string stdout "\n")))))))))
+            (save-match-data
+              (string-match "^  HEAD branch: \\(.+\\)$" stdout)
+              (or (match-string 1 stdout)
+                  (error
+                   "Could not determine default branch for remote")))))))))
 
 (cl-defun straight-vc-git-merge-from-remote (recipe &optional from-upstream)
   "Using straight.el-style RECIPE, merge from the primary remote.
