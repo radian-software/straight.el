@@ -5763,8 +5763,6 @@ repository."
 RECIPE should be a straight.el-style plist. The build mtime and
 recipe in `straight--build-cache' for the package are updated."
   (straight--with-plist recipe (package)
-    ;; We've rebuilt the package, so its autoloads might have changed.
-    (remhash package straight--autoloads-cache)
     ;; This time format is compatible with:
     ;;
     ;; * BSD find shipped with macOS >=10.11
@@ -6411,7 +6409,9 @@ packages."
              (when (and modified (not no-build))
                (run-hook-with-args
                 'straight-use-package-pre-build-functions package)
-               (straight--build-package recipe cause))
+               (straight--build-package recipe cause)
+               ;; We've rebuilt the package, so its autoloads might have changed.
+               (remhash package straight--autoloads-cache))
              ;; We need to do this even if the package wasn't built,
              ;; so we can keep track of modifications.
              (straight--declare-successful-build recipe)
