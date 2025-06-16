@@ -3636,9 +3636,14 @@ This is a list of strings."
 ;;;;;;; GNU ELPA source
 
 (defcustom straight-recipes-gnu-elpa-url
-  "https://git.savannah.gnu.org/git/emacs/elpa.git"
+  "https://github.com/emacsmirror/gnu_elpa.git"
   "URL of the Git repository for the GNU ELPA package repository."
-  :type 'string)
+  :type '(choice
+          (const :tag "GNU repository"
+                 "https://git.savannah.gnu.org/git/emacs/elpa.git")
+          (const :tag "GitHub mirror"
+                 "https://github.com/emacsmirror/gnu_elpa.git")
+          (string :tag "Custom value")))
 
 (defun straight-recipes-gnu-elpa-retrieve (package)
   "Look up a PACKAGE recipe in GNU ELPA.
@@ -3670,9 +3675,14 @@ Otherwise, return nil."
 ;;;;;; NonGNU ELPA
 
 (defcustom straight-recipes-nongnu-elpa-url
-  "https://git.savannah.gnu.org/git/emacs/nongnu.git"
+  "https://github.com/emacsmirror/nongnu_elpa.git"
   "URL of the Git repository for the NONGNU ELPA package repository."
-  :type 'string)
+  :type '(choice
+          (const :tag "GNU repository"
+                 "https://git.savannah.gnu.org/git/emacs/nongnu.git")
+          (const :tag "GitHub mirror"
+                 "https://github.com/emacsmirror/nongnu_elpa")
+          (string :tag "Custom value")))
 
 (defun straight-recipes-nongnu-elpa--translate (recipe)
   "Translate RECIPE into straight.el-style recipe."
