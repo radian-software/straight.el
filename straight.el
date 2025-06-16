@@ -3021,7 +3021,8 @@ return nil."
             (save-match-data
               (string-match "^  HEAD branch: \\(.+\\)$" stdout)
               (or (match-string 1 stdout)
-                  (error "Could not determine default branch for remote")))))))))
+                  (error
+                   "Could not determine default branch for remote")))))))))
 
 (cl-defun straight-vc-git-merge-from-remote (recipe &optional from-upstream)
   "Using straight.el-style RECIPE, merge from the primary remote.
