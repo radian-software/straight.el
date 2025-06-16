@@ -1164,9 +1164,11 @@ Return a list of form: (EXITCODE STDOUT STDERR)."
     (list
      (process-exit-status stdout-proc)
      (with-current-buffer stdout
-       (buffer-string))
+       (unless (zerop (buffer-size))
+         (buffer-string)))
      (with-current-buffer stderr
-       (buffer-string)))))
+       (unless (zerop (buffer-size))
+         (buffer-string))))))
 
 (defun straight--process-call (program &rest args)
   "Run PROGRAM synchronously with ARGS.
