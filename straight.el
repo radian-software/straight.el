@@ -2724,7 +2724,7 @@ Return non-nil. If no local repository, do nothing and return non-nil."
                                            branch ref)
               (cl-return t))
             (let* ((log (straight--process-output
-                         "git" "log" "--format=%h %s"
+                         "git" "--no-pager" "log" "--format=%h %s"
                          (concat ref ".." branch)))
                    (num-commits (length (straight--split-and-trim log))))
               (straight-vc-git--popup
@@ -7439,10 +7439,10 @@ Interactively, or when MESSAGE is non-nil, show in the echo area."
                                             library))))))
               (straight--process-with-result
                   (straight--process-run
-                   "git" "show" "-s" "--format=%d %h %cs")
+                   "git" "--no-pager" "show" "-s" "--format=%d %h %cs")
                 (if success
                     (string-trim (concat stdout stderr))
-                  (format "Uknown version. See %s" straight-process-buffer)))
+                  (format "Unknown version. See %s" straight-process-buffer)))
             "Unable to set `default-directory' for git info."))
          (version (format "%s %s" declared gitinfo)))
     (if (or message (called-interactively-p 'interactive))
@@ -7552,7 +7552,8 @@ Info is a plist of form:
                            ;;@FIXME: shouldn't rely on vc-git specifically here
                            (straight-vc-git--local-branch "HEAD")
                            (straight--process-output
-                            "git" "show" "-s" "--format=%h %cs")))))))
+                            "git" "--no-pager" "show"
+                            "-s" "--format=%h %cs")))))))
        (append
         (list :package package)
         (when source (list :source source))
