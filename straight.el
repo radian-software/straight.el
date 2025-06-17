@@ -7042,6 +7042,38 @@ advices are put on `package--ensure-init-file' and
 modifying the init-file."
   :type 'boolean)
 
+(defvar straight-package--warning-displayed nil
+  "Non-nil means a warning was already displayed about package.el.")
+
+;; Warn the user if package.el was also loaded in the current session,
+;; see <https://github.com/radian-software/straight.el/issues/1036>.
+(let ((tips
+       (concat
+        "You may wish to delete ~/.emacs.d/elpa or add "
+        "(setq package-enable-at-startup nil) to "
+        "~/.emacs.d/early-init.el to avoid multiple versions "
+        "of the same packages being loaded.")))
+  (if (and (featurep 'package)
+           (file-exists-p (bound-and-true-p package-user-dir)))
+      (unless straight-package--warning-displayed
+        (display-warning
+         '(straight package)
+         (concat
+          "straight.el was loaded when package.el was already loaded. "
+          tips)
+         :warning)
+        (setq straight-package--warning-displayed t))
+    (with-eval-after-load 'package
+      (unless straight-package--warning-displayed
+        (when (file-exists-p (bound-and-true-p package-user-dir))
+          (display-warning
+           '(straight package)
+           (concat
+            "package.el was loaded when straight.el was already loaded. "
+            tips)
+           :warning))
+        (setq straight-package--warning-displayed t)))))
+
 ;;;;;; Mode variables
 
 (defvar straight-package--last-enable-at-startup t
