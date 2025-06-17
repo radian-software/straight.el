@@ -7054,7 +7054,7 @@ modifying the init-file."
         "~/.emacs.d/early-init.el to avoid multiple versions "
         "of the same packages being loaded.")))
   (if (and (featurep 'package)
-           (file-exists-p package-user-dir))
+           (file-exists-p (bound-and-true-p package-user-dir)))
       (unless straight-package--warning-displayed
         (display-warning
          '(straight package)
@@ -7065,7 +7065,7 @@ modifying the init-file."
         (setq straight-package--warning-displayed t))
     (with-eval-after-load 'package
       (unless straight-package--warning-displayed
-        (when (file-exists-p package-user-dir)
+        (when (file-exists-p (bound-and-true-p package-user-dir))
           (display-warning
            '(straight package)
            (concat
