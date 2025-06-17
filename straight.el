@@ -3950,6 +3950,7 @@ uses one of the Git fetchers, return it; otherwise return nil."
                          :build nil)
      `(gnu-elpa :type git
                 :repo ,straight-recipes-gnu-elpa-url
+                :depth (full single-branch)
                 :local-repo "elpa"
                 :build nil))
    `(nongnu-elpa :type git
