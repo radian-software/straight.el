@@ -1172,27 +1172,24 @@ Return a list of form: (EXITCODE STDOUT STDERR)."
 
 (defun straight--process-call (program &rest args)
   "Run PROGRAM synchronously with ARGS.
-Return a list of form: (EXITCODE STDOUT STDERR).
-If the process is unable to start, return an elisp error object."
+Return a list of form: (EXITCODE STDOUT STDERR)."
   (when (string-match-p "/" program)
     (setq program (expand-file-name program)))
   (if straight-display-subprocess-prompts
       (apply #'straight--process-call-interactively program args)
-    (condition-case e
-        (with-temp-buffer
-          (list
-           (apply #'call-process program nil
-                  (list t straight--process-stderr)
-                  nil args)
-           (let ((s (buffer-substring-no-properties (point-min) (point-max))))
-             (unless (string-empty-p s) s))
-           (progn
-             (insert-file-contents
-              straight--process-stderr nil nil nil 'replace)
-             (let ((s (buffer-substring-no-properties
-                       (point-min) (point-max))))
-               (unless (string-empty-p s) s)))))
-      (error e))))
+    (with-temp-buffer
+      (list
+       (apply #'call-process program nil
+              (list t straight--process-stderr)
+              nil args)
+       (let ((s (buffer-substring-no-properties (point-min) (point-max))))
+         (unless (string-empty-p s) s))
+       (progn
+         (insert-file-contents
+          straight--process-stderr nil nil nil 'replace)
+         (let ((s (buffer-substring-no-properties
+                   (point-min) (point-max))))
+           (unless (string-empty-p s) s)))))))
 
 (defmacro straight--process-with-result (result &rest body)
   "Provide anaphoric RESULT bindings for duration of BODY.
