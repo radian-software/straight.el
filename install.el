@@ -221,7 +221,7 @@
                    ;; (for some silly reason) move your
                    ;; `user-emacs-directory'.
                    (link-target (concat "repos/" local-repo "/bootstrap.el"))
-                   (link-name (concat straight-install-dir
+                   (link-name (concat ',straight-install-dir
                                       "straight/bootstrap.el")))
               (ignore-errors
                 ;; If it's a directory, the linking will fail. Just let
