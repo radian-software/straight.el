@@ -5426,7 +5426,11 @@ the build directory, creating a pristine set of symlinks."
                    flavor))
       (cl-destructuring-bind (repo-file . build-file) spec
         (make-directory (file-name-directory build-file) 'parents)
-        (straight--symlink-recursively repo-file build-file)))))
+        (let ((straight-use-symlinks
+               (if (plist-member recipe :symlink)
+                   (plist-get recipe :symlink)
+                 straight-use-symlinks)))
+          (straight--symlink-recursively repo-file build-file))))))
 
 (defvar straight-symlink-emulation-mode)
 
