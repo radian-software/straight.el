@@ -1071,15 +1071,15 @@ information on PROC and STRING."
                      (line-beginning-position) (line-end-position))
                     (insert part)))
                 (let ((prompt (thing-at-point 'line)))
-                  (when (string-match "username.*: $" prompt)
-                    (let ((username (read-string (thing-at-point 'line))))
+                  (cond
+                   ((string-match "username.*: $" prompt)
+                    (let ((username (read-string prompt)))
                       (insert username "\n")
                       (ignore-errors
                         (process-send-string stdin (concat username "\n")))
-                      (cl-return))))
-                (let ((prompt (thing-at-point 'line)))
-                  (when (string-match
-                         "\\(password\\|passphrase\\).*: $" prompt)
+                      (cl-return)))
+                   ((string-match
+                     "\\(password\\|passphrase\\).*: $" prompt)
                     (let ((password (read-passwd prompt)))
                       (insert (make-string
                                (length password)
@@ -1087,7 +1087,7 @@ information on PROC and STRING."
                       (ignore-errors
                         (process-send-string stdin (concat password "\n")))
                       (clear-string password)
-                      (cl-return))))))))
+                      (cl-return)))))))))
       (quit
        (ignore-errors
          (set-process-filter proc nil)
