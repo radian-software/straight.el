@@ -44,8 +44,8 @@
 ;; version. See bootstrap.el.
 (eval
  `(unless (equal
-           (emacs-version)
-           ,(eval-when-compile (emacs-version)))
+           emacs-version
+           ,(eval-when-compile emacs-version))
     (throw 'emacs-version-changed nil)))
 
 (defun straight--executable-find (name)
