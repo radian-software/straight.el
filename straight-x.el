@@ -152,7 +152,7 @@
   (let ((lockfile-path (straight--versions-lockfile 'pinned)))
     (with-temp-file lockfile-path
       (insert
-       (format "(%s)\n:delta\n"
+       (format "(%s)\n:epsilon\n"
                (mapconcat
                 (apply-partially #'format "%S")
                 straight-x-pinned-packages
