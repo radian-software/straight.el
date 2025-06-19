@@ -146,7 +146,7 @@
              (error "Malformed version lockfile: %S" lockfile-name))))))
     (unless version
       ;; If no lockfile present, use latest version.
-      (setq version :delta))
+      (setq version :epsilon))
     (with-current-buffer
         (url-retrieve-synchronously
          (format
@@ -250,23 +250,59 @@
       (let ((temp-file (make-temp-file "straight.el~")))
         (write-region nil nil temp-file nil 'silent)
         (with-temp-buffer
-          (let ((exit-status
-                 (call-process
-                  ;; Taken with love from package `restart-emacs'.
-                  (let ((emacs-binary-path
-                         (expand-file-name
-                          invocation-name invocation-directory))
-                        (runemacs-binary-path
-                         (when (straight--windows-os-p)
-                           (expand-file-name
-                            "runemacs.exe" invocation-directory))))
-                    (if (and runemacs-binary-path
-                             (file-exists-p runemacs-binary-path))
-                        runemacs-binary-path
-                      emacs-binary-path))
-                  nil '(t t) nil
-                  "--batch" "--no-window-system" "--quick"
-                  "--load" temp-file)))
+          (let* ((args
+                  (list
+                   ;; Taken with love from package `restart-emacs'.
+                   (let ((emacs-binary-path
+                          (expand-file-name
+                           invocation-name invocation-directory))
+                         (runemacs-binary-path
+                          (when (straight--windows-os-p)
+                            (expand-file-name
+                             "runemacs.exe" invocation-directory))))
+                     (if (and runemacs-binary-path
+                              (file-exists-p runemacs-binary-path))
+                         runemacs-binary-path
+                       emacs-binary-path))
+                   "--batch" "--no-window-system" "--quick"
+                   "--load" temp-file))
+                 (exit-status
+                  (if (not (bound-and-true-p
+                            straight-display-subprocess-prompts))
+                      (apply
+                       #'call-process (car args) nil '(t t) nil (cdr args))
+                    ;; Fun-size version of `straight--process-filter'
+                    ;; and `straight--process-call-interactively'
+                    (let* ((ctr 0)
+                           (filter
+                            (lambda (proc string)
+                              (cl-incf ctr)
+                              (with-current-buffer (process-buffer proc)
+                                (goto-char (point-max))
+                                (insert string)
+                                (let ((prompt (thing-at-point 'line)))
+                                  (cond
+                                   ((string-match "username.*: $" prompt)
+                                    (process-send-string
+                                     proc (concat (read-string prompt) "\n")))
+                                   ((string-match
+                                     "\\(password\\|passphrase\\).*: $" prompt)
+                                    (process-send-string
+                                     proc
+                                     (concat (read-passwd prompt) "\n"))))))))
+                           (proc (make-process
+                                  :name "straight-install"
+                                  :command args
+                                  :buffer (current-buffer)
+                                  :noquery t
+                                  :filter filter
+                                  :sentinel #'ignore)))
+                      (let ((last-ctr -1))
+                        (while (or (process-live-p proc)
+                                   (/= ctr last-ctr))
+                          (setq last-ctr ctr)
+                          (accept-process-output proc))
+                        (process-exit-status proc))))))
             (unless (= 0 exit-status)
               (message
                (concat
