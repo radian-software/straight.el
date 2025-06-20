@@ -105,6 +105,9 @@ They are still logged to the *Messages* buffer.")))
 (declare-function package--ensure-init-file "package")
 (declare-function package--save-selected-packages "package")
 
+;; `url-http'
+(defvar url-http-end-of-headers)
+
 ;; `use-package'
 (defvar use-package-defaults)
 (defvar use-package-ensure-function)
@@ -296,17 +299,19 @@ computes the fork as \"githubUser/fork\"."
                            (const :tag "bitbucket" bitbucket))
                 :value-type (string :tag "username")))
 
-(defun straight-host-like-github (name website)
+(defun straight-host-like-github (name website &optional archive)
   "Make an entry for `straight-hosts' like GitHub's.
-This function exists to reduce duplication. NAME is a symbol to
-name the host, WEBSITE is the bare domain name. See the
-definition of `straight-hosts' for example usage."
+This function exists to reduce duplication. NAME is a symbol to name the
+host, WEBSITE is the bare domain name, ARCHIVE is the tarball URL. See
+the definition of `straight-hosts' for example usage."
   `(,name :https ,(format "https://%s/user/repo.git" website)
           :ssh ,(format "git@%s:user/repo.git" website)
           :alt-https (,(format "https://%s/user/repo" website))
           :alt-ssh (,(format "git@%s:user/repo" website)
                     ,(format "ssh://git@%s:user/repo.git" website)
-                    ,(format "ssh://git@%s:user/repo" website))))
+                    ,(format "ssh://git@%s:user/repo" website))
+          ,@(when archive
+              `(:tgz ,archive))))
 
 (defun straight-host--like-legacy (host domain &optional repo-suffix)
   "Convert legacy format for `straight-hosts'.
@@ -323,16 +328,24 @@ implementation for details of how it is interpreted."
             :ssh ,(format "git@%s:user/repo" domain)
             :alt-ssh (,(format "ssh://git@%s:user/repo" domain)))))
 
-(defcustom straight-hosts `(,(straight-host-like-github 'github "github.com")
-                            ,(straight-host-like-github 'gitlab "gitlab.com")
-                            ,(straight-host-like-github
-                              'codeberg "codeberg.org")
-                            ,(straight-host-like-github
-                              'bitbucket "bitbucket.com")
-                            (sourcehut
-                             :https "https://git.sr.ht/~user/repo"
-                             :ssh "git@git.sr.ht:~user/repo"
-                             :alt-ssh ("ssh://git@git.sr.ht:~user/repo")))
+(defcustom straight-hosts
+  `(,(straight-host-like-github
+      'github "github.com"
+      "https://github.com/user/repo/archive/commit.tar.gz")
+    ,(straight-host-like-github
+      'gitlab "gitlab.com"
+      "https://gitlab.com/user/repo/-/archive/commit/repo-commit.tar.gz")
+    ,(straight-host-like-github
+      'codeberg "codeberg.org"
+      "https://codeberg.org/user/repo/archive/commit.tar.gz")
+    ,(straight-host-like-github
+      'bitbucket "bitbucket.com"
+      "https://bitbucket.org/user/repo/get/commit.tar.gz")
+    (sourcehut
+     :https "https://git.sr.ht/~user/repo"
+     :ssh "git@git.sr.ht:~user/repo"
+     :alt-ssh ("ssh://git@git.sr.ht:~user/repo")
+     :tgz "https://git.sr.ht/~user/repo/archive/commit.tar.gz"))
   "Alist containing URI information for hosted forges.
 Each element is a list whose car is a unique symbol that will be
 used to refer to the forge (see `:host' in the recipe plist
@@ -343,7 +356,11 @@ show how to format HTTPS and SSH clone URLs for the \"user/repo\"
 example repository (\"user\" and \"repo\" will be replaced to
 generate a URL). You can optionally specify `:alt-https' and/or
 `:alt-ssh' to give additional formats that will be considered
-equivalent and also usable.
+equivalent and also usable. If you specify `:tgz', it should be the URL
+for downloading an arbitrary commit of the project as a .tar.gz file.
+This can be used for snapshot installation. In addition to \"user\" and
+\"repo\", the URL should contain \"commit\" for the full revision ID to
+be downloaded.
 
 There is also a legacy format supported for backwards
 compatibility, see `straight-host-like-legacy' for details."
@@ -901,7 +918,8 @@ If PATH, a string, corresponds to a file or directory inside (or
 equal to) any subfolder of `straight--repos-dir', then return the
 name of the local repository (not a path), as a string.
 Otherwise, return nil."
-  (let ((repos-dir (straight--repos-dir)))
+  (let ((repos-dir (file-truename (straight--repos-dir)))
+        (path (file-truename path)))
     (when (straight--path-prefix-p repos-dir path)
       ;; Remove the ~/.emacs.d/straight/repos/ part.
       (let ((relative-path (substring path (length repos-dir))))
@@ -1631,7 +1649,7 @@ repository already exists, throw an error."
                           local-repo (straight--lockfile-read-all)))))
         (straight-vc 'clone type recipe commit)))))
 
-(defun straight-vc-normalize (recipe)
+(cl-defun straight-vc-normalize (recipe &key convert-snapshots)
   "Normalize the local repository specified by straight.el-style RECIPE.
 The meaning of normalization is backend-defined, but typically
 involves validating repository configuration and cleaning the
@@ -1639,6 +1657,9 @@ working directory.
 
 If the RECIPE does not specify a local repository, then no action
 is taken.
+
+CONVERT-SNAPSHOTS non-nil means if the repository is a snapshot, convert
+it to a full repository first.
 
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
@@ -1648,7 +1669,12 @@ specified in RECIPE."
       (local-repo type)
     (when local-repo
       (let ((straight--default-directory (straight--repos-dir local-repo)))
-        (straight-vc 'normalize type recipe)))))
+        (apply
+         #'straight-vc
+         'normalize type recipe
+         ;; Backwards compatibility
+         (when convert-snapshots
+           `(:convert-snapshots t)))))))
 
 (defun straight-vc-fetch-from-remote (recipe)
   "Fetch from the primary remote for straight.el-style RECIPE.
@@ -1793,7 +1819,51 @@ This method simply delegates to the relevant
 `straight-vc-TYPE-keywords' method."
   (straight-vc 'keywords type))
 
+;;;;; Snapshots
+
+(defcustom straight-vc-use-snapshot-installation nil
+  "Non-nil means download archives instead of repositories by default.
+Marker files are placed in the extracted archives to indicate that they
+are snapshots, and you are prompted when visiting them for whether
+straight.el should fetch the repository history, thus enabling
+modifications and upstream contributions. Snapshot installation is only
+enabled for recipes whose `:host' supports it."
+  :type 'boolean)
+
+(defvar straight-snapshot-handling-mode)
+
+(defun straight-maybe-handle-snapshot ()
+  "Display a message if the current file is within a repository snapshot."
+  (when (and straight-snapshot-handling-mode buffer-file-name)
+    (when-let ((local-repo (straight--determine-repo buffer-file-name)))
+      (when (file-exists-p
+             (straight--repos-file local-repo ".straight-commit"))
+        (message
+         "%s"
+         (substitute-command-keys
+          (concat
+           "Note: \\[universal-argument] \\[straight-normalize-package] "
+           "to fetch commit history")))))))
+
+(define-minor-mode straight-snapshot-handling-mode
+  "Minor mode for handling packages which were cloned as snapshots.
+When visiting a file in a snapshot repository, a message will be
+displayed reminding you that this is a snapshot, and suggesting how you
+can convert it into a full repository."
+  :global t
+  :group 'straight
+  (if straight-snapshot-handling-mode
+      (add-hook 'find-file-hook #'straight-maybe-handle-snapshot)
+    (remove-hook 'find-file-hook #'straight-maybe-handle-snapshot)))
+
+(if straight-vc-use-snapshot-installation
+    (straight-snapshot-handling-mode +1)
+  (straight-snapshot-handling-mode -1))
+
 ;;;;; No VC management
+
+(defun straight--ignore (&rest _)
+  "Do nothing. Same as `ignore', but not interactive.")
 
 (dolist (type '(nil built-in))
   (dolist (method (list "check-out-commit"
@@ -1808,7 +1878,8 @@ This method simply delegates to the relevant
                         "merge-from-remote"
                         "merge-from-upstream"
                         "push-to-remote"))
-    (defalias (intern (format "straight-vc-%S-%s" type method)) #'ignore
+    (defalias (intern (format "straight-vc-%S-%s" type method))
+      #'straight--ignore
       (format "Pseudo VC backend method for packages with :type %S." type))))
 
 ;;;;; Git
@@ -2145,6 +2216,23 @@ also `straight-vc-git--decode-url'."
        (replace-regexp-in-string
         "user/repo" repo template 'fixedcase 'literal)))
     (_ (error "Unknown value for host: %S" host))))
+
+(defun straight-vc-git--encode-archive (repo commit host)
+  "Generate a URL to download an archive of REPO at COMMIT.
+If HOST is one of the symbols in `straight-hosts' and that HOST has a
+registered archive URL template, then the template is expanded to
+substitute in REPO and COMMIT appropriately. Otherwise, nil is returned
+because REPO will not be an acceptable value (it is a clone URL)."
+  (when-let ((template (plist-get (alist-get host straight-hosts) :tgz)))
+    (cl-destructuring-bind (user repo) (split-string repo "/")
+      (replace-regexp-in-string
+       "user" user
+       (replace-regexp-in-string
+        "repo" repo
+        (replace-regexp-in-string
+         "commit" commit template)
+        'fixedcase 'literal)
+       'fixedcase 'literal))))
 
 (defun straight-vc-git--decode-url (url)
   "Separate a URL into a REPO, HOST, and PROTOCOL, returning a list of them.
@@ -2884,13 +2972,40 @@ clone of everything."
                                            :branch branch))))
      (t (error "Invalid value %S of depth for %s" depth url)))))
 
+(cl-defun straight-vc-git--clone-snapshot (&key url repo-dir commit)
+  "Download repo archive from URL to REPO-DIR.
+Write marker file indicating that COMMIT is checked out."
+  (let ((tgz-file (concat (directory-file-name repo-dir) ".tar.gz")))
+    (condition-case _
+        (delete-file tgz-file)
+      (file-missing))
+    (unwind-protect
+        (progn
+          (with-current-buffer
+              (url-retrieve-synchronously url 'silent 'inhibit-cookies)
+            (write-region
+             (1+ url-http-end-of-headers) (point-max) tgz-file nil 0)
+            (kill-buffer))
+          (make-directory repo-dir 'parents)
+          (straight--process-output
+           "tar" "-C" repo-dir "--strip-components=1" "-xzf" tgz-file)
+          (with-temp-file (expand-file-name ".straight-commit" repo-dir)
+            (insert commit "\n")))
+      (condition-case _
+          (delete-file tgz-file)
+        (file-missing)))))
+
 ;;;;;; API
 
-(defun straight-vc-git-clone (recipe commit)
+(cl-defun straight-vc-git-clone (recipe commit &key convert-snapshots)
   "Clone local REPO for straight.el-style RECIPE, checking out COMMIT.
 COMMIT is a 40-character SHA-1 Git hash. If it cannot be checked
 out, signal a warning. If COMMIT is nil, check out the branch
-specified in RECIPE instead. If that fails, signal a warning."
+specified in RECIPE instead. If that fails, signal a warning.
+
+CONVERT-SNAPSHOTS non-nil means perform the clone in an existing
+directory, without deleting the files that are there. This is used in
+normalization to convert a snapshot into a full repository."
   (straight-vc-git--destructure recipe
       (package local-repo branch nonrecursive depth
                remote upstream-remote
@@ -2901,29 +3016,65 @@ specified in RECIPE instead. If that fails, signal a warning."
       (error "No `:repo' specified for package `%s'" package))
     (let ((success nil)
           (repo-dir (straight--repos-dir local-repo))
+          (repo-dir-tmp (straight--repos-dir (concat local-repo ".tmp")))
           (url (straight-vc-git--encode-url repo host protocol))
-          (depth (or depth straight-vc-git-default-clone-depth)))
+          (archive-url (when commit
+                         (straight-vc-git--encode-archive
+                          repo commit host)))
+          (depth (or depth straight-vc-git-default-clone-depth))
+          (snapshot nil))
       (unwind-protect
-          (progn
-            (straight-vc-git--clone-internal :depth depth
-                                             :remote remote
-                                             :url url
-                                             :repo-dir repo-dir
-                                             :branch branch
-                                             :commit commit)
+          (if (and straight-vc-use-snapshot-installation
+                   archive-url
+                   (not convert-snapshots))
+              (progn
+                (setq snapshot t)
+                (straight-vc-git--clone-snapshot
+                 :url archive-url
+                 :repo-dir repo-dir
+                 :commit commit)
+                (setq success t))
+            (when convert-snapshots
+              (condition-case _
+                  (delete-directory
+                   (concat repo-dir ".tmp") 'recursive)
+                (file-missing))
+              (condition-case _
+                  (delete-directory
+                   (expand-file-name ".git" repo-dir) 'recursive)
+                (file-missing)))
+            (straight-vc-git--clone-internal
+             :depth depth
+             :remote remote
+             :url url
+             :repo-dir (if convert-snapshots
+                           repo-dir-tmp
+                         repo-dir)
+             :branch branch
+             :commit commit)
             (let* ((straight--default-directory nil)
                    (default-directory repo-dir)
                    (branch (or branch
                                (straight-vc-git--default-remote-branch
-                                remote local-repo))))
+                                remote (concat local-repo
+                                               (if convert-snapshots
+                                                   ".tmp"
+                                                 ""))))))
               (when fork-repo
                 (let ((url (straight-vc-git--encode-url
                             upstream-repo upstream-host upstream-protocol)))
                   (straight--process-output "git" "remote" "add"
                                             upstream-remote url)
                   (straight--process-output "git" "fetch" upstream-remote)))
+              (when convert-snapshots
+                (rename-file (expand-file-name ".git" repo-dir-tmp)
+                             (expand-file-name ".git" repo-dir))
+                (delete-directory repo-dir-tmp 'recursive))
               (when commit
-                (unless (straight--process-run-p "git" "reset" "--hard" commit)
+                (unless (straight--process-run-p
+                         "git" "reset" (if convert-snapshots "--mixed"
+                                         "--hard")
+                         commit)
                   (straight--warn
                    "Could not reset to commit %S in repository %S"
                    commit local-repo)
@@ -2931,39 +3082,67 @@ specified in RECIPE instead. If that fails, signal a warning."
                   ;; as if we weren't given one.
                   (setq commit nil)))
               (unless commit
-                (unless (straight--process-run-p
-                         "git" "checkout" "-B" branch
-                         (format "%s/%s" remote branch))
-                  (straight--warn
-                   "Could not check out branch %S of repository %S"
-                   branch local-repo)
-                  ;; Since we passed --no-checkout, we need to
-                  ;; explicitly check out *something*, even if it's
-                  ;; not the right thing.
-                  (straight--process-output "git" "checkout" "HEAD")))
+                (if convert-snapshots
+                    ;; We already have the default branch pointed at
+                    ;; by HEAD, and the files are already checked out
+                    ;; if this was a snapshot, so all that's left is
+                    ;; to correct the index.
+                    (straight--process-output "git" "reset" "--mixed")
+                  (unless (straight--process-run-p
+                           "git" "checkout" "-B" branch
+                           (format "%s/%s" remote branch))
+                    (straight--warn
+                     "Could not check out branch %S of repository %S"
+                     branch local-repo)
+                    ;; Since we passed --no-checkout, we need to
+                    ;; explicitly check out *something*, even if it's
+                    ;; not the right thing.
+                    (straight--process-output "git" "checkout" "HEAD"))))
               (unless nonrecursive
                 (straight--process-output
                  "git" "submodule" "update" "--init" "--recursive")))
             (setq success t))
         (if (not success)
-            ;; Make cloning an atomic operation.
-            (when (file-exists-p repo-dir)
-              (delete-directory repo-dir 'recursive))
+            (if convert-snapshots
+                (condition-case _
+                    (delete-directory repo-dir-tmp 'recursive)
+                  (file-missing))
+              ;; Make cloning an atomic operation.
+              (condition-case _
+                  (delete-directory repo-dir 'recursive)
+                (file-missing)))
           (run-hook-with-args 'straight-vc-git-post-clone-hook
                               :repo-dir repo-dir :remote remote :url url
-                              :branch branch :depth depth :commit commit))))))
+                              :branch branch :depth depth :commit commit
+                              :snapshot snapshot))))))
 
-(cl-defun straight-vc-git-normalize (recipe)
+(cl-defun straight-vc-git-normalize (recipe &key convert-snapshots)
   "Using straight.el-style RECIPE, make the repository locally sane.
-This means that its remote URLs are set correctly; there is no
-merge currently in progress; its worktree is pristine; and the
-primary :branch is checked out."
+This means that its remote URLs are set correctly; there is no merge
+currently in progress; its worktree is pristine; and the primary :branch
+is checked out. Leave snapshots alone, unless CONVERT-SNAPSHOTS is
+non-nil, in which case convert them to full repositories and then
+normalize."
   (straight-vc-git--destructure recipe
       (local-repo)
-    (while t
-      (and (or (straight-vc-git--ensure-local recipe)
-               (straight-register-repo-modification local-repo))
-           (cl-return-from straight-vc-git-normalize t)))))
+    (let ((snapshot-file (straight--repos-file
+                          local-repo ".straight-commit")))
+      (while t
+        (and (or (not (file-exists-p snapshot-file))
+                 (if convert-snapshots
+                     (prog1 nil
+                       (let ((commit
+                              (with-temp-buffer
+                                (insert-file-contents
+                                 snapshot-file)
+                                (string-trim (buffer-string)))))
+                         (straight-vc-git-clone
+                          recipe commit :convert-snapshots t)
+                         (delete-file snapshot-file)))
+                   (cl-return-from straight-vc-git-normalize t)))
+             (or (straight-vc-git--ensure-local recipe)
+                 (straight-register-repo-modification local-repo))
+             (cl-return-from straight-vc-git-normalize t))))))
 
 (cl-defun straight-vc-git-fetch-from-remote (recipe &optional from-upstream)
   "Using straight.el-style RECIPE, fetch from the primary remote.
@@ -5354,7 +5533,7 @@ FLAVOR is any other non-nil value, the behavior is not specified."
       (dolist (el (nreverse absolutes) copy)
         (cl-pushnew el copy :test #'equal :key #'car)))))
 
-;;;;; Running Build Commands
+;;;;; Running build commands
 
 (defun straight--run-build-commands (recipe &optional post)
   "Run RECIPE's :pre-build or :post-build commands synchronously.
@@ -6671,18 +6850,22 @@ their build directories deleted."
 ;;;;; Normalization, pushing, pulling
 
 ;;;###autoload
-(defun straight-normalize-package (package)
+(cl-defun straight-normalize-package (package &key convert-snapshots)
   "Normalize a PACKAGE's local repository to its recipe's configuration.
 PACKAGE is a string naming a package. Interactively, select
 PACKAGE from the known packages in the current Emacs session
-using `completing-read'."
+using `completing-read'.
+
+CONVERT-SNAPSHOTS non-nil (interactively, prefix arg) means if the
+repository is a snapshot, convert it to a full repository first."
   (interactive (list (straight--select-package "Normalize package"
-                                               #'straight--installed-p)))
+                                               #'straight--installed-p)
+                     :convert-snapshots current-prefix-arg))
   (let ((recipe (gethash package straight--recipe-cache)))
-    (straight-vc-normalize recipe)))
+    (straight-vc-normalize recipe :convert-snapshots convert-snapshots)))
 
 ;;;###autoload
-(defun straight-normalize-all (&optional predicate)
+(defun straight-normalize-all (&optional predicate convert-snapshots)
   "Normalize all packages. See `straight-normalize-package'.
 Return a list of recipes for packages that were not successfully
 normalized. If multiple packages come from the same local
@@ -6690,10 +6873,16 @@ repository, only one is normalized.
 
 PREDICATE, if provided, filters the packages that are normalized.
 It is called with the package name as a string, and should return
-non-nil if the package should actually be normalized."
-  (interactive)
-  (straight--map-existing-repos-interactively #'straight-normalize-package
-                                              predicate))
+non-nil if the package should actually be normalized.
+
+CONVERT-SNAPSHOTS non-nil (interactively, prefix arg) means if
+repositories are snapshots, convert them to full repositories first."
+  (interactive (list nil current-prefix-arg))
+  (straight--map-existing-repos-interactively
+   (lambda (package)
+     (straight-normalize-package
+      package :convert-snapshots convert-snapshots))
+   predicate))
 
 (defun straight--get-transitive-dependencies (package)
   "Get the (transitive) dependencies of PACKAGE.
