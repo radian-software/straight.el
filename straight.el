@@ -1754,7 +1754,9 @@ repository directory and delegates to the relevant
 `:type' specified in RECIPE."
   (straight--with-plist recipe
       (local-repo type)
-    (when local-repo
+    (when (and local-repo
+               (not (file-exists-p
+                     (straight--repos-file local-repo ".straight-commit"))))
       (let ((straight--default-directory (straight--repos-dir local-repo)))
         (straight-vc 'push-to-remote type recipe)))))
 
@@ -1794,8 +1796,13 @@ defined by the backend, but it should be compatible with
 This method sets `straight--default-directory' to the local
 repository directory and delegates to the relevant
 `straight-vc-TYPE-get-commit' method."
-  (let ((straight--default-directory (straight--repos-dir local-repo)))
-    (straight-vc 'get-commit type local-repo)))
+  (let ((straight--default-directory (straight--repos-dir local-repo))
+        (rev-file (straight--repos-file local-repo ".straight-commit")))
+    (if (file-exists-p rev-file)
+        (with-temp-buffer
+          (insert-file-contents rev-file)
+          (string-trim (buffer-string)))
+      (straight-vc 'get-commit type local-repo))))
 
 (defun straight-vc-local-repo-name (recipe)
   "Generate a repository name from straight.el-style RECIPE.
