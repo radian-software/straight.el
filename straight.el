@@ -3507,7 +3507,7 @@ Otherwise return nil."
         :local-repo "org"
         ;; `org-version' depends on repository tags.
         :depth full
-        :pre-build ,(straight-recipes-org-elpa--build)
+        :pre-build (straight-recipes-org-elpa--build)
         :build (:not autoloads)
         :files (:defaults "lisp/*.el" ("etc/styles/" "etc/styles/*"))))
     ('org-contrib
