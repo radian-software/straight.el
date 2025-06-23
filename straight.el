@@ -2194,6 +2194,15 @@ REPO, with nil HOST and PROTOCOL. See also
            (cl-return (list (car best-match) host (cdr best-match)))))))
    (list url nil nil)))
 
+(defun straight-vc-git--decode-url-to-recipe (url)
+  "Like `straight-vc-git--decode-url' but return recipe keywords.
+Return `:url URL' as a fallback, but if possible return a list with
+`:host' and `:protocol' as well."
+  (cl-destructuring-bind (repo host protocol) (straight-vc-git--decode-url url)
+    (if host
+        (list :host host :protocol protocol :repo repo)
+      (list :repo repo))))
+
 (defun straight-vc-git--urls-compatible-p (url1 url2)
   "Return non-nil if URL1 and URL2 can be treated as equivalent.
 This means that `straight-vc-git--decode-url' returns the same
@@ -3428,12 +3437,16 @@ and is for internal use only."
 ;;;;;; Org
 
 (defcustom straight-recipes-org-url
-  "https://github.com/emacs-straight/org-mode.git"
+  (if (eq straight-vc-git-default-protocol 'ssh)
+      "git@github.com:emacs-straight/org-mode.git"
+    "https://github.com/emacs-straight/org-mode.git")
   "URL used to clone Org in its default recipe."
   :type '(choice (const :tag "GNU repository"
                         "https://git.savannah.gnu.org/git/emacs/org-mode.git")
-                 (const :tag "GitHub mirror"
+                 (const :tag "GitHub mirror (HTTPS)"
                         "https://github.com/emacs-straight/org-mode.git")
+                 (const :tag "GitHub mirror (SSH)"
+                        "git@github.com:emacs-straight/org-mode.git")
                  (string :tag "Custom value")))
 
 (defcustom straight-byte-compilation-buffer "*straight-byte-compilation*"
@@ -3487,15 +3500,16 @@ PACKAGE must be either `org' or `org-contrib'.
 Otherwise return nil."
   (pcase package
     ('org
-     (list package
-           :type 'git
-           :repo straight-recipes-org-url
-           :local-repo "org"
-           ;; `org-version' depends on repository tags.
-           :depth 'full
-           :pre-build '(straight-recipes-org-elpa--build)
-           :build '(:not autoloads)
-           :files '(:defaults "lisp/*.el" ("etc/styles/" "etc/styles/*"))))
+     `( ,package
+        :type git
+        ,@(straight-vc-git--decode-url-to-recipe
+           straight-recipes-org-url)
+        :local-repo "org"
+        ;; `org-version' depends on repository tags.
+        :depth full
+        :pre-build ,(straight-recipes-org-elpa--build)
+        :build (:not autoloads)
+        :files (:defaults "lisp/*.el" ("etc/styles/" "etc/styles/*"))))
     ('org-contrib
      (list package
            :type 'git
@@ -3526,7 +3540,7 @@ Otherwise return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  (list 15 straight-recipes-org-url))
+  (list 16 straight-recipes-org-url))
 
 ;;;;;; MELPA
 
@@ -3648,13 +3662,17 @@ This is a list of strings."
 ;;;;;;; GNU ELPA source
 
 (defcustom straight-recipes-gnu-elpa-url
-  "https://github.com/emacsmirror/gnu_elpa.git"
+  (if (eq straight-vc-git-default-protocol 'ssh)
+      "git@github.com:emacsmirror/gnu_elpa.git"
+    "https://github.com/emacsmirror/gnu_elpa.git")
   "URL of the Git repository for the GNU ELPA package repository."
   :type '(choice
           (const :tag "GNU repository"
                  "https://git.savannah.gnu.org/git/emacs/elpa.git")
-          (const :tag "GitHub mirror"
+          (const :tag "GitHub mirror (HTTPS)"
                  "https://github.com/emacsmirror/gnu_elpa.git")
+          (const :tag "GitHub mirror (SSH)"
+                 "git@github.com:emacsmirror/gnu_elpa.git")
           (string :tag "Custom value")))
 
 (defun straight-recipe-gnu-elpa--list-packages ()
@@ -3679,7 +3697,8 @@ the package is built in to Emacs), return a MELPA-style recipe.
 Otherwise, return nil."
   (when (memq package (straight-recipe-gnu-elpa--list-packages))
     `(,package :type git
-               :repo ,straight-recipes-gnu-elpa-url
+               ,@(straight-vc-git--decode-url-to-recipe
+                  straight-recipes-gnu-elpa-url)
                :branch ,(format "externals/%s" (symbol-name package))
                :depth (full single-branch)
                :local-repo ,(symbol-name package))))
@@ -3690,18 +3709,22 @@ Otherwise, return nil."
 
 (defun straight-recipes-gnu-elpa-version ()
   "Return the current version of the GNU ELPA retriever."
-  3)
+  (list 4 straight-recipes-gnu-elpa-url))
 
 ;;;;;; NonGNU ELPA
 
 (defcustom straight-recipes-nongnu-elpa-url
-  "https://github.com/emacsmirror/nongnu_elpa.git"
+  (if (eq straight-vc-git-default-protocol 'ssh)
+      "git@github.com:emacsmirror/nongnu_elpa.git"
+    "https://github.com/emacsmirror/nongnu_elpa.git")
   "URL of the Git repository for the NonGNU ELPA package repository."
   :type '(choice
           (const :tag "GNU repository"
                  "https://git.savannah.gnu.org/git/emacs/nongnu.git")
-          (const :tag "GitHub mirror"
-                 "https://github.com/emacsmirror/nongnu_elpa")
+          (const :tag "GitHub mirror (HTTPS)"
+                 "https://github.com/emacsmirror/nongnu_elpa.git")
+          (const :tag "GitHub mirror (SSH)"
+                 "git@github.com:emacsmirror/nongnu_elpa.git")
           (string :tag "Custom value")))
 
 (defun straight-recipes-nongnu-elpa--translate (recipe)
@@ -3744,7 +3767,7 @@ Otherwise, return nil."
 
 (defun straight-recipes-nongnu-elpa-version ()
   "Return the current version of the NonGNU ELPA retriever."
-  4)
+  (list 5 straight-recipes-nongnu-elpa-url))
 
 ;;;;;; Emacsmirror
 
