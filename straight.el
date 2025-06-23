@@ -3606,6 +3606,15 @@ and is for internal use only."
 
 ;;;;;; Org
 
+(defcustom straight-recipes-org-url
+  "https://github.com/emacs-straight/org-mode.git"
+  "URL used to clone Org in its default recipe."
+  :type '(choice (const :tag "GNU repository"
+                        "https://git.savannah.gnu.org/git/emacs/org-mode.git")
+                 (const :tag "GitHub mirror"
+                        "https://github.com/emacs-straight/org-mode.git")
+                 (string :tag "Custom value")))
+
 (defcustom straight-byte-compilation-buffer "*straight-byte-compilation*"
   "Name of the byte compilation log buffer.
 If nil, output is discarded."
@@ -3659,7 +3668,7 @@ Otherwise return nil."
     ('org
      (list package
            :type 'git
-           :repo "https://git.savannah.gnu.org/git/emacs/org-mode.git"
+           :repo straight-recipes-org-url
            :local-repo "org"
            ;; `org-version' depends on repository tags.
            :depth 'full
@@ -3696,7 +3705,7 @@ Otherwise return nil."
 
 (defun straight-recipes-org-elpa-version ()
   "Return the current version of the Org ELPA retriever."
-  15)
+  (list 15 straight-recipes-org-url))
 
 ;;;;;; MELPA
 
