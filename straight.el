@@ -1870,7 +1870,8 @@ can convert it into a full repository."
 ;;;;; No VC management
 
 (defun straight--ignore (&rest _)
-  "Do nothing. Same as `ignore', but not interactive.")
+  "Do nothing. Same as `ignore', but not interactive."
+  nil)
 
 (dolist (type '(nil built-in))
   (dolist (method (list "check-out-commit"
