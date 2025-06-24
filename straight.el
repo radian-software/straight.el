@@ -7657,22 +7657,18 @@ buffer.")
   "Re-enable in-place checkers in Flycheck."
   (setq straight--flycheck-in-place-disabled nil))
 
-(defun straight--flycheck-in-place-inhibit (func checker)
+(defun straight--flycheck-in-place-inhibit (checker)
   "Inhibit in-place Elisp checkers in Flycheck from running automatically.
 You can still run them manually, and automatic checking will be
 re-enabled after you modify the buffer.
 
-This is an `:around' advice for
-`flycheck-start-current-syntax-check'. FUNC and CHECKER are as in
-any `:around' advice."
-  (if (and
-       straight--flycheck-in-place-disabled
+This is a `:before-until' advice for `flycheck-may-use-checker'. CHECKER
+is as in that function."
+  (and straight--flycheck-in-place-disabled
+       (derived-mode-p #'emacs-lisp-mode)
        (memq
         'source-inplace
-        (flycheck-checker-get checker 'command)))
-      (when-let ((next-checker (flycheck-get-next-checker-for-buffer checker)))
-        (flycheck-start-current-syntax-check next-checker))
-    (funcall func checker)))
+        (flycheck-checker-get checker 'command))))
 
 (if straight-fix-flycheck
     (progn
