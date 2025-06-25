@@ -1439,6 +1439,7 @@ transaction and removing itself from the hook again. In batch
 mode, the transaction is finalized using `kill-emacs-hook' rather
 than `post-command-hook' (because the latter is not run in batch
 mode)."
+  (straight--log 'txn "Arranging to finalize transaction at toplevel")
   (if noninteractive
       (add-hook 'kill-emacs-hook #'straight--transaction-finalize)
     (add-hook 'post-command-hook #'straight--transaction-finalize)))
@@ -1453,6 +1454,8 @@ the functions recorded in it."
   ;; listed below.
   (when (zerop (recursion-depth))
     (let ((alist straight--transaction-alist))
+      (straight--log
+       'txn "Finalizing transaction with %d handlers" (length alist))
       ;; Remove transaction's ID symbols from symbol namespace.
       (mapc (lambda (cell) (unintern (car cell) obarray))
             straight--transaction-alist)
@@ -1481,7 +1484,12 @@ transaction. In this case, the caller must do this itself."
   ;; schedule more idle timers.
   (unless (or manual straight--transaction-alist)
     (straight--transaction-finalize-at-top-level))
-  (unless (assq id straight--transaction-alist)
+  (if (assq id straight--transaction-alist)
+      (straight--log
+       'txn "Skipping duplicate %S within existing transaction" id)
+    (straight--log 'txn "Executing %S within %s transaction" id
+                   (if straight--transaction-alist
+                       "existing" "new"))
     ;; Push to start of list. At the end, we'll read forward, thus in
     ;; reverse order.
     (push (cons id later) straight--transaction-alist)
@@ -4470,10 +4478,16 @@ nil."
 
 ;;;;; Recipe registration
 
-(defun straight--register-recipe (recipe)
+(cl-defun straight--register-recipe (recipe)
   "Make the various caches aware of RECIPE.
 RECIPE should be a straight.el-style recipe plist."
   (straight--with-plist recipe (package local-repo type)
+    ;; Identical recipe means no actual update is needed.
+    ;; Importantly, we then do not invalidate the profile cache.
+    (when (equal recipe (gethash package straight--recipe-cache))
+      (straight--log
+       'recipe "Skipping no-op registration for %S recipe" package)
+      (cl-return-from straight--register-recipe))
     ;; Skip conflict detection for built-in packages.
     (unless (eq type 'built-in)
       ;; Step 1 is to check if the given recipe conflicts with an
@@ -4533,6 +4547,8 @@ RECIPE should be a straight.el-style recipe plist."
              (plist-get existing-recipe keyword)
              (plist-get recipe keyword))
             (cl-return)))))
+    ;; If we got here, we do need to actually register the new recipe.
+    (straight--log 'recipe "Setting new %S recipe %S" package recipe)
     ;; Step 3, now that we've signaled any necessary warnings, is to
     ;; actually update the caches. Just FYI, `straight--build-cache'
     ;; is updated later (namely, at build time -- which may be quite a
@@ -4566,6 +4582,8 @@ RECIPE should be a straight.el-style recipe plist."
     ;; guaranteed to be functional (e.g. because we're currently
     ;; loading the init-file).
     (unless straight--functional-p
+      (when straight--profile-cache-valid
+        (straight--log 'recipe "Invalidating profile cache"))
       (setq straight--profile-cache-valid nil))))
 
 (defun straight--map-repos (func)
@@ -6514,6 +6532,27 @@ packages."
    (list (straight-get-recipe
           (when current-prefix-arg 'interactive) nil nil 'use-cache)
          nil nil nil 'interactive))
+  (straight--log 'package "Registering package %S with %s (%s)"
+                 (if (listp melpa-style-recipe)
+                     (car melpa-style-recipe)
+                   melpa-style-recipe)
+                 (cond
+                  ((listp melpa-style-recipe)
+                   (format "provided recipe %S" melpa-style-recipe))
+                  ((gethash melpa-style-recipe straight--recipe-cache)
+                   "previously-used recipe")
+                  (t "default recipe"))
+                 (string-join
+                  (or
+                   (remove
+                    nil
+                    (list
+                     (when no-clone
+                       "no clone")
+                     (when no-build
+                       "no build")
+                     (format "cause: %s" (or cause "user call")))))
+                  ", "))
   ;; Do this unconditionally, at the very beginning, because we want
   ;; to have caches loaded right away - they're needed even for
   ;; `straight--convert-recipe', to populate the recipe lookup cache.
@@ -6554,17 +6593,17 @@ packages."
        ;; allow the user to request a package twice with different
        ;; recipes or build settings, and in that case re-check
        ;; everything.
-       (intern (format "use-package-%S-%S-%S"
+       (intern (format "use-package-%s-%S-%S"
                        (secure-hash 'md5 (prin1-to-string recipe 'noescape))
                        ;; If the NO-CLONE and NO-BUILD functions
                        ;; compute their values dynamically, force
                        ;; package rebuilding so the changed values may
                        ;; be taken into account.
                        (if (straight--functionp no-clone)
-                           (random)
+                           (abs (random))
                          no-clone)
                        (if (straight--functionp no-build)
-                           (random)
+                           (abs (random))
                          no-build)))
        :now
        (lambda ()
@@ -6685,13 +6724,17 @@ packages."
                  ;; values of NO-BUILD and NO-CLONE are always nil. If
                  ;; the user has agreed to clone and build a package,
                  ;; we assume that they also want to clone and build
-                 ;; all of its dependencies. Finally, we don't bother
-                 ;; to update `cause', since we're not expecting any
-                 ;; messages to be displayed here (all of the
-                 ;; dependencies should have already been cloned [if
-                 ;; necessary] and built back by
-                 ;; `straight--build-package').
-                 (straight-use-package (intern dependency) nil nil cause))
+                 ;; all of its dependencies. Finally, we do actually
+                 ;; want to update `cause', since even though we are
+                 ;; not expecting any user-facing messages to be
+                 ;; displayed (all of the dependencies should have
+                 ;; already been cloned [if necessary] and built back
+                 ;; by `straight--build-package'), that information is
+                 ;; still used for the internal logs.
+                 (straight-use-package
+                  (intern dependency) nil nil
+                  (concat cause (when cause straight-arrow)
+                          (format "Registering %s" package))))
                ;; Only make the package available after everything is
                ;; kosher.
                (straight--add-package-to-info-path recipe)
@@ -6727,19 +6770,22 @@ provided for convenience. MELPA-STYLE-RECIPE is as for
   (straight-use-package melpa-style-recipe nil 'no-build))
 
 ;;;###autoload
-(defun straight-use-package-lazy (melpa-style-recipe)
+(defun straight-use-package-lazy (melpa-style-recipe &optional cause)
   "Register, build, and activate a package if it is already cloned.
 This function is equivalent to calling `straight-use-package'
 with symbol `lazy' for NO-CLONE. It is provided for convenience.
-MELPA-STYLE-RECIPE is as for `straight-use-package'."
+MELPA-STYLE-RECIPE is as for `straight-use-package'.
+
+Argument CAUSE is for internal use only."
   (straight-use-package
    melpa-style-recipe
    ;; Don't clone the package if it's not available.
    (lambda (_package available)
-     (not available))))
+     (not available))
+   nil cause))
 
 ;;;###autoload
-(defun straight-use-recipes (melpa-style-recipe)
+(defun straight-use-recipes (melpa-style-recipe &optional cause)
   "Register a recipe repository using MELPA-STYLE-RECIPE.
 This registers the recipe and builds it if it is already cloned.
 Note that you probably want the recipe for a recipe repository to
@@ -6752,9 +6798,11 @@ This function also adds the recipe repository to
 Existing recipe repositories are not searched for a recipe for the
 recipe repository you are trying to register, because that is strange
 and confusing. If you explicitly want this behavior, you can use the
-`straight-use-package' API directly."
+`straight-use-package' API directly.
+
+Argument CAUSE is for internal use only."
   (let ((straight-recipe-repositories nil))
-    (straight-use-package-lazy melpa-style-recipe))
+    (straight-use-package-lazy melpa-style-recipe cause))
   (add-to-list 'straight-recipe-repositories
                (if (listp melpa-style-recipe)
                    (car melpa-style-recipe)

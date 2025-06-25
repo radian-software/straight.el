@@ -68,6 +68,12 @@
 ;; feature has already been provided by loading straight.elc above.
 (require 'straight)
 
+;; Just in case the user loaded their init-file as part of a function
+;; that also previously called other straight.el functions, ensure
+;; that there is not old transaction state that will cause following
+;; calls to be interpreted non-functionally.
+(straight--transaction-finalize)
+
 (straight--log 'init "Loading bootstrap.el")
 (straight--log
  'env "Git commit: %s"
@@ -132,7 +138,11 @@
 ;; have any dependencies :) so let's keep it simple, and especially
 ;; make sure that any errors cloning the recipe repositories won't
 ;; block straight.el itself from loading.
-(mapc #'straight-use-recipes straight-initial-recipe-repositories)
+(mapc
+ (lambda (recipe)
+   (straight-use-recipes
+    recipe "Initial recipe repository registration"))
+ straight-initial-recipe-repositories)
 
 (if (straight--modifications 'check-on-save)
     (straight-live-modifications-mode +1)
