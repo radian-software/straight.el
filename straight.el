@@ -3406,6 +3406,7 @@ This means they faithfully represent the contents of the
 init-file. If package operations are performed when this variable
 is nil, then `straight--profile-cache-valid' is set to nil.")
 
+(defvar straight--success-cache)
 (defun straight--reset-caches ()
   "Reset caches tied to the init process.
 This means `straight--recipe-cache', `straight--repo-cache', and
@@ -3424,6 +3425,7 @@ using the transaction system."
   (setq straight--recipe-cache (make-hash-table :test #'equal))
   (setq straight--repo-cache (make-hash-table :test #'equal))
   (setq straight--profile-cache (make-hash-table :test #'equal))
+  (setq straight--success-cache (make-hash-table :test #'equal))
   (setq straight--profile-cache-valid t)
   (straight--transaction-exec
    'reset-caches
@@ -4596,7 +4598,7 @@ This uses find(1) for all checking on most platforms, and
 `before-save-hook' on Microsoft Windows."
   (if (straight--windows-os-p)
       (list 'check-on-save)
-    (list 'find-at-startup 'find-when-checking)))
+    (list 'find-at-startup 'find-when-checking 'only-once)))
 
 (defcustom straight-check-for-modifications
   (straight--determine-best-modification-checking)
@@ -4641,6 +4643,7 @@ This usage is deprecated and will be removed."
      (const :tag "Use find(1) at startup" find-at-startup)
      (const :tag "Use find(1) in \\[straight-check-package]"
             find-when-checking)
+     (const :tag "Check package for changes only once per (re-)init" only-once)
      (const :tag "Use `before-save-hook' to detect changes" check-on-save)
      (const :tag "Use a filesystem watcher to detect changes" watch-files))))
 
@@ -5160,11 +5163,13 @@ It is only available until the end of the current transaction."
 The value of this variable is only relevant when
 `straight-check-for-modifications' contains `find-when-checking'.")
 
-(cl-defun straight--package-might-be-modified-p (recipe no-build)
+(cl-defun straight--package-might-be-modified-p (recipe no-build skip-check)
   "Check whether the package for the given RECIPE should be rebuilt.
 If NO-BUILD is non-nil, then don't assume that the package should
 have a build directory; only check for modifications since the
-last time."
+last time. If SKIP-CHECK is non-nil, then don't check for modifications
+on disk, as a performance optimization, but still require a rebuild if
+it is necessary for reasons that are fast to check."
   (straight--with-plist recipe
       (package local-repo)
     (let* (;; `build-info' is a list of length three containing the
@@ -5190,7 +5195,8 @@ last time."
               (cl-return-from straight--package-might-be-modified-p))
             ;; Don't look at mtimes unless we're told to. Otherwise,
             ;; rely on live modification checking/user attention.
-            (unless (or (straight--modifications 'find-at-startup)
+            (unless (or (and (straight--modifications 'find-at-startup)
+                             (not skip-check))
                         (and (straight--modifications 'find-when-checking)
                              straight--allow-find))
               (cl-return-from straight--package-might-be-modified-p))
@@ -6598,6 +6604,9 @@ packages."
                     (if (straight--functionp no-build)
                         (funcall no-build package)
                       no-build)))
+                  (skip-check
+                   (and already-registered
+                        (straight--modifications 'only-once)))
                   (modified
                    (or
                     ;; This clause provides support for
@@ -6613,7 +6622,7 @@ packages."
                      ;; doesn't affect the `and' logic.
                      (puthash package t straight--packages-not-to-rebuild))
                     (straight--package-might-be-modified-p
-                     recipe no-build))))
+                     recipe no-build skip-check))))
              (let ((func (intern (format "straight-recipes-%s-version"
                                          package)))
                    (table (gethash (intern package)
@@ -6658,9 +6667,10 @@ packages."
                ;; We've rebuilt the package, so its autoloads might
                ;; have changed.
                (remhash package straight--autoloads-cache))
-             ;; We need to do this even if the package wasn't built,
-             ;; so we can keep track of modifications.
-             (straight--declare-successful-build recipe)
+             ;; We need to do this even if `no-build' is non-nil, so
+             ;; we can keep track of modifications.
+             (when modified
+               (straight--declare-successful-build recipe))
              (unless no-build
                ;; Here we are not actually trying to build the
                ;; dependencies, but activate their autoloads. (See the
