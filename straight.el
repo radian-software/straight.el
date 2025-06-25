@@ -7992,48 +7992,54 @@ locally bound plist, straight-bug-report-args."
 
 ;;;###autoload
 (defun straight-dependencies (&optional package)
-  "Return a list of PACKAGE's dependencies."
-  (interactive (list
-                (straight--select-package
-                 "Dependencies of"
-                 ;; Only offer candidates which have dependencies.
-                 (lambda (recipe)
-                   (and (straight--installed-p recipe)
-                        (cl-remove-if (lambda (p) (string= p "emacs"))
-                                      (nth 1 (gethash
-                                              (plist-get recipe :package)
-                                              straight--build-cache))))))))
+  "Return a list of PACKAGE's dependencies, as strings.
+PACKAGE is a string. If the dependencies have dependencies themselves,
+then instead of strings they will be lists whose cars are the
+dependencies and whose cdrs are the recursive dependencies in the same
+format returned from `straight-dependencies'.
+
+Interactively, the user selects a package to show dependencies for, and
+the dependencies are shown in the echo area."
+  (interactive (list (straight--select-package "Dependencies of")))
   (let ((dependencies
          (mapcar (lambda (dependency)
                    (if-let ((transitive (straight-dependencies dependency)))
                        (append (list dependency) transitive)
                      dependency))
-                 (cl-remove-if
-                  (lambda (p) (string= p "emacs"))
-                  (nth 1 (gethash package straight--build-cache))))))
+                 (remove "emacs"
+                         (nth 1 (gethash package straight--build-cache))))))
     (if (called-interactively-p 'interactive)
-        (message "Dependencies of %S: %S" package dependencies)
+        (if dependencies
+            (message "Dependencies of %S: %S" package dependencies)
+          (message "No dependencies of %S" package))
       dependencies)))
 
+;; Unused now
 (defun straight--dependencies ()
   "Return a list of dependencies from `straight--build-cache'."
   (let ((dependencies))
     (maphash (lambda (_ val) (push (nth 1 val) dependencies))
              straight--build-cache)
-    (cl-remove-if (lambda (p) (string= p "emacs"))
-                  (delete-dups
-                   (delq nil
-                         (cl-reduce #'append (nreverse dependencies)))))))
+    (remove "emacs"
+            (delete-dups
+             (delq nil
+                   (cl-reduce #'append (nreverse dependencies)))))))
 
 ;;;###autoload
 (defun straight-dependents (&optional package)
-  "Return a list of PACKAGE's dependents."
+  "Return a list of PACKAGE's dependents, as strings.
+Dependents are packages that have the given package as a dependency. In
+other words, this is the opposite of `straight-dependencies'.
+
+PACKAGE is a string. If the dependents have dependents themselves, then
+instead of strings they will be lists whose cars are the dependents and
+whose cdrs are the recursive dependents in the same format returned from
+`straight-dependents'."
   (interactive
    (list (straight--select-package
           "Dependents of"
-          ;; Only offer cached dependencies.
-          (lambda (recipe) (member (plist-get recipe :package)
-                                   (straight--dependencies))))))
+          (lambda (recipe)
+            (not (equal (plist-get recipe :package) "emacs"))))))
   (let (dependents)
     (maphash (lambda (key val)
                (when (member package (nth 1 val))
@@ -8043,7 +8049,9 @@ locally bound plist, straight-bug-report-args."
                        dependents)))
              straight--build-cache)
     (if (called-interactively-p 'interactive)
-        (message "Dependents of %S: %S" package dependents)
+        (if dependents
+            (message "Dependents of %S: %S" package dependents)
+          (message "No dependents of %S" package))
       (nreverse dependents))))
 
 ;;;; Closing remarks
