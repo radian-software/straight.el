@@ -3535,7 +3535,15 @@ cloned."
                         (format "Looking for %s recipe" package))))
     (cl-dolist (source sources)
       (let ((table (gethash source straight--recipe-lookup-cache)))
-        (if (and table (straight--checkhash package table))
+        ;; As a concession to usability, disable reading from the
+        ;; recipe lookup cache when not loading the init-file. This
+        ;; makes it so that updated recipes are used right away when
+        ;; the user modifies a recipe repository and then re-evaluates
+        ;; a `straight-use-package' form without also re-evaluating
+        ;; the underlying `straight-use-recipes' form for the recipe
+        ;; repository to detect the modification.
+        (if (and table straight--functional-p
+                 (straight--checkhash package table))
             ;; Don't `cl-return' nil anywhere in this method. That will
             ;; prevent us from checking the other recipe repositories.
             (when-let ((recipe (gethash package table)))
