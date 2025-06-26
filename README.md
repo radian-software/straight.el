@@ -1949,7 +1949,6 @@ differences from the user's point of view are:
   built; see below.
 * There are consistency and feature improvements to edge cases of the
   `:files` keyword as documented in `straight-expand-files-directive`.
-
 * `:includes` indicates a package is a superset of another package.
 
 Here is a comprehensive list of all keywords which have special
@@ -3291,6 +3290,9 @@ this syntax instead by customizing `straight-use-package-version`.
 
 You can disable `use-package` integration entirely by customizing
 `straight-enable-use-package-integration`.
+
+For more details on the available keywords inside a recipe, see [the
+recipe format][#user/recipes].
 
 ##### Loading packages conditionally
 
