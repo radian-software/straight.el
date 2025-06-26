@@ -3496,20 +3496,18 @@ well as the venv-whatever package that is needed on Ubuntu to run
 
 The filesystem watcher runs in the background and uses `nohup` to fork
 out and survive Emacs termination. The invocation of `nohup` itself
-logs to `*straight-watcher*`, but that will almost certainly just be
-empty. You really want to look in
-`~/.emacs.d/straight/watcher/nohup.out` which has the watchexec
-output. You might see warnings or fatal errors here. We should really
-be reporting those proactively but we don't currently.
+logs to `*straight-watcher*`, and includes log lines that tell you it
+has forked successfully, as well as pointing to the watchexec log
+file, which is `~/.emacs.d/straight/watcher/nohup.out`. You might see
+warnings or fatal errors here. We should really be reporting those
+proactively but we don't currently.
 
 The most common cause that the filesystem watcher doesn't work, for me
 at least, is the virtualenv gets bricked. This seems to happen every
 time I upgrade Python versions, no matter what operating system I'm
-on. Thanks Python. You can always `rm -rf
-~/.emacs.d/straight/watcher/virtualenv` and it'll get re-created next
-Emacs startup. We really have to auto-detect and repair that. If this
-is the failure condition you should see a Python related error in
-`nohup.out`.
+on. Thanks Python. However this case should be caught proactively by
+`straight.el` and reported in the echo area during startup. You can
+run `C-u M-x straight-watcher-start` to delete and recreate it.
 
 It's also possible you have a wrong (or just different than expected)
 version of watchexec, maybe the command-line options we are passing.
@@ -3519,6 +3517,11 @@ your `watchexec --version` and see the upstream changelog. Our
 watchexec invocation should be running the Python callback file for
 every file modification and that should be mapping it back to a
 `straight.el` repository.
+
+There may also be warnings from watchexec notifying you that there are
+issues with your system configuration; some cases are known to work
+best with some custom `sysctl` configuration, and will tell you so in
+that log file.
 
 If that's working then the next step is that when a modification is
 detected, the callback script creates a file in
