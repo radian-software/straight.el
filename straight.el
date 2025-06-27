@@ -1870,6 +1870,8 @@ can convert it into a full repository."
   (if straight-snapshot-handling-mode
       (add-hook 'find-file-hook #'straight-maybe-handle-snapshot)
     (remove-hook 'find-file-hook #'straight-maybe-handle-snapshot)))
+(put #'straight-snapshot-handling-mode 'standard-value
+     '(straight-vc-use-snapshot-installation))
 
 (if straight-vc-use-snapshot-installation
     (straight-snapshot-handling-mode +1)
@@ -7418,6 +7420,8 @@ is loaded, according to the value of
                      #'straight-package-advice-ensure-init-file)
       (advice-remove #'package--save-selected-packages
                      #'straight-package-advice-save-selected-packages))))
+(put #'straight-package-neutering-mode
+     'standard-value '(straight-enable-package-integration))
 
 ;;;;; use-package integration
 
@@ -7703,6 +7707,8 @@ is loaded, according to the value of
                                        '('(t) straight-use-package-by-default)
                                        use-package-defaults
                                        'symbol))))))))
+(put #'straight-use-package-mode 'standard-value
+     '(straight-enable-use-package-integration))
 
 ;;;;; Flycheck integration
 
