@@ -10,13 +10,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Can't seem to push a different branch back without doing a
-          # non-shallow clone
-          fetch-depth: 0
+          ref: main-test
       - name: Update master
         run: |-
           set -euxo pipefail
           git branch -f master-test main-test
-          git branch -avv
-          git remote get-url origin
-          git push -f origin main-test
+          git push -f origin main-test:main-test
