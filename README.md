@@ -108,6 +108,7 @@ for the [Emacs] hacker.
   * [Miscellaneous](#miscellaneous)
 - [Troubleshooting](#troubleshooting)
   * [Why are my packages always/never rebuilding?](#why-are-my-packages-alwaysnever-rebuilding)
+  * [I changed something but `straight.el` is still using the old value!](#i-changed-something-but-straightel-is-still-using-the-old-value)
 - [Developer manual](#developer-manual)
   * [Low-level functions](#low-level-functions)
 - [Trivia](#trivia)
@@ -3532,6 +3533,150 @@ locations. Custom base directory *should* work, but if you have
 specific repos with hardcoded absolute paths (instead of having them
 all in the `repos` base-dir), my scripting might not take that into
 account properly. That's an area for improvement.
+
+### I changed something but `straight.el` is still using the old value!
+
+For performance reasons, `straight.el` uses many many caches. The
+implementation goal is that all caches are transparent to the user,
+i.e. if anything is changed that would make the cached data no longer
+valid, then the cache is automatically invalidated without the need
+for user action. Sometimes however this may not work correctly. This
+doc section is about helping you find out what's going wrong and how
+to make `straight.el` do what you want without needing to delete
+everything and start again.
+
+I don't know any perfect way to provide a universal guide, so let's
+start with a list of all the different types of data that is cached by
+`straight.el` and why it does so / when the cache is invalidated:
+
+* Types of data that are cached *in memory, within a single Emacs
+  session*. All this data will be cleared by restarting Emacs. Some of
+  it will also be cleared by re-loading your init-file.
+    * *The set of packages registered by your init-file, and what
+      recipes were used for them.*
+        * This is used to identify which set of packages should be
+          written to the lockfile, if you use `M-x
+          straight-freeze-versions`.
+        * This cache is cleared during `straight.el` bootstrap, which
+          will be invoked if you re-load your init-file, and is
+          populated as your init-file invokes `straight-use-package`.
+        * `straight.el` pays attention to whether additional packages
+          have been registered after your init-file finished loading
+          (e.g., via `M-x straight-use-package` for temporary
+          testing). If so, this cache will no longer match your
+          init-file package-set, and `straight-freeze-versions` will
+          prompt you to re-load your init-file to ensure a correct
+          lockfile is written.
+        * When `straight-use-package` is invoked without providing a
+          recipe, or interactively, or internally because a package
+          has dependencies, normally the recipe is looked up from
+          recipe repositories. However, if that package was already
+          registered in the current Emacs session (tracked in this
+          cache), then the already-registered recipe is automatically
+          reused.
+        * To force the recipe to change for an already-registered
+          package, either provide the new recipe explicitly to
+          `straight-use-package`, or re-load your init-file. Recipe
+          repository lookup will only be triggered once per package
+          per init-file load. (See also the recipe lookup cache,
+          below.)
+        * The internal data structures used to maintain this cache are
+          `straight--recipe-cache`, `straight--repo-cache`,
+          `straight--profile-cache`, and
+          `straight--profile-cache-valid`.
+* Types of data that are cached *on disk, between multiple Emacs
+  sessions*, but *are not needed for correctness*. This data is stored
+  in `~/.emacs.d/straight/build-cache.el` unless otherwise specified,
+  and that file can be safely deleted as a nuclear option (note this
+  will trigger rebuilds of all packages).
+    * *The built versions of every package.*
+        * These are stored in `~/.emacs.d/straight/build`, which can
+          also be removed to trigger a rebuild of all packages.
+          However, the contents of this directory are not trusted
+          without timestamps in the build cache to authenticate them,
+          so removing the build cache file is also sufficient.
+        * When anything that would cause the package to be built
+          differently is changed, the package should be rebuilt
+          automatically the next time it is registered.
+            * However, if `only-once` is included in
+              `straight-check-for-modifications`, you need to actually
+              re-load your init-file before another modification check
+              will be run for a package that was already registered in
+              the current session.
+        * The built version of a package is considered outdated if: a
+          file in its source repository is modified (see the
+          modification detection system); the recipe for the package
+          changes (but see also the recipe lookup cache); or certain
+          global configuration options affecting package builds are
+          changed (which will invalidate the entire build cache).
+            * A package rebuild is only triggered if one of the
+              changed recipe keywords is actually relevant to package
+              build behavior (e.g., `:files` but not `:repo`).
+    * *The timestamp for the last time a package was built, and the
+      last used recipe for it.*
+        * This is used to implement the rules outlined in the previous
+          section.
+    * *The list of dependencies for each package.*
+        * This is a performance optimization; the list of dependencies
+          is read out of the package from disk when building it, and
+          then cached until the next package build, since any
+          operation that could change the set of dependencies should
+          also trigger a rebuild.
+    * *The entire contents of the autoloads generated for each
+      package.*
+        * This is also a performance optimization; the autoloads
+          similarly only change during a package build, so they are
+          copied out of the package into the build cache during each
+          package build.
+    * *The recipes looked up from recipe repositories.*
+        * Making changes to a recipe repository should result in the
+          new recipes being used during the next package registration.
+          However, it is relatively slow to always check the recipe
+          used for each package during every init. The previously used
+          recipes are stored in the build cache, but they may not
+          still be valid if the recipe repository has changed.
+        * To track this information correctly, recipes looked up from
+          recipe repositories are cached persistently, but the cache
+          for a recipe repository is invalided automatically when the
+          modification detection system detects a modification to the
+          recipe repository, or the Emacs Lisp code for generating
+          recipes from that recipe repository is changed (e.g. due to
+          updating `straight.el`).
+        * Note that packages are only checked for modifications at
+          registration time (and only once per init-file load if
+          `only-once` is included in
+          `straight-check-for-modifications`). As a result, normally
+          it would be required to re-load the entire init-file so that
+          the modification to the recipe repository could be detected
+          and then subsequently used for the dependent recipe.
+          **However**, as a concession to usability, reading from the
+          recipe lookup cache is automatically disabled when
+          `straight.el` is not being invoked from the init-file,
+          making it so you do not need to think about this cache when
+          exploring interactively with changes to recipes.
+* Types of data that are stored *on disk, persistently*, and *are
+  needed for correctness*. Deleting this data may change behavior as
+  it is considered user content/configuration.
+    * *The physical Git state for every package repository.*
+        * During init, `straight.el` never makes any changes to
+          package source repositories, nor checks that they are in a
+          valid state. This means manual edits will be neither
+          detected nor reverted. If you delete a source repository, it
+          will automatically be cloned again (at the revision
+          specified in your lockfile, or at the latest revision if
+          there is no lockfile), but if you check out a different
+          revision in an already-cloned source repository, that
+          revision will remain checked out. However, the change will
+          still be detected and will result in the package being
+          rebuilt.
+            * To ensure that your checked-out packages match your
+              lockfile, or to update your lockfile to reflect changes
+              you have made to your checked-out packages, use the VC
+              system commands or the lockfile management commands.
+              These commands operate orthogonally to the `straight.el`
+              subsystems that execute during init, and they do not use
+              any caching, because they are not on the critical path
+              that affects init time.
 
 ## Developer manual
 
