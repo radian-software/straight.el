@@ -50,8 +50,11 @@ for the [Emacs] hacker.
   * [Comparison to Borg](#comparison-to-borg)
     + [Advantages of `straight.el`](#advantages-of-straightel-4)
     + [Advantages of Borg](#advantages-of-borg)
-  * [Comparison to the manual approach](#comparison-to-the-manual-approach)
+  * [Comparison to Nix](#comparison-to-nix)
     + [Advantages of `straight.el`](#advantages-of-straightel-5)
+    + [Advantages of Nix](#advantages-of-nix)
+  * [Comparison to the manual approach](#comparison-to-the-manual-approach)
+    + [Advantages of `straight.el`](#advantages-of-straightel-6)
     + [Advantages of the manual approach](#advantages-of-the-manual-approach)
 - [User manual](#user-manual)
   * [Bootstrapping `straight.el`](#bootstrapping-straightel)
@@ -1348,6 +1351,47 @@ offer corrections for this section.
 * Borg does a heck of a lot less magic, so if you want a solution with
   simple implementation details, `straight.el` may not be for you.
   (But see the developer manual and docstrings, first.)
+
+### Comparison to Nix
+
+* Nix and `straight.el` both use the tagline "purely functional", but
+  Nix probably uses it in a more correct sense than `straight.el`.
+  Nix, by default, uses a fully static and 100% reproducible format
+  for everything, based on the regularly-updated package definitions
+  in the nixpkgs repository. `straight.el` on the other hand clones
+  packages directly from source; while it provides lockfiles to
+  theoretically ensure reproducibility, nothing on a technical level
+  prevents you from directly modifying the source code.
+
+#### Advantages of `straight.el`
+
+* When you want to hack on a package or contribute upstream, you can
+  navigate directly to the source code and edit it immediately. The
+  Git repository is ready for branching and pull requests right away.
+  With Nix, package derivations are read-only, and setting up a
+  package for local development requires you to clone it yourself and
+  reconfigure your Nix environment to pull from the local copy,
+  similarly to `package.el`.
+* Configuration for `straight.el` happens all within Emacs Lisp as
+  opposed to an external configuration language, so there is not a new
+  language (unless you are already using Nix).
+
+#### Advantages of Nix
+
+* Nix community contributions in nixpkgs contain lots of repackaging
+  and fixes for various packages to make them work better.
+* Being integrated with the rest of the Nix package manager means that
+  installing an Emacs package can also install any required system
+  dependencies, something that `straight.el` has no support for (by
+  design) as it is limited to within-Emacs package management.
+* Package configuration is much more guaranteed to be fully
+  reproducible on any system.
+* Due to the use of a centralized and versioned package repository,
+  security is likely higher, since published changes to individual Git
+  repositories of package authors have slightly more opportunity to go
+  through community auditing (although the system is still automated,
+  as opposed to requiring review by individual package maintainers
+  like in Linux distribution packaging).
 
 ### Comparison to the manual approach
 
