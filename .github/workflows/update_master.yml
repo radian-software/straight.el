@@ -17,5 +17,6 @@ jobs:
         run: |-
           set -euxo pipefail
           git branch -f master-test main-test
+          git branch -avv
           git remote get-url origin
           git push -f origin main-test
