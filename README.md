@@ -92,6 +92,7 @@ for the [Emacs] hacker.
   * [Lockfile management](#lockfile-management)
     + [The profile system](#the-profile-system)
   * [Packages and the init-file](#packages-and-the-init-file)
+    + [Byte-compiling the init-file](#byte-compiling-the-init-file)
   * [Using `straight.el` to reproduce bugs](#using-straightel-to-reproduce-bugs)
     + [... in other packages](#-in-other-packages)
     + [... in `straight.el` itself](#-in-straightel-itself)
@@ -2995,6 +2996,61 @@ are made sequentially. However, since the transaction system (at least
 in recent versions of `straight.el`) operates transparently, its
 details are relegated to the [developer manual][#dev/transactions].
 
+#### Byte-compiling the init-file
+
+There is considerable complexity with byte-compiling your init-file,
+with any configuration (not just with `straight.el`). In fact, the
+[official Emacs manual][init-file] recommends against doing so.
+However, you can still do it, and this is supported by `straight.el`.
+This section explains what you have to know in order to do it
+correctly.
+
+The biggest issue with byte-compilation is that the environment in
+which you are byte-compiling the code, may affect how the code is
+byte-compiled. This may not be obvious because in other languages such
+as C, there is no such thing as there being an "existing environment"
+derived from the runtime state of a program, when you compile
+something.
+
+Consider a case where you depend on macros in your init-file, for
+example `use-package`. `use-package` has various extension libraries
+which provide additional keywords, including `straight.el` itself
+which provides the `:straight` keyword. If those libraries are not
+loaded in the context in which the `use-package` macro is expanded,
+then the keywords will not process correctly, because the keyword
+logic is implemented at macroexpansion time, not runtime (and macros
+are expanded during byte-compilation, unless the macros are not
+defined yet).
+
+So, in order to correctly byte-compile an init-file which contains
+`use-package` declarations, you must ensure that any keyword-providing
+libraries are loaded not only in your runtime context, but also the
+byte-compilation context. In the case that the libraries are provided
+by `straight.el`, then you would also need to load `straight.el` at
+byte-compilation time. You can arrange for this sort of thing via
+`eval-when-compile` or `eval-and-compile`, however there are
+additional complications, for example invoking `straight.el` during
+byte-compilation may lead to `straight.el` trying to clone or build
+packages during byte-compilation, possibly leading to unexpected
+results since byte-compilation generally does not have stateful
+effects on files outside the one being compiled. Furthermore
+`straight.el` expects that all relevant packages are registered during
+a single initialization session, so creating a second context in which
+a different set of packages are registered for byte-compilation, may
+create unexpected results with respect to modification detection and
+the build cache.
+
+Personally, my "foolproof" way of byte-compiling the init-file is to
+always byte-compile it from within an Emacs instance which has already
+loaded the init-file, which guarantees that the environment matches
+what would be expected. I then wrote a wrapper script that allows me
+to perform the byte-compilation from the command line, by invoking a
+child Emacs process to load the init-file and then (if that was
+successful), running a byte-compilation from within that process. This
+wrapper script is in fact triggered asynchronously after a successful
+Emacs initialization, if the init-file has changed since the last
+compilation. See [Radian] for an example of this implementation.
+
 ### Using `straight.el` to reproduce bugs
 
 #### ... in other packages
@@ -3895,6 +3951,7 @@ savings on network bandwidth and disk space.
 [homebrew]: https://brew.sh/
 [hydra-wiki-straight-entry]: https://github.com/abo-abo/hydra/wiki/straight.el
 [hydra]: https://github.com/abo-abo/hydra
+[init-file]: https://www.gnu.org/software/emacs/manual/html_node/emacs/Init-File.html
 [issues]: https://github.com/radian-software/straight.el/issues
 [keyword arguments]: https://www.emacswiki.org/emacs/KeywordArguments
 [magit]: https://magit.vc/
