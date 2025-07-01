@@ -78,7 +78,6 @@ for the [Emacs] hacker.
   * [The recipe format](#the-recipe-format)
     + [Version-control backends](#version-control-backends)
     + [Git backend](#git-backend)
-      - [Deprecated `:upstream` keyword](#deprecated-upstream-keyword)
   * [Recipe lookup](#recipe-lookup)
     + [Updating recipe repositories](#updating-recipe-repositories)
     + [Customizing recipe repositories](#customizing-recipe-repositories)
@@ -2437,27 +2436,6 @@ You can customize the following user options:
   Please be careful with setting `straight-vc-git-default-clone-depth`,
   which may break some packages' installing processes such as `elfeed`
   that depend on `org`.
-
-##### Deprecated `:upstream` keyword
-
-`straight.el` previously supported fork configuration in recipes using
-an `:upstream` keyword rather than a `:fork` keyword. For various
-reasons, this was more complex to handle, which is why the change was
-made. For backwards compatibility, the `:upstream` keyword is still
-accepted, with the following behavior.
-
-When `straight.el` processes a recipe which uses the `:upstream`
-keyword, it moves the `:repo`, `:host`, and `:branch` keywords from
-that sub-plist to the top level, and moves those top-level keywords to
-a new `:fork` sub-plist. Then it sets the top-level and `:fork`
-sub-plist values of `:remote` to the values of the deprecated
-variables `straight-vc-git-upstream-remote` (defaults to "upstream")
-and `straight-vc-git-primary-remote` (defaults to "origin"),
-respectively.
-
-For backwards compatibility, if `straight-vc-git-primary-remote`
-differs from its default value of "origin", then its value is used in
-place of `straight-vc-git-default-remote-name`.
 
 ### Recipe lookup
 
