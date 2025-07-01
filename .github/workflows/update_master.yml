@@ -13,6 +13,6 @@ jobs:
           ref: main-test
       - name: Update master
         run: |-
-          set -euo pipefail
+          set -euxo pipefail
           git branch -f master-test main-test
           git push -f origin main-test
