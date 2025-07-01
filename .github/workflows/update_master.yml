@@ -15,4 +15,4 @@ jobs:
         run: |-
           set -euxo pipefail
           git branch -f master-test main-test
-          git push -f origin main-test:main-test
+          git push -v -f origin main-test:main-test
