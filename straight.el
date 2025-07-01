@@ -197,13 +197,13 @@ Must be set before bootstrap. Changes after initial installation will
 not modify the repository on disk; see `straight-normalize-package' for
 that."))
 
-(defcustom straight-repository-branch "master"
+(defcustom straight-repository-branch "main"
   "String identifying the branch of straight.el to clone.
 You must set this variable before straight.el is bootstrapped for
 it to have an effect. (It is used in the default recipe for
 straight.el which is registered during bootstrap.)"
   :type '(choice
-          (const :tag "Stable version (master)" "master")
+          (const :tag "Stable version (main)" "main")
           (const :tag "Development version (develop)" "develop")
           (string :tag "Use a custom branch"))
   :set (straight--set "
@@ -3034,7 +3034,7 @@ clone of everything."
             (when branch (straight--process-output "git" "branch" "-m" branch))
             (apply #'straight--process-run
                    "git" "remote" "add" remote url
-                   (when branch `("--master" ,branch)))
+                   (when branch `("-m" ,branch)))
             (unless branch
               (straight--process-output
                "git" "branch" "-m"

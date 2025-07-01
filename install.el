@@ -208,7 +208,7 @@
                                   "radian-software"))
                       :branch ,(or (bound-and-true-p
                                     straight-repository-branch)
-                                   "master")))
+                                   "main")))
           (unless (and (boundp 'bootstrap-version)
                        (integerp bootstrap-version)
                        (>= bootstrap-version 3))
