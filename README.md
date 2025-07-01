@@ -126,6 +126,7 @@ for the [Emacs] hacker.
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
 - [News](#news)
   * [Jul 1, 2025](#jul-1-2025)
+  * [Jul 1, 2025](#jul-1-2025-1)
   * [Jun 26, 2025](#jun-26-2025)
   * [Jun 25, 2025](#jun-25-2025)
   * [Jun 23, 2025](#jun-23-2025)
@@ -234,8 +235,8 @@ about when the option needs to be set):
 
 * [`straight-repository-branch`][#user/overriding/straight.el] -- to
   get the latest version of `straight.el` from the `develop` branch,
-  rather than the default `master` which is updated less frequently
-  but which is ostensibly more stable.
+  rather than the default `main` which is updated less frequently but
+  which is ostensibly more stable.
 * [`straight-check-for-modifications`][#user/install/mod-detection] --
   to configure an alternate way for `straight.el` to check for
   modifications made to package source code, rather than the default
@@ -1507,7 +1508,7 @@ care of all these details for you:
 <!-- longlines-stop -->
 
 Despite the reference to `develop`, this snippet actually installs
-from the `master` branch by default, just like every other package.
+from the `main` branch by default, just like every other package.
 Furthermore, the correct revision of `straight.el` is checked out, if
 you have one specified in your lockfile. Even better, you can
 [override the recipe for `straight.el`][#user/overriding/straight.el],
@@ -1824,7 +1825,7 @@ recipes which do not explicitly disable byte-compilation via the
 ##### Native compilation
 
 Experimental support for native compilation of Emacs Lisp code can be
-enabled in the latest `master` branch of the official Emacs repository
+enabled in the latest `main` branch of the official Emacs repository
 (see [gccemacs][gccemacs]). When running on this version of Emacs,
 `straight.el` will perform native compilation of packages.
 
@@ -2744,7 +2745,7 @@ override it:
 ```
 
 Note that even though the bootstrap snippet references the `develop`
-branch of `straight.el`, the default recipe installs from `master`.
+branch of `straight.el`, the default recipe installs from `main`.
 
 If all you want to do is change which branch you are installing
 `straight.el` from, simply customize the variable
@@ -4012,8 +4013,14 @@ Note that `:type` is a keyword for `straight.el`, not for
 ## News
 
 Note that recent changes are available on the `develop` branch, and
-are only periodically merged into the default `master` branch once
-there has been the opportunity for users to test their stability.
+are only periodically merged into the default `main` branch once there
+has been the opportunity for users to test their stability.
+
+### Jul 1, 2025
+The default branch of `straight.el` is now called `main` instead of
+`master`, to follow prevailing conventions. For backwards
+compatibility, `master` still points at the same commit, and will
+continue to be updated for some time.
 
 ### Jul 1, 2025
 The source code of `straight.el` now indicates, for each user option
