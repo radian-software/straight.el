@@ -125,8 +125,18 @@ for the [Emacs] hacker.
   * [How do I pin package versions or use only tagged releases?](#how-do-i-pin-package-versions-or-use-only-tagged-releases)
   * [How can I use the built-in version of a package?](#how-can-i-use-the-built-in-version-of-a-package)
 - [News](#news)
-  * [Jan 1, 2021](#jan-1-2021)
-  * [April 19, 2020](#april-19-2020)
+  * [Jul 1, 2025](#jul-1-2025)
+  * [Jun 26, 2025](#jun-26-2025)
+  * [Jun 25, 2025](#jun-25-2025)
+  * [Jun 23, 2025](#jun-23-2025)
+  * [Jun 23, 2025](#jun-23-2025-1)
+  * [Jun 17, 2025](#jun-17-2025)
+  * [Jun 16, 2025](#jun-16-2025)
+  * [Jun 13, 2025](#jun-13-2025)
+  * [Jun 13, 2025](#jun-13-2025-1)
+  * [Jun 10, 2025](#jun-10-2025)
+  * [Jun 9, 2025](#jun-9-2025)
+  * [Apr 5, 2025](#apr-5-2025)
 
 <!-- tocstop -->
 
@@ -4000,26 +4010,95 @@ Note that `:type` is a keyword for `straight.el`, not for
 [Read more.][#user/recipes]
 
 ## News
-### Jan 1, 2021
-Breaking change: The previous behavior of the `:build` keyword is now
-associated with the `:pre-build` keyword. `:build` is now used to
-specify build steps (generating autoloads and texinfo, byte/native
-compilation, etc). For more information on both of these keywords see
-[the recipe format](#the-recipe-format).
 
-The following customization variable names have changed:
+Note that recent changes are available on the `develop` branch, and
+are only periodically merged into the default `master` branch once
+there has been the opportunity for users to test their stability.
 
-- `straight-disable-byte-compilation` is now
-  `straight-disable-compile`
+### Jul 1, 2025
+The source code of `straight.el` now indicates, for each user option
+(`defcustom`), when that user option needs to be set to take effect.
+This is shown in a `:set` property of each variable definition.
 
-- `straight-disable-native-compilation` is now
-  `straight-disable-native-compile`
+### Jun 26, 2025
+We now have a [troubleshooting section for caches][#trouble/caches],
+in case you changed a user option or package configuration and
+wondered why `straight.el` seemed to be unable to notice the update.
 
-### April 19, 2020
+### Jun 25, 2025
+Performance is improved for non-SSD users of the default
+`straight-check-for-modifications` value that includes
+`find-at-startup`, since it would incur a nontrivial delay when
+re-evaluating a `use-package` form that invoked `straight.el`, as a
+bulk `find` command would be executed in a likely unnecessary way. The
+default value for `straight-check-for-modifications` now includes
+`only-once` which restricts modification checking to once per init
+session.
 
-Shallow clones are now compatible with lockfiles, so you can safely
-set `straight-vc-git-default-clone-depth` to `1` and get massive
-savings on network bandwidth and disk space.
+### Jun 23, 2025
+Customize `straight-vc-use-snapshot-installation` to try out snapshot
+installation. Packages will be initially cloned by extracting a
+downloaded tarball, with a tracking file written to note which commit
+was installed, and can later be converted into full repository clones
+if you want to make changes. This massively improves bootstrap
+performance, especially on a slow network connection, and reduces disk
+space utilization. Some VC operations may not be implemented yet for
+packages managed as snapshots; please report any bugs.
+
+### Jun 23, 2025
+Org is installed by default from a GitHub mirror maintained by Jonas.
+Customize `straight-recipes-org-url` to configure.
+
+### Jun 17, 2025
+GNU ELPA is usable from source again; that is, you can elect to
+disable `straight-recipes-gnu-elpa-use-mirror` and operation will
+generally be as intended, due to the returned recipes being updated to
+perform single-branch clones of sub-packages rather than trying to
+interact with the GNU ELPA build system.
+
+### Jun 16, 2025
+GNU ELPA and NonGNU ELPA repositories are, by default, now pulled from
+GitHub mirrors maintained by Jonas, rather than from source. This
+improves performance significantly. The change is to the default value
+of `straight-initial-recipe-repositories`, and is controlled by
+separate user options which you can customize as well,
+`straight-recipes-gnu-elpa-url` and
+`straight-recipes-nongnu-elpa-url`.
+
+### Jun 13, 2025
+The behavior of `M-x straight-use-package` is somewhat changed: it is
+possible to select already-registered packages, and the existing
+recipes for those packages will be respected rather than being
+reverted to the default pulled from a recipe repository. To accomplish
+this the user interface is modified to present a virtual `cache`
+recipe repository at the front of `straight-recipe-repositories`
+within `M-x straight-use-package`, which contains package recipes that
+have already been registered in the current session.
+
+### Jun 13, 2025
+When Git requires a passphrase to be entered to clone a repository,
+you are now prompted for this interactively in the minibuffer, like
+how it works in Magit. For now, this feature is opt-in via the user
+option `straight-display-subprocess-prompts`.
+
+### Jun 10, 2025
+It's now possible to customize the default recipe repositories. You
+can change their recipes arbitrarily, reorder them, or remove them
+entirely. See the new user option
+`straight-initial-recipe-repositories`, whose default value
+corresponds to the previous behavior.
+
+### Jun 9, 2025
+It's now possible to register your own custom hosts with full feature
+parity to the built-in `:host github`, `:host sourcehut`, etc. See the
+docstring of the `straight-hosts` for information. This changes the
+format of entries in `straight-hosts`, but the previous more-limited
+format is still supported for backwards compatibility.
+
+### Apr 5, 2025
+We have a troubleshooting guide available for finding out why your
+packages are always/never rebuilding during Emacs init. Check the [new
+README section][#trouble/rebuilds].
 
 [#principles]: #guiding-principles
 [#quickstart]: #getting-started
@@ -4051,6 +4130,9 @@ savings on network bandwidth and disk space.
   [#user/lockfiles/profiles]: #the-profile-system
  [#user/integration]: #integration-with-other-packages
   [#user/integration/use-package]: #integration-with-use-package-1
+[#trouble]: #troubleshooting
+ [#trouble/rebuilds]: #why-are-my-packages-alwaysnever-rebuilding
+ [#trouble/caches]: #i-changed-something-but-straightel-is-still-using-the-old-value
 [#dev]: #developer-manual
  [#dev/vc-backends]: #developer-manual
  [#dev/recipe-formats]: #developer-manual
