@@ -1633,16 +1633,7 @@ particular mtimes, which is slower).
 
 This variable can also be the symbol `:guess', meaning
 straight.el will automatically assign an appropriate value when
-the variable is next read.
-
-For backwards compatibility, the value of this variable may also
-be a symbol, which is translated into a corresponding list as
-follows:
-
-`gnu/bsd' => `(newermt)'
-`busybox' => nil
-
-This usage is deprecated and will be removed."
+the variable is next read."
   :type '(choice
           (list
            (const :tag "Supports -newermt" newermt))
@@ -1659,11 +1650,7 @@ appropriately."
     (setq straight-find-flavor (straight--determine-find-flavor))
     (put 'straight-find-flavor 'standard-value
          `(',straight-find-flavor)))
-  (memq symbol
-        (pcase straight-find-flavor
-          ('gnu/bsd '(newermt))
-          ('busybox nil)
-          (lst lst))))
+  (memq symbol straight-find-flavor))
 
 ;;;; Lockfile utility functions
 
@@ -2017,33 +2004,6 @@ can convert it into a full repository."
 
 ;;;;; Git
 
-(defcustom straight-vc-git-primary-remote "origin"
-  "The remote name to use for the primary remote.
-This variable is deprecated, and only applies to usage of the
-deprecated `:upstream' keyword, except that if it is set to a
-non-default value then it overrides the value of
-`straight-vc-git-default-remote-name', for backwards
-compatibility."
-  :type 'string)
-(make-obsolete-variable
- 'straight-vc-git-primary-remote
- "see `straight-vc-git-default-remote-name' and
-  `straight-vc-git-default-fork-name' instead,
-  but note that the semantics are different."
- "2018-08-22")
-
-(defcustom straight-vc-git-upstream-remote "upstream"
-  "The remote name to use for the upstream remote.
-This variable is deprecated, and only applies to usage of the
-deprecated `:upstream' keyword."
-  :type 'string)
-(make-obsolete-variable
- 'straight-vc-git-upstream-remote
- "see `straight-vc-git-default-remote-name' and
-  `straight-vc-git-default-fork-name' instead,
-  but note that the semantics are different."
- "2018-08-22")
-
 (defcustom straight-vc-git-default-remote-name "origin"
   "The remote name to use for the primary remote.
 For a forked package, this means the upstream remote.
@@ -2174,9 +2134,7 @@ them with `upstream-' allows you to get the top-level values.
 Prepending with `fork-' is the same as the default behavior,
 except that if no `:fork' is configured then the values are bound
 to nil. Furthermore, default values for BRANCH and REMOTE are
-computed, based on the relevant user options, and the deprecated
-`:upstream' property and accompanying user options are handled
-appropriately."
+computed, based on the relevant user options."
   (declare
    (debug (form sexp body))
    (indent 2))
@@ -2202,36 +2160,9 @@ appropriately."
                 (,check ,value)
                 ,@(if fork
                       `((t straight-vc-git-default-fork-name))
-                    `(((equal straight-vc-git-primary-remote "origin")
-                       straight-vc-git-default-remote-name)
-                      (t straight-vc-git-primary-remote)))))
+                    `((t straight-vc-git-default-remote-name)))))
              (_ value)))))
     `(let ((,recipe-sym ,recipe))
-       (straight--with-plist ,recipe-sym
-           (upstream repo host branch)
-         (when upstream
-           (setq ,recipe-sym (cl-copy-list ,recipe-sym))
-           (setq ,recipe-sym
-                 (plist-put
-                  ,recipe-sym :fork
-                  ;; Can't use a backquote here because we're already
-                  ;; inside another backquote and we want to avoid
-                  ;; resolving variables like
-                  ;; `straight-vc-git-primary-remote' at
-                  ;; macroexpansion time.
-                  (list
-                   :repo repo
-                   :host host
-                   :branch branch
-                   :remote straight-vc-git-primary-remote)))
-           (dolist (kw '(:host :repo))
-             (setq ,recipe-sym
-                   (plist-put ,recipe-sym kw (plist-get upstream kw))))
-           (setq ,recipe-sym (plist-put ,recipe-sym :branch
-                                        (plist-get upstream :branch)))
-           (setq ,recipe-sym
-                 (plist-put
-                  ,recipe-sym :remote straight-vc-git-upstream-remote))))
        (let (,@(mapcar (lambda (prop)
                          `(,prop
                            ,(let ((require-fork nil))
@@ -3448,7 +3379,7 @@ then returned."
 (defun straight-vc-git-keywords ()
   "Return a list of keywords used by the VC backend for Git."
   '(:repo :host :branch :remote :nonrecursive
-          :upstream :fork :depth :protocol))
+          :fork :depth :protocol))
 
 ;;;; Fetching repositories
 
@@ -3809,11 +3740,6 @@ If nil, output is discarded."
           (const :tag "Discard output" nil))
   :set (straight--set "
 Must be set before bootstrap to apply to all byte-compilation."))
-
-(make-obsolete-variable
- 'straight-fix-org
- "No longer necessary, as straight.el supports external build commands."
- "2020-07-28")
 
 (defun straight-recipes-org-elpa--build ()
   "Generate `org-version.el`.
@@ -4813,18 +4739,7 @@ However, you will still want to have package modifications
 detected. Therefore add either `check-on-save', which has no
 overhead but also does not catch modifications made outside of
 Emacs, or `watch-files', which is more robust but has an external
-dependency (watchexec) and takes up memory / file descriptors.
-
-For backwards compatibility, the value of this variable may also
-be a symbol, which is translated into a corresponding list as
-follows:
-
-`at-startup' => `(find-at-startup find-when-checking)'
-`live' => `(check-on-save)'
-`live-with-find' => `(check-on-save find-when-checking)'
-`never' => nil
-
-This usage is deprecated and will be removed."
+dependency (watchexec) and takes up memory / file descriptors."
   :type
   '(repeat
     (choice
@@ -4839,16 +4754,9 @@ Must be set before bootstrap."))
 
 (defun straight--modifications (symbol)
   "Check if `straight-check-for-modifications' contains SYMBOL.
-However, if `straight-check-for-modifications' is itself one of
-the symbols supported for backwards compatibility, account for
-that appropriately."
-  (memq symbol
-        (pcase straight-check-for-modifications
-          ('at-startup '(find-at-startup find-when-checking))
-          ('live '(check-on-save))
-          ('live-with-find '(check-on-save find-when-checking))
-          ('never nil)
-          (lst lst))))
+This function previously was also used to handle special values for the
+user option, which are no longer supported."
+  (memq symbol straight-check-for-modifications))
 
 (defcustom straight-cache-autoloads t
   "Non-nil means read autoloads in bulk to speed up startup.
@@ -6075,9 +5983,6 @@ modifies the build folder, not the original repository."
 
 ;;;;; Byte-compilation
 
-(define-obsolete-variable-alias 'straight-disable-byte-compilation
-  'straight-disable-compile "2021-01-01")
-
 (defcustom straight-disable-compile nil
   "Non-nil means do not byte-compile packages by default.
 This can be overridden by the `:build' property of an
@@ -6115,9 +6020,6 @@ repository."
     (apply #'call-process `(,emacs nil ,buffer nil ,@args))))
 
 ;;;;; Native compilation
-
-(define-obsolete-variable-alias 'straight-disable-native-compilation
-  'straight-disable-native-compile "2021-01-01")
 
 (defconst straight--native-comp-available
   (and (fboundp 'native-comp-available-p) (native-comp-available-p))
