@@ -219,7 +219,9 @@ clone `straight.el` manually to
 
 Here are some variables you may be interested in (some of them must be
 set **before** the bootstrap code runs, if they might affect how
-`straight.el` itself is loaded):
+`straight.el` itself is loaded - see the `:set` option on any
+`defcustom` in `straight.el` source code for specific information
+about when the option needs to be set):
 
 * [`straight-repository-branch`][#user/overriding/straight.el] -- to
   get the latest version of `straight.el` from the `develop` branch,
@@ -264,7 +266,9 @@ Users of Emacs versions >= 27 will want to add:
 ```
 
 to their [early init-file][early-init-file] to prevent package.el
-loading packages prior to their init-file loading.
+loading packages prior to their init-file loading. Alternatively you
+can also remove `~/.emacs.d/elpa`, which will have the same effect. If
+you do neither, `straight.el` will signal a warning.
 
 While it is technically possible to use
 both `package.el` and `straight.el` at the same time, there is no real

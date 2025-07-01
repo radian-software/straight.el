@@ -122,6 +122,16 @@ They are still logged to the *Messages* buffer.")))
 
 ;;;; Customization variables
 
+(defun straight--set (_docstring)
+  "Return a function suitable for `:set' use in `defcustom'.
+The returned function always behaves the same as
+`set-default-toplevel-value', so there is no special functionality.
+However, using `straight--set' gives the ability to provide a DOCSTRING
+which gives information on when this user option has to be set in order
+to have an effect."
+  (declare (doc-string 1))
+  #'set-default-toplevel-value)
+
 (defgroup straight-faces nil
   "Faces used in straight.el."
   :group 'straight
@@ -145,14 +155,20 @@ They are still logged to the *Messages* buffer.")))
 (defcustom straight-arrow
   (if (char-displayable-p ?→) " → " " -> ")
   "The string to use for an arrow in messages."
-  :type 'string)
+  :type 'string
+  :set (straight--set "
+Can be set at any time. Changes affect all future messages printed."))
 
 (defcustom straight-profiles
   '((nil . "default.el"))
   "Alist mapping package profile names to version lockfile names.
 The profile names should be symbols, and the filenames may be
 relative (to straight/versions/) or absolute."
-  :type '(alist :key-type symbol :value-type string))
+  :type '(alist :key-type symbol :value-type string)
+  :set (straight--set "
+Must be set before setting `straight-current-profile' to a non-default
+value. (The allowed values for that variable are the keys listed in this
+alist.)"))
 
 (defcustom straight-current-profile nil
   "Symbol identifying the current package profile.
@@ -160,7 +176,11 @@ This symbol should have an entry in `straight-profiles'. If you
 wish to take advantage of the multiple-profile system, you should
 bind this variable to different symbols using `let' over
 different parts of your init-file."
-  :type 'symbol)
+  :type 'symbol
+  :set (straight--set "
+Can be set at any time, as long as the value is defined in
+`straight-profiles'. Only packages registered after the new setting will
+be registered under the new profile."))
 
 (defcustom straight-repository-user "radian-software"
   "String identifying the GitHub user from which to clone straight.el.
@@ -171,7 +191,11 @@ straight.el which is registered during bootstrap.)
 If you have forked radian-software/straight.el to
 your-name/straight.el, then to use your fork you should set
 `straight-repository-user' to \"your-name\"."
-  :type 'string)
+  :type 'string
+  :set (straight--set "
+Must be set before bootstrap. Changes after initial installation will
+not modify the repository on disk; see `straight-normalize-package' for
+that."))
 
 (defcustom straight-repository-branch "master"
   "String identifying the branch of straight.el to clone.
@@ -181,22 +205,43 @@ straight.el which is registered during bootstrap.)"
   :type '(choice
           (const :tag "Stable version (master)" "master")
           (const :tag "Development version (develop)" "develop")
-          (string :tag "Use a custom branch")))
+          (string :tag "Use a custom branch"))
+  :set (straight--set "
+Must be set before bootstrap. Changes after initial installation will
+not modify the repository on disk; see `straight-normalize-package' for
+that."))
 
 (defcustom straight-default-vc 'git
   "VC backend to use by default, if a recipe has no `:type'.
 Functions named like `straight-vc-TYPE-clone', etc. should be
 defined, where TYPE is the value of this variable."
-  :type 'symbol)
+  :type 'symbol
+  :set (straight--set "
+Affects the behavior of parsing a provided recipe, which occurs when
+calling `straight-use-package', so must be set before doing that for any
+package that you want to use the new setting. Note that if only a
+package name is provided to `straight-use-package', then the
+already-parsed recipe will be re-used until you re-load the init-file."))
 
 (defcustom straight-recipe-repositories nil
   "List of recipe repositories to find recipes in.
-These are used when you provide only a package name, rather than
-a full recipe, to `straight-use-package' or
-`straight-use-recipes'. The order in this list determines the
-precedence. Functions named like `straight-recipes-NAME-list',
-etc. should be defined, where NAME is any element of this list."
-  :type '(list symbol))
+These are used when you provide only a package name, rather than a full
+recipe, to `straight-use-package'. The order in this list determines the
+precedence. Functions named like `straight-recipes-NAME-list', etc.
+should be defined, where NAME is any element of this list.
+
+Conveniently add symbols to this list via `straight-use-recipes'."
+  :type '(repeat symbol)
+  :set (straight--set "
+Affects the behavior of looking up a package recipe, which occurs when
+calling `straight-use-package', so must be set before doing that for any
+package that you want to use the new setting. Note that if only a
+package name is provided to `straight-use-package', then the
+already-parsed recipe will be re-used until you re-load the init-file.
+Note also that if recipe inheritance is enabled, then recipes are still
+looked up even when an explicit recipe is provided."))
+(put 'straight-recipe-repositories 'standard-value
+     '((mapcar #'car straight-initial-recipe-repositories)))
 
 (defcustom straight-recipe-overrides nil
   "Alist specifying recipes to override those provided explicitly.
@@ -210,7 +255,9 @@ If you have no need of the profile system, then using the default
 profile (nil) will suffice without additional setup."
   :type '(alist :key-type symbol :value-type
                 (alist :key-type symbol :value-type
-                       (plist :key-type symbol :value-type sexp))))
+                       (plist :key-type symbol :value-type sexp)))
+  :set (straight--set "
+Can be set at any time. Affects future calls to `straight-use-package'."))
 
 (defcustom straight-allow-recipe-inheritance t
   "Non-nil allows partially overriding recipes.
@@ -242,7 +289,13 @@ inheritance enabled.
 \\='(package :fork \"my-user/repo\")
 
 The `:inherit' keyword overrides this option on a per-recipe basis."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Affects the behavior of parsing a provided recipe, which occurs when
+calling `straight-use-package', so must be set before doing that for any
+package that you want to use the new setting. Note that if only a
+package name is provided to `straight-use-package', then the
+already-parsed recipe will be re-used until you re-load the init-file."))
 
 (defcustom straight-safe-mode nil
   "Non-nil means avoid doing anything that modifies the filesystem.
@@ -261,7 +314,9 @@ safe mode for the background Emacs process.
 
 Safe mode is not guaranteed to be as performant as normal
 operation."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defcustom straight-host-usernames nil
   "Alist mapping forge :host symbols to username strings.
@@ -297,7 +352,13 @@ computes the fork as \"githubUser/fork\"."
                            (const :tag "codeberg" codeberg)
                            (const :tag "sourcehut" sourcehut)
                            (const :tag "bitbucket" bitbucket))
-                :value-type (string :tag "username")))
+                :value-type (string :tag "username"))
+  :set (straight--set "
+Affects the behavior of parsing a provided recipe, which occurs when
+calling `straight-use-package', so must be set before doing that for any
+package that you want to use the new setting. Note that if only a
+package name is provided to `straight-use-package', then the
+already-parsed recipe will be re-used until you re-load the init-file."))
 
 (defun straight-host-like-github (name website &optional archive)
   "Make an entry for `straight-hosts' like GitHub's.
@@ -364,7 +425,13 @@ be downloaded.
 
 There is also a legacy format supported for backwards
 compatibility, see `straight-host-like-legacy' for details."
-  :type '(repeat sexp))
+  :type '(repeat sexp)
+  :set (straight--set "
+Affects the behavior of parsing a provided recipe, which occurs when
+calling `straight-use-package', so must be set before doing that for any
+package that you want to use the new setting. Note that if only a
+package name is provided to `straight-use-package', then the
+already-parsed recipe will be re-used until you re-load the init-file."))
 
 (defun straight--host-spec (host)
   "Given symbol HOST, get entry for `straight-hosts'.
@@ -394,23 +461,36 @@ Since keyword arguments are used, each function should be defined
 via `cl-defun', with `&key' used at the front of the argument
 list, and `&allow-other-keys' at the end to ensure forwards
 compatibility."
-  :type 'hook)
+  :type 'hook
+  :set (straight--set "
+Can be set at any time. Will be invoked for future clone operations."))
 
 (defcustom straight-log nil
   "Whether to enable diagnostic logging for straight.el.
 This can be used to report additional information which can be
 used to more effectively identify the source of a bug when it
 cannot be reproduced outside your system."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Can be set at any time. Will affect whether future operations log. Set
+before bootstrap to capture all logs."))
 
 (defcustom straight-log-buffer "*straight-log*"
   "Name of logging buffer when `straight-log' is non-nil."
-  :type 'string)
+  :type 'string
+  :set (straight--set "
+Can be set at any time. A new buffer will be created the next time a log
+is printed, if there is not already a buffer with the new name. The old
+buffer is left alone. Set before bootstrap to capture all logs in one
+place."))
 
 (defcustom straight-log-messages nil
   "Non-nil means also write `straight-log-buffer' to `message'.
 This means all logging will also go to stderr in batch mode."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Can be set at any time. Will affect how future operations log. Set
+before bootstrap to capture all logs."))
 
 ;;;; Utility functions
 ;;;;; Lists
@@ -729,7 +809,9 @@ accident."
 (defcustom straight-base-dir user-emacs-directory
   "Directory in which the straight/ subdirectory is created.
 Defaults to `user-emacs-directory'."
-  :type 'string)
+  :type 'string
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defcustom straight-use-version-specific-build-dir nil
   "If non-nil, use an Emacs-version-specific `straight-build-dir' directory.
@@ -740,7 +822,9 @@ to use a per-Emacs-version build directory based upon the
 variable `emacs-version', for example `build-27.2'.
 
 Setting `straight-build-dir' will override this behavior."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defcustom straight-build-dir (if straight-use-version-specific-build-dir
                                   (concat "build-" emacs-version)
@@ -752,7 +836,9 @@ Defaults to \"build\".
 By default, this variable also affects the name of the build
 cache file, set the variable `straight-build-cache-fixed-name'
 to override this."
-  :type 'string)
+  :type 'string
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defcustom straight-build-cache-fixed-name nil
   "Name of the build cache file.
@@ -765,7 +851,9 @@ name of the cache file.
 In both cases, the path is relative to the \"straight/\"
 subdirectory of `straight-base-dir'."
   :type '(choice (const :tag "Default location" nil)
-                 (string :tag "Fixed location")))
+                 (string :tag "Fixed location"))
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defvar straight--this-file
   (file-truename (or load-file-name buffer-file-name))
@@ -954,7 +1042,9 @@ are built\" in the user manual.
 
 Beware that copying is slower, less space-efficient, and
 requiring of additional hacks."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defun straight--directory-files (&optional directory match full sort)
   "Like `directory-files', but with better defaults.
@@ -1036,7 +1126,11 @@ side effects, so it is currently being tested for robustness. Please
 report any bugs you find: performance regressions, execution hangs, and
 out-of-order command execution are the most likely unintended side
 effects of enabling this option."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Can be set at any time, but only affects processes invoked subsequently.
+Set before bootstrap to handle all processes, including the initial
+clone of straight.el if necessary."))
 
 (defvar straight--process-log t
   "If non-nil, log process output to `straight-process-buffer'.")
@@ -1118,13 +1212,21 @@ information on PROC and STRING."
 
 (defcustom straight-process-buffer "*straight-process*"
   "Name of buffer used for process output."
-  :type 'string)
+  :type 'string
+  :set (straight--set "
+Can be set at any time. A new process buffer will be created if there is
+not one by the new name already, and the old process buffer will be left
+alone. Set before bootstrap to keep all process output in the same
+buffer."))
 
 (defcustom straight-process-messages nil
   "Non-nil means also write `straight-process-buffer' to `message'.
 This means all process invocations and results will also go to stderr in
 batch mode."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Can be set at any time, and will affect subsequent process invocations.
+Set before bootstrap to affect the logging of all process messages."))
 
 (defun straight--delete-stderr-file ()
   "Remove `straight--process-stderr' file."
@@ -1508,7 +1610,9 @@ transaction. In this case, the caller must do this itself."
 
 (defcustom straight-find-executable "find"
   "Executable path of find command used by straight.el."
-  :type 'string)
+  :type 'string
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defun straight--determine-find-flavor ()
   "Determine the best default value of `straight-find-flavor'.
@@ -1542,7 +1646,9 @@ This usage is deprecated and will be removed."
   :type '(choice
           (list
            (const :tag "Supports -newermt" newermt))
-          (const :tag "Guess a value automatically" :guess)))
+          (const :tag "Guess a value automatically" :guess))
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defun straight--find-supports (symbol)
   "Check if `straight-find-flavor' contains SYMBOL.
@@ -1550,7 +1656,9 @@ However, if `straight-find-flavor' is itself one of the symbols
 supported for backwards compatibility, account for that
 appropriately."
   (when (eq straight-find-flavor :guess)
-    (setq straight-find-flavor (straight--determine-find-flavor)))
+    (setq straight-find-flavor (straight--determine-find-flavor))
+    (put 'straight-find-flavor 'standard-value
+         `(',straight-find-flavor)))
   (memq symbol
         (pcase straight-find-flavor
           ('gnu/bsd '(newermt))
@@ -1843,7 +1951,14 @@ are snapshots, and you are prompted when visiting them for whether
 straight.el should fetch the repository history, thus enabling
 modifications and upstream contributions. Snapshot installation is only
 enabled for recipes whose `:host' supports it."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Can be set at any time, and will affect future clone operations.
+Already-cloned repositories will not be changed on disk. Snapshots can
+be changed into full repositories using `straight-normalize-package'
+with a prefix argument, while there is no support for changing a full
+repository back into a snapshot. Set before bootstrap to ensure all
+clone operations are affected."))
 
 (defvar straight-snapshot-handling-mode)
 
@@ -1935,14 +2050,22 @@ For a forked package, this means the upstream remote.
 
 You can override the value of this variable on a per-package
 basis using the `:remote' keyword."
-  :type 'string)
+  :type 'string
+  :set (straight--set "
+Must be set before bootstrap to take effect for all repositories. Note
+that existing repositories are not changed on disk when this is
+modified. See `straight-normalize-package' for that."))
 
 (defcustom straight-vc-git-default-fork-name "fork"
   "The remote name to use for the fork remote in a forked package.
 
 You can override the value of this variable on a per-package
 basis using the `:remote' keyword in the `:fork' sub-plist."
-  :type 'string)
+  :type 'string
+  :set (straight--set "
+Must be set before bootstrap to take effect for all repositories. Note
+that existing repositories are not changed on disk when this is
+modified. See `straight-normalize-package' for that."))
 
 (defcustom straight-vc-git-default-protocol 'https
   "The default protocol to use for auto-generated URLs.
@@ -1952,7 +2075,11 @@ URLs to be translated.
 
 This may be either `https' or `ssh'."
   :type '(choice (const :tag "HTTPS" https)
-                 (const :tag "SSH" ssh)))
+                 (const :tag "SSH" ssh))
+  :set (straight--set "
+Must be set before bootstrap to take effect for all repositories. Note
+that existing repositories are not changed on disk when this is
+modified. See `straight-normalize-package' for that."))
 
 (defcustom straight-vc-git-force-protocol nil
   "If non-nil, treat HTTPS and SSH URLs as incompatible.
@@ -1960,7 +2087,10 @@ This means that operations like `straight-normalize-package' will
 re-set the remote URLs for packages whose recipes have non-nil
 `:host' values, if they are using a different protocol than the
 one specified in `straight-vc-git-default-protocol'."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Can be set at any time. Affects the operation of
+`straight-normalize-package'."))
 
 (defcustom straight-vc-git-auto-fast-forward t
   "Whether to quietly fast-forward when pulling packages.
@@ -1968,7 +2098,10 @@ This suppresses popups for trivial remote changes (i.e. the
 current HEAD is an ancestor to the remote HEAD).
 Also re-attaches detached heads quietly when non-nil.
 A nil value allows for inspection of all remote changes."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Can be set at any time. Affects the operation of
+`straight-merge-package' and derived functions."))
 
 ;;;;;; Utility functions
 
@@ -2912,7 +3045,13 @@ is an integer N, remote repositories are cloned with the options
 The value may also be a list containing one of the above values and
 the symbol `single-branch' to override the --no-single-branch option."
   :group 'straight
-  :type '(choice integer (const full)))
+  :type '(choice integer (const full))
+  :set (straight--set "
+Must be set before bootstrap to take effect for all repositories. Note
+that existing repositories are not changed on disk when this is
+modified. Shallow repositories should be converted into full
+repositories automatically when required by VC operations; the inverse
+operation is not supported."))
 
 ;;@TODO: clean this function up. We can probably refactor to avoid
 ;; repetition.
@@ -3609,7 +3748,10 @@ Note that straight.el can deal with built-in packages even if
 this variable is set to nil. This just allows you to tell
 straight.el to not even bother cloning recipe repositories to
 look for recipes for these packages."
-  :type '(repeat symbol))
+  :type '(repeat symbol)
+  :set (straight--set "
+Must be set before any package is registered that declares a dependency
+on any of these packages."))
 
 (defun straight-recipe-source (package)
   "Return recipe respository used to obtain PACKAGE recipe.
@@ -3654,14 +3796,19 @@ and is for internal use only."
                         "https://github.com/emacs-straight/org-mode.git")
                  (const :tag "GitHub mirror (SSH)"
                         "git@github.com:emacs-straight/org-mode.git")
-                 (string :tag "Custom value")))
+                 (string :tag "Custom value"))
+  :set (straight--set "
+Must be set before registering any Org package or any package that
+declares a dependency on any Org package."))
 
 (defcustom straight-byte-compilation-buffer "*straight-byte-compilation*"
   "Name of the byte compilation log buffer.
 If nil, output is discarded."
   :type '(choice
           (string :tag "Buffer name")
-          (const :tag "Discard output" nil)))
+          (const :tag "Discard output" nil))
+  :set (straight--set "
+Must be set before bootstrap to apply to all byte-compilation."))
 
 (make-obsolete-variable
  'straight-fix-org
@@ -3815,7 +3962,9 @@ ones (e.g. `auctex'). However, you will not be able to contribute
 changes back to GNU ELPA directly from the repository. This
 should not be a major concern since the GNU ELPA build system
 does such a good job of discouraging contributions anyway."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defcustom straight-recipes-gnu-elpa-ignored-packages
   '(cl-generic
@@ -3828,7 +3977,10 @@ development version but rather an obsolete forwards-compatibility
 package designed for use with Emacs 24.2 and earlier. See
 <https://github.com/radian-software/straight.el/issues/531> for
 some discussion."
-  :type '(repeat symbol))
+  :type '(repeat symbol)
+  :set (straight--set "
+Must be set before registering any package with one of these names, or
+with a dependency on a package with one of these names."))
 
 ;;;;;;; GNU ELPA mirror
 
@@ -3880,7 +4032,9 @@ This is a list of strings."
                  "https://github.com/emacsmirror/gnu_elpa.git")
           (const :tag "GitHub mirror (SSH)"
                  "git@github.com:emacsmirror/gnu_elpa.git")
-          (string :tag "Custom value")))
+          (string :tag "Custom value"))
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defun straight-recipe-gnu-elpa--list-packages ()
   "Return list of packages (symbols) maintained in GNU ELPA source.
@@ -3932,7 +4086,9 @@ Otherwise, return nil."
                  "https://github.com/emacsmirror/nongnu_elpa.git")
           (const :tag "GitHub mirror (SSH)"
                  "git@github.com:emacsmirror/nongnu_elpa.git")
-          (string :tag "Custom value")))
+          (string :tag "Custom value"))
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defun straight-recipes-nongnu-elpa--translate (recipe)
   "Translate RECIPE into straight.el-style recipe."
@@ -3982,7 +4138,9 @@ Otherwise, return nil."
   "Non-nil means to retrieve Emacsmirror packages via a mirror.
 There is no disadvantage to doing this, and cloning the mirror is
 much faster than cloning the official Emacsmirror."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Must be set before bootstrap."))
 
 ;;;;;;; Emacsmirror mirror
 
@@ -4220,7 +4378,9 @@ this user option takes the form of an alist, and can be customized using
 alist functions, for example `setf' and `alist-get' to change the recipe
 for a given repository or to remove one."
   :type '(alist :key-type symbol :value-type
-                (plist :key-type symbol :value-type sexp)))
+                (plist :key-type symbol :value-type sexp))
+  :set (straight--set "
+Must be set before bootstrap."))
 
 ;;;;; Recipe conversion
 
@@ -4673,7 +4833,9 @@ This usage is deprecated and will be removed."
             find-when-checking)
      (const :tag "Check package for changes only once per (re-)init" only-once)
      (const :tag "Use `before-save-hook' to detect changes" check-on-save)
-     (const :tag "Use a filesystem watcher to detect changes" watch-files))))
+     (const :tag "Use a filesystem watcher to detect changes" watch-files)))
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defun straight--modifications (symbol)
   "Check if `straight-check-for-modifications' contains SYMBOL.
@@ -4692,7 +4854,9 @@ that appropriately."
   "Non-nil means read autoloads in bulk to speed up startup.
 The operation of this variable should be transparent to the user;
 no changes in configuration are necessary."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Must be set before bootstrap."))
 
 ;;;;; Build cache
 
@@ -4949,7 +5113,9 @@ straight.el, according to the value of
 
 (defcustom straight-watcher-process-buffer " *straight-watcher*"
   "Name of buffer to use for the filesystem watcher."
-  :type 'string)
+  :type 'string
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defun straight-watcher--make-process-buffer ()
   "Kill and recreate `straight-watcher-process-buffer'. Return it."
@@ -5813,7 +5979,9 @@ they were previously registered in the build cache by
   "Non-nil means do not generate or activate autoloads by default.
 This can be overridden by the `:build' property of an individual
 package recipe."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Must be set before bootstrap to apply to all packages."))
 
 (defun straight--build-autoloads (recipe)
   "Generate autoloads for the symlinked package specified by RECIPE.
@@ -5914,7 +6082,9 @@ modifies the build folder, not the original repository."
   "Non-nil means do not byte-compile packages by default.
 This can be overridden by the `:build' property of an
 individual package recipe."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Must be set before bootstrap to apply to all packages."))
 
 (defun straight--build-compile (recipe)
   "Byte-compile files for the symlinked package specified by RECIPE.
@@ -5958,7 +6128,9 @@ repository."
   "Non-nil means do not `native-compile' packages by default.
 This can be overridden by the `:build' property of an
 individual package recipe."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Must be set before bootstrap to apply to all packages."))
 
 (defun straight--build-native-compile (recipe)
   "Queue native compilation for RECIPE's package.
@@ -5989,16 +6161,22 @@ background after `straight-use-package' returns."
   "Non-nil means do not generate or activate texinfo by default.
 This can be overridden by the `:build' property of an individual
 package recipe."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Must be set before bootstrap to apply to all packages."))
 
 (defcustom straight-makeinfo-executable (executable-find "makeinfo")
   "Location of the makeinfo executable."
-  :type 'string)
+  :type 'string
+  :set (straight--set "
+Must be set before bootstrap to apply to all packages."))
 
 (defcustom straight-install-info-executable
   (executable-find "install-info")
   "Location of the install-info executable."
-  :type 'string)
+  :type 'string
+  :set (straight--set "
+Must be set before bootstrap to apply to all packages."))
 
 (defun straight--build-info (recipe)
   "Compile .texi files into .info files for package specified by RECIPE.
@@ -6477,21 +6655,27 @@ in this hook are called even if the package does not need to be
 rebuilt. Each hook function is called with the name of the
 package as a string. For forward compatibility, it should accept
 and ignore additional arguments."
-  :type 'hook)
+  :type 'hook
+  :set (straight--set "
+Can be set at any time, and will be invoked for future packages."))
 
 (defcustom straight-use-package-pre-build-functions nil
   "Abnormal hook run before building a package.
 Each hook function is called with the name of the package as a
 string. For forward compatibility, it should accept and ignore
 additional arguments."
-  :type 'hook)
+  :type 'hook
+  :set (straight--set "
+Can be set at any time, and will be invoked for future packages."))
 
 (defcustom straight-use-package-post-build-functions nil
   "Abnormal hook run after building a package.
 Each hook function is called with the name of the package as a
 string. For forward compatibility, it should accept and ignore
 additional arguments."
-  :type 'hook)
+  :type 'hook
+  :set (straight--set "
+Can be set at any time, and will be invoked for future packages."))
 
 ;;;###autoload
 (cl-defun straight-use-package
@@ -7339,7 +7523,9 @@ This means that `package-enable-at-startup' is disabled, and
 advices are put on `package--ensure-init-file' and
 `package--save-selected-packages' to prevent package.el from
 modifying the init-file."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defvar straight-package--warning-displayed nil
   "Non-nil means a warning was already displayed about package.el.")
@@ -7428,7 +7614,9 @@ is loaded, according to the value of
 (defcustom straight-enable-use-package-integration t
   "Whether to enable integration with `use-package'.
 See `straight-use-package-version' for details."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Must be set before bootstrap."))
 
 ;;;;;; Mode variables
 
@@ -7459,7 +7647,9 @@ cdr is a plist, which is used as is."
   :type '(choice
           (const :tag "Classic (uses `:ensure' for all package managers)"
                  ensure)
-          (const :tag "Modern (uses `:package', `:straight', etc.)" straight)))
+          (const :tag "Modern (uses `:package', `:straight', etc.)" straight))
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defvar straight-use-package--last-version nil
   "Value of `straight-use-package-version' at last mode toggle.")
@@ -7469,7 +7659,10 @@ cdr is a plist, which is used as is."
 This only works when `straight-use-package-version' is
 `straight'. When `straight-use-package-version' is `ensure', use
 `use-package-always-ensure' instead."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+May be set at any time, but only applies to future `use-package'
+invocations."))
 
 ;;;;;; Utility functions
 
@@ -7719,7 +7912,9 @@ for discussion.
 
 This variable must be set before straight.el is loaded (or
 re-loaded) in order to take effect."
-  :type 'boolean)
+  :type 'boolean
+  :set (straight--set "
+Must be set before bootstrap."))
 
 (defvar-local straight--flycheck-in-place-disabled t
   "If non-nil, inhibit in-place checkers in Flycheck.
