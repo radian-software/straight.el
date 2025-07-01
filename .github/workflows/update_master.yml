@@ -10,7 +10,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: main-test
+          # Can't seem to push a different branch back without doing a
+          # non-shallow clone
+          fetch-depth: 0
       - name: Update master
         run: |-
           set -euxo pipefail
