@@ -7441,6 +7441,7 @@ Must be set before bootstrap."))
         "~/.emacs.d/early-init.el to avoid multiple versions "
         "of the same packages being loaded.")))
   (if (and (featurep 'package)
+           package-enable-at-startup
            (file-exists-p (bound-and-true-p package-user-dir)))
       (unless straight-package--warning-displayed
         (display-warning
