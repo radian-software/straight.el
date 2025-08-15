@@ -2478,7 +2478,8 @@ prefixed with a remote name."
                (when (file-exists-p
                       (expand-file-name ".gitmodules"
                                         (straight--repos-dir local-repo)))
-                 (straight--process-output "git" "submodule" "update" "--init" "--recursive"))
+                 (straight--process-output
+                  "git" "submodule" "update" "--init" "--recursive"))
                t)
              (cl-return-from straight-vc-git--merge-from-remote-raw t))))))
 
