@@ -2870,6 +2870,14 @@ prefixed with a remote name."
                   local-repo default-branch
                   (format "%s/%s" remote-to-merge remote-branch))
                  (straight-register-repo-modification local-repo))
+             (progn
+               ;; Update submodules if .gitmodules exists after merge
+               (when (file-exists-p
+                      (expand-file-name ".gitmodules"
+                                        (straight--repos-dir local-repo)))
+                 (straight--process-output
+                  "git" "submodule" "update" "--init" "--recursive"))
+               t)
              (cl-return-from straight-vc-git--merge-from-remote-raw t))))))
 
 (cl-defun straight-vc-git--pull-from-remote-raw (recipe remote remote-branch)
