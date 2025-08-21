@@ -2857,7 +2857,7 @@ REMOTE is a string. REMOTE-BRANCH is the branch in
 REMOTE-TO-MERGE that is used; it should be a string that is not
 prefixed with a remote name."
   (straight-vc-git--destructure recipe
-      (local-repo remote branch)
+      (local-repo remote branch nonrecursive)
     (let ((remote-branch (or remote-branch
                              (straight-vc-git--default-remote-branch
                               remote-to-merge local-repo)))
@@ -2870,14 +2870,15 @@ prefixed with a remote name."
                   local-repo default-branch
                   (format "%s/%s" remote-to-merge remote-branch))
                  (straight-register-repo-modification local-repo))
-             (progn
-               ;; Update submodules if .gitmodules exists after merge
-               (when (file-exists-p
-                      (expand-file-name ".gitmodules"
-                                        (straight--repos-dir local-repo)))
+             (or nonrecursive
+                 (not (file-exists-p
+                       (expand-file-name ".gitmodules"
+                                         (straight--repos-dir local-repo))))
+                 ;; Update submodules if recipe is not marked as nonrecursive
+                 ;; and .gitmodules exists after merge
                  (straight--process-output
-                  "git" "submodule" "update" "--init" "--recursive"))
-               t)
+                  "git" "submodule" "update" "--init" "--recursive")
+                 t)
              (cl-return-from straight-vc-git--merge-from-remote-raw t))))))
 
 (cl-defun straight-vc-git--pull-from-remote-raw (recipe remote remote-branch)
