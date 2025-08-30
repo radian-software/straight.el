@@ -3876,7 +3876,9 @@ return nil."
               (when (equal
                      (plist-get melpa-plist :url)
                      "https://git.savannah.gnu.org/git/emacs/nongnu.git")
-                (straight--put plist :local-repo (symbol-name package)))
+                (straight--put plist :local-repo (symbol-name package))
+                (straight--put plist :repo straight-recipes-nongnu-elpa-url)
+                (straight--put plist :depth '(full single-branch)))
               (cons name plist))))
       (error nil))))
 
