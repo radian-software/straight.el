@@ -3833,6 +3833,7 @@ Otherwise return nil."
 
 ;;;;;; MELPA
 
+(defvar straight-recipes-nongnu-elpa-url)
 (defun straight-recipes-melpa-retrieve (package)
   "Look up a PACKAGE recipe in MELPA.
 PACKAGE should be a symbol. If the package has a recipe listed in
