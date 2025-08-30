@@ -3833,6 +3833,7 @@ Otherwise return nil."
 
 ;;;;;; MELPA
 
+(defvar straight-recipes-nongnu-elpa-url)
 (defun straight-recipes-melpa-retrieve (package)
   "Look up a PACKAGE recipe in MELPA.
 PACKAGE should be a symbol. If the package has a recipe listed in
@@ -3876,7 +3877,9 @@ return nil."
               (when (equal
                      (plist-get melpa-plist :url)
                      "https://git.savannah.gnu.org/git/emacs/nongnu.git")
-                (straight--put plist :local-repo (symbol-name package)))
+                (straight--put plist :local-repo (symbol-name package))
+                (straight--put plist :repo straight-recipes-nongnu-elpa-url)
+                (straight--put plist :depth '(full single-branch)))
               (cons name plist))))
       (error nil))))
 
