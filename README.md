@@ -3421,6 +3421,13 @@ I would like to change things so these problems do not happen, or are
 repaired automatically. But, I can write documentation faster than I
 can fix code, so here are tips in the meantime.
 
+When investigating an issue, consider turning on logging. You can set
+`straight-log` to non-nil at the start of your init-file, and then
+check `*straight-log*` to see detailed information about exactly what
+`straight.el` is doing to process package management operations. You
+can also see `*straight-process*` for exact process output for any
+subcommands executed.
+
 ### Why are my packages always/never rebuilding?
 
 So, the first thing you have to check is the value of
