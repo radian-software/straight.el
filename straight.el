@@ -7447,11 +7447,18 @@ Must be set before bootstrap."))
 ;; Warn the user if package.el was also loaded in the current session,
 ;; see <https://github.com/radian-software/straight.el/issues/1036>.
 (let ((tips
-       (concat
-        "You may wish to delete ~/.emacs.d/elpa or add "
-        "(setq package-enable-at-startup nil) to "
-        "~/.emacs.d/early-init.el to avoid multiple versions "
-        "of the same packages being loaded.")))
+       (format
+        (concat
+         "You may wish to delete %s or add "
+         "(setq package-enable-at-startup nil) to "
+         "%s to avoid multiple versions "
+         "of the same packages being loaded.")
+        (if (bound-and-true-p package-user-dir)
+            (abbreviate-file-name package-user-dir)
+          "~/.emacs.d/elpa")
+        (if (bound-and-true-p early-init-file)
+            (abbreviate-file-name early-init-file)
+          "~/.emacs.d/early-init.el"))))
   (if (and (featurep 'package)
            package-enable-at-startup
            (file-exists-p (bound-and-true-p package-user-dir)))
