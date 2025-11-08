@@ -6243,7 +6243,7 @@ RECIPE is a straight.el-style plist."
                 (current-load-list nil))
             ;; car is the feature list, cdr is the autoloads.
             (dolist (form (cdr (gethash package straight--autoloads-cache)))
-              (eval form))
+              (eval form t))
             (when current-load-list
               (push (cons load-file-name current-load-list) load-history))))
       (straight--load-package-autoloads package))))
