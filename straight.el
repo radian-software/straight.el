@@ -2857,7 +2857,7 @@ REMOTE is a string. REMOTE-BRANCH is the branch in
 REMOTE-TO-MERGE that is used; it should be a string that is not
 prefixed with a remote name."
   (straight-vc-git--destructure recipe
-      (local-repo remote branch)
+      (local-repo remote branch nonrecursive)
     (let ((remote-branch (or remote-branch
                              (straight-vc-git--default-remote-branch
                               remote-to-merge local-repo)))
@@ -2870,6 +2870,15 @@ prefixed with a remote name."
                   local-repo default-branch
                   (format "%s/%s" remote-to-merge remote-branch))
                  (straight-register-repo-modification local-repo))
+             (or nonrecursive
+                 (not (file-exists-p
+                       (expand-file-name ".gitmodules"
+                                         (straight--repos-dir local-repo))))
+                 ;; Update submodules if recipe is not marked as nonrecursive
+                 ;; and .gitmodules exists after merge
+                 (straight--process-output
+                  "git" "submodule" "update" "--init" "--recursive")
+                 t)
              (cl-return-from straight-vc-git--merge-from-remote-raw t))))))
 
 (cl-defun straight-vc-git--pull-from-remote-raw (recipe remote remote-branch)
@@ -3824,6 +3833,7 @@ Otherwise return nil."
 
 ;;;;;; MELPA
 
+(defvar straight-recipes-nongnu-elpa-url)
 (defun straight-recipes-melpa-retrieve (package)
   "Look up a PACKAGE recipe in MELPA.
 PACKAGE should be a symbol. If the package has a recipe listed in
@@ -3867,7 +3877,9 @@ return nil."
               (when (equal
                      (plist-get melpa-plist :url)
                      "https://git.savannah.gnu.org/git/emacs/nongnu.git")
-                (straight--put plist :local-repo (symbol-name package)))
+                (straight--put plist :local-repo (symbol-name package))
+                (straight--put plist :repo straight-recipes-nongnu-elpa-url)
+                (straight--put plist :depth '(full single-branch)))
               (cons name plist))))
       (error nil))))
 
@@ -7435,12 +7447,20 @@ Must be set before bootstrap."))
 ;; Warn the user if package.el was also loaded in the current session,
 ;; see <https://github.com/radian-software/straight.el/issues/1036>.
 (let ((tips
-       (concat
-        "You may wish to delete ~/.emacs.d/elpa or add "
-        "(setq package-enable-at-startup nil) to "
-        "~/.emacs.d/early-init.el to avoid multiple versions "
-        "of the same packages being loaded.")))
+       (format
+        (concat
+         "You may wish to delete %s or add "
+         "(setq package-enable-at-startup nil) to "
+         "%s to avoid multiple versions "
+         "of the same packages being loaded.")
+        (if (bound-and-true-p package-user-dir)
+            (abbreviate-file-name package-user-dir)
+          "~/.emacs.d/elpa")
+        (if (bound-and-true-p early-init-file)
+            (abbreviate-file-name early-init-file)
+          "~/.emacs.d/early-init.el"))))
   (if (and (featurep 'package)
+           package-enable-at-startup
            (file-exists-p (bound-and-true-p package-user-dir)))
       (unless straight-package--warning-displayed
         (display-warning
