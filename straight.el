@@ -1084,8 +1084,8 @@ be interpreted later as a symlink."
             (if (straight--windows-os-p)
                 (straight--process-output
                  "cmd" "/c" "mklink"
-                 (subst-char-in-string ?/ ?\\ link-name)
-                 (subst-char-in-string ?/ ?\\ link-target))
+                 (concat (subst-char-in-string ?/ ?\\ link-name) " ")
+                 (concat (subst-char-in-string ?/ ?\\ link-target) " "))
               (make-symbolic-link link-target link-name))
           (copy-file link-target link-name)
           (let ((build-dir (straight--build-dir)))
