@@ -1082,10 +1082,11 @@ be interpreted later as a symlink."
     (condition-case _
         (if straight-use-symlinks
             (if (straight--windows-os-p)
-                (straight--process-output
-                 "cmd" "/c" "mklink"
-                 (concat (subst-char-in-string ?/ ?\\ link-name) " ")
-                 (concat (subst-char-in-string ?/ ?\\ link-target) " "))
+                (let ((w32-quote-process-args nil))
+                  (straight--process-output
+                   "cmd" "/c" "mklink"
+                   (format "\"%s\"" (subst-char-in-string ?/ ?\\ link-name))
+                   (format "\"%s\"" (subst-char-in-string ?/ ?\\ link-target))))
               (make-symbolic-link link-target link-name))
           (copy-file link-target link-name)
           (let ((build-dir (straight--build-dir)))
