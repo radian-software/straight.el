@@ -13,4 +13,4 @@ print("straight.el nohup initialized successfully")
 # using the Python in the virtualenv, we'll find that out right away,
 # since we are using the same execution path that will eventually be
 # used for the actual command run by nohup.
-os.execv("/bin/nohup", sys.argv)
+os.execvp("nohup", sys.argv)
