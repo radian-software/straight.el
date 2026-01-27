@@ -1070,6 +1070,7 @@ If `straight-use-symlinks' is nil, then instead of creating a
 symlink, the file is copied directly, and a corresponding entry
 is created in the straight/links/ directory so that the file may
 be interpreted later as a symlink."
+  (defvar w32-quote-process-args)
   (if (and (file-directory-p link-target)
            (not (file-symlink-p link-target)))
       (progn
@@ -1082,10 +1083,13 @@ be interpreted later as a symlink."
     (condition-case _
         (if straight-use-symlinks
             (if (straight--windows-os-p)
-                (straight--process-output
-                 "cmd" "/c" "mklink"
-                 (subst-char-in-string ?/ ?\\ link-name)
-                 (subst-char-in-string ?/ ?\\ link-target))
+                (let ((w32-quote-process-args nil))
+                  (straight--process-output
+                   "cmd" "/c" "mklink"
+                   (format
+                    "\"%s\"" (subst-char-in-string ?/ ?\\ link-name))
+                   (format
+                    "\"%s\"" (subst-char-in-string ?/ ?\\ link-target))))
               (make-symbolic-link link-target link-name))
           (copy-file link-target link-name)
           (let ((build-dir (straight--build-dir)))
