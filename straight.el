@@ -7472,13 +7472,17 @@ Must be set before bootstrap."))
         (setq straight-package--warning-displayed t))
     (with-eval-after-load 'package
       (unless straight-package--warning-displayed
-        (when (file-exists-p (bound-and-true-p package-user-dir))
-          (display-warning
-           '(straight package)
-           (concat
-            "package.el was loaded when straight.el was already loaded. "
-            tips)
-           :warning))
+        (let* ((user-dir (bound-and-true-p package-user-dir))
+               (files (when (file-exists-p user-dir)
+                        (directory-files user-dir nil "[:alnum]")))
+               (packages (delete "archives" (delete "gnupg" files))))
+          (when packages
+            (display-warning
+             '(straight package)
+             (concat
+              "package.el was loaded when straight.el was already loaded. "
+              tips)
+             :warning)))
         (setq straight-package--warning-displayed t)))))
 
 ;;;;;; Mode variables
