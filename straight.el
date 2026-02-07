@@ -7474,7 +7474,7 @@ Must be set before bootstrap."))
       (unless straight-package--warning-displayed
         (let* ((user-dir (bound-and-true-p package-user-dir))
                (files (when (file-exists-p user-dir)
-                        (directory-files user-dir nil "[:alnum]")))
+                        (directory-files user-dir nil "^[^.]")))
                (packages (delete "archives" (delete "gnupg" files))))
           (when packages
             (display-warning
