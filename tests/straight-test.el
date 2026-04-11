@@ -85,7 +85,7 @@ for BINDINGS."
 ;;adapted from json.el's json-alist-p
 (defun straight--alist-p (list &optional restriction)
   "Return non-nil if LIST is an alist.
-RESTRICTION is an optionaly unary function which tests each element of
+RESTRICTION is an optionally unary function which tests each element of
 the list. If any element returns nil when passed to RESTRICTION,
 return nil."
   (while (and (consp (car-safe list))

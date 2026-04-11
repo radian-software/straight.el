@@ -19,7 +19,7 @@
 ;;
 ;; * In `cl-labels' and `cl-flet', make the local functions use names
 ;; which begin with `def'. This will make them indent correctly in
-;; Emasc 28 and below, as a helpful side effect of the bug mentioned
+;; Emacs 28 and below, as a helpful side effect of the bug mentioned
 ;; above. In later versions these forms are always indented correctly.
 ;;
 ;; * When writing a data list (i.e., a list that is not a function

@@ -2037,7 +2037,7 @@ meaning in a recipe (unknown keywords are ignored but preserved):
     Each step is a symbol which represents a function named:
     `straight--build-SYMBOL`.
     The function is passed the recipe as its sole argument.
-    Steps are exectuted in the order they are listed. e.g.
+    Steps are executed in the order they are listed. e.g.
 
 ```emacs-lisp
 (example :build (autoloads compile native-compile info))
@@ -2051,7 +2051,7 @@ meaning in a recipe (unknown keywords are ignored but preserved):
 (example :build (:not compile info))
 ```
 
-   Steps may be disabled globally for recipes which do not explicilty
+   Steps may be disabled globally for recipes which do not explicitly
    declare their `:build` via the defcustom variables named
    `straight--build-SYMBOL`. e.g. The last example but for all recipes
    without a `:build`:
@@ -2837,7 +2837,7 @@ follows:
   upstream
 * `M-x straight-fetch-package-and-deps`: fetch from the configured
   remotes of a package and all of its dependencies (including the
-  dependencies of its dependencies); with prefix argment, then for
+  dependencies of its dependencies); with prefix argument, then for
   forks also fetch from the upstream
 * `M-x straight-fetch-all`: fetch from all packages' configured
   remotes; with prefix argument, then for forks also fetch from the
@@ -2848,7 +2848,7 @@ follows:
 * `M-x straight-merge-package-and-deps`: merge the latest versions
   fetched from the configured remotes of a package and all of its
   dependencies (including the dependencies of its dependencies); with
-  prefix argment, then for forks also merge from the upstreams
+  prefix argument, then for forks also merge from the upstreams
 * `M-x straight-merge-all`: merge the latest versions fetched from
   each package's configured remote into its local copy; with prefix
   argument, then for forks also merge from the upstreams
@@ -3102,7 +3102,7 @@ when creating bug reports.
     Note this example is already in the default bootstrapping code.
 
 - `:post-bootstrap (Form)...` Forms evaluated in the testing
-    environment after boostrapping. e.g.
+    environment after bootstrapping. e.g.
 
 ```emacs-lisp
 (straight-use-package '(example :type git :host github))
@@ -3346,7 +3346,7 @@ which is ridiculous. It will also do this when you perform any package
 management operation. A separate system inserts some `custom` forms
 into your init-file when you install a package. `straight.el` disables
 all of these "features" by setting `package-enable-at-startup` to nil
-and enabling some advices. You can override this behavior by
+and enabling some advice. You can override this behavior by
 customizing `straight-enable-package-integration`, however.
 
 To help avoid you shooting yourself in the foot by using both
@@ -3492,7 +3492,7 @@ Now let's talk `watch-files`, the most obvious failure condition for
 this is you don't have watchexec installed since that is a dependency.
 Get it from your distro package manager. Python 3 is also required, as
 well as the venv-whatever package that is needed on Ubuntu to run
-`python3 -m venv` succesfully.
+`python3 -m venv` successfully.
 
 The filesystem watcher runs in the background and uses `nohup` to fork
 out and survive Emacs termination. The invocation of `nohup` itself
