@@ -262,8 +262,8 @@ Can be set at any time. Affects future calls to `straight-use-package'."))
 (defcustom straight-allow-recipe-inheritance t
   "Non-nil allows partially overriding recipes.
 If you override a recipe, every component that is not explicitly
-overriden will be searched for in original recipe. If found, that
-value will be added to the overriden recipe. This allows you to
+overridden will be searched for in original recipe. If found, that
+value will be added to the overridden recipe. This allows you to
 only override the recipe components you are interested in,
 instead of being required to override them all. The supported
 components are the ones listed by `straight-vc-git-keywords' and
@@ -2079,7 +2079,7 @@ Can be set at any time. Affects the operation of
     (replace-regexp-in-string
      (cond ((eq part 'username) (concat separator ".*"))
            ((eq part 'repo) (concat ".*" separator))
-           (t (error "Uknown `:repo' part `%S'" part)))
+           (t (error "Unknown `:repo' part `%S'" part)))
      "" string)))
 
 (defun straight-vc-git--fork-string-type (string)
@@ -2205,7 +2205,7 @@ computed, based on the relevant user options."
          ,@body))))
 
 (defun straight--ensure-magit-p (feature)
-  "Load Magit FEATURE and return non-nil if it's avaliable.
+  "Load Magit FEATURE and return non-nil if it's available.
 If the feature isn't available, offer to install Magit with a
 `y-or-n-p' prompt before loading it."
   (or (require feature nil 'noerror)
@@ -3694,7 +3694,7 @@ Must be set before any package is registered that declares a dependency
 on any of these packages."))
 
 (defun straight-recipe-source (package)
-  "Return recipe respository used to obtain PACKAGE recipe.
+  "Return recipe repository used to obtain PACKAGE recipe.
 If package is not found in any `straight-recipe-repositories', return nil."
   (unless (member (intern package)
                   (append straight-built-in-pseudo-packages '(straight)))
@@ -5356,7 +5356,7 @@ it is necessary for reasons that are fast to check."
 (defvar straight--build-functions nil
   "Abnormal hook run to build a package.
 This is lexically bound per-recipe during `straight--build-package'.
-Each function recieves the current recipe as its argument.")
+Each function receives the current recipe as its argument.")
 
 
 (defconst straight--build-default-steps '(autoloads
@@ -5706,7 +5706,7 @@ strings to be executed in a shell context of the form:
 
   (\"executable\" \"arg\"...)
 
-Commands are exectued in the repository directory.
+Commands are executed in the repository directory.
 
 The keyword's value is expected to be one of the following:
 
@@ -8032,7 +8032,7 @@ ARGS may be any of the following keywords and their respective values:
       Note this example is already in the default bootstrapping code.
 
   - :post-bootstrap (Form)...
-      Forms evaluated in the testing environment after boostrapping.
+      Forms evaluated in the testing environment after bootstrapping.
       e.g. (straight-use-package \\='(example :type git :host github))
 
   - :interactive Boolean
