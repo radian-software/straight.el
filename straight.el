@@ -7464,30 +7464,20 @@ Must be set before bootstrap."))
             (abbreviate-file-name early-init-file)
           "~/.emacs.d/early-init.el"))))
   (if (and (featurep 'package)
-           package-enable-at-startup
-           (file-exists-p (bound-and-true-p package-user-dir)))
-      (unless straight-package--warning-displayed
-        (display-warning
-         '(straight package)
-         (concat
-          "straight.el was loaded when package.el was already loaded. "
-          tips)
-         :warning)
-        (setq straight-package--warning-displayed t))
-    (with-eval-after-load 'package
-      (unless straight-package--warning-displayed
-        (let* ((user-dir (bound-and-true-p package-user-dir))
-               (files (when (file-exists-p user-dir)
-                        (directory-files user-dir nil "^[^.]")))
-               (packages (delete "archives" (delete "gnupg" files))))
-          (when packages
+           package-enable-at-startup)
+      (let ((user-dir (bound-and-true-p package-user-dir))
+            (files (when (file-exists-p user-dir)
+                     (directory-files user-dir nil "^[^.]")))
+            (packages (delete "archives" (delete "gnupg" files))))
+        (when packages
+          (unless straight-package--warning-displayed
             (display-warning
              '(straight package)
              (concat
-              "package.el was loaded when straight.el was already loaded. "
+              "straight.el was loaded when package.el was already loaded. "
               tips)
-             :warning)))
-        (setq straight-package--warning-displayed t)))))
+             :warning)
+            (setq straight-package--warning-displayed t))))))
 
 ;;;;;; Mode variables
 
