@@ -7475,7 +7475,8 @@ Must be set before bootstrap."))
          :warning)
         (setq straight-package--warning-displayed t))
     (with-eval-after-load 'package
-      (unless straight-package--warning-displayed
+      (unless (or (not package-enable-at-startup)
+                  straight-package--warning-displayed)
         (let* ((user-dir (bound-and-true-p package-user-dir))
                (files (when (file-exists-p user-dir)
                         (directory-files user-dir nil "^[^.]")))
