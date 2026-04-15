@@ -7465,10 +7465,10 @@ Must be set before bootstrap."))
           "~/.emacs.d/early-init.el"))))
   (if (and (featurep 'package)
            package-enable-at-startup)
-      (let ((user-dir (bound-and-true-p package-user-dir))
-            (files (when (file-exists-p user-dir)
-                     (directory-files user-dir nil "^[^.]")))
-            (packages (delete "archives" (delete "gnupg" files))))
+      (let* ((user-dir (bound-and-true-p package-user-dir))
+             (files (when (file-exists-p user-dir)
+                      (directory-files user-dir nil "^[^.]")))
+             (packages (delete "archives" (delete "gnupg" files))))
         (when packages
           (unless straight-package--warning-displayed
             (display-warning
