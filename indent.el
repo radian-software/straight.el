@@ -1,3 +1,5 @@
+;;; indent.el --- Indent forms from other packages -*- lexical-binding: t -*-
+
 ;; You can load this file to make sure that forms from other packages
 ;; are indented correctly. It should cause the indentation to be the
 ;; same as if you had actually loaded the packages that define these
@@ -41,10 +43,14 @@
 ;; exist yet.)
 
 (put #'if-let 'lisp-indent-function 2)
+(put #'if-let* 'lisp-indent-function 2)
 (put #'when-let 'lisp-indent-function 1)
+(put #'when-let* 'lisp-indent-function 1)
 
 (put #'use-package-only-one 'lisp-indent-function 'defun)
 (put #'use-package-process-keywords 'lisp-indent-function 'defun)
+
+(defvar calculate-lisp-indent-last-sexp)
 
 (when (version< emacs-version "28")
 
