@@ -66,6 +66,13 @@
 ;; otherwise libraries which load the byte-compiled version of this
 ;; file won't be able to use those macros.
 
+;; Not defined before Emacs 26.1
+(eval-and-compile
+  (unless (fboundp 'if-let*)
+    (defalias 'if-let* 'if-let))
+  (unless (fboundp 'when-let*)
+    (defalias 'when-let* 'when-let)))
+
 ;; Not defined before Emacs 25.1
 (eval-and-compile
   (unless (boundp 'inhibit-message)
@@ -523,7 +530,7 @@ alist, to ensure correct results."
   ;; built in.
   ;;
   ;; [1]: https://emacs.stackexchange.com/q/33892/12534
-  (if-let ((pair (if symbol (assq key alist) (assoc key alist))))
+  (if-let* ((pair (if symbol (assq key alist) (assoc key alist))))
       (setcdr pair val)
     (push (cons key val) alist))
   alist)
@@ -565,7 +572,7 @@ with `eq'."
   "Extract a value from a property list, or return a default.
 PLIST is a property list, PROP is the key to search for, and
 DEFAULT is the value to return if PROP is not in PLIST."
-  (if-let ((result (plist-member plist prop)))
+  (if-let* ((result (plist-member plist prop)))
       (cadr result)
     default))
 
@@ -996,7 +1003,7 @@ SEGMENTS are passed to `straight--file'."
 
 (defun straight--versions-lockfile (profile)
   "Get the version lockfile for given PROFILE, a symbol."
-  (if-let ((filename (alist-get profile straight-profiles)))
+  (if-let* ((filename (alist-get profile straight-profiles)))
       (straight--versions-file filename)
     (error "Unknown profile: %S" profile)))
 
@@ -1167,7 +1174,7 @@ information on PROC and STRING."
   ;; [1]: https://www.gnu.org/software/emacs/manual/html_node/elisp/Filter-Functions.html
   (cl-block nil
     (condition-case _
-        (when-let ((buf (process-buffer proc)))
+        (when-let* ((buf (process-buffer proc)))
           (with-current-buffer buf
             (save-excursion
               (goto-char (point-max))
@@ -1956,7 +1963,7 @@ clone operations are affected."))
 (defun straight-maybe-handle-snapshot ()
   "Display a message if the current file is within a repository snapshot."
   (when (and straight-snapshot-handling-mode buffer-file-name)
-    (when-let ((local-repo (straight--determine-repo buffer-file-name)))
+    (when-let* ((local-repo (straight--determine-repo buffer-file-name)))
       (when (file-exists-p
              (straight--repos-file local-repo ".straight-commit"))
         (message
@@ -2179,8 +2186,8 @@ computed, based on the relevant user options."
                               (let ((kw (intern (format ":%S" prop))))
                                 (if (memq prop
                                           '(repo host branch remote protocol))
-                                    `(if-let ((fork (plist-get
-                                                     ,recipe-sym :fork)))
+                                    `(if-let* ((fork (plist-get
+                                                      ,recipe-sym :fork)))
                                          ,(funcall
                                            wrap-default
                                            prop
@@ -2309,7 +2316,7 @@ If HOST is one of the symbols in `straight-hosts' and that HOST has a
 registered archive URL template, then the template is expanded to
 substitute in REPO and COMMIT appropriately. Otherwise, nil is returned
 because REPO will not be an acceptable value (it is a clone URL)."
-  (when-let ((template (plist-get (alist-get host straight-hosts) :tgz)))
+  (when-let* ((template (plist-get (alist-get host straight-hosts) :tgz)))
     (cl-destructuring-bind (user repo) (split-string repo "/")
       (replace-regexp-in-string
        "user" user
@@ -2409,11 +2416,11 @@ necessarily need to match DESIRED-URL; it just has to satisfy
 `straight-vc-git--urls-compatible-p'."
   ;; Always return nil unless we use `cl-return-from'.
   (ignore
-   (if-let ((actual-url (condition-case nil
-                            (straight--process-output
-                             "git" "config" "--get"
-                             (format "remote.%s.url" remote))
-                          (error nil))))
+   (if-let* ((actual-url (condition-case nil
+                             (straight--process-output
+                              "git" "config" "--get"
+                              (format "remote.%s.url" remote))
+                           (error nil))))
        (if (straight-vc-git--urls-compatible-p
             actual-url desired-url)
            ;; This is the only case where we return non-nil.
@@ -3631,7 +3638,7 @@ cloned."
                  (straight--checkhash package table))
             ;; Don't `cl-return' nil anywhere in this method. That will
             ;; prevent us from checking the other recipe repositories.
-            (when-let ((recipe (gethash package table)))
+            (when-let* ((recipe (gethash package table)))
               (cl-return recipe))
           (when-let
               ((recipe
@@ -3650,8 +3657,8 @@ cloned."
                                           (format
                                            "straight-recipes-%S-version"
                                            source))))
-                               (when-let ((version (and (fboundp func)
-                                                        (funcall func))))
+                               (when-let* ((version (and (fboundp func)
+                                                         (funcall func))))
                                  (puthash 'version version table))
                                (puthash source table
                                         straight--recipe-lookup-cache)
@@ -3852,7 +3859,7 @@ return nil."
                 (plist nil))
             (cl-destructuring-bind (name . melpa-plist) melpa-recipe
               (straight--put plist :type 'git)
-              (when-let ((files (plist-get melpa-plist :files)))
+              (when-let* ((files (plist-get melpa-plist :files)))
                 ;; We must include a *-pkg.el entry in the recipe
                 ;; because that file always needs to be linked over,
                 ;; if it is present, but the `:files' directive might
@@ -3868,7 +3875,7 @@ return nil."
                          entry)
                        files))
                 (straight--put plist :files files))
-              (when-let ((branch (plist-get melpa-plist :branch)))
+              (when-let* ((branch (plist-get melpa-plist :branch)))
                 (straight--put plist :branch branch))
               (pcase (plist-get melpa-plist :fetcher)
                 ('git (straight--put plist :repo (plist-get melpa-plist :url)))
@@ -4037,7 +4044,7 @@ Must be set before bootstrap."))
   (when recipe
     `( ,(pop recipe)
        :repo ,(plist-get recipe :url)
-       ,@(when-let ((ignored (plist-get recipe :ignored-files)))
+       ,@(when-let* ((ignored (plist-get recipe :ignored-files)))
            `(:files (:defaults (:exclude ,@(if (listp ignored)
                                                ignored
                                              (list ignored)))))))))
@@ -4132,12 +4139,12 @@ Emacsmirror, return a MELPA-style recipe; otherwise return nil."
   ;; Try to get the URL for the submodule. If it doesn't exist,
   ;; return nil. This will work both for packages in the mirror
   ;; and packages in the attic.
-  (when-let ((url (condition-case nil
-                      (straight--process-output
-                       "git" "config" "--file" ".gitmodules"
-                       "--get" (format "submodule.%s.url"
-                                       (symbol-name package)))
-                    (error nil))))
+  (when-let* ((url (condition-case nil
+                       (straight--process-output
+                        "git" "config" "--file" ".gitmodules"
+                        "--get" (format "submodule.%s.url"
+                                        (symbol-name package)))
+                     (error nil))))
     (and (not (string-empty-p url))
          ;; For the sake of elegance, we convert Github URLs to
          ;; use the `github' fetcher, if possible. At the time of
@@ -4240,7 +4247,7 @@ uses one of the Git fetchers, return it; otherwise return nil."
               (when branch (straight--put plist :branch branch))
               ;; Differentiate between recipe explicitly declaring
               ;; :autoloads nil and recipe not declaring :autoloads.
-              (when-let ((autoloads (plist-member recipe :autoloads)))
+              (when-let* ((autoloads (plist-member recipe :autoloads)))
                 ;; ignore    :autoloads t
                 ;; translate :autoloads nil -> :build (:not autoloads)
                 ;; el-get also allows a file or list of files which are
@@ -4475,7 +4482,7 @@ for dependency resolution."
                       (append straight--build-keywords
                               (straight-vc-keywords type))))
                 ;; Compute :fork repo name
-                (when-let ((fork (plist-get plist :fork)))
+                (when-let* ((fork (plist-get plist :fork)))
                   (straight--put dflt :fork fork)
                   ;; Covers cases where :fork is a string or t
                   (unless (listp fork) (setq fork '()))
@@ -4484,7 +4491,7 @@ for dependency resolution."
                   (straight--put plist :fork fork))
                 (dolist (keyword keywords)
                   (unless (plist-member plist keyword)
-                    (when-let ((value (plist-get dflt keyword)))
+                    (when-let* ((value (plist-get dflt keyword)))
                       (setq plist (plist-put plist keyword value))))))))
           ;; The normalized recipe format will have the package name
           ;; as a string, not a symbol.
@@ -4547,8 +4554,8 @@ for dependency resolution."
                 ;; Here we are checking to see if there is already a
                 ;; formula with the same `:local-repo'. This is one of
                 ;; the primary uses of `straight--repo-cache'.
-                (when-let ((original-recipe (gethash local-repo
-                                                     straight--repo-cache)))
+                (when-let* ((original-recipe (gethash local-repo
+                                                      straight--repo-cache)))
                   ;; Remove all VC-specific attributes from the recipe
                   ;; we got from the recipe repositories.
                   (straight--remq
@@ -4571,7 +4578,7 @@ for dependency resolution."
                                   ;; we're using the VC backend
                                   ;; specified by the original recipe.
                                   (plist-get original-recipe :type))))
-                    (when-let ((value (plist-get original-recipe keyword)))
+                    (when-let* ((value (plist-get original-recipe keyword)))
                       (straight--put plist keyword value))))))
             ;; Return the newly normalized recipe.
             plist)))))
@@ -4583,8 +4590,8 @@ found, return it as a MELPA-style recipe. Otherwise, return
 nil."
   (let ((recipe nil))
     (cl-dolist (profile (mapcar #'car straight-profiles))
-      (when-let ((recipes (alist-get profile straight-recipe-overrides)))
-        (when-let ((overridden-recipe (assoc package recipes)))
+      (when-let* ((recipes (alist-get profile straight-recipe-overrides)))
+        (when-let* ((overridden-recipe (assoc package recipes)))
           (setq recipe overridden-recipe))))
     recipe))
 
@@ -4605,7 +4612,7 @@ RECIPE should be a straight.el-style recipe plist."
       ;; Step 1 is to check if the given recipe conflicts with an
       ;; existing recipe for a *different* package with the *same*
       ;; repository.
-      (when-let ((existing-recipe (gethash local-repo straight--repo-cache)))
+      (when-let* ((existing-recipe (gethash local-repo straight--repo-cache)))
         ;; Avoid signalling two warnings when you change the recipe
         ;; for a single package. We already get a warning down below
         ;; in Step 2, no need to show another one here. Only signal a
@@ -4641,7 +4648,7 @@ RECIPE should be a straight.el-style recipe plist."
               (cl-return)))))
       ;; Step 2 is to check if the given recipe conflicts with an
       ;; existing recipe for the *same* package.
-      (when-let ((existing-recipe (gethash package straight--recipe-cache)))
+      (when-let* ((existing-recipe (gethash package straight--recipe-cache)))
         (cl-dolist (keyword
                     (cons :type
                           (append straight--build-keywords
@@ -4668,7 +4675,7 @@ RECIPE should be a straight.el-style recipe plist."
     ;; NO-BUILD that were passed to `straight-use-package'.
     (puthash package recipe straight--recipe-cache)
     ;; register recipes covered by :includes
-    (when-let ((includes (plist-get recipe :includes)))
+    (when-let* ((includes (plist-get recipe :includes)))
       (dolist (included (mapcar #'symbol-name
                                 (if (listp includes)
                                     includes (list includes))))
@@ -4906,9 +4913,9 @@ empty values (all packages will be rebuilt, with no caching)."
           (setq straight--build-cache-text (buffer-string))
           (when (or (straight--modifications 'check-on-save)
                     (straight--modifications 'watch-files))
-            (when-let ((repos (condition-case _ (straight--directory-files
-                                                 (straight--modified-dir))
-                                (file-missing))))
+            (when-let* ((repos (condition-case _ (straight--directory-files
+                                                  (straight--modified-dir))
+                                 (file-missing))))
               (straight--log
                'modification-detection
                "Used modified dir to detect repos modified since last init: %S"
@@ -5019,7 +5026,7 @@ Always return nil, for convenience of usage."
 This function is placed on `before-save-hook' by
 `straight-live-modifications-mode'."
   (when buffer-file-name
-    (when-let ((local-repo (straight--determine-repo buffer-file-name)))
+    (when-let* ((local-repo (straight--determine-repo buffer-file-name)))
       (straight-register-repo-modification local-repo))))
 
 (define-minor-mode straight-live-modifications-mode
@@ -5183,7 +5190,7 @@ modified since their last builds.")
         ;; command to fail.
         (existing-repos (straight--directory-files (straight--repos-dir))))
     (dolist (package straight--eagerly-checked-packages)
-      (when-let ((build-info (gethash package straight--build-cache)))
+      (when-let* ((build-info (gethash package straight--build-cache)))
         ;; Don't use `cl-destructuring-bind', as that will
         ;; error out on a list of insufficient length. We
         ;; want to be robust in the face of a malformed build
@@ -5434,7 +5441,7 @@ the reason this package is being built."
         ;; will not be hit and therefore autoloads will not be loaded
         ;; for the dependencies in that situation if we don't do it
         ;; again in `straight-use-package'.
-        (when-let ((dependencies (straight--get-dependencies package)))
+        (when-let* ((dependencies (straight--get-dependencies package)))
           (dolist (dependency dependencies)
             ;; The implicit meaning of the first argument to
             ;; `straight-use-package' here is that the default recipes
@@ -5719,8 +5726,8 @@ The keyword's value is expected to be one of the following:
   - nil, in which case no commands are executed.
     Note if :build is nil, :pre/post-build commands are not executed."
   (straight--with-plist recipe (pre-build post-build package local-repo)
-    (when-let ((commands (if post post-build pre-build))
-               (repo (straight--repos-dir (or local-repo package))))
+    (when-let* ((commands (if post post-build pre-build))
+                (repo (straight--repos-dir (or local-repo package))))
       (let ((default-directory repo)
             (commanderror nil))
         ;; Allow a single command or a list of commands.
@@ -5879,8 +5886,8 @@ this run of straight.el)."
                  ;; has no dependencies.
                  (let ((case-fold-search t))
                    (re-search-forward "^;* *Package-Requires *: *")
-                   (when-let ((required (list (buffer-substring-no-properties
-                                               (point) (line-end-position)))))
+                   (when-let* ((required (list (buffer-substring-no-properties
+                                                (point) (line-end-position)))))
                      (forward-line 1)
                      ;; Borrowed from `lm-header-multiline'
                      (while (looking-at "^;+\\(\t\\|[\t\s]\\{2,\\}\\)\\(.+\\)")
@@ -5994,7 +6001,7 @@ modifies the build folder, not the original repository."
               (update-directory-autoloads (straight--build-dir package))))))
         ;; And for some reason Emacs leaves a newly created buffer
         ;; lying around. Let's kill it.
-        (when-let ((buf (find-buffer-visiting generated-autoload-file)))
+        (when-let* ((buf (find-buffer-visiting generated-autoload-file)))
           (kill-buffer buf))))))
 
 ;;;;; Byte-compilation
@@ -6353,14 +6360,14 @@ The default value is \"Processing\"."
                   (cl-block loop
                     (while t
                       (straight--popup
-                        (if-let ((err
-                                  (condition-case-unless-debug e
-                                      (progn
-                                        (funcall func package)
-                                        (setq next-repos (cdr next-repos))
-                                        (cl-return-from loop))
-                                    (error e)
-                                    (quit))))
+                        (if-let* ((err
+                                   (condition-case-unless-debug e
+                                       (progn
+                                         (funcall func package)
+                                         (setq next-repos (cdr next-repos))
+                                         (cl-return-from loop))
+                                     (error e)
+                                     (quit))))
                             (format (concat "While processing repository %S, "
                                             "an error occurred:\n\n  %S")
                                     local-repo (error-message-string err))
@@ -6424,7 +6431,7 @@ If FORCE is non-nil do not prompt before deleting repos."
         (builds  nil))
     (maphash (lambda (package data)
                (let ((recipe (nth 2 data)))
-                 (when-let ((local-repo (plist-get recipe :local-repo)))
+                 (when-let* ((local-repo (plist-get recipe :local-repo)))
                    (push (cons local-repo package) builds))))
              straight--build-cache)
     (dolist (repo (straight--directory-files
@@ -6434,7 +6441,7 @@ If FORCE is non-nil do not prompt before deleting repos."
           (delete-directory (straight--repos-dir repo) 'recursive 'trash)
           ;; @COMPATIBILITY: Avoiding `alist-get' here because of
           ;; Emacs 25 function signature mismatch. ~ NV 2021-12-20
-          (when-let ((pkg (cdr (assoc-string repo builds))))
+          (when-let* ((pkg (cdr (assoc-string repo builds))))
             (delete-directory (straight--build-dir pkg) 'recursive 'trash))
           (push repo deleted))))
     (let ((count (length deleted)))
@@ -6803,7 +6810,7 @@ packages."
              (dolist (list-var '(native-comp-deferred-compilation-deny-list
                                  native-comp-jit-compilation-deny-list))
                (when (boundp list-var)
-                 (when-let ((build (cadr (plist-member recipe :build))))
+                 (when-let* ((build (cadr (plist-member recipe :build))))
                    (when (and (eq (car-safe build) :not)
                               (member 'native-compile (cdr build)))
                      (set list-var
@@ -7387,7 +7394,7 @@ according to the value of `straight-profiles'."
                           (memq profile
                                 (gethash package straight--profile-cache))
                           (not (assoc local-repo versions-alist)))
-                 (when-let ((commit (straight-vc-get-commit type local-repo)))
+                 (when-let* ((commit (straight-vc-get-commit type local-repo)))
                    (push (cons local-repo commit) versions-alist))))))
           (setq versions-alist
                 (cl-sort versions-alist #'string-lessp :key #'car))
@@ -7427,7 +7434,7 @@ according to the value of `straight-profiles'."
                (local-repo)
              ;; We can't use `alist-get' here because that uses
              ;; `eq', and our hash-table keys are strings.
-             (when-let ((commit (cdr (assoc local-repo versions-alist))))
+             (when-let* ((commit (cdr (assoc local-repo versions-alist))))
                (unless (straight-vc-commit-present-p recipe commit)
                  (straight-vc-fetch-from-remote recipe))
                (straight-vc-check-out-commit recipe commit)))))))))
@@ -7877,12 +7884,12 @@ Interactively, or when MESSAGE is non-nil, show in the echo area."
   (let* ((library (locate-library "straight.el"))
          (declared (lm-version library))
          (gitinfo
-          (if-let ((default-directory (ignore-errors
-                                        (file-name-directory
-                                         (if straight-use-symlinks
-                                             (file-truename library)
-                                           (straight-chase-emulated-symlink
-                                            library))))))
+          (if-let* ((default-directory (ignore-errors
+                                         (file-name-directory
+                                          (if straight-use-symlinks
+                                              (file-truename library)
+                                            (straight-chase-emulated-symlink
+                                             library))))))
               (straight--process-with-result
                   (straight--process-run
                    "git" "--no-pager" "show" "-s" "--format=%d %h %cs")
@@ -8090,7 +8097,7 @@ locally bound plist, straight-bug-report-args."
          ;; Construct bug-report form
          (reportform (straight-bug-report--report-form
                       (append '(straight-bug-report) args)))
-         (temp-dir (if-let ((dir (car (alist-get :user-dir keywords))))
+         (temp-dir (if-let* ((dir (car (alist-get :user-dir keywords))))
                        (expand-file-name dir temporary-file-directory)
                      (make-temp-file "straight.el-test-" 'directory)))
          (executable (or (car (alist-get :executable keywords))
@@ -8180,7 +8187,7 @@ the dependencies are shown in the echo area."
   (interactive (list (straight--select-package "Dependencies of")))
   (let ((dependencies
          (mapcar (lambda (dependency)
-                   (if-let ((transitive (straight-dependencies dependency)))
+                   (if-let* ((transitive (straight-dependencies dependency)))
                        (append (list dependency) transitive)
                      dependency))
                  (remove "emacs"
@@ -8220,7 +8227,7 @@ whose cdrs are the recursive dependents in the same format returned from
   (let (dependents)
     (maphash (lambda (key val)
                (when (member package (nth 1 val))
-                 (push (if-let ((transitive (straight-dependents key)))
+                 (push (if-let* ((transitive (straight-dependents key)))
                            (append (list key) transitive)
                          key)
                        dependents)))

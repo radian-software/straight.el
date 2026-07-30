@@ -92,7 +92,7 @@
              (straight-x-strip output)))))
 
 (defun straight-x-start-process ()
-  (when-let ((recipe (pop straight-x-waiting)))
+  (when-let* ((recipe (pop straight-x-waiting)))
     (push recipe straight-x-running)
     (straight--with-plist recipe
         (local-repo package)
@@ -166,11 +166,11 @@ interpretations are defined by the relevant VC backend."
     (dolist (spec '((pinned . "pinned.el")))
       (cl-destructuring-bind (_profile . versions-lockfile) spec
         (let ((lockfile-path (straight--versions-file versions-lockfile)))
-          (when-let ((versions-alist (ignore-errors
-                                       (with-temp-buffer
-                                         (insert-file-contents-literally
-                                          lockfile-path)
-                                         (read (current-buffer))))))
+          (when-let* ((versions-alist (ignore-errors
+                                        (with-temp-buffer
+                                          (insert-file-contents-literally
+                                           lockfile-path)
+                                          (read (current-buffer))))))
             (dolist (spec versions-alist)
               (cl-destructuring-bind (local-repo . commit) spec
                 (setq versions (straight--alist-set
@@ -190,7 +190,7 @@ those listed."
                (local-repo)
              ;; We can't use `alist-get' here because that uses
              ;; `eq', and our hash-table keys are strings.
-             (when-let ((commit (cdr (assoc local-repo versions-alist))))
+             (when-let* ((commit (cdr (assoc local-repo versions-alist))))
                (unless (straight-vc-commit-present-p recipe commit)
                  (straight-vc-fetch-from-remote recipe))
                (straight-vc-check-out-commit recipe commit)))))))))
