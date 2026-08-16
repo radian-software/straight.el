@@ -3640,7 +3640,7 @@ cloned."
             ;; prevent us from checking the other recipe repositories.
             (when-let* ((recipe (gethash package table)))
               (cl-return recipe))
-          (when-let
+          (when-let*
               ((recipe
                 ;; NB: we use strings for the package names. This is
                 ;; not just for convenience; it also allows us to
@@ -4459,7 +4459,7 @@ for dependency resolution."
                      ;; Emacs 28 and below.
                      (dflt
                       (or
-                       (when-let
+                       (when-let*
                            ((retrieved
                              (straight-recipes-retrieve
                               package
