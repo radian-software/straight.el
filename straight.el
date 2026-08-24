@@ -3809,7 +3809,11 @@ Otherwise return nil."
         :depth full
         :pre-build (straight-recipes-org-elpa--build)
         :build (:not autoloads)
-        :files (:defaults "lisp/*.el" ("etc/styles/" "etc/styles/*"))))
+        :files (:defaults "lisp/*.el"
+                          ("etc/styles/" "etc/styles/*")
+                          ("etc/csl/" "etc/csl/*")
+                          ("etc/org-babel/" "etc/org-babel/*")
+                          ("etc/schema/" "etc/schema/*"))))
     ('org-contrib
      (list package
            :type 'git
