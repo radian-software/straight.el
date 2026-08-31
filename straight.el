@@ -3781,6 +3781,9 @@ See: https://github.com/radian-software/straight.el/issues/707"
               (straight--process-run "git" "describe" "--match" "release*"
                                      "--abbrev=6" "HEAD")
             (if success (string-trim stdout) "N/A"))))
+    ;; The loaddefs is doing the same thing as running 'make
+    ;; autoloads' in the Org repository, so that is where the logic
+    ;; comes from.
     (call-process
      emacs nil straight-byte-compilation-buffer nil
      "-Q" "--batch"
