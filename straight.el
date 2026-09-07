@@ -7880,7 +7880,7 @@ is as in that function."
   (advice-remove 'flycheck-start-current-syntax-check
                  #'straight--flycheck-in-place-inhibit))
 
-;;;;; Reporting Bugs
+;;;;; Reporting bugs
 
 (defun straight-version (&optional message)
   "Return straight.el version.
@@ -8178,7 +8178,7 @@ locally bound plist, straight-bug-report-args."
        (message "Testing straight.el in directory: %s"
                 ,temp-emacs-dir))))
 
-;;;; Dependency Info
+;;;; Dependency info
 
 ;;;###autoload
 (defun straight-dependencies (&optional package)
