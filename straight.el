@@ -5938,6 +5938,9 @@ modifies the build folder, not the original repository."
   (eval-and-compile
     (or (require 'loaddefs-gen nil 'noerror)
         (require 'autoload)))
+  ;; Load jka-compr as workaround for Emacs 31.1, #1295
+  ;; https://debbugs.gnu.org/cgi/bugreport.cgi?bug=81819
+  (require 'jka-compr)
   (straight--with-plist recipe
       (package)
     (let (;; The full path to the autoload file.
