@@ -6029,10 +6029,13 @@ are available at all."
                     (version< (or have-ver "0")
                               want-ver))
            (straight--report-dependency-version-issue
-            (format
-             "Package %s requires %s version %s, but only have %s"
-             package dep-name want-ver
-             (or have-ver "copy without version number")))))))))
+            (substitute-command-keys
+             (format
+              (concat
+               "Package %s requires %s version %s, but only "
+               "have %s; consider \\[straight-pull-package]")
+              package dep-name want-ver
+              (or have-ver "copy without version number"))))))))))
 
 ;;;;; Autoload generation
 
