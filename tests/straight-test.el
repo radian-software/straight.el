@@ -298,7 +298,7 @@ return nil."
       (should (equal ,files (straight--directory-files ,@args)))))
   (args                           files)
   ()                              '("straight")
-  ("../../" ".*.el")              '("straight-test.el")
+  ("../../" ".*.el")              '(".dir-locals.el" "straight-test.el")
   ((mock) nil 'full)              `(,(mock ".emacs.d"))
   ((mock ".emacs.d" "straight") nil nil #'string<) '("build" "repos"))
 
@@ -405,15 +405,17 @@ return nil."
 
 (straight-deftest straight--get-dependencies ()
   (let ((straight--build-cache (make-hash-table :test #'equal))
-        (data '("p" () "p2" (nil ("emacs")) "p3" (nil ("p2")))))
+        (data '("p" ()
+                "p2" (nil (:version "1" :dependencies ("emacs" . "25")))
+                "p3" (nil (:version "1" :dependencies ("p2" . nil))))))
     (cl-loop for (key val) on data by #'cddr
              do (puthash key val straight--build-cache))
     (should (equal ',dependencies (straight--get-dependencies ,package))))
   (package dependencies)
   "p"      nil
-  "p2"     ("emacs")
+  "p2"     ("emacs" . "25")
   ;; Doesn't resolve transitive dependencies on its own.
-  "p3"     ("p2"))
+  "p3"     ("p2" . nil))
 
 (straight-deftest straight--get-overridden-recipe ()
   (let ((straight-profiles '((test . nil)))
@@ -647,7 +649,6 @@ return nil."
 (provide 'straight-test)
 
 ;; Local Variables:
-;; compile-command: "make -C ../"
 ;; create-lockfiles: nil
 ;; auto-save-default: nil
 ;; indent-tabs-mode: nil
