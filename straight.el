@@ -4823,10 +4823,9 @@ This list is read from the build cache, and is originally
 generated at the end of an init from the keys of
 `straight--profile-cache'.")
 
-;; See http://stormlightarchive.wikia.com/wiki/Calendar for the
-;; schema. After that we will switch to animal names starting with
-;; sequential letters of the English alphabet.
-(defvar straight--build-cache-version :tanat
+;; Version identifiers should be animal names starting with sequential
+;; letters of the English alphabet.
+(defvar straight--build-cache-version :antelope
   "The current version of the build cache format.
 When the format on disk changes, this value is changed, so that
 straight.el knows to regenerate the whole cache.")
@@ -5433,7 +5432,7 @@ the reason this package is being built."
         ;; build cache. (We know we're inside a transaction because
         ;; otherwise the build cache would not be available at all,
         ;; and hence this code would break immediately.)
-        (straight--compute-dependencies package)
+        (straight--compute-dependency-info package)
         ;; Before we (possibly) build the dependencies, we need to set
         ;; this flag so that we know if our progress message will need
         ;; to be redisplayed afterwards (before autoload generation
@@ -5448,7 +5447,7 @@ the reason this package is being built."
         ;; for the dependencies in that situation if we don't do it
         ;; again in `straight-use-package'.
         (when-let* ((dependencies (straight--get-dependencies package)))
-          (dolist (dependency dependencies)
+          (dolist (dependency-spec dependencies)
             ;; The implicit meaning of the first argument to
             ;; `straight-use-package' here is that the default recipes
             ;; (taken from one of the recipe repositories) are used
@@ -5459,7 +5458,7 @@ the reason this package is being built."
             ;; nil. This means that dependencies will always be
             ;; eagerly cloned and built, if we got to building this
             ;; package.
-            (straight-use-package (intern dependency) nil nil task))
+            (straight-use-package (intern (car dependency-spec)) nil nil task))
           ;; We might need to redisplay the progress message from
           ;; `straight--with-progress' up above.
           (when straight--echo-area-dirty
@@ -5839,30 +5838,58 @@ according to the value of `straight-use-symlinks'."
 
 (defun straight--process-dependencies (dependencies)
   "Normalize a package.el-style list of DEPENDENCIES.
-Each dependency is a list of length two containing a symbol
-naming a package and a string naming the minimum version
-required (see the Package-Requires header in a
-package.el-compliant Elisp package). The return value is a list
-of strings naming the packages that are mentioned in the
-dependency list."
+Each dependency is either a symbol naming a package, or a list of length
+two containing a symbol naming a package and a string naming the minimum
+version required (see the Package-Requires header in a
+package.el-compliant Elisp package). The return value is an alist
+mapping package names as strings to minimum version numbers as string
+(or nil if there is no minimum version specified)."
   (mapcar
    (lambda (dep)
-     (symbol-name
-      (if (listp dep)
-          (car dep)
-        dep)))
+     (cons
+      (symbol-name
+       (if (listp dep)
+           (car dep)
+         dep))
+      (when (listp dep)
+        (cadr dep))))
    dependencies))
 
-(defun straight--compute-dependencies (package)
-  "Register the dependencies of PACKAGE in `straight--build-cache'.
-PACKAGE should be a string naming a package. Note that this
-function does *not* return the dependency list; see
-`straight--get-dependencies' for that. (The reason these two
-functions are separate is because dependencies are computed at
-package build time, but they are retrieved later (when we are
-activating autoloads, and may not have even built the package on
-this run of straight.el)."
-  (let ((dependencies
+(defun straight--read-package-header (header &optional parse)
+  "Read a package.el-compatible HEADER from the current buffer.
+Return the value as a string, or with PARSE non-nil, as a parsed Lisp
+object. Support multiline headers. Return nil if there is no such
+header, or if it is malformed."
+  (ignore-errors
+    (save-excursion
+      (let ((case-fold-search t))
+        (goto-char (point-min))
+        (re-search-forward (format "^;* *%s *: *" header))
+        (when-let* ((required (list (buffer-substring-no-properties
+                                     (point) (line-end-position)))))
+          (forward-line 1)
+          ;; Borrowed from `lm-header-multiline'
+          (while (looking-at "^;+\\(\t\\|[\t\s]\\{2,\\}\\)\\(.+\\)")
+            (push (match-string-no-properties 2) required)
+            (forward-line 1))
+          (let ((val (string-join (nreverse required) " ")))
+            (when parse
+              (setq val (read val)))
+            val))))))
+
+(defun straight--compute-dependency-info (package)
+  "Register dependency info for PACKAGE in `straight--build-cache'.
+PACKAGE should be a string naming a package. The information written
+includes the declared version of the package, the list of packages it
+depends on, and the minimum versions (if provided) for each of those
+dependencies.
+
+Note that this function does *not* return the dependency list; see
+`straight--get-dependencies' for that. (The reason these two functions
+are separate is because dependencies are computed at package build time,
+but they are retrieved later (when we are activating autoloads, and may
+not have even built the package on this run of straight.el)."
+  (let ((dependency-info
          ;; There are actually two ways of specifying a package in
          ;; Emacs. The first is to include a file called
          ;; <PACKAGE-NAME>-pkg.el which contains a data structure with
@@ -5877,38 +5904,34 @@ this run of straight.el)."
                   (straight--build-file
                    package
                    (format "%s-pkg.el" package)))
-                 (straight--process-dependencies
-                  (eval (nth 4 (read (current-buffer)))))))
+                 (let ((data (read (current-buffer))))
+                   (list
+                    :version (eval (nth 2 data))
+                    :dependencies (straight--process-dependencies
+                                   (eval (nth 4 data)))))))
              (ignore-errors
                (with-temp-buffer
                  (insert-file-contents-literally
                   (straight--build-file
                    package
                    (format "%s.el" package)))
-                 ;; Who cares if the rest of the header is
-                 ;; well-formed? Maybe package.el does, but all we
-                 ;; really need is the dependency alist. If it's
-                 ;; missing or malformed, we just assume the package
-                 ;; has no dependencies.
-                 (let ((case-fold-search t))
-                   (re-search-forward "^;* *Package-Requires *: *")
-                   (when-let* ((required (list (buffer-substring-no-properties
-                                                (point) (line-end-position)))))
-                     (forward-line 1)
-                     ;; Borrowed from `lm-header-multiline'
-                     (while (looking-at "^;+\\(\t\\|[\t\s]\\{2,\\}\\)\\(.+\\)")
-                       (push (match-string-no-properties 2) required)
-                       (forward-line 1))
-                     (straight--process-dependencies
-                      (read (string-join (nreverse required) " "))))))))))
-    (straight--insert 1 package dependencies straight--build-cache)))
+                 (list
+                  :version (straight--read-package-header "Version")
+                  :dependencies
+                  (straight--process-dependencies
+                   (straight--read-package-header
+                    "Package-Requires" 'parse))))))))
+    (straight--insert 1 package dependency-info straight--build-cache)))
 
 (defun straight--get-dependencies (package)
   "Get the dependencies of PACKAGE from `straight--build-cache'.
 PACKAGE should be a string naming a package. This assumes that
 they were previously registered in the build cache by
-`straight--compute-dependencies'."
-  (nth 1 (gethash package straight--build-cache)))
+`straight--compute-dependency-info'.
+
+Return an alist mapping package name (as a symbol) to minimum required
+version (as a string, or nil if no minimum version is required)."
+  (plist-get (nth 1 (gethash package straight--build-cache)) :dependencies))
 
 ;;;;; Autoload generation
 
@@ -6843,7 +6866,7 @@ packages."
                ;; dependencies, but activate their autoloads. (See the
                ;; comment in `straight--build-package' about this
                ;; code.)
-               (dolist (dependency (straight--get-dependencies package))
+               (dolist (dependency-spec (straight--get-dependencies package))
                  ;; There are three interesting things here. Firstly,
                  ;; the recipe used is just the name of the
                  ;; dependency. This causes the default recipe to be
@@ -6860,7 +6883,7 @@ packages."
                  ;; by `straight--build-package'), that information is
                  ;; still used for the internal logs.
                  (straight-use-package
-                  (intern dependency) nil nil
+                  (intern (car dependency-spec)) nil nil
                   (concat cause (when cause straight-arrow)
                           (format "Registering %s" package))))
                ;; Only make the package available after everything is
@@ -8200,7 +8223,8 @@ the dependencies are shown in the echo area."
                        (append (list dependency) transitive)
                      dependency))
                  (remove "emacs"
-                         (nth 1 (gethash package straight--build-cache))))))
+                         (map-keys
+                          (straight--get-dependencies package))))))
     (if (called-interactively-p 'interactive)
         (if dependencies
             (message "Dependencies of %S: %S" package dependencies)
@@ -8235,7 +8259,10 @@ whose cdrs are the recursive dependents in the same format returned from
             (not (equal (plist-get recipe :package) "emacs"))))))
   (let (dependents)
     (maphash (lambda (key val)
-               (when (member package (nth 1 val))
+               (unless (equal (alist-get
+                               package (plist-get (nth 1 val) :dependencies)
+                               'missing nil #'equal)
+                              'missing)
                  (push (if-let* ((transitive (straight-dependents key)))
                            (append (list key) transitive)
                          key)
