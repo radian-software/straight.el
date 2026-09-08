@@ -5843,7 +5843,7 @@ two containing a symbol naming a package and a string naming the minimum
 version required (see the Package-Requires header in a
 package.el-compliant Elisp package). The return value is an alist
 mapping package names as strings to minimum version numbers as string
-(or nil if there is no minimum version specified)."
+\(or nil if there is no minimum version specified)."
   (mapcar
    (lambda (dep)
      (cons
@@ -5916,7 +5916,8 @@ not have even built the package on this run of straight.el)."
                    package
                    (format "%s.el" package)))
                  (list
-                  :version (straight--read-package-header "\\(Package-\\)?Version")
+                  :version
+                  (straight--read-package-header "\\(Package-\\)?Version")
                   :dependencies
                   (straight--process-dependencies
                    (straight--read-package-header
@@ -8223,8 +8224,8 @@ the dependencies are shown in the echo area."
                        (append (list dependency) transitive)
                      dependency))
                  (remove "emacs"
-                         (map-keys
-                          (straight--get-dependencies package))))))
+                         (mapcar #'car
+                                 (straight--get-dependencies package))))))
     (if (called-interactively-p 'interactive)
         (if dependencies
             (message "Dependencies of %S: %S" package dependencies)
