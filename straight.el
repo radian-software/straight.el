@@ -3437,9 +3437,21 @@ cloned."
 
 (defvar straight--cached-built-in-packages nil
   "Hash table mapping package names to booleans.
-All packages that are built in are mapped to non-nil. The value
-of this variable is computed the first time
-`straight--package-built-in-p' is called.")
+All packages that are built in are mapped to non-nil (in fact, to either
+their declared version as a string, or to the symbol t). The value of
+this variable is computed the first time `straight--package-built-in-p'
+is called.")
+
+(defun straight--list-to-version (list)
+  "Convert LIST of integers to a version string.
+Inverse of `version-to-list'. This is a lossy function as Emacs does not
+define a semantics for how to invert versions represented as integer
+lists back into strings. However, it's helpful for us to have, in order
+to display version strings to the user."
+  (mapconcat
+   #'number-to-string
+   (cl-remove-if (lambda (x) (< x 0)) list)
+   "."))
 
 (defun straight--package-built-in-p (package)
   "Given PACKAGE symbol, return non-nil if it's built in to Emacs.
@@ -3453,7 +3465,11 @@ for it."
     (require 'finder-inf)
     (let ((table (make-hash-table)))
       (dolist (cell package--builtins)
-        (puthash (car cell) t table))
+        (puthash (car cell)
+                 (if-let* ((ver (aref (cdr cell) 0)))
+                     (straight--list-to-version ver)
+                   t)
+                 table))
       (setq straight--cached-built-in-packages table)))
   (gethash package straight--cached-built-in-packages))
 
@@ -5438,6 +5454,9 @@ the reason this package is being built."
         ;; to be redisplayed afterwards (before autoload generation
         ;; and byte-compilation).
         (setq straight--echo-area-dirty nil)
+        ;; Check the dependency versions. This can signal errors or
+        ;; warnings, depending on configuration.
+        (straight--check-dependency-versions package)
         ;; Yes, we do the following logic twice. Once here and again
         ;; in `straight-use-package'. Why? We need to do it here
         ;; because the dependencies need to be available before this
@@ -5917,7 +5936,9 @@ not have even built the package on this run of straight.el)."
                    (format "%s.el" package)))
                  (list
                   :version
-                  (straight--read-package-header "\\(Package-\\)?Version")
+                  (replace-regexp-in-string
+                   "-.*" ""
+                   (straight--read-package-header "\\(Package-\\)?Version"))
                   :dependencies
                   (straight--process-dependencies
                    (straight--read-package-header
@@ -5933,6 +5954,85 @@ they were previously registered in the build cache by
 Return an alist mapping package name (as a symbol) to minimum required
 version (as a string, or nil if no minimum version is required)."
   (plist-get (nth 1 (gethash package straight--build-cache)) :dependencies))
+
+(defun straight--get-package-version (package)
+  "Get the declared version of PACKAGE from `straight--build-cache'.
+This is a string or nil (in case no version was declared by the
+package)."
+  (or (plist-get (nth 1 (gethash package straight--build-cache)) :version)
+      (when (equal package "emacs")
+        emacs-version)
+      (when-let* ((ver (straight--package-built-in-p (intern package))))
+        (unless (eq ver t)
+          ver))))
+
+(defcustom straight-check-dependency-versions 'warn
+  "Whether and how to check the version numbers of package dependencies.
+This affects what happens when straight.el is instructed to load a
+package which declares a dependency with a minimum version, and the
+version of that dependency which is present does not satisfy that
+constraint.
+
+With value `error', straight.el will refuse to build the package with
+the dependency. With value `warn', straight.el will build the package,
+but will signal a warning when making it available. The warning is
+printed on every startup. With value nil, straight.el will ignore
+version constraints. This was the previous behavior.
+
+At present, there is no facility for ignoring specific unsatisfied
+version constraints. This may be added if use cases emerge for that."
+  :type '(choice
+          (const :tag "Check, and error when unmet" error)
+          (const :tag "Check, and warn when unmet" warn)
+          (const :tag "Ignore" nil))
+  :set (straight--set "
+May be set at any time, but only applies to future packages that are
+made available by straight.el."))
+
+(defun straight--report-dependency-version-issue (msg)
+  "Report error MSG about dependency version constraints.
+This will do different things based on the setting of
+`straight-check-dependency-versions'."
+  (pcase straight-check-dependency-versions
+    ('error
+     (error "%s" msg))
+    ('warn
+     (straight--warn "%s" msg))
+    ('nil)
+    (_ (error "Bad value %S for `straight-check-dependency-versions'"
+              straight-check-dependency-versions))))
+
+(defvar straight-extra-version-regexps '(("^[-._+ ]?dev$" . -4))
+  "Additional entries for `version-regexp-alist'.
+These are used by straight.el when evaluating package version
+constraints.")
+
+(defun straight--check-dependency-versions (package)
+  "Check whether the dependencies of PACKAGE are satisfied.
+PACKAGE is a string. The dependencies are expected to already have been
+built, so that their version information is available in the build
+cache. As a result, this only checks versions, not whether dependencies
+are available at all."
+  ;; Use transaction system to let us check for dependency version
+  ;; issues during build and also during activation, but avoid
+  ;; signaling two warnings for the same problem.
+  (straight--transaction-exec
+   (intern (format "check-dependency-versions-%s" package))
+   :now
+   (dolist (spec (straight--get-dependencies package))
+     (cl-destructuring-bind (dep-name . want-ver) spec
+       (let ((have-ver (straight--get-package-version dep-name))
+             (version-regexp-alist
+              (append straight-extra-version-regexps
+                      version-regexp-alist)))
+         (when (and want-ver
+                    (version< (or have-ver "0")
+                              want-ver))
+           (straight--report-dependency-version-issue
+            (format
+             "Package %s requires %s version %s, but only have %s"
+             package dep-name want-ver
+             (or have-ver "copy without version number")))))))))
 
 ;;;;; Autoload generation
 
@@ -6862,6 +6962,13 @@ packages."
              ;; we can keep track of modifications.
              (when modified
                (straight--declare-successful-build recipe))
+             ;; Check the dependencies. This will report warnings, in
+             ;; case they were not already reported during the build
+             ;; step. We do it here as well, in case the package was
+             ;; already built previously, but still does not have
+             ;; acceptable dependency versions available, and the user
+             ;; configured to have a warning about this.
+             (straight--check-dependency-versions package)
              (unless no-build
                ;; Here we are not actually trying to build the
                ;; dependencies, but activate their autoloads. (See the
