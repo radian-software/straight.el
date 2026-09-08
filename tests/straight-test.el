@@ -298,9 +298,9 @@ return nil."
       (should (equal ,files (straight--directory-files ,@args)))))
   (args                           files)
   ()                              '("straight")
-  ("../../" ".*.el")              '(".dir-locals.el" "straight-test.el")
+  ("../../" ".*.el" nil t)        '(".dir-locals.el" "straight-test.el")
   ((mock) nil 'full)              `(,(mock ".emacs.d"))
-  ((mock ".emacs.d" "straight") nil nil #'string<) '("build" "repos"))
+  ((mock ".emacs.d" "straight") nil nil t) '("build" "repos"))
 
 (straight-deftest straight--emacs-path ()
   (should (equal (concat invocation-directory invocation-name)
