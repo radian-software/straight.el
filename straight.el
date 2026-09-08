@@ -5859,12 +5859,12 @@ mapping package names as strings to minimum version numbers as string
   "Read a package.el-compatible HEADER from the current buffer.
 Return the value as a string, or with PARSE non-nil, as a parsed Lisp
 object. Support multiline headers. Return nil if there is no such
-header, or if it is malformed."
+header, or if it is malformed. HEADER can be a regexp."
   (ignore-errors
     (save-excursion
       (let ((case-fold-search t))
         (goto-char (point-min))
-        (re-search-forward (format "^;* *%s *: *" header))
+        (re-search-forward (format "^;* *\\(%s\\) *: *" header))
         (when-let* ((required (list (buffer-substring-no-properties
                                      (point) (line-end-position)))))
           (forward-line 1)
@@ -5916,7 +5916,7 @@ not have even built the package on this run of straight.el)."
                    package
                    (format "%s.el" package)))
                  (list
-                  :version (straight--read-package-header "Version")
+                  :version (straight--read-package-header "\\(Package-\\)?Version")
                   :dependencies
                   (straight--process-dependencies
                    (straight--read-package-header
