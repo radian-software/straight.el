@@ -8370,10 +8370,8 @@ whose cdrs are the recursive dependents in the same format returned from
             (not (equal (plist-get recipe :package) "emacs"))))))
   (let (dependents)
     (maphash (lambda (key val)
-               (unless (equal (alist-get
-                               package (plist-get (nth 1 val) :dependencies)
-                               'missing nil #'equal)
-                              'missing)
+               (when (assoc
+                      package (plist-get (nth 1 val) :dependencies))
                  (push (if-let* ((transitive (straight-dependents key)))
                            (append (list key) transitive)
                          key)
