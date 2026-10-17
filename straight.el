@@ -8000,7 +8000,7 @@ buffer.")
 You can still run them manually, and automatic checking will be
 re-enabled after you modify the buffer.
 
-This is a `:before-until' advice for `flycheck-may-use-checker'. CHECKER
+This is a `:before-until' advice for `flycheck-may-use-checker'.  CHECKER
 is as in that function."
   (and straight--flycheck-in-place-disabled
        (derived-mode-p #'emacs-lisp-mode)
@@ -8011,10 +8011,10 @@ is as in that function."
 (if straight-fix-flycheck
     (progn
       (add-hook 'first-change-hook #'straight--flycheck-in-place-reenable)
-      (advice-add 'flycheck-start-current-syntax-check :around
+      (advice-add 'flycheck-may-use-checker :before-until
                   #'straight--flycheck-in-place-inhibit))
   (remove-hook 'first-change-hook #'straight--flycheck-in-place-reenable)
-  (advice-remove 'flycheck-start-current-syntax-check
+  (advice-remove 'flycheck-may-use-checker
                  #'straight--flycheck-in-place-inhibit))
 
 ;;;;; Reporting bugs
