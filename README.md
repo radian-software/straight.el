@@ -56,6 +56,8 @@ for the [Emacs] hacker.
   * [Comparison to the manual approach](#comparison-to-the-manual-approach)
     + [Advantages of `straight.el`](#advantages-of-straightel-6)
     + [Advantages of the manual approach](#advantages-of-the-manual-approach)
+- [Extensions](#extensions)
+  * [`straight-overview`](#straight-overview)
 - [User manual](#user-manual)
   * [Bootstrapping `straight.el`](#bootstrapping-straightel)
   * [Installing packages programmatically](#installing-packages-programmatically)
@@ -1457,6 +1459,31 @@ offer corrections for this section.
   always use the manual approach for one package and `straight.el` for
   the rest. Or you can just eschew `straight.el`'s version-control
   support for that package, and use it only for building the package.)
+
+## Extensions
+
+This is a section listing extensions to `straight.el` contributed by
+the community.
+
+### `straight-overview`
+
+`straight-overview` adds an overview buffer (`M-x straight-overview`)
+in the style of Dired, showing which packages have new commits
+upstream. `straight-overview` fetches (command `G`) the upstream
+repositories asynchronously and in parallel. It takes about 3.5
+seconds to fetch more than 100 packages, and during this time Emacs is
+not blocked. The user can select what packages to install by
+individually marking them. It also checks the minimum versions in
+`Package-Requires` before updating like `package.el` already does,
+thus preventing the installation of an incompatible set of
+packages. For each listed package, the user can inspect with the
+command `c` the recent commits that would be installed. The extension
+is published on MELPA, and the author's repository can be visited
+[here](https://github.com/alberti42/straight-overview).
+
+If you are a package developer and are thinking of an extension, you
+are welcome to post your ideas in the [discussion
+section][discussions].
 
 ## User manual
 
@@ -4183,6 +4210,7 @@ README section][#trouble/rebuilds].
 [borg]: https://github.com/emacscollective/borg
 [cask]: https://github.com/cask/cask
 [develop]: https://github.com/radian-software/straight.el/tree/develop
+[discussions]: https://github.com/radian-software/straight.el/discussions
 [docker]: https://www.docker.com/
 [early-init-file]: https://www.gnu.org/software/emacs/manual/html_node/emacs/Early-Init-File.html
 [early-init-file-commit]: https://git.savannah.gnu.org/cgit/emacs.git/commit/?id=24acb31c04b4048b85311d794e600ecd7ce60d3b
