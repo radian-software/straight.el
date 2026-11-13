@@ -5454,9 +5454,6 @@ the reason this package is being built."
         ;; to be redisplayed afterwards (before autoload generation
         ;; and byte-compilation).
         (setq straight--echo-area-dirty nil)
-        ;; Check the dependency versions. This can signal errors or
-        ;; warnings, depending on configuration.
-        (straight--check-dependency-versions package)
         ;; Yes, we do the following logic twice. Once here and again
         ;; in `straight-use-package'. Why? We need to do it here
         ;; because the dependencies need to be available before this
@@ -5482,6 +5479,10 @@ the reason this package is being built."
           ;; `straight--with-progress' up above.
           (when straight--echo-area-dirty
             (straight--progress-begin task)))
+        ;; Check the dependency versions. This can signal errors or
+        ;; warnings, depending on configuration.
+        (straight--check-dependency-versions package)
+        ;; Actually do the build for the present package.
         (let ((straight--build-functions
                (straight--build-steps recipe)))
           (run-hook-with-args 'straight--build-functions recipe))
