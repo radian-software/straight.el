@@ -3779,6 +3779,9 @@ have to worry about a changelog.
 
 ### CI administration
 
+> Short version is setup Docker authentication, then run
+> `update_ci_image.bash 30` (for each supported Emacs version).
+
 Maintaining the GitHub Container Registry images used by CI looks like
 this for a given Emacs version. We have the base image:
 

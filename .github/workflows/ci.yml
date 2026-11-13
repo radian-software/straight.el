@@ -7,15 +7,15 @@ on:
   pull_request: {}
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       matrix:
-        emacs_version: [25, 26, 27, 28, 29, 30]
+        emacs_version: [25, 26, 27, 28, 29, 30, 31]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: GHCR login
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
